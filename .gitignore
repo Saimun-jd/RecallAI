@@ -1,0 +1,7 @@
+# .gitignore
+__pycache__/
+*.pyc
+.env
+ollama_data/
+pg_data/
+*.pdf

@@ -1,0 +1,1 @@
+curl.exe -X POST "http://localhost:8000/chunk" -F "file=@Deep Learning with Python 2nd Edition.pdf" -F "chapter_title=Working with Keras: A deep dive" > test_res.json
