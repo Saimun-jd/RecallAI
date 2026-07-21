@@ -29,7 +29,7 @@ OLLAMA_SEMAPHORE = asyncio.Semaphore(2)
 
 async def process_section(sec: dict, chapter_title: str, skip_chapter_filter: bool) -> list[Chunk]:
     """Process a single section through the LLM with concurrency throttling."""
-    heading, text = sec["heading"], sec["text"]
+    heading, text, page_num = sec["heading"], sec["text"], sec.get("page_num")
 
     if not skip_chapter_filter:
         if chapter_title and chapter_title.lower() not in heading.lower():
@@ -41,7 +41,7 @@ async def process_section(sec: dict, chapter_title: str, skip_chapter_filter: bo
     try:
         async with OLLAMA_SEMAPHORE:
             section_extraction = await extract_atomic_concepts(heading, text)
-        return build_chunks(section_extraction, chapter_title)
+        return build_chunks(section_extraction, chapter_title, page_num)
     except Exception as e:
         logger.error(f"Failed to process section '{heading}': {e}")
         return []
@@ -53,6 +53,7 @@ async def chunk_pdf(
     file: UploadFile,
     chapter_title: str | None = Form(default=None),
     pre_sliced: str | None = Form(default=None),
+    start_page: int | None = Form(default=None),
 ):
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
         tmp.write(await file.read())
@@ -66,8 +67,8 @@ async def chunk_pdf(
     skip_chapter_filter = pre_sliced and pre_sliced.lower() == "true"
 
     try:
-        raw_text = extract_raw_text(tmp_path)
-        sections = detect_headings(raw_text)
+        pages = extract_raw_text(tmp_path, start_page)
+        sections = detect_headings(pages)
 
         # Process all sections concurrently
         tasks = [

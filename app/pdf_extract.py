@@ -44,13 +44,16 @@ def clean_text(text: str) -> str:
     return text.strip()
 
 
-def extract_raw_text(pdf_path: str) -> str:
+def extract_raw_text(pdf_path: str, start_page: int | None = None) -> list[dict]:
     doc = fitz.open(pdf_path)
-    full_text = []
+    pages = []
 
     for page in doc:
         blocks = page.get_text("blocks")
         text_blocks = []
+        
+        # Calculate actual original page number if start_page is known
+        current_page = (start_page + page.number) if start_page is not None else (page.number + 1)
 
         for b in blocks:
             # block_type 0 is text
@@ -66,7 +69,9 @@ def extract_raw_text(pdf_path: str) -> str:
                     text_blocks.append(raw_block_text)
 
         if text_blocks:
-            full_text.append("\n\n".join(text_blocks))
+            raw_text = "\n\n".join(text_blocks)
+            cleaned = clean_text(raw_text)
+            if cleaned:
+                pages.append({"page_num": current_page, "text": cleaned})
 
-    raw_text = "\n\n".join(full_text)
-    return clean_text(raw_text)
+    return pages

@@ -23,28 +23,43 @@ def is_heading(text: str) -> bool:
         
     return False
 
-def detect_headings(raw_text: str) -> list[dict]:
-    # Since pdf_extract preserves \n\n, we split by that
-    blocks = raw_text.split('\n\n')
-    
+def detect_headings(pages: list[dict]) -> list[dict]:
     sections = []
     current_heading = "Untitled"
     current_text = []
+    current_page = None
     
-    for block in blocks:
-        block = block.strip()
-        if not block:
-            continue
-            
-        if is_heading(block):
-            if current_text:
-                sections.append({"heading": current_heading, "text": "\n\n".join(current_text)})
-            current_heading = block
-            current_text = []
-        else:
-            current_text.append(block)
-            
+    for page in pages:
+        # Since pdf_extract preserves \n\n, we split by that within the page
+        blocks = page["text"].split('\n\n')
+        
+        for block in blocks:
+            block = block.strip()
+            if not block:
+                continue
+                
+            if is_heading(block):
+                if current_text:
+                    sections.append({
+                        "heading": current_heading, 
+                        "text": "\n\n".join(current_text),
+                        "page_num": current_page
+                    })
+                current_heading = block
+                current_text = []
+                current_page = page["page_num"]
+            else:
+                current_text.append(block)
+                # If this is the very first block and no heading was found yet,
+                # initialize current_page to this block's page
+                if current_page is None:
+                    current_page = page["page_num"]
+                
     if current_text:
-        sections.append({"heading": current_heading, "text": "\n\n".join(current_text)})
+        sections.append({
+            "heading": current_heading, 
+            "text": "\n\n".join(current_text),
+            "page_num": current_page
+        })
         
     return sections

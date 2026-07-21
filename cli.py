@@ -243,7 +243,7 @@ def slice_pdf(doc, start_page, end_page):
     return pdf_bytes
 
 
-def upload_chunk(pdf_bytes, filename, chapter_title):
+def upload_chunk(pdf_bytes, filename, chapter_title, start_page):
     """Upload sliced PDF bytes to the backend chunk service.
 
     Sends ``pre_sliced=true`` so the backend skips the chapter_title heading
@@ -253,7 +253,7 @@ def upload_chunk(pdf_bytes, filename, chapter_title):
     url = "http://localhost:8000/chunk"
 
     files = {"file": (filename, pdf_bytes, "application/pdf")}
-    data = {"pre_sliced": "true"}
+    data = {"pre_sliced": "true", "start_page": str(start_page)}
     if chapter_title:
         data["chapter_title"] = chapter_title
 
@@ -447,7 +447,7 @@ def main():
             )
 
             result, duration = upload_chunk(
-                pdf_bytes, f"sliced_{doc_filename}", selection["title"]
+                pdf_bytes, f"sliced_{doc_filename}", selection["title"], selection["start"]
             )
 
             if result:
