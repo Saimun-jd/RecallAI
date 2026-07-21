@@ -5,3 +5,4 @@ __pycache__/
 ollama_data/
 pg_data/
 *.pdf
+*.json

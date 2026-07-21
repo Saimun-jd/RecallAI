@@ -64,7 +64,7 @@ async def extract_atomic_concepts(heading: str, text: str) -> SectionExtraction:
                 "prompt": prompt,
                 "stream": False,
                 "format": schema,
-                "options": {"temperature": 0.1, "num_ctx": 8192},
+                "options": {"temperature": 0.1, "num_ctx": 2048},
             },
         )
     r.raise_for_status()
