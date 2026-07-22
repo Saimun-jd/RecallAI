@@ -1,0 +1,77 @@
+# Chunk Service
+
+Chunk Service is an intelligent pipeline that extracts structured concepts, code blocks, diagrams, and flashcards from PDF documents. It uses an LLM (via Ollama) to identify atomic topics within sections, generate self-contained flashcards, and precisely align metadata back to the source document.
+
+## Architecture
+
+* **FastAPI Backend:** Orchestrates PDF text extraction, heading detection, and LLM communication.
+* **Ollama (Gemma3:4b):** Performs intelligent segmentation and flashcard generation.
+* **PostgreSQL + pgvector:** Vector database for semantic deduplication of chunks.
+* **Sentence Transformers (MiniLM):** Generates embeddings for precise semantic deduplication checks.
+
+## Prerequisites
+
+* Docker and Docker Compose
+* Python 3.10+ (for running the CLI locally)
+* Optional: NVIDIA GPU (The `docker-compose.yml` defaults to allocating a GPU to the Ollama container for faster inference. If you do not have a GPU, remove the `deploy` block under the `ollama` service in `docker-compose.yml`).
+
+## Setup
+
+1. **Clone the repository:**
+   ```bash
+   git clone <repository_url>
+   cd chunk-service
+   ```
+
+2. **Start the backend services:**
+   This will spin up the FastAPI app, the Postgres pgvector database, and the Ollama container. It will also automatically pull the `gemma3:4b` model.
+   ```bash
+   docker-compose up -d --build
+   ```
+
+3. **Install CLI dependencies:**
+   To run the interactive CLI locally, install the necessary Python packages:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+## Usage
+
+Use the provided `cli.py` to process a PDF file. The CLI will communicate with the backend running on `localhost:8000`.
+
+### Basic Command
+
+```bash
+python cli.py -f "path/to/your/document.pdf"
+```
+
+### Advanced Options
+
+You can specify a target chapter, provide manual page ranges, or bypass interactive prompts:
+
+```bash
+# Extract chunks from specific pages
+python cli.py -f "document.pdf" -p 122-123
+
+# Target a specific chapter
+python cli.py -f "document.pdf" -c "Chapter 4: Advanced Neural Networks"
+
+# Specify a custom output directory for the generated JSON chunks
+python cli.py -f "document.pdf" -p 12-18 -o custom_output/
+```
+
+## Output
+
+The service will generate a JSON file in the output directory (defaults to `output/`). Each extracted chunk contains:
+* `topic_name`
+* `concept_type` (e.g., Definition, API Reference, Process Step)
+* `summary`
+* `flashcard_question` & `flashcard_answer`
+* `key_terms`
+* `markdown_content` (The chunk's original text)
+* `code_blocks` & `diagram_refs` (Extracted metadata)
+* `source_page` & `breadcrumb`
+
+## Branch Notice
+
+*Note: Integration with the `MinerU` parsing pipeline is maintained separately on the `dev_saimun` branch.*
