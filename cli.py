@@ -1,5 +1,6 @@
 import argparse
 import json
+import math
 import os
 import re
 import sys
@@ -16,27 +17,23 @@ console = Console()
 
 
 # ---------------------------------------------------------------------------
-# TOC Discovery
+# TOC Discovery & Fallback Parser
 # ---------------------------------------------------------------------------
 
 def extract_fallback_toc(doc):
-    """Fallback parser: Detects headings using Font Size analysis + Broad Regex patterns.
+    """Detects headings using Font Size analysis + Broad Regex patterns.
 
-    This ensures Main Chapters (Level 1), Subchapters (Level 2), and
-    Sub-sections (Level 3) are all captured correctly when embedded bookmarks
-    are missing.
+    Captures Main Chapters (Level 1), Subchapters (Level 2), and
+    Sub-sections (Level 3+) even when PDF bookmarks are missing or incomplete.
     """
     synthetic_toc = []
 
-    # Matches:
-    # - "Chapter 1 Title", "CHAPTER 2"
-    # - Single numbers: "1 Introduction", "2 Building Blocks"
-    # - Dotted numbers: "2.1 Vectors", "10.2.1 Preparing the data"
+    # Regex for numbered patterns: "Chapter 1 Title", "1.1 Introduction", "10.2.1 Data"
     heading_pattern = re.compile(
         r"^((?:Chapter\s+\d+|[0-9]+(?:\.[0-9]+)*))\s+(.+)", re.IGNORECASE
     )
 
-    # 1. Analyze average body text font size across sample pages to set threshold
+    # 1. Analyze average body text font size across sample pages
     font_sizes = []
     sample_pages = min(15, len(doc))
     for p in range(sample_pages):
@@ -45,11 +42,12 @@ def extract_fallback_toc(doc):
             if "lines" in b:
                 for line in b["lines"]:
                     for span in line["spans"]:
-                        font_sizes.append(span["size"])
+                        if span["text"].strip():
+                            font_sizes.append(span["size"])
 
     avg_font_size = sum(font_sizes) / len(font_sizes) if font_sizes else 10.0
 
-    # 2. Iterate through pages and identify headings based on font size & structure
+    # 2. Iterate through pages and identify headings
     for page_num in range(len(doc)):
         blocks = doc[page_num].get_text("dict")["blocks"]
 
@@ -71,37 +69,38 @@ def extract_fallback_toc(doc):
             if not block_text:
                 continue
 
-            # Filter out standard body text (headings will have larger fonts)
-            is_large_text = max_span_size > (avg_font_size * 1.15)
+            # Filtering: Headings are usually larger font and concise (< 12 words)
+            is_large_text = max_span_size > (avg_font_size * 1.20)
+            is_concise = len(block_text.split()) < 12
 
             match = heading_pattern.match(block_text)
+
             if match and is_large_text:
                 num_part, title_part = match.groups()
 
-                # Determine level in table of contents hierarchy
                 if "chapter" in num_part.lower():
                     level = 1
                 elif "." not in num_part:
-                    level = 1  # Single section numbers like "1" or "2"
+                    level = 1
                 else:
-                    level = min(
-                        3, num_part.count(".") + 1
-                    )  # "2.1" -> level 2, "2.1.1" -> level 3
+                    level = min(4, num_part.count(".") + 1)
 
                 full_title = f"{num_part} {title_part}".strip()
-
-                # Prevent adding duplicates on the same page
-                if not any(
-                    entry[1] == full_title and entry[2] == page_num + 1
-                    for entry in synthetic_toc
-                ):
+                
+                if not any(entry[1] == full_title and entry[2] == page_num + 1 for entry in synthetic_toc):
                     synthetic_toc.append([level, full_title, page_num + 1])
+
+            elif is_large_text and is_concise:
+                # Unnumbered header fallback
+                level = 2
+                if not any(entry[1] == block_text and entry[2] == page_num + 1 for entry in synthetic_toc):
+                    synthetic_toc.append([level, block_text, page_num + 1])
 
     return synthetic_toc
 
 
 def get_toc_entries(doc):
-    """Return table of contents from PDF metadata or fallback heading scan."""
+    """Returns table of contents from PDF metadata or fallback heading scan."""
     toc = doc.get_toc()
     if not toc:
         console.print(
@@ -111,128 +110,86 @@ def get_toc_entries(doc):
     return toc
 
 
+def build_granular_toc(toc, total_pages):
+    """Computes exact end_page boundaries for every entry in the TOC hierarchy."""
+    granular_toc = []
+    for i, entry in enumerate(toc):
+        level, title, start_page = entry
+        end_page = total_pages
+
+        # Find the next item with equal or higher structural hierarchy (<= level)
+        for j in range(i + 1, len(toc)):
+            if toc[j][0] <= level:
+                end_page = max(start_page, toc[j][2] - 1)
+                break
+
+        granular_toc.append({
+            "level": level,
+            "title": title,
+            "start_page": start_page,
+            "end_page": end_page,
+        })
+    return granular_toc
+
+
 # ---------------------------------------------------------------------------
 # Subtopic Discovery
 # ---------------------------------------------------------------------------
 
-def _find_chapter_boundary(toc, chapter_index, chapter_level, total_pages):
-    """Find the last page belonging to a chapter (before the next sibling/parent starts)."""
-    for j in range(chapter_index + 1, len(toc)):
-        if toc[j][0] <= chapter_level:
-            return toc[j][2] - 1
-    return total_pages
-
-
 def find_subtopics(total_pages, toc, chapter_title=None):
-    """Find subtopics for a given chapter.
-
-    If chapter_title is None, returns top-level chapters and main sections.
-
-    Args:
-        total_pages: Total page count of the document (int, not the doc object).
-        toc: List of [level, title, page] entries.
-        chapter_title: Optional chapter to drill into.
-    """
+    """Retrieves all subtopics. Allows targeting a specific chapter or showing full depth."""
     if not toc:
         return []
 
-    results = []
+    granular_toc = build_granular_toc(toc, total_pages)
 
-    if chapter_title:
-        chapter_level = None
-        chapter_end_page = total_pages
-        in_chapter = False
+    if not chapter_title:
+        return granular_toc
 
-        for i, entry in enumerate(toc):
-            level, title, page = entry
+    # Filter entries belonging strictly inside target chapter scope
+    filtered = []
+    in_chapter = False
+    chapter_level = None
 
-            if not in_chapter:
-                if chapter_title.lower() in title.lower():
-                    in_chapter = True
-                    chapter_level = level
-                    # Flaw 2 fix: compute the chapter's own boundary so children
-                    # don't default to the last page of the entire document
-                    chapter_end_page = _find_chapter_boundary(
-                        toc, i, chapter_level, total_pages
-                    )
+    for entry in granular_toc:
+        if not in_chapter:
+            if chapter_title.lower() in entry["title"].lower():
+                in_chapter = True
+                chapter_level = entry["level"]
+                filtered.append(entry)
+        else:
+            if entry["level"] <= chapter_level:
+                break  # Reached the next chapter
+            filtered.append(entry)
 
-                    has_children = (i + 1 < len(toc)) and (toc[i + 1][0] > level)
-                    if not has_children:
-                        # No children — offer the whole chapter as one selection
-                        return [{
-                            "title": title,
-                            "start_page": page,
-                            "end_page": chapter_end_page,
-                            "level": level,
-                        }]
-                    continue
-            else:
-                if level <= chapter_level:
-                    break
-
-                # Cap end_page at the chapter boundary, not doc end
-                end_page = chapter_end_page
-                for j in range(i + 1, len(toc)):
-                    if toc[j][0] <= level:
-                        end_page = toc[j][2] - 1
-                        break
-
-                results.append({
-                    "title": title,
-                    "start_page": page,
-                    "end_page": max(page, end_page),
-                    "level": level,
-                })
-    else:
-        # Show top level and direct section children when no specific chapter is targeted
-        min_level = min(entry[0] for entry in toc) if toc else 1
-        for i, entry in enumerate(toc):
-            level, title, page = entry
-            if level <= min_level + 1:
-                end_page = total_pages
-                for j in range(i + 1, len(toc)):
-                    if toc[j][0] <= level:
-                        end_page = toc[j][2] - 1
-                        break
-                results.append({
-                    "title": title,
-                    "start_page": page,
-                    "end_page": max(page, end_page),
-                    "level": level,
-                })
-
-    return results
+    return filtered
 
 
-def _search_toc_by_title(toc, subtopic_title, total_pages):
-    """Search ALL TOC entries for a subtopic by title substring match.
-
-    Unlike find_subtopics (which filters by level), this searches the entire
-    TOC so that deep entries like "2.1.1 Vectors" are always reachable.
-    """
-    for i, entry in enumerate(toc):
-        level, title, page = entry
-        if subtopic_title.lower() in title.lower():
-            end_page = total_pages
-            for j in range(i + 1, len(toc)):
-                if toc[j][0] <= level:
-                    end_page = toc[j][2] - 1
-                    break
-            return {
-                "title": title,
-                "start_page": page,
-                "end_page": max(page, end_page),
-                "level": level,
-            }
+def search_toc_by_title(granular_toc, subtopic_title):
+    """Searches TOC entries for a subtopic substring match across all levels."""
+    for entry in granular_toc:
+        if subtopic_title.lower() in entry["title"].lower():
+            return entry
     return None
 
 
 # ---------------------------------------------------------------------------
-# PDF Slicing & Upload
+# PDF Slicing & Auto-Chunking
 # ---------------------------------------------------------------------------
 
+def split_page_range(start_page, end_page, max_pages):
+    """Splits oversized page ranges into smaller sequential chunks."""
+    sub_ranges = []
+    curr_start = start_page
+    while curr_start <= end_page:
+        curr_end = min(curr_start + max_pages - 1, end_page)
+        sub_ranges.append((curr_start, curr_end))
+        curr_start = curr_end + 1
+    return sub_ranges
+
+
 def slice_pdf(doc, start_page, end_page):
-    """Slice PDF from start_page to end_page (1-indexed). Returns bytes."""
+    """Slices PDF from start_page to end_page (1-indexed). Returns bytes."""
     start_idx = max(0, start_page - 1)
     end_idx = min(doc.page_count - 1, end_page - 1)
 
@@ -243,15 +200,8 @@ def slice_pdf(doc, start_page, end_page):
     return pdf_bytes
 
 
-def upload_chunk(pdf_bytes, filename, chapter_title, start_page):
-    """Upload sliced PDF bytes to the backend chunk service.
-
-    Sends ``pre_sliced=true`` so the backend skips the chapter_title heading
-    filter (since we already sliced the PDF to the exact pages).
-    ``chapter_title`` is forwarded only for breadcrumb label construction.
-    """
-    url = "http://localhost:8000/chunk"
-
+def upload_chunk(endpoint, pdf_bytes, filename, chapter_title, start_page):
+    """Uploads sliced PDF bytes to the backend chunk service."""
     files = {"file": (filename, pdf_bytes, "application/pdf")}
     data = {"pre_sliced": "true", "start_page": str(start_page)}
     if chapter_title:
@@ -262,7 +212,7 @@ def upload_chunk(pdf_bytes, filename, chapter_title, start_page):
             "[cyan]Uploading & processing with LLM...[/cyan]", spinner="dots"
         ):
             start_time = time.time()
-            response = httpx.post(url, files=files, data=data, timeout=900.0)
+            response = httpx.post(endpoint, files=files, data=data, timeout=900.0)
             response.raise_for_status()
             duration = time.time() - start_time
         return response.json(), duration
@@ -273,8 +223,8 @@ def upload_chunk(pdf_bytes, filename, chapter_title, start_page):
         return None, 0
     except httpx.ConnectError:
         console.print(
-            "[red]Could not connect to chunk service at http://localhost:8000. "
-            "Is the server running?[/red]"
+            f"[red]Could not connect to service at {endpoint}. "
+            "Is the backend server running?[/red]"
         )
         return None, 0
     except Exception as e:
@@ -288,23 +238,24 @@ def upload_chunk(pdf_bytes, filename, chapter_title, start_page):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Interactive CLI for Chunk Service"
+        description="Interactive CLI for Parsing PDFs & Granular Flashcard Generation"
     )
-    parser.add_argument(
-        "-f", "--file", required=True, help="Path to local PDF file"
-    )
+    parser.add_argument("-f", "--file", required=True, help="Path to local PDF file")
     parser.add_argument("-c", "--chapter", help="Target main chapter title")
     parser.add_argument(
-        "-s",
-        "--subtopic",
-        help="Skip interactive prompt and use this subtopic directly",
+        "-s", "--subtopic", help="Skip interactive prompt and use this subtopic title"
     )
     parser.add_argument(
         "-p", "--pages", help="Manual page range override (e.g., '12-18')"
     )
     parser.add_argument(
-        "-o", "--output-dir", default="output",
-        help="Directory to save JSON results (default: output/)",
+        "-o", "--output-dir", default="output", help="Output directory (default: output/)"
+    )
+    parser.add_argument(
+        "-m", "--max-pages", type=int, default=4, help="Max pages per LLM chunk (default: 4)"
+    )
+    parser.add_argument(
+        "-e", "--endpoint", default="http://127.0.0.1:8000/chunk", help="Backend API endpoint"
     )
 
     args = parser.parse_args()
@@ -316,9 +267,10 @@ def main():
     original_size = os.path.getsize(args.file)
     console.print(
         Panel(
-            f"[bold blue]PDF Analyzer[/bold blue]\n"
+            f"[bold blue]PDF Analyzer & Granular Flashcard Generator[/bold blue]\n"
             f"File: {args.file}\n"
-            f"Size: {original_size / 1024:.1f} KB"
+            f"Size: {original_size / 1024:.1f} KB\n"
+            f"Max Pages Per Chunk: {args.max_pages}"
         )
     )
 
@@ -328,14 +280,13 @@ def main():
     try:
         selected_ranges = []
 
-        # 1. Manual Page Range Override — skip TOC scan entirely (Flaw 7 fix)
+        # 1. Manual Page Range Override
         if args.pages:
             try:
                 start, end = map(int, args.pages.split("-"))
                 if start < 1 or end > total_pages or start > end:
                     console.print(
-                        f"[red]Page range {start}-{end} is out of bounds "
-                        f"(document has {total_pages} pages).[/red]"
+                        f"[red]Page range {start}-{end} out of bounds (1-{total_pages}).[/red]"
                     )
                     sys.exit(1)
                 selected_ranges.append({
@@ -344,24 +295,16 @@ def main():
                     "end": end,
                 })
             except ValueError:
-                console.print(
-                    "[red]Invalid page format. Use 'start-end' (e.g., 12-18)[/red]"
-                )
+                console.print("[red]Invalid page format. Use 'start-end' (e.g., 12-18)[/red]")
                 sys.exit(1)
 
         else:
-            # TOC scan only happens when we actually need it
             toc = get_toc_entries(doc)
+            granular_toc = build_granular_toc(toc, total_pages)
 
-            # 2. Direct Subtopic Override — search ALL TOC entries (Flaw 4 fix)
+            # 2. Subtopic Command Line Override
             if args.subtopic:
-                if not toc:
-                    console.print(
-                        "[red]No headings found in document. Cannot search for subtopic.[/red]"
-                    )
-                    sys.exit(1)
-
-                found = _search_toc_by_title(toc, args.subtopic, total_pages)
+                found = search_toc_by_title(granular_toc, args.subtopic)
                 if found:
                     selected_ranges.append({
                         "title": found["title"],
@@ -369,49 +312,28 @@ def main():
                         "end": found["end_page"],
                     })
                 else:
-                    console.print(
-                        f"[red]Subtopic '{args.subtopic}' not found in document.[/red]"
-                    )
+                    console.print(f"[red]Subtopic '{args.subtopic}' not found in TOC.[/red]")
                     sys.exit(1)
 
             # 3. Interactive Menu
             else:
-                if not toc:
-                    console.print(
-                        "[yellow]Could not detect any headings in document. You can"
-                        " pass manual page range using -p START-END.[/yellow]"
-                    )
-                    sys.exit(1)
-
                 subtopics = find_subtopics(total_pages, toc, args.chapter)
-
                 if not subtopics:
-                    console.print(
-                        f"[yellow]No subtopics found for '{args.chapter}'. "
-                        f"Try a different chapter name or use -p for manual pages.[/yellow]"
-                    )
+                    console.print("[yellow]No subtopics found for selection.[/yellow]")
                     sys.exit(1)
 
                 choices = [
                     questionary.Choice(
-                        title=(
-                            f"{sub['title']} (Pages"
-                            f" {sub['start_page']}-{sub['end_page']})"
-                        ),
+                        title=f"{'  ' * (sub['level'] - 1)}• {sub['title']} (Pages {sub['start_page']}-{sub['end_page']})",
                         value=sub,
                     )
                     for sub in subtopics
                 ]
 
                 selected_subs = questionary.checkbox(
-                    "Select topics to process"
-                    " (Use <Space> to select, <a> for all, <Enter> to confirm):",
+                    "Select subtopics to process (<Space> select, <a> all, <Enter> confirm):",
                     choices=choices,
-                    validate=lambda ans: (
-                        True if len(ans) > 0
-                        else "Please select at least one topic using <Space>"
-                        " before pressing <Enter>."
-                    ),
+                    validate=lambda ans: True if len(ans) > 0 else "Select at least one topic.",
                 ).ask()
 
                 if not selected_subs:
@@ -426,52 +348,60 @@ def main():
                     })
 
         # ------------------------------------------------------------------
-        # Process selections sequentially
+        # Auto-Chunking & Upload Pipeline
         # ------------------------------------------------------------------
         os.makedirs(args.output_dir, exist_ok=True)
         all_results = []
         doc_filename = os.path.basename(args.file)
 
-        for i, selection in enumerate(selected_ranges, 1):
+        # Flatten giant topics into bite-sized page windows
+        chunk_queue = []
+        for selection in selected_ranges:
+            sub_ranges = split_page_range(selection["start"], selection["end"], args.max_pages)
+            for part_idx, (p_start, p_end) in enumerate(sub_ranges, 1):
+                part_label = f" (Part {part_idx})" if len(sub_ranges) > 1 else ""
+                chunk_queue.append({
+                    "title": f"{selection['title']}{part_label}",
+                    "start": p_start,
+                    "end": p_end,
+                })
+
+        console.print(f"\n[bold cyan]Total LLM Payload Chunks to Process: {len(chunk_queue)}[/bold cyan]")
+
+        for i, chunk_item in enumerate(chunk_queue, 1):
             console.print(
-                f"\n[bold green]Processing {i}/{len(selected_ranges)}:[/bold green]"
-                f" {selection['title']} (Pages {selection['start']}-{selection['end']})"
+                f"\n[bold green]Processing Chunk {i}/{len(chunk_queue)}:[/bold green]"
+                f" {chunk_item['title']} (Pages {chunk_item['start']}-{chunk_item['end']})"
             )
 
-            pdf_bytes = slice_pdf(doc, selection["start"], selection["end"])
+            pdf_bytes = slice_pdf(doc, chunk_item["start"], chunk_item["end"])
             sliced_size = len(pdf_bytes)
 
-            console.print(
-                f"Sliced PDF: {sliced_size / 1024:.1f} KB"
-                f" ({(sliced_size / original_size) * 100:.1f}% of original)"
-            )
+            console.print(f"Sliced PDF Payload: {sliced_size / 1024:.1f} KB")
 
             result, duration = upload_chunk(
-                pdf_bytes, f"sliced_{doc_filename}", selection["title"], selection["start"]
+                args.endpoint,
+                pdf_bytes,
+                f"sliced_{doc_filename}",
+                chunk_item["title"],
+                chunk_item["start"]
             )
 
             if result:
                 chunks = result.get("chunks", [])
-
                 if not chunks:
-                    console.print(
-                        f"[yellow]No flashcards extracted for '{selection['title']}'. "
-                        f"The section may be too short or contain only non-textual content.[/yellow]"
-                    )
+                    console.print(f"[yellow]No flashcards extracted for '{chunk_item['title']}'.[/yellow]")
                     continue
 
-                # Save individual JSON file
-                safe_name = re.sub(r'[^\w\s-]', '', selection['title']).strip().replace(' ', '_')[:80]
+                safe_name = re.sub(r'[^\w\s-]', '', chunk_item['title']).strip().replace(' ', '_')[:80]
                 json_path = os.path.join(args.output_dir, f"{safe_name}.json")
                 with open(json_path, "w", encoding="utf-8") as f:
-                    json.dump({"title": selection['title'], "chunks": chunks}, f, indent=2, ensure_ascii=False)
-                console.print(f"[green]Saved → {json_path}[/green]")
-
+                    json.dump({"title": chunk_item['title'], "chunks": chunks}, f, indent=2, ensure_ascii=False)
+                
+                console.print(f"[green]Saved -> {json_path}[/green]")
                 all_results.extend(chunks)
 
-                table = Table(
-                    title=f"Extracted Flashcards for {selection['title']}"
-                )
+                table = Table(title=f"Results: {chunk_item['title']}")
                 table.add_column("Topic Name", style="cyan")
                 table.add_column("Type", style="magenta")
                 table.add_column("Summary", style="green")
@@ -484,22 +414,14 @@ def main():
                     )
 
                 console.print(table)
-                console.print(
-                    f"[bold]Upload & Processing Time:[/bold] {duration:.2f}s"
-                )
-                console.print(
-                    f"[bold]Total Chunks Extracted:[/bold] {len(chunks)}"
-                )
+                console.print(f"[bold]Processing Time:[/bold] {duration:.2f}s | [bold]Flashcards:[/bold] {len(chunks)}")
 
-        # Save combined results if multiple selections were processed
-        if len(selected_ranges) > 1 and all_results:
+        if all_results:
             combined_path = os.path.join(args.output_dir, "_combined.json")
             with open(combined_path, "w", encoding="utf-8") as f:
                 json.dump({"total_chunks": len(all_results), "chunks": all_results}, f, indent=2, ensure_ascii=False)
-            console.print(f"\n[bold green]Combined results → {combined_path}[/bold green]")
-
-        if all_results:
-            console.print(f"[bold]Grand Total: {len(all_results)} flashcards saved to {args.output_dir}/[/bold]")
+            console.print(f"\n[bold green]Combined results -> {combined_path}[/bold green]")
+            console.print(f"[bold]Grand Total Flashcards Generated: {len(all_results)}[/bold]")
 
     finally:
         doc.close()

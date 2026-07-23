@@ -5,6 +5,7 @@ import tempfile
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Form, UploadFile
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.chunk_builder import build_chunks
 from app.database import init_db
@@ -13,21 +14,28 @@ from app.llm_segment import extract_atomic_concepts
 from app.pdf_extract import extract_raw_text
 from app.prefilter import is_valid_section
 from app.schemas import Chunk
+from app.markdown_ast import parse_markdown_assets
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    os.makedirs("parsed_docs", exist_ok=True)
     yield
 
 
 app = FastAPI(title="Chunking Service", lifespan=lifespan)
+app.mount("/static", StaticFiles(directory="parsed_docs"), name="static")
+
 logger = logging.getLogger(__name__)
 
 # Concurrency limit based on VRAM constraints (e.g. RTX 3050 6GB)
-OLLAMA_SEMAPHORE = asyncio.Semaphore(2)
+OLLAMA_SEMAPHORE = None
 
-async def process_section(sec: dict, chapter_title: str, skip_chapter_filter: bool) -> list[Chunk]:
+async def process_section(sec: dict, chapter_title: str, skip_chapter_filter: bool, code_blocks: dict, images: dict) -> list[Chunk]:
+    global OLLAMA_SEMAPHORE
+    if OLLAMA_SEMAPHORE is None:
+        OLLAMA_SEMAPHORE = asyncio.Semaphore(2)
     """Process a single section through the LLM with concurrency throttling."""
     heading, text, page_num = sec["heading"], sec["text"], sec.get("page_num")
 
@@ -40,8 +48,8 @@ async def process_section(sec: dict, chapter_title: str, skip_chapter_filter: bo
 
     try:
         async with OLLAMA_SEMAPHORE:
-            section_extraction = await extract_atomic_concepts(heading, text)
-        return build_chunks(section_extraction, chapter_title, page_num)
+            section_extraction = await extract_atomic_concepts(heading, text, code_blocks, images)
+        return build_chunks(section_extraction, chapter_title, page_num, code_blocks, images)
     except Exception as e:
         logger.error(f"Failed to process section '{heading}': {e}")
         return []
@@ -67,14 +75,23 @@ async def chunk_pdf(
     skip_chapter_filter = pre_sliced and pre_sliced.lower() == "true"
 
     try:
-        pages = extract_raw_text(tmp_path, start_page)
-        sections = detect_headings(pages)
+        from fastapi.concurrency import run_in_threadpool
+        md_text, cache_key, start_page_num = await run_in_threadpool(extract_raw_text, tmp_path, start_page)
+        modified_md_text, code_blocks, images = parse_markdown_assets(md_text, cache_key)
+        
+        sections = detect_headings(modified_md_text, start_page_num)
 
         # Process all sections concurrently
-        tasks = [
-            process_section(sec, chapter_title, skip_chapter_filter)
-            for sec in sections
-        ]
+        tasks = []
+        for sec in sections:
+            # Filter assets to only those present in this section
+            sec_code_blocks = {k: v for k, v in code_blocks.items() if f"[ASSET: {k}]" in sec["text"]}
+            sec_images = {k: v for k, v in images.items() if f"[ASSET: {k}]" in sec["text"]}
+            
+            tasks.append(
+                process_section(sec, chapter_title, skip_chapter_filter, sec_code_blocks, sec_images)
+            )
+            
         results = await asyncio.gather(*tasks)
 
         # Flatten the list of lists

@@ -1,59 +1,37 @@
 import re
 
-def is_heading(text: str) -> bool:
-    text = text.strip()
-    if len(text) > 150 or not text:
-        return False
-        
-    # 1. Numbered headings (e.g., "1. Introduction", "2.1 Background")
-    if re.match(r'^\d+(\.\d+)*\s+[A-Z]', text, re.IGNORECASE):
-        return True
-        
-    # 2. Common academic headers
-    common = {"abstract", "introduction", "background", "related work",
-              "methodology", "methods", "evaluation", "results", 
-              "discussion", "conclusion", "conclusions", "references", 
-              "bibliography", "acknowledgements", "acknowledgments"}
-    if text.lower() in common:
-        return True
-        
-    # 3. All caps short lines
-    if text.isupper() and len(text.split()) < 10:
-        return True
-        
-    return False
-
-def detect_headings(pages: list[dict]) -> list[dict]:
+def detect_headings(md_text: str, start_page_num: int) -> list[dict]:
     sections = []
     current_heading = "Untitled"
     current_text = []
-    current_page = None
+    current_page = start_page_num
     
-    for page in pages:
-        # Since pdf_extract preserves \n\n, we split by that within the page
-        blocks = page["text"].split('\n\n')
-        
-        for block in blocks:
-            block = block.strip()
-            if not block:
-                continue
-                
-            if is_heading(block):
-                if current_text:
-                    sections.append({
-                        "heading": current_heading, 
-                        "text": "\n\n".join(current_text),
-                        "page_num": current_page
-                    })
-                current_heading = block
-                current_text = []
-                current_page = page["page_num"]
-            else:
-                current_text.append(block)
-                # If this is the very first block and no heading was found yet,
-                # initialize current_page to this block's page
-                if current_page is None:
-                    current_page = page["page_num"]
+    # Split the markdown into blocks
+    blocks = md_text.split('\n\n')
+    
+    for block in blocks:
+        block = block.strip()
+        if not block:
+            continue
+            
+        # pymupdf4llm usually separates pages with -----
+        if block == '-----':
+            current_page += 1
+            continue
+            
+        # Check if block is a markdown heading
+        if re.match(r'^#{1,6}\s+', block):
+            if current_text:
+                sections.append({
+                    "heading": current_heading, 
+                    "text": "\n\n".join(current_text),
+                    "page_num": current_page
+                })
+            # Remove the '#'s for the title
+            current_heading = re.sub(r'^#{1,6}\s+', '', block)
+            current_text = []
+        else:
+            current_text.append(block)
                 
     if current_text:
         sections.append({

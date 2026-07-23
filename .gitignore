@@ -6,3 +6,8 @@ ollama_data/
 pg_data/
 *.pdf
 *.json
+/test_images
+/output
+/parsed_docs
+/images
+debug.md

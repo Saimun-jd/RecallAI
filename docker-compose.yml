@@ -47,6 +47,7 @@ services:
       - "8000:8000"
     volumes:
       - ./app:/app/app
+      - ./parsed_docs:/app/parsed_docs
 
 volumes:
   ollama_data:
