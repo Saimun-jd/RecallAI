@@ -22,27 +22,15 @@ services:
     command: >
       sh -c "until curl -s -o /dev/null -w '%{http_code}' http://ollama:11434/api/tags | grep -q '200'; do echo 'Waiting for Ollama API...'; sleep 2; done; echo 'Pulling model...'; curl -s -X POST http://ollama:11434/api/pull -d '{\"name\": \"gemma3:4b\"}'"
 
-  postgres:
-    image: pgvector/pgvector:pg16
-    environment:
-      POSTGRES_DB: srs
-      POSTGRES_USER: srs_user
-      POSTGRES_PASSWORD: srs_pass
-    ports:
-      - "5432:5432"
-    volumes:
-      - pg_data:/var/lib/postgresql/data
+
 
   chunker:
     build: .
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     depends_on:
       - ollama
-      - postgres
     environment:
-      OLLAMA_HOST: http://ollama:11434
       OLLAMA_MODEL: gemma3:4b
-      DATABASE_URL: postgresql://srs_user:srs_pass@postgres:5432/srs
     ports:
       - "8000:8000"
     volumes:
@@ -51,4 +39,3 @@ services:
 
 volumes:
   ollama_data:
-  pg_data:

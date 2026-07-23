@@ -1,4 +1,5 @@
 import argparse
+import hashlib
 import json
 import math
 import os
@@ -12,166 +13,17 @@ import questionary
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
+from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
 
 console = Console()
 
 
-# ---------------------------------------------------------------------------
-# TOC Discovery & Fallback Parser
-# ---------------------------------------------------------------------------
-
-def extract_fallback_toc(doc):
-    """Detects headings using Font Size analysis + Broad Regex patterns.
-
-    Captures Main Chapters (Level 1), Subchapters (Level 2), and
-    Sub-sections (Level 3+) even when PDF bookmarks are missing or incomplete.
-    """
-    synthetic_toc = []
-
-    # Regex for numbered patterns: "Chapter 1 Title", "1.1 Introduction", "10.2.1 Data"
-    heading_pattern = re.compile(
-        r"^((?:Chapter\s+\d+|[0-9]+(?:\.[0-9]+)*))\s+(.+)", re.IGNORECASE
-    )
-
-    # 1. Analyze average body text font size across sample pages
-    font_sizes = []
-    sample_pages = min(15, len(doc))
-    for p in range(sample_pages):
-        blocks = doc[p].get_text("dict")["blocks"]
-        for b in blocks:
-            if "lines" in b:
-                for line in b["lines"]:
-                    for span in line["spans"]:
-                        if span["text"].strip():
-                            font_sizes.append(span["size"])
-
-    avg_font_size = sum(font_sizes) / len(font_sizes) if font_sizes else 10.0
-
-    # 2. Iterate through pages and identify headings
-    for page_num in range(len(doc)):
-        blocks = doc[page_num].get_text("dict")["blocks"]
-
-        for block in blocks:
-            if "lines" not in block:
-                continue
-
-            block_text = ""
-            max_span_size = 0
-
-            for line in block["lines"]:
-                line_text = "".join(span["text"] for span in line["spans"])
-                block_text += line_text + " "
-                for span in line["spans"]:
-                    if span["size"] > max_span_size:
-                        max_span_size = span["size"]
-
-            block_text = block_text.strip()
-            if not block_text:
-                continue
-
-            # Filtering: Headings are usually larger font and concise (< 12 words)
-            is_large_text = max_span_size > (avg_font_size * 1.20)
-            is_concise = len(block_text.split()) < 12
-
-            match = heading_pattern.match(block_text)
-
-            if match and is_large_text:
-                num_part, title_part = match.groups()
-
-                if "chapter" in num_part.lower():
-                    level = 1
-                elif "." not in num_part:
-                    level = 1
-                else:
-                    level = min(4, num_part.count(".") + 1)
-
-                full_title = f"{num_part} {title_part}".strip()
-                
-                if not any(entry[1] == full_title and entry[2] == page_num + 1 for entry in synthetic_toc):
-                    synthetic_toc.append([level, full_title, page_num + 1])
-
-            elif is_large_text and is_concise:
-                # Unnumbered header fallback
-                level = 2
-                if not any(entry[1] == block_text and entry[2] == page_num + 1 for entry in synthetic_toc):
-                    synthetic_toc.append([level, block_text, page_num + 1])
-
-    return synthetic_toc
-
-
-def get_toc_entries(doc):
-    """Returns table of contents from PDF metadata or fallback heading scan."""
-    toc = doc.get_toc()
-    if not toc:
-        console.print(
-            "[yellow]No embedded Table of Contents found. Scanning document text for headings...[/yellow]"
-        )
-        toc = extract_fallback_toc(doc)
-    return toc
-
-
-def build_granular_toc(toc, total_pages):
-    """Computes exact end_page boundaries for every entry in the TOC hierarchy."""
-    granular_toc = []
-    for i, entry in enumerate(toc):
-        level, title, start_page = entry
-        end_page = total_pages
-
-        # Find the next item with equal or higher structural hierarchy (<= level)
-        for j in range(i + 1, len(toc)):
-            if toc[j][0] <= level:
-                end_page = max(start_page, toc[j][2] - 1)
-                break
-
-        granular_toc.append({
-            "level": level,
-            "title": title,
-            "start_page": start_page,
-            "end_page": end_page,
-        })
-    return granular_toc
-
-
-# ---------------------------------------------------------------------------
-# Subtopic Discovery
-# ---------------------------------------------------------------------------
-
-def find_subtopics(total_pages, toc, chapter_title=None):
-    """Retrieves all subtopics. Allows targeting a specific chapter or showing full depth."""
-    if not toc:
-        return []
-
-    granular_toc = build_granular_toc(toc, total_pages)
-
-    if not chapter_title:
-        return granular_toc
-
-    # Filter entries belonging strictly inside target chapter scope
-    filtered = []
-    in_chapter = False
-    chapter_level = None
-
-    for entry in granular_toc:
-        if not in_chapter:
-            if chapter_title.lower() in entry["title"].lower():
-                in_chapter = True
-                chapter_level = entry["level"]
-                filtered.append(entry)
-        else:
-            if entry["level"] <= chapter_level:
-                break  # Reached the next chapter
-            filtered.append(entry)
-
-    return filtered
-
-
-def search_toc_by_title(granular_toc, subtopic_title):
-    """Searches TOC entries for a subtopic substring match across all levels."""
-    for entry in granular_toc:
-        if subtopic_title.lower() in entry["title"].lower():
-            return entry
-    return None
-
+from app.toc_parser import (
+    get_toc_entries,
+    build_granular_toc,
+    find_subtopics,
+    search_toc_by_title,
+)
 
 # ---------------------------------------------------------------------------
 # PDF Slicing & Auto-Chunking
@@ -200,35 +52,91 @@ def slice_pdf(doc, start_page, end_page):
     return pdf_bytes
 
 
-def upload_chunk(endpoint, pdf_bytes, filename, chapter_title, start_page):
+def upload_chunk(
+    endpoint: str,
+    pdf_bytes: bytes,
+    filename: str,
+    chapter_title: str | None = None,
+    start_page: int | None = None,
+    provider: str | None = None,
+    file_hash: str | None = None,
+    book_title: str | None = None,
+    total_pages: int | None = None,
+    progress=None,
+    task_id=None
+):
     """Uploads sliced PDF bytes to the backend chunk service."""
     files = {"file": (filename, pdf_bytes, "application/pdf")}
     data = {"pre_sliced": "true", "start_page": str(start_page)}
     if chapter_title:
         data["chapter_title"] = chapter_title
+    if provider:
+        data["provider"] = provider
+    if file_hash:
+        data["file_hash"] = file_hash
+    if book_title:
+        data["book_title"] = book_title
+    if total_pages is not None:
+        data["total_pages"] = str(total_pages)
 
+    stream_endpoint = endpoint.rstrip("/") + "/stream"
     try:
-        with console.status(
-            "[cyan]Uploading & processing with LLM...[/cyan]", spinner="dots"
-        ):
-            start_time = time.time()
-            response = httpx.post(endpoint, files=files, data=data, timeout=900.0)
-            response.raise_for_status()
-            duration = time.time() - start_time
-        return response.json(), duration
+        start_time = time.time()
+        chunks = []
+        with httpx.Client(timeout=900.0) as client:
+            with client.stream("POST", stream_endpoint, files=files, data=data) as response:
+                response.raise_for_status()
+                for line in response.iter_lines():
+                    if line.startswith("data: "):
+                        event_data = line[6:]
+                        try:
+                            payload = json.loads(event_data)
+                            stage = payload.get("stage", "")
+                            sections = payload.get("sections", 0)
+                            
+                            desc = f"[cyan]{stage}...[/cyan]"
+                            if stage == "Waiting on LLM response" and sections > 0:
+                                desc = f"[cyan]{stage} ({sections} sections)...[/cyan]"
+                                
+                            if progress and task_id is not None:
+                                progress.update(task_id, description=desc)
+                            else:
+                                console.print(desc)
+                                
+                            if stage == "done":
+                                chunks = payload.get("chunks", [])
+                            elif stage == "error":
+                                err = payload.get("error")
+                                if progress:
+                                    progress.print(f"[red]Backend Error: {err}[/red]")
+                                else:
+                                    console.print(f"[red]Backend Error: {err}[/red]")
+                                return None, 0
+                        except json.JSONDecodeError:
+                            pass
+                            
+        duration = time.time() - start_time
+        return {"chunks": chunks}, duration
     except httpx.HTTPStatusError as e:
-        console.print(
-            f"[red]HTTP Error: {e.response.status_code} - {e.response.text}[/red]"
-        )
+        err_msg = f"[red]HTTP Error: {e.response.status_code} - {e.response.text}[/red]"
+        if progress:
+            progress.print(err_msg)
+        else:
+            console.print(err_msg)
         return None, 0
     except httpx.ConnectError:
-        console.print(
-            f"[red]Could not connect to service at {endpoint}. "
-            "Is the backend server running?[/red]"
-        )
+        err_msg = f"[red]Could not connect to service at {stream_endpoint}. Is the backend server running?[/red]"
+        if progress:
+            progress.print(err_msg)
+        else:
+            console.print(err_msg)
         return None, 0
     except Exception as e:
-        console.print(f"[red]Error: {e}[/red]")
+        err_msg = f"[red]Error: {e}[/red]"
+        if progress:
+            progress.print(err_msg)
+        else:
+            console.print(err_msg)
         return None, 0
 
 
@@ -257,6 +165,9 @@ def main():
     parser.add_argument(
         "-e", "--endpoint", default="http://127.0.0.1:8000/chunk", help="Backend API endpoint"
     )
+    parser.add_argument(
+        "--provider", choices=["ollama", "openai"], help="Override default LLM provider"
+    )
 
     args = parser.parse_args()
 
@@ -265,17 +176,40 @@ def main():
         sys.exit(1)
 
     original_size = os.path.getsize(args.file)
+    with open(args.file, "rb") as f:
+        file_hash = hashlib.sha256(f.read()).hexdigest()
+    doc_filename = os.path.basename(args.file)
+    
     console.print(
         Panel(
             f"[bold blue]PDF Analyzer & Granular Flashcard Generator[/bold blue]\n"
             f"File: {args.file}\n"
             f"Size: {original_size / 1024:.1f} KB\n"
+            f"Hash: {file_hash[:8]}...\n"
             f"Max Pages Per Chunk: {args.max_pages}"
         )
     )
 
     doc = fitz.open(args.file)
     total_pages = doc.page_count
+
+    # Interactive Provider Selection if not specified
+    selected_provider = args.provider
+    if not selected_provider:
+        console.print("\n[bold cyan]? Select LLM Provider for this session:[/bold cyan]")
+        console.print("  [1] openai (Public Cloud/Groq)")
+        console.print("  [2] ollama (Local Containerized)")
+        
+        while True:
+            ans = input("Enter 1 or 2 (Default: 1): ").strip()
+            if not ans or ans == "1":
+                selected_provider = "openai"
+                break
+            elif ans == "2":
+                selected_provider = "ollama"
+                break
+            else:
+                console.print("[red]Invalid choice. Please enter 1 or 2.[/red]")
 
     try:
         selected_ranges = []
@@ -368,53 +302,73 @@ def main():
 
         console.print(f"\n[bold cyan]Total LLM Payload Chunks to Process: {len(chunk_queue)}[/bold cyan]")
 
-        for i, chunk_item in enumerate(chunk_queue, 1):
-            console.print(
-                f"\n[bold green]Processing Chunk {i}/{len(chunk_queue)}:[/bold green]"
-                f" {chunk_item['title']} (Pages {chunk_item['start']}-{chunk_item['end']})"
-            )
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            TaskProgressColumn(),
+            console=console
+        ) as progress:
+            overall_task = progress.add_task("[green]Overall Progress...", total=len(chunk_queue))
+            
+            for i, chunk_item in enumerate(chunk_queue, 1):
+                progress.print(
+                    f"\n[bold green]Processing Chunk {i}/{len(chunk_queue)}:[/bold green]"
+                    f" {chunk_item['title']} (Pages {chunk_item['start']}-{chunk_item['end']})"
+                )
 
-            pdf_bytes = slice_pdf(doc, chunk_item["start"], chunk_item["end"])
-            sliced_size = len(pdf_bytes)
+                pdf_bytes = slice_pdf(doc, chunk_item["start"], chunk_item["end"])
+                sliced_size = len(pdf_bytes)
 
-            console.print(f"Sliced PDF Payload: {sliced_size / 1024:.1f} KB")
+                progress.print(f"Sliced PDF Payload: {sliced_size / 1024:.1f} KB")
 
-            result, duration = upload_chunk(
-                args.endpoint,
-                pdf_bytes,
-                f"sliced_{doc_filename}",
-                chunk_item["title"],
-                chunk_item["start"]
-            )
+                chunk_task = progress.add_task(f"[cyan]Initializing...[/cyan]", total=None)
 
-            if result:
-                chunks = result.get("chunks", [])
-                if not chunks:
-                    console.print(f"[yellow]No flashcards extracted for '{chunk_item['title']}'.[/yellow]")
-                    continue
+                result, duration = upload_chunk(
+                    args.endpoint,
+                    pdf_bytes,
+                    f"sliced_{doc_filename}",
+                    chunk_item["title"],
+                    chunk_item["start"],
+                    provider=selected_provider,
+                    file_hash=file_hash,
+                    book_title=doc_filename,
+                    total_pages=total_pages,
+                    progress=progress,
+                    task_id=chunk_task
+                )
 
-                safe_name = re.sub(r'[^\w\s-]', '', chunk_item['title']).strip().replace(' ', '_')[:80]
-                json_path = os.path.join(args.output_dir, f"{safe_name}.json")
-                with open(json_path, "w", encoding="utf-8") as f:
-                    json.dump({"title": chunk_item['title'], "chunks": chunks}, f, indent=2, ensure_ascii=False)
-                
-                console.print(f"[green]Saved -> {json_path}[/green]")
-                all_results.extend(chunks)
+                progress.remove_task(chunk_task)
+                progress.advance(overall_task)
 
-                table = Table(title=f"Results: {chunk_item['title']}")
-                table.add_column("Topic Name", style="cyan")
-                table.add_column("Type", style="magenta")
-                table.add_column("Summary", style="green")
+                if result:
+                    chunks = result.get("chunks", [])
+                    if not chunks:
+                        progress.print(f"\n[yellow]No flashcards extracted for '{chunk_item['title']}'.[/yellow]")
+                        continue
 
-                for chunk in chunks:
-                    table.add_row(
-                        chunk.get("topic_name", "N/A"),
-                        chunk.get("concept_type", "N/A"),
-                        chunk.get("summary", "N/A"),
-                    )
+                    safe_name = re.sub(r'[^\w\s-]', '', chunk_item['title']).strip().replace(' ', '_')[:80]
+                    json_path = os.path.join(args.output_dir, f"{safe_name}.json")
+                    with open(json_path, "w", encoding="utf-8") as f:
+                        json.dump({"title": chunk_item['title'], "chunks": chunks}, f, indent=2, ensure_ascii=False)
+                    
+                    progress.print(f"[green]Saved -> {json_path}[/green]")
+                    all_results.extend(chunks)
 
-                console.print(table)
-                console.print(f"[bold]Processing Time:[/bold] {duration:.2f}s | [bold]Flashcards:[/bold] {len(chunks)}")
+                    table = Table(title=f"Results: {chunk_item['title']}")
+                    table.add_column("Topic Name", style="cyan")
+                    table.add_column("Type", style="magenta")
+                    table.add_column("Summary", style="green")
+
+                    for chunk in chunks:
+                        table.add_row(
+                            chunk.get("topic_name", "N/A"),
+                            chunk.get("concept_type", "N/A"),
+                            chunk.get("summary", "N/A"),
+                        )
+
+                    progress.print(table)
+                    progress.print(f"[bold]Processing Time:[/bold] {duration:.2f}s | [bold]Flashcards:[/bold] {len(chunks)}")
 
         if all_results:
             combined_path = os.path.join(args.output_dir, "_combined.json")

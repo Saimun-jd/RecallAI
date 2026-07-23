@@ -6,8 +6,7 @@ python-multipart
 torch
 pymupdf
 sentence-transformers
-psycopg2-binary
-pgvector
+
 httpx
 pydantic-settings
 numpy
