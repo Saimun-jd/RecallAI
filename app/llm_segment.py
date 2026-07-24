@@ -64,6 +64,8 @@ FLASHCARD_PROMPT = """You are an expert AI tutor and high-yield flashcard genera
 
 Task: Analyze the provided topic text and summary, and generate high-yield, active-recall flashcards.
 
+CRITICAL RULE: Generate flashcards ONLY for the concepts explicitly contained within "{topic_name}". Do NOT reference external topics or general concepts unless directly present in the target content above.
+
 Rules:
 
 1. QUESTION-ANSWER QUALITY (CRITICAL):
@@ -71,23 +73,20 @@ Rules:
    - BAD: Q: "How many features does each MNIST image have?" A: "784 features."
    - GOOD: Q: "MNIST images are 28x28 pixels. When flattened into a feature vector for Scikit-Learn, how many features does that produce?" A: "784 features"
    - Answers must be concise (ideally ≤20 words) and precise.
+   - Write full, natural questions in the `question` field and concise responses in the `answer` field.
 
-2. PREFER CLOZE FOR DISCRETE FACTS:
-   - If the fact is a number, named parameter, or formula, use concept_type "Cloze" and write flashcard_question as a cloze-style sentence with the answer blanked out (marked as `[...]`).
-
-3. CUSTOM INSTRUCTIONS:
+2. CUSTOM INSTRUCTIONS:
    {custom_prompt}
 
-4. STRICT JSON: Respond ONLY with a valid JSON object matching the schema below. Generate EXACTLY {count} flashcards if possible.
+3. STRICT JSON: Respond ONLY with a valid JSON object matching the schema below. CRITICAL: You MUST generate EXACTLY {count} flashcards. Do not generate more or less.
 
 Expected Object Format:
 {{
   "flashcards": [
     {{
-      "concept_type": "Definition | Formula | Process Step | Code Example | Comparison | Cloze",
-      "summary": "...",
-      "flashcard_question": "...",
-      "flashcard_answer": "...",
+      "concept_type": "Definition | Formula | Process Step | Code Example | Comparison",
+      "question": "...",
+      "answer": "...",
       "key_terms": ["term1", "term2"],
       "related_code_id": null,
       "related_image_id": null
@@ -96,9 +95,11 @@ Expected Object Format:
 }}
 
 Input Context:
-Topic Summary: {summary}
+SECTION HIERARCHY: {breadcrumb}
+TARGET TOPIC TITLE: {topic_name}
+TARGET TOPIC SUMMARY: {summary}
 
-Topic Text:
+TARGET TOPIC CONTENT:
 <
 {topic_text}
 >>>
@@ -198,6 +199,8 @@ async def extract_atomic_concepts(heading: str, text: str, code_blocks: dict = N
 
 
 async def generate_flashcards_for_topic(
+    topic_name: str,
+    breadcrumb: str,
     topic_text: str,
     summary: str,
     count: int = 5,
@@ -209,6 +212,8 @@ async def generate_flashcards_for_topic(
     
     formatted_custom = f"- User Instructions: {custom_prompt}" if custom_prompt else ""
     prompt = FLASHCARD_PROMPT.format(
+        breadcrumb=breadcrumb,
+        topic_name=topic_name,
         summary=summary,
         topic_text=topic_text,
         count=count,

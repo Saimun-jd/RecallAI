@@ -2,7 +2,7 @@ import re
 
 def detect_headings(md_text: str, start_page_num: int) -> list[dict]:
     sections = []
-    current_heading = "Untitled"
+    current_heading = "Introduction"
     current_text = []
     current_page = start_page_num
     

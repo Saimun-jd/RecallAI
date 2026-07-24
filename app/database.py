@@ -62,6 +62,9 @@ def init_db():
                 is_processed BOOLEAN DEFAULT 0,
                 sort_order INTEGER NOT NULL,
                 flashcard_count INTEGER DEFAULT 0,
+                breadcrumb TEXT,
+                topic_hash TEXT UNIQUE NOT NULL,
+                embedding TEXT,
                 FOREIGN KEY (book_id) REFERENCES books (id),
                 FOREIGN KEY (parent_id) REFERENCES topics (id)
             )
@@ -77,7 +80,10 @@ def init_db():
             ("concept_type", "TEXT"),
             ("key_terms", "TEXT"),
             ("code_snippet", "TEXT"),
-            ("image_url", "TEXT")
+            ("image_url", "TEXT"),
+            ("breadcrumb", "TEXT"),
+            ("topic_hash", "TEXT"),
+            ("embedding", "TEXT")
         ]
         
         for col_name, col_type in migrations:
@@ -168,8 +174,14 @@ def save_book(title: str, file_path: str, file_hash: str, total_pages: int) -> i
         
         return cursor.lastrowid
 
-def save_topic(
+def generate_topic_hash(book_hash: str, breadcrumb: str) -> str:
+    hash_input = f"{book_hash}:{breadcrumb.strip().lower()}"
+    return hashlib.sha256(hash_input.encode("utf-8")).hexdigest()
+
+async def resolve_and_save_topic(
     book_id: int,
+    book_hash: str,
+    breadcrumb: str,
     title: str,
     level: int,
     parent_id: Optional[int] = None,
@@ -183,20 +195,23 @@ def save_topic(
     code_snippet: Optional[str] = None,
     image_url: Optional[str] = None,
 ) -> int:
-    """Inserts or updates a topic and returns its ID."""
+    """Inserts or updates a topic using semantic deduplication and returns its ID."""
+    from app.embeddings import get_embedding, cosine_similarity
+    from app.config import settings
+    
+    topic_hash = generate_topic_hash(book_hash, breadcrumb)
+    
     with get_connection() as conn:
         cursor = conn.cursor()
-        # Check if topic already exists for this book to avoid duplicates
-        cursor.execute(
-            """
-            SELECT id FROM topics 
-            WHERE book_id = ? AND title = ? AND level = ?
-            """,
-            (book_id, title, level)
-        )
+        # 1. Exact topic_hash match
+        cursor.execute("SELECT id, content_md FROM topics WHERE topic_hash = ?", (topic_hash,))
         row = cursor.fetchone()
+        
         if row:
-            # Update the existing topic with new metadata if provided
+            new_content = row['content_md']
+            if content_md:
+                new_content = (row['content_md'] or "") + "\n\n" + content_md
+                
             cursor.execute(
                 """
                 UPDATE topics SET 
@@ -204,25 +219,117 @@ def save_topic(
                     concept_type = COALESCE(?, concept_type),
                     key_terms = COALESCE(?, key_terms),
                     code_snippet = COALESCE(?, code_snippet),
-                    image_url = COALESCE(?, image_url)
+                    image_url = COALESCE(?, image_url),
+                    content_md = ?
                 WHERE id = ?
                 """,
-                (summary, concept_type, key_terms, code_snippet, image_url, row['id'])
+                (summary, concept_type, key_terms, code_snippet, image_url, new_content, row['id'])
             )
             return row['id']
             
+    # 2. If no exact match, compute embeddings for semantic match
+    # 2. If no exact match, compute embeddings for semantic match
+    provider = settings.llm_provider
+    
+    kt_list = []
+    if key_terms:
+        try:
+            kt_list = json.loads(key_terms)
+        except Exception:
+            pass
+    text_to_embed = f"Title: {title}\nKey Terms: {', '.join(kt_list)}\nSummary: {summary or ''}"
+    new_embedding = await get_embedding(text_to_embed, provider=provider)
+    new_emb_json = json.dumps(new_embedding)
+    
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        # Enforce book_id scoping
+        cursor.execute(
+            "SELECT id, embedding, content_md, key_terms, summary, title FROM topics WHERE book_id = ? AND embedding IS NOT NULL", 
+            (book_id,)
+        )
+        rows = cursor.fetchall()
+        
+        max_sim = 0.0
+        best_row = None
+        
+        for r in rows:
+            try:
+                emb = json.loads(r['embedding'])
+                sim = cosine_similarity(new_embedding, emb)
+                if sim > max_sim:
+                    max_sim = sim
+                    best_row = r
+            except Exception:
+                pass
+                
+        # Raise threshold to 0.94
+        if max_sim >= 0.94 and best_row is not None:
+            # Semantic match
+            best_id = best_row['id']
+            best_content = best_row['content_md']
+            best_key_terms = best_row['key_terms']
+            best_summary = best_row['summary']
+            best_title = best_row['title']
+            
+            new_content = best_content
+            if content_md:
+                new_content = (best_content or "") + "\n\n" + content_md
+                
+            # Merge key terms
+            merged_kt_set = set()
+            if best_key_terms:
+                try:
+                    merged_kt_set.update(json.loads(best_key_terms))
+                except Exception:
+                    pass
+            if key_terms:
+                try:
+                    merged_kt_set.update(json.loads(key_terms))
+                except Exception:
+                    pass
+            
+            merged_kt_json = json.dumps(list(merged_kt_set)) if merged_kt_set else None
+            
+            # Determine new merged summary for embedding
+            merged_summary = best_summary if best_summary else summary
+            
+            # Recompute embedding for the merged concept
+            merged_text_to_embed = f"Title: {best_title}\nKey Terms: {', '.join(list(merged_kt_set))}\nSummary: {merged_summary or ''}"
+            merged_embedding = await get_embedding(merged_text_to_embed, provider=provider)
+            merged_emb_json = json.dumps(merged_embedding)
+                
+            cursor.execute(
+                """
+                UPDATE topics SET 
+                    summary = COALESCE(summary, ?),
+                    concept_type = COALESCE(concept_type, ?),
+                    key_terms = ?,
+                    code_snippet = COALESCE(code_snippet, ?),
+                    image_url = COALESCE(image_url, ?),
+                    content_md = ?,
+                    embedding = ?
+                WHERE id = ?
+                """,
+                (summary, concept_type, merged_kt_json, code_snippet, image_url, new_content, merged_emb_json, best_id)
+            )
+            return best_id
+            
+        # 3. No semantic match >= 0.92, Insert new row
         cursor.execute(
             """
             INSERT INTO topics (
                 book_id, parent_id, title, level, 
                 start_page, end_page, content_md, sort_order,
-                summary, concept_type, key_terms, code_snippet, image_url
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                summary, concept_type, key_terms, code_snippet, image_url,
+                breadcrumb, topic_hash, embedding
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 book_id, parent_id, title, level, 
                 start_page or 0, end_page or 0, content_md, sort_order,
-                summary, concept_type, key_terms, code_snippet, image_url
+                summary, concept_type, key_terms, code_snippet, image_url,
+                breadcrumb, topic_hash, new_emb_json
             )
         )
         return cursor.lastrowid
@@ -237,8 +344,8 @@ def save_flashcards(topic_id: int, flashcards_list: List[Dict[str, Any]]) -> int
         cursor = conn.cursor()
         
         for card in flashcards_list:
-            question = card.get("flashcard_question", "")
-            answer = card.get("flashcard_answer", "")
+            question = card.get("question", "")
+            answer = card.get("answer", "")
             
             # Content Hash for deduplication
             content_str = f"{question}:{answer}"
@@ -255,9 +362,9 @@ def save_flashcards(topic_id: int, flashcards_list: List[Dict[str, Any]]) -> int
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     topic_id,
-                    card.get("topic_name", ""),
-                    card.get("concept_type", ""),
-                    card.get("summary", ""),
+                    card.get("topic_name") or "",
+                    card.get("concept_type") or "",
+                    card.get("summary") or "",
                     question,
                     answer,
                     key_terms,
@@ -270,7 +377,7 @@ def save_flashcards(topic_id: int, flashcards_list: List[Dict[str, Any]]) -> int
                 if cursor.rowcount > 0:
                     inserted += 1
             except Exception as e:
-                logger.error(f"Failed to insert flashcard {content_hash}: {e}")
+                logger.error(f"Error saving flashcard: {e}")
                 
         # Recalculate flashcard_count for the topic
         cursor.execute("""

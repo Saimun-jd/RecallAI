@@ -10,7 +10,7 @@ import json
 import httpx
 
 from app.chunk_builder import build_chunks
-from app.database import init_db, save_book, save_topic, save_flashcards, get_connection, get_setting, set_setting
+from app.database import init_db, save_book, resolve_and_save_topic, save_flashcards, get_connection, get_setting, set_setting
 from app.heading_detect import detect_headings
 from app.llm_segment import extract_atomic_concepts
 from app.pdf_extract import extract_raw_text
@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 # Concurrency limit based on VRAM constraints (e.g. RTX 3050 6GB)
 OLLAMA_SEMAPHORE = None
 
-async def process_section(sec: dict, chapter_title: str, skip_chapter_filter: bool, code_blocks: dict, images: dict, provider_override: str = None, book_id: int = None) -> list[Chunk]:
+async def process_section(sec: dict, chapter_title: str, skip_chapter_filter: bool, code_blocks: dict, images: dict, provider_override: str = None, book_id: int = None, book_hash: str = None) -> list[Chunk]:
     global OLLAMA_SEMAPHORE
     if OLLAMA_SEMAPHORE is None:
         OLLAMA_SEMAPHORE = asyncio.Semaphore(2)
@@ -59,15 +59,22 @@ async def process_section(sec: dict, chapter_title: str, skip_chapter_filter: bo
             section_extraction = await extract_atomic_concepts(heading, text, code_blocks, images, provider_override)
             
         if book_id:
-            parent_topic_id = save_topic(book_id, heading, level=1, start_page=page_num, end_page=page_num, content_md=text)
+            breadcrumb = chapter_title or heading
+            parent_topic_id = await resolve_and_save_topic(
+                book_id=book_id, book_hash=book_hash, breadcrumb=breadcrumb,
+                title=heading, level=1, start_page=page_num, end_page=page_num, content_md=text
+            )
             
         chunks = build_chunks(section_extraction, chapter_title, page_num, code_blocks, images)
         
         if book_id:
             for chunk in chunks:
                 key_terms_json = json.dumps(chunk.key_terms) if chunk.key_terms else None
-                t_id = save_topic(
+                chunk_breadcrumb = f"{chapter_title or heading} > {chunk.topic_name}"
+                t_id = await resolve_and_save_topic(
                     book_id=book_id,
+                    book_hash=book_hash,
+                    breadcrumb=chunk_breadcrumb,
                     title=chunk.topic_name,
                     level=2,
                     parent_id=parent_topic_id,
@@ -80,6 +87,8 @@ async def process_section(sec: dict, chapter_title: str, skip_chapter_filter: bo
                     image_url=chunk.image_url
                 )
                 chunk.topic_id = t_id
+                # Attach breadcrumb to chunk so API returns it
+                chunk.breadcrumb = chunk_breadcrumb
             
         return chunks
     except httpx.HTTPError as e:
@@ -132,7 +141,7 @@ async def chunk_pdf(
             sec_images = {k: v for k, v in images.items() if f"[ASSET: {k}]" in sec["text"]}
             
             tasks.append(
-                process_section(sec, chapter_title, skip_chapter_filter, sec_code_blocks, sec_images, provider, book_id)
+                process_section(sec, chapter_title, skip_chapter_filter, sec_code_blocks, sec_images, provider, book_id, file_hash)
             )
             
         results = await asyncio.gather(*tasks)
@@ -183,7 +192,7 @@ async def chunk_pdf_stream(
                 sec_code_blocks = {k: v for k, v in code_blocks.items() if f"[ASSET: {k}]" in sec["text"]}
                 sec_images = {k: v for k, v in images.items() if f"[ASSET: {k}]" in sec["text"]}
                 tasks.append(
-                    process_section(sec, chapter_title, skip_chapter_filter, sec_code_blocks, sec_images, provider, book_id)
+                    process_section(sec, chapter_title, skip_chapter_filter, sec_code_blocks, sec_images, provider, book_id, file_hash)
                 )
                 
             yield f"data: {json.dumps({'stage': 'Waiting on LLM response', 'sections': len(tasks)})}\n\n"
@@ -232,6 +241,8 @@ async def generate_topic_flashcards(topic_id: int, req: FlashcardGenerationReque
             topic_text = parent.get("content_md") or ""
             
     flashcard_list = await generate_flashcards_for_topic(
+        topic_name=topic.get("title", ""),
+        breadcrumb=topic.get("breadcrumb", ""),
         topic_text=topic_text,
         summary=summary,
         count=req.count,
@@ -245,7 +256,7 @@ async def generate_topic_flashcards(topic_id: int, req: FlashcardGenerationReque
     for fc in flashcard_list.flashcards:
         card_dict = fc.model_dump()
         card_dict["topic_name"] = topic.get("title", "")
-        card_dict["breadcrumb"] = ""
+        card_dict["breadcrumb"] = topic.get("breadcrumb", "")
         card_dict["source_page"] = topic.get("start_page")
         cards_to_save.append(card_dict)
         
@@ -257,6 +268,45 @@ async def generate_topic_flashcards(topic_id: int, req: FlashcardGenerationReque
         "flashcards_generated": inserted,
         "flashcards": cards_to_save
     }
+
+
+@app.get("/topics/{topic_id}/related")
+def get_related_topics(topic_id: int, limit: int = 5):
+    from app.database import get_topic_by_id, get_connection
+    from app.embeddings import cosine_similarity
+    
+    topic = get_topic_by_id(topic_id)
+    if not topic or not topic.get("embedding"):
+        return JSONResponse(status_code=404, content={"error": "Topic or embedding not found"})
+        
+    try:
+        target_emb = json.loads(topic["embedding"])
+    except Exception:
+        return JSONResponse(status_code=500, content={"error": "Invalid embedding format"})
+        
+    related = []
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, title, breadcrumb, summary, embedding FROM topics WHERE id != ? AND embedding IS NOT NULL", (topic_id,))
+        rows = cursor.fetchall()
+        
+        for r in rows:
+            try:
+                emb = json.loads(r["embedding"])
+                sim = cosine_similarity(target_emb, emb)
+                related.append({
+                    "id": r["id"],
+                    "title": r["title"],
+                    "breadcrumb": r["breadcrumb"],
+                    "summary": r["summary"],
+                    "similarity": sim
+                })
+            except Exception:
+                continue
+                
+    # Sort descending by similarity
+    related.sort(key=lambda x: x["similarity"], reverse=True)
+    return related[:limit]
 
 
 @app.get("/flashcards")

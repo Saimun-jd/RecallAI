@@ -71,3 +71,13 @@ Once the initial ingestion finishes, the CLI enters an **interactive loop** allo
 - **Topic ID**: Must match an `ID` from the table printed right before the prompt.
 - **How many**: The exact number of flashcards the LLM should generate.
 - **Custom Instructions**: Optional context or instructions to steer the LLM (e.g., "Make it a cloze deletion", "Focus only on formulas", "Make the questions very difficult").
+
+---
+
+## Advanced Features (Semantic Engine)
+
+By processing PDFs through `cli.py`, you automatically leverage the backend **Semantic Engine**, which unlocks the following capabilities:
+
+1. **Intelligent Deduplication**: Topics are embedded as vectors (combining their hierarchy, title, and summary). If the CLI encounters the same concept across multiple pages or even different PDF parsing sessions, it will seamlessly merge the key terms and protect the original identity, ensuring you never get duplicate database rows (Cosine Similarity Threshold ≥ 0.94).
+2. **Book-Scoped Graph**: The embeddings are scoped by `book_id`. This prevents cross-contamination of similar terms between entirely different textbooks.
+3. **Semantic Relationships (`/topics/{id}/related`)**: Because topics are stripped of superficial location bias (like page numbers) before embedding, you can query the REST API to find mathematically similar concepts across the entire book, bridging connections that traditional keyword searches would miss.

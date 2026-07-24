@@ -25,6 +25,47 @@ from app.toc_parser import (
     search_toc_by_title,
 )
 
+def ensure_ollama_models():
+    from app.config import settings
+    import httpx
+    
+    models_to_check = [settings.ollama_model, settings.ollama_embedding_model]
+    
+    try:
+        resp = httpx.get(f"{settings.ollama_host}/api/tags")
+        if resp.status_code != 200:
+            console.print(f"[red]Could not connect to Ollama at {settings.ollama_host}.[/red]")
+            return False
+            
+        tags = resp.json().get("models", [])
+        installed_models = [m.get("name") for m in tags]
+        
+        for model in models_to_check:
+            # Handle exact name or without tag if it's implicitly latest
+            if model not in installed_models and f"{model}:latest" not in installed_models:
+                console.print(f"[yellow]Model '{model}' is missing. Pulling from Ollama...[/yellow]")
+                with httpx.stream("POST", f"{settings.ollama_host}/api/pull", json={"name": model}, timeout=None) as r:
+                    with Progress(
+                        SpinnerColumn(),
+                        TextColumn("[progress.description]{task.description}"),
+                        BarColumn(),
+                        TaskProgressColumn(),
+                        console=console
+                    ) as progress:
+                        task_id = progress.add_task(f"Downloading {model}", total=100)
+                        for line in r.iter_lines():
+                            if line:
+                                data = json.loads(line)
+                                if "total" in data and "completed" in data:
+                                    progress.update(task_id, completed=data["completed"], total=data["total"])
+                                elif "status" in data:
+                                    progress.update(task_id, description=f"[cyan]{data['status']}[/cyan]")
+    except Exception as e:
+        console.print(f"[red]Failed to check or pull Ollama models: {e}[/red]")
+        return False
+        
+    return True
+
 # ---------------------------------------------------------------------------
 # PDF Slicing & Auto-Chunking
 # ---------------------------------------------------------------------------
@@ -210,6 +251,10 @@ def main():
                 break
             else:
                 console.print("[red]Invalid choice. Please enter 1 or 2.[/red]")
+                
+    if selected_provider == "ollama":
+        if not ensure_ollama_models():
+            sys.exit(1)
 
     try:
         selected_ranges = []
@@ -421,8 +466,8 @@ def main():
                         for c in cards:
                             fc_table.add_row(
                                 c.get("concept_type", ""),
-                                c.get("flashcard_question", ""),
-                                c.get("flashcard_answer", "")
+                                c.get("question", ""),
+                                c.get("answer", "")
                             )
                         console.print(fc_table)
                     else:
