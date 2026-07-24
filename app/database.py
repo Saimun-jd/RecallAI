@@ -54,12 +54,35 @@ def init_db():
                 start_page INTEGER NOT NULL,
                 end_page INTEGER NOT NULL,
                 content_md TEXT,
+                summary TEXT,
+                concept_type TEXT,
+                key_terms TEXT,
+                code_snippet TEXT,
+                image_url TEXT,
                 is_processed BOOLEAN DEFAULT 0,
                 sort_order INTEGER NOT NULL,
+                flashcard_count INTEGER DEFAULT 0,
                 FOREIGN KEY (book_id) REFERENCES books (id),
                 FOREIGN KEY (parent_id) REFERENCES topics (id)
             )
         """)
+        
+        # Migration: Add new columns if they don't exist
+        cursor.execute("PRAGMA table_info(topics)")
+        columns = [row['name'] for row in cursor.fetchall()]
+        
+        migrations = [
+            ("flashcard_count", "INTEGER DEFAULT 0"),
+            ("summary", "TEXT"),
+            ("concept_type", "TEXT"),
+            ("key_terms", "TEXT"),
+            ("code_snippet", "TEXT"),
+            ("image_url", "TEXT")
+        ]
+        
+        for col_name, col_type in migrations:
+            if col_name not in columns:
+                cursor.execute(f"ALTER TABLE topics ADD COLUMN {col_name} {col_type}")
         
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS flashcards (
@@ -153,7 +176,12 @@ def save_topic(
     start_page: Optional[int] = None,
     end_page: Optional[int] = None,
     content_md: Optional[str] = None,
-    sort_order: int = 0
+    sort_order: int = 0,
+    summary: Optional[str] = None,
+    concept_type: Optional[str] = None,
+    key_terms: Optional[str] = None,
+    code_snippet: Optional[str] = None,
+    image_url: Optional[str] = None,
 ) -> int:
     """Inserts or updates a topic and returns its ID."""
     with get_connection() as conn:
@@ -168,16 +196,34 @@ def save_topic(
         )
         row = cursor.fetchone()
         if row:
+            # Update the existing topic with new metadata if provided
+            cursor.execute(
+                """
+                UPDATE topics SET 
+                    summary = COALESCE(?, summary),
+                    concept_type = COALESCE(?, concept_type),
+                    key_terms = COALESCE(?, key_terms),
+                    code_snippet = COALESCE(?, code_snippet),
+                    image_url = COALESCE(?, image_url)
+                WHERE id = ?
+                """,
+                (summary, concept_type, key_terms, code_snippet, image_url, row['id'])
+            )
             return row['id']
             
         cursor.execute(
             """
             INSERT INTO topics (
                 book_id, parent_id, title, level, 
-                start_page, end_page, content_md, sort_order
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                start_page, end_page, content_md, sort_order,
+                summary, concept_type, key_terms, code_snippet, image_url
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (book_id, parent_id, title, level, start_page or 0, end_page or 0, content_md, sort_order)
+            (
+                book_id, parent_id, title, level, 
+                start_page or 0, end_page or 0, content_md, sort_order,
+                summary, concept_type, key_terms, code_snippet, image_url
+            )
         )
         return cursor.lastrowid
 
@@ -226,7 +272,22 @@ def save_flashcards(topic_id: int, flashcards_list: List[Dict[str, Any]]) -> int
             except Exception as e:
                 logger.error(f"Failed to insert flashcard {content_hash}: {e}")
                 
+        # Recalculate flashcard_count for the topic
+        cursor.execute("""
+            UPDATE topics 
+            SET flashcard_count = (SELECT COUNT(*) FROM flashcards WHERE topic_id = topics.id)
+            WHERE id = ?
+        """, (topic_id,))
+                
     return inserted
+
+def get_topic_by_id(topic_id: int) -> Optional[Dict[str, Any]]:
+    """Retrieves a topic by its ID."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM topics WHERE id = ?", (topic_id,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
 
 def get_setting(key: str) -> Optional[str]:
     """Retrieves a setting value by key."""

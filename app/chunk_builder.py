@@ -32,8 +32,6 @@ def build_chunks(section_ext: SectionExtraction, chapter_title: str, page_num: i
             topic_name=strip_asset_tags(topic.topic_name),
             concept_type=topic.concept_type,
             summary=strip_asset_tags(topic.summary),
-            flashcard_question=strip_asset_tags(topic.flashcard_question),
-            flashcard_answer=strip_asset_tags(topic.flashcard_answer),
             key_terms=topic.key_terms,
             related_code_id=topic.related_code_id,
             related_image_id=topic.related_image_id,

@@ -344,7 +344,7 @@ def main():
                 if result:
                     chunks = result.get("chunks", [])
                     if not chunks:
-                        progress.print(f"\n[yellow]No flashcards extracted for '{chunk_item['title']}'.[/yellow]")
+                        progress.print(f"\n[yellow]No topics extracted for '{chunk_item['title']}'.[/yellow]")
                         continue
 
                     safe_name = re.sub(r'[^\w\s-]', '', chunk_item['title']).strip().replace(' ', '_')[:80]
@@ -356,26 +356,79 @@ def main():
                     all_results.extend(chunks)
 
                     table = Table(title=f"Results: {chunk_item['title']}")
+                    table.add_column("ID", style="yellow")
                     table.add_column("Topic Name", style="cyan")
                     table.add_column("Type", style="magenta")
                     table.add_column("Summary", style="green")
 
                     for chunk in chunks:
                         table.add_row(
+                            str(chunk.get("topic_id", "N/A")),
                             chunk.get("topic_name", "N/A"),
                             chunk.get("concept_type", "N/A"),
                             chunk.get("summary", "N/A"),
                         )
 
                     progress.print(table)
-                    progress.print(f"[bold]Processing Time:[/bold] {duration:.2f}s | [bold]Flashcards:[/bold] {len(chunks)}")
+                    progress.print(f"[bold]Processing Time:[/bold] {duration:.2f}s | [bold]Topics Extracted:[/bold] {len(chunks)}")
 
         if all_results:
             combined_path = os.path.join(args.output_dir, "_combined.json")
             with open(combined_path, "w", encoding="utf-8") as f:
                 json.dump({"total_chunks": len(all_results), "chunks": all_results}, f, indent=2, ensure_ascii=False)
             console.print(f"\n[bold green]Combined results -> {combined_path}[/bold green]")
-            console.print(f"[bold]Grand Total Flashcards Generated: {len(all_results)}[/bold]")
+            console.print(f"[bold]Grand Total Topics Extracted: {len(all_results)}[/bold]")
+            
+            # Interactive generation loop
+            while True:
+                console.print("\n[bold cyan]? Generate Flashcards for a topic? (Enter Topic ID or 'q' to quit)[/bold cyan]")
+                ans = input("> ").strip()
+                if ans.lower() in ('q', 'quit', 'exit'):
+                    break
+                if not ans.isdigit():
+                    console.print("[red]Please enter a valid Topic ID or 'q'.[/red]")
+                    continue
+                    
+                topic_id = int(ans)
+                count = input("  How many flashcards? (Default: 5): ").strip()
+                count = int(count) if count.isdigit() else 5
+                
+                custom_prompt = input("  Custom Instructions (Optional): ").strip()
+                
+                console.print(f"[cyan]Generating {count} flashcards for Topic {topic_id}...[/cyan]")
+                
+                try:
+                    import requests
+                    payload = {"count": count}
+                    if custom_prompt:
+                        payload["custom_prompt"] = custom_prompt
+                    if selected_provider:
+                        payload["provider_override"] = selected_provider
+                        
+                    base_url = args.endpoint.replace('/chunk/stream', '').replace('/chunk', '')
+                    resp = requests.post(f"{base_url}/topics/{topic_id}/flashcards", json=payload)
+                    
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        cards = data.get("flashcards", [])
+                        console.print(f"[green]Successfully generated {len(cards)} flashcards![/green]")
+                        
+                        fc_table = Table(title=f"Flashcards for Topic {topic_id}")
+                        fc_table.add_column("Type", style="magenta")
+                        fc_table.add_column("Question", style="cyan")
+                        fc_table.add_column("Answer", style="green")
+                        
+                        for c in cards:
+                            fc_table.add_row(
+                                c.get("concept_type", ""),
+                                c.get("flashcard_question", ""),
+                                c.get("flashcard_answer", "")
+                            )
+                        console.print(fc_table)
+                    else:
+                        console.print(f"[red]Error {resp.status_code}: {resp.text}[/red]")
+                except Exception as e:
+                    console.print(f"[red]Request failed: {e}[/red]")
 
     finally:
         doc.close()

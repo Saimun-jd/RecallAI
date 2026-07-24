@@ -7,6 +7,7 @@ from fastapi import FastAPI, Form, UploadFile
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 import json
+import httpx
 
 from app.chunk_builder import build_chunks
 from app.database import init_db, save_book, save_topic, save_flashcards, get_connection, get_setting, set_setting
@@ -58,10 +59,32 @@ async def process_section(sec: dict, chapter_title: str, skip_chapter_filter: bo
             section_extraction = await extract_atomic_concepts(heading, text, code_blocks, images, provider_override)
             
         if book_id:
-            topic_id = save_topic(book_id, heading, level=1, start_page=page_num, end_page=page_num)
-            save_flashcards(topic_id, [t.model_dump() for t in section_extraction.atomic_topics])
+            parent_topic_id = save_topic(book_id, heading, level=1, start_page=page_num, end_page=page_num, content_md=text)
             
-        return build_chunks(section_extraction, chapter_title, page_num, code_blocks, images)
+        chunks = build_chunks(section_extraction, chapter_title, page_num, code_blocks, images)
+        
+        if book_id:
+            for chunk in chunks:
+                key_terms_json = json.dumps(chunk.key_terms) if chunk.key_terms else None
+                t_id = save_topic(
+                    book_id=book_id,
+                    title=chunk.topic_name,
+                    level=2,
+                    parent_id=parent_topic_id,
+                    start_page=page_num,
+                    end_page=page_num,
+                    summary=chunk.summary,
+                    concept_type=chunk.concept_type,
+                    key_terms=key_terms_json,
+                    code_snippet=chunk.code_snippet,
+                    image_url=chunk.image_url
+                )
+                chunk.topic_id = t_id
+            
+        return chunks
+    except httpx.HTTPError as e:
+        # Bubble up critical provider failures
+        raise e
     except Exception as e:
         logger.error(f"Failed to process section '{heading}': {e}")
         return []
@@ -181,6 +204,60 @@ async def chunk_pdf_stream(
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+from pydantic import BaseModel
+
+class FlashcardGenerationRequest(BaseModel):
+    count: int = 5
+    custom_prompt: str | None = None
+    summary_override: str | None = None
+    provider_override: str | None = None
+
+@app.post("/topics/{topic_id}/flashcards")
+async def generate_topic_flashcards(topic_id: int, req: FlashcardGenerationRequest):
+    from app.database import get_topic_by_id
+    from app.llm_segment import generate_flashcards_for_topic
+    
+    topic = get_topic_by_id(topic_id)
+    if not topic:
+        return JSONResponse(status_code=404, content={"error": "Topic not found"})
+        
+    summary = req.summary_override or topic.get("summary") or ""
+    # We pass the parent's content_md as context if it exists, or the topic's own content_md
+    topic_text = topic.get("content_md") or ""
+    
+    if not topic_text and topic.get("parent_id"):
+        parent = get_topic_by_id(topic.get("parent_id"))
+        if parent:
+            topic_text = parent.get("content_md") or ""
+            
+    flashcard_list = await generate_flashcards_for_topic(
+        topic_text=topic_text,
+        summary=summary,
+        count=req.count,
+        custom_prompt=req.custom_prompt,
+        provider_override=req.provider_override
+    )
+    
+    # Save the generated flashcards
+    # Flashcard schema needs topic_name, concept_type, etc., which are on the topic
+    cards_to_save = []
+    for fc in flashcard_list.flashcards:
+        card_dict = fc.model_dump()
+        card_dict["topic_name"] = topic.get("title", "")
+        card_dict["breadcrumb"] = ""
+        card_dict["source_page"] = topic.get("start_page")
+        cards_to_save.append(card_dict)
+        
+    inserted = save_flashcards(topic_id, cards_to_save)
+    
+    return {
+        "status": "success",
+        "topic_id": topic_id,
+        "flashcards_generated": inserted,
+        "flashcards": cards_to_save
+    }
+
 
 @app.get("/flashcards")
 def get_flashcards(topic_id: int | None = None, book_id: int | None = None):
