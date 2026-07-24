@@ -17,6 +17,10 @@ def setup_test_db(monkeypatch):
     
     app.database.init_db()
     
+    with app.database.get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("INSERT INTO books (id, title, file_path, file_hash, total_pages) VALUES (1, 'Test Book', 'path', 'hash', 100)")
+    
     yield path
     
     os.remove(path)

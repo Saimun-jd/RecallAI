@@ -5,17 +5,20 @@ import logging
 import os
 from contextlib import contextmanager
 from typing import List, Dict, Any, Optional
+from platformdirs import user_data_dir
 
 logger = logging.getLogger(__name__)
 
-# Ensure it connects to data/recall.db by default
-DB_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "recall.db")
+# Ensure it connects to cross-platform user data dir
+DATA_DIR = user_data_dir("Recall", "Recall")
+DB_PATH = os.path.join(DATA_DIR, "recall.db")
 
 @contextmanager
 def get_connection():
     """Yields a database connection with Row factory enabled."""
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys = ON")
     try:
         yield conn
         conn.commit()
@@ -65,8 +68,8 @@ def init_db():
                 breadcrumb TEXT,
                 topic_hash TEXT UNIQUE NOT NULL,
                 embedding TEXT,
-                FOREIGN KEY (book_id) REFERENCES books (id),
-                FOREIGN KEY (parent_id) REFERENCES topics (id)
+                FOREIGN KEY (book_id) REFERENCES books (id) ON DELETE CASCADE,
+                FOREIGN KEY (parent_id) REFERENCES topics (id) ON DELETE CASCADE
             )
         """)
         
@@ -106,10 +109,30 @@ def init_db():
                 source_page INTEGER,
                 content_hash TEXT NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (topic_id) REFERENCES topics (id),
+                FOREIGN KEY (topic_id) REFERENCES topics (id) ON DELETE CASCADE,
                 UNIQUE(topic_id, content_hash)
             )
         """)
+        
+        # Migration: Add FSRS columns to flashcards if they don't exist
+        cursor.execute("PRAGMA table_info(flashcards)")
+        fc_columns = [row['name'] for row in cursor.fetchall()]
+        
+        fc_migrations = [
+            ("state", "INTEGER DEFAULT 0"),
+            ("stability", "REAL DEFAULT 0.0"),
+            ("difficulty", "REAL DEFAULT 0.0"),
+            ("elapsed_days", "INTEGER DEFAULT 0"),
+            ("scheduled_days", "INTEGER DEFAULT 0"),
+            ("reps", "INTEGER DEFAULT 0"),
+            ("lapses", "INTEGER DEFAULT 0"),
+            ("last_review", "TEXT"),
+            ("due", "TEXT")
+        ]
+        
+        for col_name, col_type in fc_migrations:
+            if col_name not in fc_columns:
+                cursor.execute(f"ALTER TABLE flashcards ADD COLUMN {col_name} {col_type}")
         
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS notes (
@@ -118,7 +141,7 @@ def init_db():
                 content TEXT NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (topic_id) REFERENCES topics (id)
+                FOREIGN KEY (topic_id) REFERENCES topics (id) ON DELETE CASCADE
             )
         """)
         
@@ -134,7 +157,7 @@ def init_db():
                 lapses INTEGER DEFAULT 0,
                 state INTEGER DEFAULT 0,
                 rating INTEGER,
-                FOREIGN KEY (flashcard_id) REFERENCES flashcards (id)
+                FOREIGN KEY (flashcard_id) REFERENCES flashcards (id) ON DELETE CASCADE
             )
         """)
         
@@ -228,7 +251,6 @@ async def resolve_and_save_topic(
             return row['id']
             
     # 2. If no exact match, compute embeddings for semantic match
-    # 2. If no exact match, compute embeddings for semantic match
     provider = settings.llm_provider
     
     kt_list = []
@@ -315,7 +337,7 @@ async def resolve_and_save_topic(
             )
             return best_id
             
-        # 3. No semantic match >= 0.92, Insert new row
+        # 3. No semantic match >= 0.94, Insert new row
         cursor.execute(
             """
             INSERT INTO topics (
@@ -362,7 +384,7 @@ def save_flashcards(topic_id: int, flashcards_list: List[Dict[str, Any]]) -> int
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     topic_id,
-                    card.get("topic_name") or "",
+                    card.get("topic_name") or "Unknown Topic",
                     card.get("concept_type") or "",
                     card.get("summary") or "",
                     question,
@@ -413,3 +435,201 @@ def set_setting(key: str, value: str):
             VALUES (?, ?)
             ON CONFLICT(key) DO UPDATE SET value = excluded.value
         """, (key, value))
+
+def get_due_flashcards(limit: int = 20) -> List[Dict[str, Any]]:
+    """Retrieves due flashcards sorted by due date ascending (NULLs first)."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT * FROM flashcards 
+            WHERE due IS NULL OR datetime(due) <= datetime('now')
+            ORDER BY due ASC NULLS FIRST
+            LIMIT ?
+        """, (limit,))
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+
+def update_flashcard_fsrs_state(card_id: int, fsrs_data: dict, rating: Optional[int] = None) -> None:
+    """Updates the FSRS scheduling parameters for a specific flashcard and logs the review."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE flashcards SET 
+                state = ?,
+                stability = ?,
+                difficulty = ?,
+                elapsed_days = ?,
+                scheduled_days = ?,
+                reps = ?,
+                lapses = ?,
+                last_review = ?,
+                due = ?
+            WHERE id = ?
+        """, (
+            fsrs_data.get("state", 0),
+            fsrs_data.get("stability", 0.0),
+            fsrs_data.get("difficulty", 0.0),
+            fsrs_data.get("elapsed_days", 0),
+            fsrs_data.get("scheduled_days", 0),
+            fsrs_data.get("reps", 0),
+            fsrs_data.get("lapses", 0),
+            fsrs_data.get("last_review"),
+            fsrs_data.get("due"),
+            card_id
+        ))
+        
+        if rating is not None:
+            cursor.execute("""
+                INSERT INTO review_log (
+                    flashcard_id, stability, difficulty, due_date, 
+                    last_review, reps, lapses, state, rating
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                card_id,
+                fsrs_data.get("stability", 0.0),
+                fsrs_data.get("difficulty", 0.0),
+                fsrs_data.get("due"),
+                fsrs_data.get("last_review"),
+                fsrs_data.get("reps", 0),
+                fsrs_data.get("lapses", 0),
+                fsrs_data.get("state", 0),
+                rating
+            ))
+
+def get_analytics_stats() -> Dict[str, Any]:
+    """Retrieves aggregated analytics metrics from the database."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        
+        # 1. Totals
+        cursor.execute("SELECT COUNT(*) FROM books")
+        books = cursor.fetchone()[0] or 0
+        
+        cursor.execute("SELECT COUNT(*) FROM topics")
+        topics = cursor.fetchone()[0] or 0
+        
+        cursor.execute("SELECT COUNT(*) FROM flashcards")
+        fc_row = cursor.fetchone()
+        flashcards = fc_row[0] or 0
+        
+        cursor.execute("SELECT COUNT(*) FROM review_log")
+        total_reviews = cursor.fetchone()[0] or 0
+        
+        # 2. Queue (Card State Breakdown)
+        cursor.execute("SELECT state, COUNT(*) FROM flashcards GROUP BY state")
+        state_counts = {row[0]: row[1] for row in cursor.fetchall()}
+        
+        new_cards = state_counts.get(0, 0)
+        learning_cards = state_counts.get(1, 0) + state_counts.get(3, 0)
+        review_cards = state_counts.get(2, 0)
+        
+        cursor.execute("SELECT COUNT(*) FROM flashcards WHERE due IS NULL OR datetime(due) <= datetime('now')")
+        due_now = cursor.fetchone()[0] or 0
+        
+        # 3. FSRS Metrics
+        cursor.execute("SELECT AVG(stability), AVG(difficulty) FROM flashcards WHERE state != 0")
+        metrics_row = cursor.fetchone()
+        avg_stability = metrics_row[0] if metrics_row and metrics_row[0] is not None else 0.0
+        avg_difficulty = metrics_row[1] if metrics_row and metrics_row[1] is not None else 0.0
+        
+        # 4. Forecast 7-Day
+        cursor.execute("""
+            SELECT date(due) as d, COUNT(*)
+            FROM flashcards
+            WHERE datetime(due) > datetime('now') AND datetime(due) <= datetime('now', '+7 days')
+            GROUP BY date(due)
+            ORDER BY d ASC
+        """)
+        forecast_rows = cursor.fetchall()
+        
+        # Fill in all 7 days for a complete forecast graph
+        import datetime
+        now = datetime.datetime.now(datetime.timezone.utc)
+        forecast = []
+        forecast_map = {row[0]: row[1] for row in forecast_rows}
+        
+        for i in range(1, 8):
+            day_str = (now + datetime.timedelta(days=i)).strftime("%Y-%m-%d")
+            forecast.append({
+                "date": day_str,
+                "due_count": forecast_map.get(day_str, 0)
+            })
+            
+        return {
+            "totals": {
+                "books": books,
+                "topics": topics,
+                "flashcards": flashcards,
+                "total_reviews": total_reviews
+            },
+            "queue": {
+                "due_now": due_now,
+                "new": new_cards,
+                "learning": learning_cards,
+                "review": review_cards
+            },
+            "fsrs_metrics": {
+                "average_stability_days": round(avg_stability, 2),
+                "average_difficulty": round(avg_difficulty, 2)
+            },
+            "forecast_7d": forecast
+        }
+
+def get_books(skip: int = 0, limit: int = 100) -> List[Dict[str, Any]]:
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM books ORDER BY created_at DESC LIMIT ? OFFSET ?", (limit, skip))
+        return [dict(row) for row in cursor.fetchall()]
+
+def get_book_by_id(book_id: int) -> Optional[Dict[str, Any]]:
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM books WHERE id = ?", (book_id,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
+def delete_book(book_id: int) -> bool:
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM books WHERE id = ?", (book_id,))
+        return cursor.rowcount > 0
+
+def get_topics(book_id: Optional[int] = None, skip: int = 0, limit: int = 100) -> List[Dict[str, Any]]:
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        if book_id is not None:
+            cursor.execute("SELECT * FROM topics WHERE book_id = ? ORDER BY sort_order ASC LIMIT ? OFFSET ?", (book_id, limit, skip))
+        else:
+            cursor.execute("SELECT * FROM topics ORDER BY id ASC LIMIT ? OFFSET ?", (limit, skip))
+        return [dict(row) for row in cursor.fetchall()]
+
+def get_flashcard_by_id(card_id: int) -> Optional[Dict[str, Any]]:
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM flashcards WHERE id = ?", (card_id,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
+def update_flashcard(card_id: int, question: str, answer: str) -> bool:
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE flashcards SET question = ?, answer = ? WHERE id = ?", (question, answer, card_id))
+        return cursor.rowcount > 0
+
+def delete_flashcard(card_id: int) -> bool:
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM flashcards WHERE id = ?", (card_id,))
+        return cursor.rowcount > 0
+
+def reset_flashcard_fsrs_state(card_id: int) -> bool:
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE flashcards SET 
+                state = 0, stability = 0.0, difficulty = 0.0,
+                elapsed_days = 0, scheduled_days = 0, reps = 0,
+                lapses = 0, last_review = NULL, due = NULL
+            WHERE id = ?
+        """, (card_id,))
+        return cursor.rowcount > 0

@@ -6,8 +6,13 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Form, UploadFile
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
 import json
 import httpx
+from platformdirs import user_data_dir
+
+DATA_DIR = user_data_dir("Recall", "Recall")
+PARSED_DOCS_DIR = os.path.join(DATA_DIR, "parsed_docs")
 
 from app.chunk_builder import build_chunks
 from app.database import init_db, save_book, resolve_and_save_topic, save_flashcards, get_connection, get_setting, set_setting
@@ -22,12 +27,21 @@ from app.markdown_ast import parse_markdown_assets
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
-    os.makedirs("parsed_docs", exist_ok=True)
+    os.makedirs(PARSED_DOCS_DIR, exist_ok=True)
     yield
 
 
 app = FastAPI(title="Chunking Service", lifespan=lifespan)
-app.mount("/static", StaticFiles(directory="parsed_docs"), name="static")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["tauri://localhost", "https://tauri.localhost", "http://localhost:*", "http://127.0.0.1:*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.mount("/static", StaticFiles(directory=PARSED_DOCS_DIR), name="static")
 
 logger = logging.getLogger(__name__)
 
@@ -345,3 +359,112 @@ class SettingUpdate(BaseModel):
 def update_setting(key: str, data: SettingUpdate):
     set_setting(key, data.value)
     return {"status": "success", "key": key, "value": data.value}
+
+class ReviewRequest(BaseModel):
+    rating: int
+
+@app.get("/flashcards/due")
+def get_due_flashcards_api(limit: int = 20):
+    from app.database import get_due_flashcards
+    return get_due_flashcards(limit=limit)
+
+@app.post("/flashcards/{card_id}/review")
+def review_flashcard_api(card_id: int, req: ReviewRequest):
+    from app.database import get_connection, update_flashcard_fsrs_state
+    from app.fsrs import review_card
+    
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM flashcards WHERE id = ?", (card_id,))
+        row = cursor.fetchone()
+        
+    if not row:
+        return JSONResponse(status_code=404, content={"error": "Card not found"})
+        
+    card_data = dict(row)
+    
+    try:
+        updated_fsrs_data = review_card(card_data, req.rating)
+    except ValueError as e:
+        return JSONResponse(status_code=400, content={"error": str(e)})
+        
+    update_flashcard_fsrs_state(card_id, updated_fsrs_data)
+    
+    # Merge updated context for returning
+    card_data.update(updated_fsrs_data)
+    return card_data
+
+@app.get("/analytics/stats")
+def get_analytics_stats_api():
+    from app.database import get_analytics_stats
+    return get_analytics_stats()
+
+@app.get("/books")
+def get_books_api(skip: int = 0, limit: int = 100):
+    from app.database import get_books
+    return get_books(skip, limit)
+
+@app.get("/books/{book_id}")
+def get_book_by_id_api(book_id: int):
+    from app.database import get_book_by_id
+    book = get_book_by_id(book_id)
+    if not book:
+        return JSONResponse(status_code=404, content={"error": "Book not found"})
+    return book
+
+@app.delete("/books/{book_id}")
+def delete_book_api(book_id: int):
+    from app.database import delete_book
+    success = delete_book(book_id)
+    if not success:
+        return JSONResponse(status_code=404, content={"error": "Book not found"})
+    return {"status": "success"}
+
+@app.get("/topics")
+def get_topics_api(book_id: int | None = None, skip: int = 0, limit: int = 100):
+    from app.database import get_topics
+    return get_topics(book_id, skip, limit)
+
+@app.get("/topics/{topic_id}")
+def get_topic_by_id_api(topic_id: int):
+    from app.database import get_topic_by_id
+    topic = get_topic_by_id(topic_id)
+    if not topic:
+        return JSONResponse(status_code=404, content={"error": "Topic not found"})
+    return topic
+
+@app.get("/flashcards/{card_id}")
+def get_flashcard_by_id_api(card_id: int):
+    from app.database import get_flashcard_by_id
+    card = get_flashcard_by_id(card_id)
+    if not card:
+        return JSONResponse(status_code=404, content={"error": "Flashcard not found"})
+    return card
+
+class FlashcardUpdate(BaseModel):
+    question: str
+    answer: str
+
+@app.put("/flashcards/{card_id}")
+def update_flashcard_api(card_id: int, req: FlashcardUpdate):
+    from app.database import update_flashcard
+    success = update_flashcard(card_id, req.question, req.answer)
+    if not success:
+        return JSONResponse(status_code=404, content={"error": "Flashcard not found"})
+    return {"status": "success"}
+
+@app.delete("/flashcards/{card_id}")
+def delete_flashcard_api(card_id: int):
+    from app.database import delete_flashcard
+    success = delete_flashcard(card_id)
+    if not success:
+        return JSONResponse(status_code=404, content={"error": "Flashcard not found"})
+    return {"status": "success"}
+
+@app.post("/flashcards/{card_id}/reset")
+def reset_flashcard_api(card_id: int):
+    from app.database import reset_flashcard_fsrs_state
+    success = reset_flashcard_fsrs_state(card_id)
+    if not success:
+        return JSONResponse(status_code=404, content={"error": "Flashcard not found"})
+    return {"status": "success"}

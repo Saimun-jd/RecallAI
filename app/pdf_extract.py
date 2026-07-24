@@ -2,9 +2,12 @@ import hashlib
 from pathlib import Path
 import fitz
 import pymupdf4llm
+from platformdirs import user_data_dir
+import os
 
-CACHE_DIR = Path("parsed_docs")
-CACHE_DIR.mkdir(exist_ok=True)
+DATA_DIR = user_data_dir("Recall", "Recall")
+CACHE_DIR = Path(os.path.join(DATA_DIR, "parsed_docs"))
+CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 def extract_raw_text(pdf_bytes: bytes, start_page: int | None = None) -> tuple[str, str, int]:
     pdf_hash = hashlib.sha256(pdf_bytes).hexdigest()[:8]

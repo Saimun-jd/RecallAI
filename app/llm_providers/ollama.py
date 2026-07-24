@@ -22,7 +22,7 @@ class OllamaProvider(BaseLLMProvider):
                     "prompt": prompt,
                     "stream": False,
                     "format": json_schema,
-                    "options": {"temperature": temperature, "num_ctx": max_tokens},
+                    "options": {"temperature": temperature, "num_predict": max_tokens, "num_ctx": 8192},
                 },
             )
         r.raise_for_status()

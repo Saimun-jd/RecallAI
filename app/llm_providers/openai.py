@@ -33,12 +33,6 @@ class OpenAIProvider(BaseLLMProvider):
             }
         }
         
-        # DEBUG: Save payload to file
-        import json as json_mod
-        with open("_debug_groq_payload.json", "w", encoding="utf-8") as f:
-            f.write(json_mod.dumps(payload, indent=2))
-        print(f"DEBUG: Saved payload to _debug_groq_payload.json, size: {len(json_mod.dumps(payload))} bytes")
-        
         async with httpx.AsyncClient(timeout=120.0) as client:
             r = await client.post(
                 f"{self.base_url}/chat/completions",

@@ -4,20 +4,38 @@ The `cli.py` script is a powerful tool to ingest PDFs, extract semantic topics, 
 
 ## Basic Usage
 
-The only required argument is the path to your PDF file (`-f`).
+The CLI supports three primary modes: `parse` (for PDF ingestion and topic extraction), `review` (for interactive flashcard study), and `stats` (for tracking study progress).
+
+### 1. Parsing PDFs (Default Mode)
+The only required argument for parsing is the path to your PDF file (`-f`). If you omit the command, it defaults to `parse`.
 
 ```bash
-python cli.py -f "path/to/your/book.pdf"
+python cli.py parse -f "path/to/your/book.pdf"
 ```
 *If you run this, the CLI will interactively ask you to select an LLM provider and then parse the Table of Contents so you can select which subtopics to ingest.*
+
+### 2. Interactive Study Mode
+To study flashcards that are due for review via the built-in Spaced Repetition System (FSRS):
+
+```bash
+python cli.py review
+```
+
+### 3. Study Progress Analytics
+To view aggregated progress metrics (like total reviews, average retention stability, and your upcoming 7-day forecast):
+
+```bash
+python cli.py stats
+```
 
 ## Command-Line Arguments
 
 Here is the complete list of available flags you can pass to `cli.py`:
 
+### Global / Parse Command Flags
 | Short | Long Flag       | Description |
 |-------|-----------------|-------------|
-| `-f`  | `--file`        | **(Required)** Path to the local PDF file you want to process. |
+| `-f`  | `--file`        | **(Required for parse)** Path to the local PDF file you want to process. |
 | `-p`  | `--pages`       | Manual page range override (e.g., `'12-18'`). Skips the TOC extraction and forces the parser to only read the specified pages. |
 | `-c`  | `--chapter`     | Target a main chapter title by name. |
 | `-s`  | `--subtopic`    | Skip the interactive checkbox prompt and automatically process the specific subtopic title provided. |
@@ -25,6 +43,12 @@ Here is the complete list of available flags you can pass to `cli.py`:
 | `-m`  | `--max-pages`   | Maximum number of pages to process per LLM chunk payload. Default is `4`. |
 | `-e`  | `--endpoint`    | URL to the backend API endpoint. Default is `http://127.0.0.1:8000/chunk`. |
 | `-o`  | `--output-dir`  | Directory where JSON results will be saved locally. Default is `output/`. |
+
+### Review Command Flags
+| Short | Long Flag       | Description |
+|-------|-----------------|-------------|
+|       | `--limit`       | Number of due flashcards to fetch for the current review session. Default is `20`. |
+| `-e`  | `--endpoint`    | URL to the backend API endpoint (e.g. `http://127.0.0.1:8000`). |
 
 ---
 

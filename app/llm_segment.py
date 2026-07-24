@@ -39,7 +39,7 @@ Expected Object Format:
   "atomic_topics": [
     {{
       "topic_name": "...",
-      "concept_type": "Definition | Formula | Process Step | Code Example | Comparison | Cloze",
+      "concept_type": "Definition | Formula | Process Step | Code Example | Comparison",
       "summary": "...",
       "key_terms": ["term1", "term2"],
       "related_code_id": null,

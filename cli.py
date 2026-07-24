@@ -6,6 +6,7 @@ import os
 import re
 import sys
 import time
+import requests
 
 import fitz  # PyMuPDF
 import httpx
@@ -185,11 +186,157 @@ def upload_chunk(
 # CLI Entry Point
 # ---------------------------------------------------------------------------
 
+def run_review_mode(args):
+    from datetime import datetime, timezone
+    
+    # We strip /chunk from the endpoint if present for flashcard APIs
+    base_url = args.endpoint.replace('/chunk/stream', '').replace('/chunk', '')
+    
+    console.print(f"[cyan]Fetching up to {args.limit} due flashcards...[/cyan]")
+    try:
+        resp = requests.get(f"{base_url}/flashcards/due", params={"limit": args.limit})
+        resp.raise_for_status()
+        cards = resp.json()
+    except Exception as e:
+        console.print(f"[red]Failed to fetch due flashcards: {e}[/red]")
+        sys.exit(1)
+        
+    if not cards:
+        console.print("\n[bold green]🎉 No cards due for review right now! Check back later.[/bold green]\n")
+        return
+        
+    total = len(cards)
+    completed = 0
+    
+    console.print(f"\n[bold green]Found {total} cards to review![/bold green]")
+    
+    try:
+        for idx, card in enumerate(cards, 1):
+            console.print(f"\n[bold yellow]---[ Card {idx}/{total} ]---[/bold yellow]")
+            
+            # Print Breadcrumb/Context
+            breadcrumb = card.get("breadcrumb") or "No Hierarchy"
+            title = card.get("topic_name") or "Unknown Topic"
+            console.print(f"[bold cyan]Context:[/bold cyan] {breadcrumb} > {title}")
+            
+            # Print Question
+            console.print(f"\n[bold magenta]Q:[/bold magenta] {card.get('question')}\n")
+            
+            ans = input("Press [ENTER] to reveal answer (or 'q' to quit)... ")
+            if ans.lower() == 'q':
+                break
+                
+            console.print(f"\n[bold green]A:[/bold green] {card.get('answer')}\n")
+            
+            console.print("Rate your recall:")
+            console.print("  [1] Again  (Repeat soon)")
+            console.print("  [2] Hard   (Challenging)")
+            console.print("  [3] Good   (Ideal interval)")
+            console.print("  [4] Easy   (Very simple)")
+            
+            rating = None
+            while rating not in [1, 2, 3, 4]:
+                rating_str = input("Select rating (1-4, or 'q' to quit): ").strip()
+                if rating_str.lower() == 'q':
+                    rating = 'q'
+                    break
+                if rating_str.isdigit() and int(rating_str) in [1, 2, 3, 4]:
+                    rating = int(rating_str)
+                else:
+                    console.print("[red]Invalid rating. Please enter 1, 2, 3, or 4.[/red]")
+                    
+            if rating == 'q':
+                break
+                
+            # Submit review
+            card_id = card.get("id")
+            try:
+                rev_resp = requests.post(f"{base_url}/flashcards/{card_id}/review", json={"rating": rating})
+                rev_resp.raise_for_status()
+                updated_card = rev_resp.json()
+                due_str = updated_card.get("due")
+                if due_str:
+                    due_dt = datetime.fromisoformat(due_str)
+                    now = datetime.now(timezone.utc)
+                    delta = due_dt - now
+                    if delta.days > 0:
+                        interval = f"{delta.days} days"
+                    else:
+                        hours, rem = divmod(delta.seconds, 3600)
+                        minutes, _ = divmod(rem, 60)
+                        if hours > 0:
+                            interval = f"{hours} hours, {minutes} mins"
+                        else:
+                            interval = f"{minutes} minutes"
+                    console.print(f"[bold green]✓ Scheduled. Next review in {interval}.[/bold green]")
+                else:
+                    console.print("[bold green]✓ Scheduled.[/bold green]")
+                completed += 1
+            except Exception as e:
+                console.print(f"[red]Failed to submit review: {e}[/red]")
+                
+    except KeyboardInterrupt:
+        console.print("\n[yellow]Review session interrupted by user.[/yellow]")
+        
+    console.print(f"\n[bold blue]Session complete. Reviewed {completed} cards in this session.[/bold blue]")
+
+
+def run_stats_mode(args):
+    import requests
+    base_url = args.endpoint.replace('/chunk/stream', '').replace('/chunk', '')
+    
+    console.print("[cyan]Fetching analytics from backend...[/cyan]")
+    try:
+        resp = requests.get(f"{base_url}/analytics/stats")
+        resp.raise_for_status()
+        stats = resp.json()
+    except Exception as e:
+        console.print(f"[red]Failed to fetch stats: {e}[/red]")
+        sys.exit(1)
+        
+    totals = stats.get("totals", {})
+    queue = stats.get("queue", {})
+    metrics = stats.get("fsrs_metrics", {})
+    
+    # Render Tables
+    table = Table(title="Study Progress Analytics", show_header=True, header_style="bold magenta")
+    table.add_column("Category", style="cyan")
+    table.add_column("Metric", style="green")
+    table.add_column("Value", justify="right")
+    
+    table.add_row("Overview", "Books", str(totals.get("books", 0)))
+    table.add_row("", "Topics", str(totals.get("topics", 0)))
+    table.add_row("", "Flashcards", str(totals.get("flashcards", 0)))
+    table.add_row("", "Total Reviews Logged", str(totals.get("total_reviews", 0)))
+    table.add_section()
+    table.add_row("Queue", "New Cards", str(queue.get("new", 0)))
+    table.add_row("", "Learning Cards", str(queue.get("learning", 0)))
+    table.add_row("", "Review Cards", str(queue.get("review", 0)))
+    table.add_row("", "Due Right Now", f"[bold yellow]{queue.get('due_now', 0)}[/bold yellow]")
+    table.add_section()
+    table.add_row("Performance", "Avg Stability (Days)", f"{metrics.get('average_stability_days', 0)}")
+    table.add_row("", "Avg Difficulty", f"{metrics.get('average_difficulty', 0)}")
+    
+    console.print(table)
+    
+    # Print Forecast
+    forecast = stats.get("forecast_7d", [])
+    if forecast:
+        console.print("\n[bold cyan]7-Day Review Forecast[/bold cyan]")
+        f_table = Table(show_header=True, header_style="bold magenta")
+        f_table.add_column("Date", style="cyan")
+        f_table.add_column("Cards Due", justify="right", style="green")
+        for f in forecast:
+            f_table.add_row(f.get("date", ""), str(f.get("due_count", 0)))
+        console.print(f_table)
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Interactive CLI for Parsing PDFs & Granular Flashcard Generation"
     )
-    parser.add_argument("-f", "--file", required=True, help="Path to local PDF file")
+    parser.add_argument("command", nargs="?", default="parse", help="Command to run: 'parse', 'review', or 'stats'")
+    parser.add_argument("-f", "--file", help="Path to local PDF file (required for parse)")
     parser.add_argument("-c", "--chapter", help="Target main chapter title")
     parser.add_argument(
         "-s", "--subtopic", help="Skip interactive prompt and use this subtopic title"
@@ -209,8 +356,23 @@ def main():
     parser.add_argument(
         "--provider", choices=["ollama", "openai"], help="Override default LLM provider"
     )
+    parser.add_argument(
+        "--limit", type=int, default=20, help="Number of flashcards to review (for review command)"
+    )
 
     args = parser.parse_args()
+
+    if args.command == "review":
+        run_review_mode(args)
+        return
+        
+    if args.command == "stats":
+        run_stats_mode(args)
+        return
+
+    if not args.file:
+        console.print("[red]Error: the following arguments are required: -f/--file when using 'parse' command[/red]")
+        sys.exit(1)
 
     if not os.path.exists(args.file):
         console.print(f"[red]File not found: {args.file}[/red]")

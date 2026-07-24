@@ -1,6 +1,6 @@
 from markdown_it import MarkdownIt
 
-def parse_markdown_assets(md_text: str, cache_key: str) -> tuple[dict, dict, str]:
+def parse_markdown_assets(md_text: str, cache_key: str) -> tuple[str, dict, dict]:
     """
     Parses Markdown AST to extract code blocks and images, and injects inline markers.
     Returns: (modified_md_text, code_blocks_map, images_map)

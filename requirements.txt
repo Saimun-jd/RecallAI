@@ -2,11 +2,7 @@
 fastapi
 uvicorn
 python-multipart
---extra-index-url https://download.pytorch.org/whl/cpu
-torch
 pymupdf
-sentence-transformers
-
 httpx
 pydantic-settings
 numpy
@@ -14,3 +10,6 @@ rich
 questionary
 pymupdf4llm
 markdown-it-py
+python-dotenv
+fsrs
+platformdirs
