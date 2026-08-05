@@ -22,6 +22,13 @@ class FlashcardItem(BaseModel):
 class FlashcardList(BaseModel):
     flashcards: List[FlashcardItem]
 
+class SimpleFlashcard(BaseModel):
+    question: str
+    answer: str
+
+class SimpleFlashcardList(BaseModel):
+    flashcards: List[SimpleFlashcard]
+
 class SectionExtraction(BaseModel):
     section_title: str
     atomic_topics: List[AtomicTopic]

@@ -1,0 +1,134 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+@theme {
+  --font-sans: "Inter", "Geist Sans", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "JetBrains Mono", "Geist Mono", monospace;
+  
+  --color-zinc-950: #09090b;
+  --color-zinc-900: #18181b;
+  --color-zinc-800: #27272a;
+}
+
+@layer base {
+  html, body {
+    @apply bg-zinc-950 text-zinc-100 antialiased h-full w-full overflow-hidden;
+    color-scheme: dark;
+  }
+  
+  /* Reset some default outlines for a cleaner look */
+  *:focus-visible {
+    @apply outline-none ring-2 ring-emerald-500 ring-offset-2 ring-offset-zinc-950;
+  }
+  
+  /* CMDK Base Styles */
+  [cmdk-overlay] {
+    @apply fixed inset-0 bg-black/60 backdrop-blur-sm z-50;
+  }
+  [cmdk-dialog] {
+    @apply fixed left-1/2 top-[20%] w-full max-w-xl -translate-x-1/2 z-50 bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl overflow-hidden;
+  }
+  [cmdk-input] {
+    @apply w-full border-none bg-transparent px-4 py-4 text-zinc-100 outline-none text-lg placeholder:text-zinc-500;
+  }
+  [cmdk-list] {
+    @apply max-h-[300px] overflow-y-auto border-t border-zinc-800 p-2;
+  }
+  [cmdk-item] {
+    @apply flex items-center gap-2 rounded-md px-4 py-3 text-sm text-zinc-300 cursor-pointer select-none;
+  }
+  [cmdk-item][data-selected="true"] {
+    @apply bg-emerald-500/10 text-emerald-400;
+  }
+  [cmdk-empty] {
+    @apply py-6 text-center text-sm text-zinc-500;
+  }
+}
+
+/* PDF Dark Mode */
+.pdf-highlighter-container.theme-dark .canvasWrapper {
+  filter: invert(90%) hue-rotate(180deg);
+}
+
+.pdf-highlighter-container.theme-dark .textLayer {
+  mix-blend-mode: normal !important;
+}
+
+/* Make default selection highlights transparent since we removed multiply blend mode */
+body .pdf-highlighter-container.theme-dark .Highlight__part,
+body .pdf-highlighter-container.theme-dark div[class*="mouseSelection"],
+body .pdf-highlighter-container.theme-dark .Highlight {
+  background-color: rgba(255, 226, 143, 0.4) !important;
+  background: rgba(255, 226, 143, 0.4) !important;
+  opacity: 0.4 !important;
+}
+
+body .pdf-highlighter-container.theme-dark div[class*="mouseSelection"] {
+  border-color: rgba(255, 226, 143, 0.6) !important;
+}
+
+/* Ensure highlights sit above text selection layer for clicking */
+.PdfHighlighter .HighlightLayer {
+  z-index: 10 !important;
+}
+
+/* Reset Tailwind Typography (prose) line-height for KaTeX math blocks */
+.prose .katex {
+  line-height: normal;
+}
+
+/* ─── PDF Viewer Layers ─── */
+
+/* Page container: positions canvas, text layer, and annotations absolutely */
+.pdf-page-container {
+  position: relative;
+  overflow: hidden;
+}
+
+/* Canvas sits at the bottom */
+.pdf-canvas-layer {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Text layer: invisible selectable text overlaying the canvas */
+.pdf-text-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  overflow: hidden;
+  opacity: 0.25;
+  line-height: 1;
+  z-index: 2;
+}
+
+.pdf-text-layer span,
+.pdf-text-layer br {
+  position: absolute;
+  white-space: pre;
+  color: transparent;
+  transform-origin: 0% 0%;
+}
+
+/* Emerald selection highlight */
+.pdf-text-layer ::selection {
+  background: rgba(16, 185, 129, 0.35);
+}
+
+/* Annotation mount: sits on top of text layer for highlight overlays */
+.pdf-annotation-mount {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.pdf-annotation-mount > * {
+  pointer-events: auto;
+}

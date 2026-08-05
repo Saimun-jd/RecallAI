@@ -11,9 +11,19 @@ class Settings(BaseSettings):
     
     # OpenAI compatible settings
     openai_api_key: str = ""
-    openai_model: str = "llama-3.1-8b-instant"
-    openai_base_url: str = "https://api.groq.com/openai/v1"
+    openai_model: str = "gpt-4o-mini"
+    openai_base_url: str = "https://api.openai.com/v1"
     openai_embedding_model: str = "text-embedding-3-small"
+    
+    # Gemini
+    gemini_api_key: str = ""
+    gemini_model: str = "gemini-2.5-flash"
+    
+    # Groq
+    groq_api_key: str = ""
+    groq_model: str = "llama-3.1-8b-instant"
+    
+
     
     prefilter_threshold: float = 0.55
     min_chunk_tokens: int = 40

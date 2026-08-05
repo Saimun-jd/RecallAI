@@ -13,3 +13,4 @@ markdown-it-py
 python-dotenv
 fsrs
 platformdirs
+pyinstaller

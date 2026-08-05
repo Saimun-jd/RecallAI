@@ -62,6 +62,7 @@ def init_db():
                 key_terms TEXT,
                 code_snippet TEXT,
                 image_url TEXT,
+                status TEXT DEFAULT 'unprocessed',
                 is_processed BOOLEAN DEFAULT 0,
                 sort_order INTEGER NOT NULL,
                 flashcard_count INTEGER DEFAULT 0,
@@ -78,6 +79,7 @@ def init_db():
         columns = [row['name'] for row in cursor.fetchall()]
         
         migrations = [
+            ("status", "TEXT DEFAULT 'unprocessed'"),
             ("flashcard_count", "INTEGER DEFAULT 0"),
             ("summary", "TEXT"),
             ("concept_type", "TEXT"),
@@ -168,6 +170,31 @@ def init_db():
             )
         """)
         
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS undo_log (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                flashcard_id INTEGER NOT NULL,
+                previous_state_json TEXT NOT NULL,
+                FOREIGN KEY (flashcard_id) REFERENCES flashcards (id) ON DELETE CASCADE
+            )
+        """)
+        
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS pdf_annotations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                book_id INTEGER NOT NULL,
+                page_number INTEGER NOT NULL,
+                annotation_type TEXT NOT NULL,
+                selected_text TEXT NOT NULL,
+                rect_json TEXT NOT NULL,
+                content TEXT,
+                custom_prompt TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (book_id) REFERENCES books (id) ON DELETE CASCADE
+            )
+        """)
+        
         # Seed default settings if empty
         cursor.execute("SELECT COUNT(*) as count FROM settings")
         if cursor.fetchone()['count'] == 0:
@@ -217,6 +244,8 @@ async def resolve_and_save_topic(
     key_terms: Optional[str] = None,
     code_snippet: Optional[str] = None,
     image_url: Optional[str] = None,
+    status: str = "unprocessed",
+    provider_override: Optional[str] = None,
 ) -> int:
     """Inserts or updates a topic using semantic deduplication and returns its ID."""
     from app.embeddings import get_embedding, cosine_similarity
@@ -251,8 +280,19 @@ async def resolve_and_save_topic(
             return row['id']
             
     # 2. If no exact match, compute embeddings for semantic match
-    provider = settings.llm_provider
-    
+    if provider_override:
+        provider = provider_override
+    else:
+        # Fallback to the database settings
+        db_prov = get_setting("llm_provider")
+        if db_prov:
+            try:
+                provider = json.loads(db_prov).get("type", settings.llm_provider)
+            except Exception:
+                provider = settings.llm_provider
+        else:
+            provider = settings.llm_provider
+            
     kt_list = []
     if key_terms:
         try:
@@ -344,14 +384,14 @@ async def resolve_and_save_topic(
                 book_id, parent_id, title, level, 
                 start_page, end_page, content_md, sort_order,
                 summary, concept_type, key_terms, code_snippet, image_url,
-                breadcrumb, topic_hash, embedding
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                breadcrumb, topic_hash, embedding, status
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 book_id, parent_id, title, level, 
                 start_page or 0, end_page or 0, content_md, sort_order,
                 summary, concept_type, key_terms, code_snippet, image_url,
-                breadcrumb, topic_hash, new_emb_json
+                breadcrumb, topic_hash, new_emb_json, status
             )
         )
         return cursor.lastrowid
@@ -578,7 +618,14 @@ def get_analytics_stats() -> Dict[str, Any]:
 def get_books(skip: int = 0, limit: int = 100) -> List[Dict[str, Any]]:
     with get_connection() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM books ORDER BY created_at DESC LIMIT ? OFFSET ?", (limit, skip))
+        cursor.execute("""
+            SELECT b.*,
+                (SELECT COUNT(*) FROM topics t WHERE t.book_id = b.id) as total_topics,
+                (SELECT COUNT(*) FROM topics t WHERE t.book_id = b.id AND t.status = 'processed') as topics_processed
+            FROM books b
+            ORDER BY b.created_at DESC 
+            LIMIT ? OFFSET ?
+        """, (limit, skip))
         return [dict(row) for row in cursor.fetchall()]
 
 def get_book_by_id(book_id: int) -> Optional[Dict[str, Any]]:
@@ -594,7 +641,26 @@ def delete_book(book_id: int) -> bool:
         cursor.execute("DELETE FROM books WHERE id = ?", (book_id,))
         return cursor.rowcount > 0
 
-def get_topics(book_id: Optional[int] = None, skip: int = 0, limit: int = 100) -> List[Dict[str, Any]]:
+def get_note_by_topic(topic_id: int) -> str:
+    """Retrieves Markdown text from the notes table for a topic."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT content FROM notes WHERE topic_id = ?", (topic_id,))
+        row = cursor.fetchone()
+        return row['content'] if row else ""
+
+def save_note_for_topic(topic_id: int, note_text: str) -> None:
+    """Upserts the Markdown text in the notes table for a topic."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT id FROM notes WHERE topic_id = ?", (topic_id,))
+        row = cursor.fetchone()
+        if row:
+            cursor.execute("UPDATE notes SET content = ?, updated_at = CURRENT_TIMESTAMP WHERE topic_id = ?", (note_text, topic_id))
+        else:
+            cursor.execute("INSERT INTO notes (topic_id, content) VALUES (?, ?)", (topic_id, note_text))
+
+def get_topics(book_id: Optional[int] = None, skip: int = 0, limit: int = 10000) -> List[Dict[str, Any]]:
     with get_connection() as conn:
         cursor = conn.cursor()
         if book_id is not None:
@@ -632,4 +698,153 @@ def reset_flashcard_fsrs_state(card_id: int) -> bool:
                 lapses = 0, last_review = NULL, due = NULL
             WHERE id = ?
         """, (card_id,))
+        return cursor.rowcount > 0
+
+def save_undo_state(card_id: int, previous_state: dict) -> None:
+    """Saves the pre-review state of a flashcard so it can be undone. Only stores 1 step globally."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        # id=1 ensures only one row ever exists (global 1-step undo)
+        cursor.execute("""
+            INSERT INTO undo_log (id, flashcard_id, previous_state_json)
+            VALUES (1, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET 
+                flashcard_id = excluded.flashcard_id, 
+                previous_state_json = excluded.previous_state_json
+        """, (card_id, json.dumps(previous_state)))
+
+def undo_review(card_id: int) -> Optional[dict]:
+    """Reverts the card to its previous state if it matches the undo log."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT previous_state_json FROM undo_log WHERE id = 1 AND flashcard_id = ?", (card_id,))
+        row = cursor.fetchone()
+        if not row:
+            return None
+            
+        previous_state = json.loads(row['previous_state_json'])
+        
+        # Restore state
+        cursor.execute("""
+            UPDATE flashcards SET 
+                state = ?, stability = ?, difficulty = ?,
+                elapsed_days = ?, scheduled_days = ?, reps = ?,
+                lapses = ?, last_review = ?, due = ?
+            WHERE id = ?
+        """, (
+            previous_state.get("state", 0),
+            previous_state.get("stability", 0.0),
+            previous_state.get("difficulty", 0.0),
+            previous_state.get("elapsed_days", 0),
+            previous_state.get("scheduled_days", 0),
+            previous_state.get("reps", 0),
+            previous_state.get("lapses", 0),
+            previous_state.get("last_review"),
+            previous_state.get("due"),
+            card_id
+        ))
+        
+        # Remove the undo log entry so it can't be undone twice
+        cursor.execute("DELETE FROM undo_log WHERE id = 1")
+        
+        # Also delete the most recent review_log entry for this card
+        cursor.execute("""
+            DELETE FROM review_log 
+            WHERE id = (SELECT id FROM review_log WHERE flashcard_id = ? ORDER BY id DESC LIMIT 1)
+        """, (card_id,))
+        
+        return previous_state
+
+def insert_topics_bulk(book_id: int, toc_entries: list) -> int:
+    import hashlib
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        
+        inserted_count = 0
+        parent_stack = [] # list of (level, id)
+        
+        for index, entry in enumerate(toc_entries):
+            level = entry["level"]
+            title = entry["title"]
+            start_page = entry["start_page"]
+            end_page = entry["end_page"]
+            
+            while parent_stack and parent_stack[-1][0] >= level:
+                parent_stack.pop()
+                
+            parent_id = parent_stack[-1][1] if parent_stack else None
+            topic_hash = hashlib.sha256(f"{book_id}_{title}_{start_page}_{index}".encode()).hexdigest()
+            
+            cursor.execute("""
+                INSERT INTO topics (book_id, parent_id, title, level, start_page, end_page, sort_order, topic_hash, status)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'unprocessed')
+            """, (book_id, parent_id, title, level, start_page, end_page, index, topic_hash))
+            
+            topic_id = cursor.lastrowid
+            parent_stack.append((level, topic_id))
+            inserted_count += 1
+            
+        return inserted_count
+
+def update_topic_status(topic_id: int, status: str):
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE topics SET status = ? WHERE id = ?", (status, topic_id))
+
+def update_topic_summary(topic_id: int, summary: str, content_md: str):
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE topics SET summary = ?, content_md = ? WHERE id = ?", (summary, content_md, topic_id))
+
+# ─── PDF Annotation CRUD ───
+
+def save_annotation(book_id: int, page_number: int, annotation_type: str,
+                    selected_text: str, rect_json: str,
+                    content: str = None, custom_prompt: str = None) -> int:
+    """Create a new PDF annotation and return its ID."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO pdf_annotations (book_id, page_number, annotation_type, selected_text, rect_json, content, custom_prompt)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (book_id, page_number, annotation_type, selected_text, rect_json, content, custom_prompt))
+        return cursor.lastrowid
+
+def get_annotations_for_page(book_id: int, page_number: int) -> list:
+    """Get all annotations for a specific page of a book."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT * FROM pdf_annotations
+            WHERE book_id = ? AND page_number = ?
+            ORDER BY created_at ASC
+        """, (book_id, page_number))
+        return [dict(row) for row in cursor.fetchall()]
+
+def get_annotations_for_book(book_id: int) -> list:
+    """Get all annotations for a book."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT * FROM pdf_annotations
+            WHERE book_id = ?
+            ORDER BY page_number ASC, created_at ASC
+        """, (book_id,))
+        return [dict(row) for row in cursor.fetchall()]
+
+def update_annotation(annotation_id: int, content: str) -> bool:
+    """Update an annotation's content. Returns True if a row was updated."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE pdf_annotations SET content = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        """, (content, annotation_id))
+        return cursor.rowcount > 0
+
+def delete_annotation(annotation_id: int) -> bool:
+    """Delete an annotation by ID. Returns True if a row was deleted."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM pdf_annotations WHERE id = ?", (annotation_id,))
         return cursor.rowcount > 0

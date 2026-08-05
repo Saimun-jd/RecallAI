@@ -1,14 +1,80 @@
-# .gitignore
+# Python
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+venv/
+.venv/
+env/
 .env
+
+# Node / Frontend
+node_modules/
+dist/
+dist-ssr/
+*.local
+desktop/node_modules/
+desktop/dist/
+
+# Tauri
+desktop/src-tauri/target/
+
+# App Data & Assets
 ollama_data/
 pg_data/
-*.pdf
-*.json
-/test_images
+/data
 /output
 /parsed_docs
 /images
+/test_images
+*.pdf
+*.sqlite
+*.db
+recall.db
+recall.db-journal
+
+# Logs and Debug
+*.log
 debug.md
-/data
+
+# IDEs and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Scratch and debug
+scratch/
+*_dump.*
+dump.*
+dump_*.*
+_debug_*.json
+response.json
+ast.json
+git_log.txt
+topics.txt
+original_*.tsx
+desktop/screenshot.png
+desktop/palette_*.png
+desktop/scroll_test.png
+
+# Test scripts
+test_*.py
+test_*.mjs
+test_*.cjs
+test_*.js
+test_*.tsx
+test-*.mjs
+test-*.cjs
+test-*.js
+check_db.py
+check-db.mjs
+test_output.html
+test_palette_logs.txt
+
+# Backups and Agent Artifacts
+*.bak
+desktop/brain/
+
+# Build outputs
+build/
+*.spec

@@ -75,10 +75,15 @@ Rules:
    - Answers must be concise (ideally ≤20 words) and precise.
    - Write full, natural questions in the `question` field and concise responses in the `answer` field.
 
-2. CUSTOM INSTRUCTIONS:
+2. FORMATTING & MATHEMATICS:
+   - If there are mathematical formulas or equations, format them strictly using Markdown LaTeX. Use `$` for inline math (e.g. `$E = mc^2$`) and `$$` for block math. NEVER use plain text for equations.
+   - For code blocks, you MUST use proper newlines (`\n`) within the JSON string. NEVER output a code block on a single line. Example: "```python\\nimport os\\n```".
+   - Use bold text for emphasis when appropriate.
+
+3. CUSTOM INSTRUCTIONS:
    {custom_prompt}
 
-3. STRICT JSON: Respond ONLY with a valid JSON object matching the schema below. CRITICAL: You MUST generate EXACTLY {count} flashcards. Do not generate more or less.
+4. STRICT JSON: Respond ONLY with a valid JSON object matching the schema below. CRITICAL: You MUST generate EXACTLY {count} flashcards. Do not generate more or less.
 
 Expected Object Format:
 {{
@@ -155,10 +160,8 @@ async def extract_atomic_concepts(heading: str, text: str, code_blocks: dict = N
 
     from copy import copy
     local_settings = copy(settings)
-    if provider_override:
-        local_settings.llm_provider = provider_override
+    provider = get_llm_provider(local_settings, provider_override=provider_override)
 
-    provider = get_llm_provider(local_settings)
     raw = await provider.generate(
         prompt=prompt,
         json_schema=schema,
@@ -223,10 +226,7 @@ async def generate_flashcards_for_topic(
     try:
         from copy import copy
         local_settings = copy(settings)
-        if provider_override:
-            local_settings.llm_provider = provider_override
-            
-        llm = get_llm_provider(local_settings)
+        llm = get_llm_provider(local_settings, provider_override=provider_override)
         raw_response = await llm.generate(prompt, json_schema=FlashcardList.model_json_schema())
         logger.info(f"Raw flashcard generation response: {raw_response}")
         clean_json_str = _sanitize_llm_response(raw_response)
@@ -236,3 +236,139 @@ async def generate_flashcards_for_topic(
     except Exception as e:
         logger.error(f"Failed to generate flashcards: {e}")
         return FlashcardList(flashcards=[])
+
+from pydantic import BaseModel
+class TopicSummary(BaseModel):
+    summary: str
+
+SUMMARY_PROMPT = """
+You are an expert tutor. Your task is to generate a detailed, structured Markdown summary of the following text from a textbook topic.
+The summary should serve as comprehensive study notes for a student.
+Format your notes using Markdown headings, bullet points, and bold text for emphasis.
+CRITICAL: If there are mathematical formulas or equations, format them strictly using Markdown LaTeX. Use `$` for inline math (e.g. `$E = mc^2$`) and `$$` for block math.
+
+TOPIC TITLE: {heading_title}
+TOPIC CONTENT:
+<
+{text}
+>
+"""
+
+async def generate_topic_summary(heading: str, text: str, provider_override: str = None) -> str:
+    prompt = SUMMARY_PROMPT.format(heading_title=heading, text=text)
+    
+    from copy import copy
+    local_settings = copy(settings)
+    provider = get_llm_provider(local_settings, provider_override=provider_override)
+    raw = await provider.generate(
+        prompt=prompt,
+        json_schema=TopicSummary.model_json_schema(),
+        temperature=0.3,
+        max_tokens=4000,
+    )
+    sanitized_raw = _sanitize_llm_response(raw)
+
+    try:
+        import json
+        parsed = json.loads(sanitized_raw)
+        summary = parsed.get("summary", "")
+        if isinstance(summary, dict) or isinstance(summary, list):
+            summary = json.dumps(summary)
+        return str(summary)
+    except Exception as e:
+        logger.error(f"Failed to process summary with LLM. Error: {e}")
+        return ""
+
+
+# ─── PDF Annotation: AI Explanation ───
+
+EXPLAIN_PROMPT = """You are an expert tutor. A student has highlighted the following passage from their textbook and wants you to explain it.
+
+HIGHLIGHTED TEXT:
+<<<
+{selected_text}
+>>>
+
+STUDENT'S INSTRUCTION: {custom_prompt}
+
+Provide a clear, detailed explanation. Use Markdown formatting with headings, bullet points, and bold text.
+CRITICAL: If there are mathematical formulas, use LaTeX: `$` for inline, `$$` for block math.
+CRITICAL: If there is code, use proper fenced code blocks with language tags.
+"""
+
+FLASHCARD_FROM_SELECTION_PROMPT = """You are an expert educational content creator. Generate exactly {count} high-quality flashcards from the following highlighted textbook passage.
+
+HIGHLIGHTED TEXT:
+<<<
+{selected_text}
+>>>
+
+ADDITIONAL INSTRUCTION: {custom_prompt}
+
+Rules:
+1. Each flashcard should test a single, distinct concept from the passage.
+2. Questions should be specific and unambiguous.
+3. Answers should be concise but complete.
+4. Use LaTeX ($..$ for inline, $$...$$ for block) for any mathematical content.
+5. Use fenced code blocks with language tags for code.
+
+Respond ONLY with a valid JSON object matching this schema:
+{{
+  "flashcards": [
+    {{
+      "question": "...",
+      "answer": "..."
+    }}
+  ]
+}}
+"""
+
+async def explain_selected_text(selected_text: str, custom_prompt: str = None, provider_override: str = None) -> str:
+    """Call the LLM with the EXPLAIN_PROMPT and return the raw Markdown response."""
+    prompt = EXPLAIN_PROMPT.format(
+        selected_text=selected_text,
+        custom_prompt=custom_prompt or "Explain this clearly and in detail."
+    )
+    
+    from copy import copy
+    local_settings = copy(settings)
+    provider = get_llm_provider(local_settings, provider_override=provider_override)
+    
+    # Free-form text generation — no JSON schema
+    raw = await provider.generate(
+        prompt=prompt,
+        json_schema=None,
+        temperature=0.4,
+        max_tokens=4000,
+    )
+    return raw.strip()
+
+
+async def generate_flashcards_from_selection(selected_text: str, count: int = 5, custom_prompt: str = None, provider_override: str = None) -> list:
+    """Generate flashcards from a highlighted PDF text selection."""
+    prompt = FLASHCARD_FROM_SELECTION_PROMPT.format(
+        selected_text=selected_text,
+        count=count,
+        custom_prompt=custom_prompt or "Focus on the key concepts."
+    )
+    
+    from copy import copy
+    local_settings = copy(settings)
+    provider = get_llm_provider(local_settings, provider_override=provider_override)
+    
+    from app.schemas import SimpleFlashcardList
+    raw = await provider.generate(
+        prompt=prompt,
+        json_schema=SimpleFlashcardList.model_json_schema(),
+        temperature=0.3,
+        max_tokens=4000,
+    )
+    sanitized = _sanitize_llm_response(raw)
+    
+    try:
+        import json
+        parsed = json.loads(sanitized)
+        return parsed.get("flashcards", [])
+    except Exception as e:
+        logger.error(f"Failed to parse flashcards from selection. Error: {e}")
+        return []

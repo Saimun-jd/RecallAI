@@ -6,14 +6,17 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-async def get_embedding(text: str, provider: str = "openai") -> List[float]:
-    """
-    Fetches the vector embedding for the given text using the configured provider.
-    Returns a list of floats.
-    """
-    if provider == "openai" and "groq.com" in settings.openai_base_url.lower():
-        provider = "ollama"
-        logger.info("Groq does not support embeddings. Falling back to Ollama.")
+async def get_embedding(text: str, provider: str = "ollama") -> List[float]:
+    from app.database import get_setting
+    
+    if provider == "groq" or (provider == "openai" and "groq.com" in settings.openai_base_url.lower()):
+        openai_key = get_setting("openai_api_key") or settings.openai_api_key
+        if openai_key:
+            provider = "openai"
+            logger.info(f"{provider} does not support embeddings. Falling back to OpenAI.")
+        else:
+            provider = "ollama"
+            logger.info(f"{provider} does not support embeddings. Falling back to Ollama.")
         
     if provider == "ollama":
         url = f"{settings.ollama_host}/api/embeddings"
@@ -26,11 +29,28 @@ async def get_embedding(text: str, provider: str = "openai") -> List[float]:
             response.raise_for_status()
             data = response.json()
             return data.get("embedding", [])
-    
+    elif provider == "gemini":
+        api_key = get_setting("gemini_api_key") or settings.gemini_api_key
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-2:embedContent?key={api_key}"
+        payload = {
+            "model": "models/gemini-embedding-2",
+            "content": {
+                "parts": [{"text": text}]
+            }
+        }
+        async with httpx.AsyncClient() as client:
+            response = await client.post(url, json=payload, timeout=30.0)
+            response.raise_for_status()
+            data = response.json()
+            if "embedding" in data and "values" in data["embedding"]:
+                return data["embedding"]["values"]
+            return []
+            
     elif provider == "openai":
         url = f"{settings.openai_base_url}/embeddings"
+        api_key = get_setting("openai_api_key") or settings.openai_api_key
         headers = {
-            "Authorization": f"Bearer {settings.openai_api_key}",
+            "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json"
         }
         payload = {
