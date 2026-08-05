@@ -30,7 +30,7 @@ def test_openai():
         settings.llm_provider = "openai"
         
         # You can put your real API key here to test it, or use OpenRouter
-        api_key = os.getenv("OPENAI_API_KEY", "REDACTED")
+        api_key = os.getenv("OPENAI_API_KEY", "YOUR_API_KEY_HERE")
         
         if api_key == "YOUR_API_KEY_HERE":
             print("Skipping OpenAI test because no API key is provided.")
