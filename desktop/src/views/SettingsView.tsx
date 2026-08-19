@@ -112,9 +112,9 @@ export function SettingsView() {
   if (loading) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center min-h-[500px]">
-        <Loader2 className="w-8 h-8 animate-spin text-emerald-500 mb-4" />
-        <p className="text-zinc-400">Loading settings...</p>
-        <p className="text-zinc-500 text-sm mt-2">{loadingStep}</p>
+        <Loader2 className="w-8 h-8 animate-spin text-accent-blue mb-4" strokeWidth={1.5} />
+        <p className="text-on-surface-variant">Loading settings...</p>
+        <p className="text-on-surface-variant text-sm mt-2">{loadingStep}</p>
       </div>
     );
   }
@@ -123,18 +123,18 @@ export function SettingsView() {
     const isSelected = activeProvider === id;
     return (
       <label className={clsx(
-        "relative flex flex-col border rounded-xl p-5 cursor-pointer transition-all duration-200",
+        "relative flex flex-col border rounded-[var(--radius-standard)] p-5 cursor-pointer transition-all duration-200",
         isSelected 
-          ? "border-emerald-500/50 bg-emerald-500/5 ring-1 ring-emerald-500/50" 
-          : "border-zinc-800 bg-zinc-900/50 hover:border-zinc-700 hover:bg-zinc-800/50"
+          ? "border-accent-blue/50 bg-accent-blue/5 ring-1 ring-accent-blue/50" 
+          : "border-border-default bg-surface-container-low hover:border-border-hover hover:bg-surface-container"
       )}>
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-3">
             <div className={clsx(
               "w-5 h-5 rounded-full border flex items-center justify-center transition-colors",
-              isSelected ? "border-emerald-500 bg-emerald-500" : "border-zinc-600 bg-transparent"
+              isSelected ? "border-accent-blue bg-accent-blue" : "border-outline-variant bg-transparent"
             )}>
-              {isSelected && <div className="w-2 h-2 bg-zinc-950 rounded-full" />}
+              {isSelected && <div className="w-2 h-2 bg-white rounded-full" />}
             </div>
             <input 
               type="radio" 
@@ -145,24 +145,24 @@ export function SettingsView() {
               className="sr-only" 
             />
             <div className="flex items-center gap-2">
-              <Icon size={16} className={isSelected ? "text-emerald-400" : "text-zinc-400"} />
-              <span className={clsx("font-semibold", isSelected ? "text-emerald-100" : "text-zinc-200")}>{name}</span>
+              <Icon size={16} className={isSelected ? "text-accent-blue" : "text-on-surface-variant"} strokeWidth={1.5} />
+              <span className={clsx("font-semibold", isSelected ? "text-primary" : "text-on-surface")}>{name}</span>
             </div>
           </div>
           {isLocal ? (
-            <span className="flex items-center gap-1 text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-              <ShieldCheck size={10} /> Local
+            <span className="flex items-center gap-1 text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-accent-blue/10 text-accent-blue border border-accent-blue/20">
+              <ShieldCheck size={10} strokeWidth={1.5} /> Local
             </span>
           ) : (
-            <span className="flex items-center gap-1 text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">
-              <Cloud size={10} /> Cloud
+            <span className="flex items-center gap-1 text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-secondary/10 text-secondary border border-secondary/20">
+              <Cloud size={10} strokeWidth={1.5} /> Cloud
             </span>
           )}
         </div>
-        <p className="text-sm text-zinc-400 flex-1 leading-relaxed">{description}</p>
-        <div className="mt-4 flex items-center justify-between border-t border-zinc-800/80 pt-3">
-          <span className="text-xs text-zinc-500 font-medium">Cost Estimate</span>
-          <span className={clsx("text-xs font-semibold", isLocal ? "text-emerald-400" : "text-zinc-300")}>{cost}</span>
+        <p className="text-sm text-on-surface-variant flex-1 leading-relaxed">{description}</p>
+        <div className="mt-4 flex items-center justify-between border-t border-border-default pt-3">
+          <span className="text-xs text-on-surface-variant font-medium">Cost Estimate</span>
+          <span className={clsx("text-xs font-semibold", isLocal ? "text-accent-blue" : "text-on-surface")}>{cost}</span>
         </div>
       </label>
     );
@@ -171,12 +171,12 @@ export function SettingsView() {
   return (
     <div className="p-8 max-w-4xl mx-auto flex flex-col h-full overflow-y-auto">
       <div className="flex items-center gap-4 mb-8">
-        <div className="w-12 h-12 bg-zinc-800 text-zinc-300 rounded-xl flex items-center justify-center border border-zinc-700/50">
-          <Settings size={24} />
+        <div className="w-12 h-12 bg-surface-container text-on-surface rounded-[var(--radius-standard)] flex items-center justify-center border border-border-default">
+          <Settings size={24} strokeWidth={1.5} />
         </div>
         <div>
-          <h2 className="text-2xl font-bold text-zinc-100 tracking-tight">AI Settings</h2>
-          <p className="text-zinc-400 text-sm mt-1">Configure your LLM engine and API keys securely.</p>
+          <h2 className="text-2xl font-bold text-primary tracking-tight">AI Settings</h2>
+          <p className="text-on-surface-variant text-sm mt-1">Configure your LLM engine and API keys securely.</p>
         </div>
       </div>
 
@@ -184,11 +184,11 @@ export function SettingsView() {
         
         {/* Provider Selection */}
         <section>
-          <h3 className="text-lg font-semibold text-zinc-100 flex items-center gap-2 mb-2">
-            <Cpu size={18} className="text-emerald-500" />
+          <h3 className="text-lg font-semibold text-primary flex items-center gap-2 mb-2">
+            <Cpu size={18} className="text-accent-blue" strokeWidth={1.5} />
             Active AI Provider
           </h3>
-          <p className="text-sm text-zinc-400 mb-6">Select the engine used to extract atomic concepts and generate flashcards.</p>
+          <p className="text-sm text-on-surface-variant mb-6">Select the engine used to extract atomic concepts and generate flashcards.</p>
           
           <div className="grid grid-cols-2 gap-4">
             <ProviderCard 
@@ -225,36 +225,36 @@ export function SettingsView() {
 
         {/* Global Settings */}
         <section>
-          <div className="flex items-center justify-between mb-4 border-b border-zinc-800 pb-2">
-            <h3 className="text-lg font-semibold text-zinc-100 flex items-center gap-2">
-              <Settings size={18} className="text-emerald-500" />
+          <div className="flex items-center justify-between mb-4 border-b border-border-default pb-2">
+            <h3 className="text-lg font-semibold text-primary flex items-center gap-2">
+              <Settings size={18} className="text-accent-blue" strokeWidth={1.5} />
               Global Preferences
             </h3>
           </div>
           
           <div className="space-y-4">
-            <label className="flex items-center justify-between p-4 bg-zinc-900 border border-zinc-800 rounded-xl cursor-pointer hover:border-zinc-700 transition">
+            <label className="flex items-center justify-between p-4 bg-surface-container-low border border-border-default rounded-[var(--radius-standard)] cursor-pointer hover:border-border-hover transition-all duration-200">
               <div>
-                <div className="font-medium text-zinc-200">Cloud Fallback</div>
-                <div className="text-sm text-zinc-400">If local Ollama fails or is too slow, seamlessly fall back to your configured cloud provider.</div>
+                <div className="font-medium text-primary">Cloud Fallback</div>
+                <div className="text-sm text-on-surface-variant">If local Ollama fails or is too slow, seamlessly fall back to your configured cloud provider.</div>
               </div>
               <input 
                 type="checkbox" 
                 checked={fallbackToCloudEnabled} 
                 onChange={(e) => dispatch(setFallbackToCloud(e.target.checked))} 
-                className="w-5 h-5 rounded border-zinc-700 text-emerald-500 focus:ring-emerald-500/20 bg-zinc-950" 
+                className="w-5 h-5 rounded-[var(--radius-tag)] border-outline-variant text-accent-blue focus:ring-accent-blue/20 bg-surface-container-lowest" 
               />
             </label>
-            <label className="flex items-center justify-between p-4 bg-zinc-900 border border-zinc-800 rounded-xl cursor-pointer hover:border-zinc-700 transition">
+            <label className="flex items-center justify-between p-4 bg-surface-container-low border border-border-default rounded-[var(--radius-standard)] cursor-pointer hover:border-border-hover transition-all duration-200">
               <div>
-                <div className="font-medium text-zinc-200">Attribution Tags</div>
-                <div className="text-sm text-zinc-400">Append small non-intrusive metadata to flashcards indicating which model generated them.</div>
+                <div className="font-medium text-primary">Attribution Tags</div>
+                <div className="text-sm text-on-surface-variant">Append small non-intrusive metadata to flashcards indicating which model generated them.</div>
               </div>
               <input 
                 type="checkbox" 
                 checked={showAttributionTags} 
                 onChange={(e) => dispatch(setShowAttributionTags(e.target.checked))} 
-                className="w-5 h-5 rounded border-zinc-700 text-emerald-500 focus:ring-emerald-500/20 bg-zinc-950" 
+                className="w-5 h-5 rounded-[var(--radius-tag)] border-outline-variant text-accent-blue focus:ring-accent-blue/20 bg-surface-container-lowest" 
               />
             </label>
           </div>
@@ -262,33 +262,33 @@ export function SettingsView() {
 
         {/* Secure API Keys */}
         <section>
-          <div className="flex items-center justify-between mb-4 border-b border-zinc-800 pb-2">
-            <h3 className="text-lg font-semibold text-zinc-100 flex items-center gap-2">
-              <Key size={18} className="text-emerald-500" />
+          <div className="flex items-center justify-between mb-4 border-b border-border-default pb-2">
+            <h3 className="text-lg font-semibold text-primary flex items-center gap-2">
+              <Key size={18} className="text-accent-blue" strokeWidth={1.5} />
               Secure API Keys
             </h3>
-            <span className="flex items-center gap-1.5 text-xs text-zinc-500 font-medium">
-              <ShieldCheck size={14} className="text-emerald-500/70" />
+            <span className="flex items-center gap-1.5 text-xs text-on-surface-variant font-medium">
+              <ShieldCheck size={14} className="text-accent-blue" strokeWidth={1.5} />
               Tauri Stronghold Encrypted
             </span>
           </div>
-          <p className="text-sm text-zinc-400 mb-6">Keys never leave your machine. They are encrypted using OS-native secure enclaves via Tauri Stronghold.</p>
+          <p className="text-sm text-on-surface-variant mb-6">Keys never leave your machine. They are encrypted using OS-native secure enclaves via Tauri Stronghold.</p>
           
           <div className="space-y-4 max-w-2xl">
             {['openai', 'gemini', 'groq'].map((p) => (
               <div key={p} className="flex flex-col gap-1.5">
-                <label className="text-sm font-medium text-zinc-300 capitalize">{p} API Key</label>
+                <label className="text-sm font-medium text-primary capitalize">{p} API Key</label>
                 <div className="relative">
                   <input 
                     type="password" 
                     value={keys[p as AIProviderId] ?? ''}
                     onChange={(e) => setKeys(prev => ({ ...prev, [p]: e.target.value }))}
                     placeholder={`Enter ${p} key (e.g. ${p === 'openai' ? 'sk-...' : '...'})`}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-4 py-2.5 text-sm text-zinc-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all placeholder:text-zinc-700"
+                    className="w-full bg-surface-container-low border border-border-default rounded-[var(--radius-standard)] px-4 py-2.5 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-accent-blue/20 focus:border-accent-blue transition-all placeholder:text-on-surface-variant"
                   />
                   {keys[p as AIProviderId] && keys[p as AIProviderId]!.length > 0 && (
                      <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                       <ShieldCheck size={16} className="text-emerald-500/50" />
+                       <ShieldCheck size={16} className="text-accent-blue/50" strokeWidth={1.5} />
                      </div>
                   )}
                 </div>
@@ -298,22 +298,22 @@ export function SettingsView() {
         </section>
 
         {/* Save Bar */}
-        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-zinc-900 border border-zinc-800 px-6 py-4 rounded-2xl shadow-2xl z-40">
+        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-surface-container-low border border-border-default px-6 py-4 rounded-[var(--radius-large)] shadow-[var(--shadow-lg)] z-40">
           <button
             onClick={handleSave}
             disabled={saving}
-            className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-zinc-950 px-6 py-2 rounded-lg font-semibold transition disabled:opacity-50"
+            className="flex items-center gap-2 bg-accent-blue hover:bg-secondary-container text-white px-6 py-2 rounded-[var(--radius-standard)] font-semibold transition-all duration-200 disabled:opacity-50"
           >
-            {saving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
+            {saving ? <Loader2 size={18} className="animate-spin" strokeWidth={1.5} /> : <Save size={18} strokeWidth={1.5} />}
             Save Preferences
           </button>
           
           {message && (
             <div className={clsx(
-              "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium animate-in fade-in slide-in-from-bottom-2",
-              message.type === 'success' ? "bg-emerald-500/10 text-emerald-400" : "bg-red-500/10 text-red-400"
+              "flex items-center gap-2 px-4 py-2 rounded-[var(--radius-standard)] text-sm font-medium animate-in fade-in slide-in-from-bottom-2",
+              message.type === 'success' ? "bg-accent-blue/10 text-accent-blue" : "bg-error/10 text-error"
             )}>
-              {message.type === 'success' ? <ShieldCheck size={16} /> : <Info size={16} />}
+              {message.type === 'success' ? <ShieldCheck size={16} strokeWidth={1.5} /> : <Info size={16} strokeWidth={1.5} />}
               {message.text}
             </div>
           )}

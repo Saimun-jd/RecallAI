@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { client, type Flashcard } from '../api/client';
 import { Loader2, Brain, Check, X, RotateCcw, TrendingUp, Undo2, HelpCircle } from 'lucide-react';
 import clsx from 'clsx';
+import { MarkdownRenderer } from '../components/MarkdownRenderer';
 
 type ReviewState = 'loading' | 'question' | 'answer' | 'done';
 
@@ -74,33 +75,33 @@ export function ReviewView() {
   };
 
   if (state === 'loading') {
-    return <div className="p-8 flex justify-center h-full items-center"><Loader2 className="animate-spin text-emerald-500 w-8 h-8" /></div>;
+    return <div className="p-8 flex justify-center h-full items-center bg-surface"><Loader2 className="animate-spin text-accent-blue w-8 h-8" strokeWidth={1.5} /></div>;
   }
 
   if (state === 'done') {
     return (
-      <div className="p-8 max-w-3xl mx-auto flex flex-col items-center justify-center min-h-[60vh] text-center h-full">
-        <div className="w-24 h-24 bg-emerald-500/10 text-emerald-500 rounded-full flex items-center justify-center mb-6 shadow-[0_0_30px_rgba(16,185,129,0.15)] border border-emerald-500/20">
-          <Check size={48} />
+      <div className="p-8 max-w-3xl mx-auto flex flex-col items-center justify-center min-h-[60vh] text-center h-full bg-surface">
+        <div className="w-24 h-24 bg-accent-blue/10 text-accent-blue rounded-full flex items-center justify-center mb-6 shadow-[var(--shadow-default)] border border-accent-blue/20">
+          <Check size={48} strokeWidth={1.5} />
         </div>
-        <h2 className="text-3xl font-bold text-zinc-100 tracking-tight mb-3">You're all caught up!</h2>
-        <p className="text-zinc-400 max-w-md text-lg">
+        <h2 className="text-3xl font-semibold text-primary tracking-tight mb-3">You're all caught up!</h2>
+        <p className="text-on-surface-variant max-w-md text-lg">
           You have no more cards to review right now.
         </p>
         
-        <div className="mt-8 bg-zinc-900 border border-zinc-800 rounded-2xl p-6 w-full max-w-sm">
-          <h3 className="text-zinc-300 font-semibold mb-4">Session Stats</h3>
-          <div className="flex justify-between items-center bg-zinc-950 px-4 py-3 rounded-lg border border-zinc-800/50">
-            <span className="text-zinc-500">Cards Reviewed</span>
-            <span className="text-emerald-400 font-bold text-xl">{sessionCount}</span>
+        <div className="mt-8 bg-surface-container-lowest border border-border-default rounded-[var(--radius-large)] p-6 w-full max-w-sm shadow-[var(--shadow-default)]">
+          <h3 className="text-primary font-semibold mb-4">Session Stats</h3>
+          <div className="flex justify-between items-center bg-surface-container px-4 py-3 rounded-[var(--radius-standard)] border border-outline-variant">
+            <span className="text-on-surface-variant font-medium">Cards Reviewed</span>
+            <span className="text-accent-blue font-bold text-xl">{sessionCount}</span>
           </div>
         </div>
         
         <button 
           onClick={fetchDueCards}
-          className="mt-8 flex items-center gap-2 text-zinc-400 hover:text-zinc-200 font-medium transition-colors"
+          className="mt-8 flex items-center gap-2 text-on-surface-variant hover:text-primary font-medium transition-colors duration-200"
         >
-          <RotateCcw size={16} /> Check again
+          <RotateCcw size={16} strokeWidth={1.5} /> Check again
         </button>
       </div>
     );
@@ -109,75 +110,80 @@ export function ReviewView() {
   const currentCard = cards[currentIndex];
 
   return (
-    <div className="p-8 max-w-3xl mx-auto flex flex-col h-full overflow-y-auto">
+    <div className="p-8 max-w-3xl mx-auto flex flex-col h-full overflow-y-auto bg-surface">
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h2 className="text-2xl font-bold text-zinc-100 tracking-tight flex items-center gap-2">
+          <h2 className="text-2xl font-semibold text-primary tracking-tight flex items-center gap-2">
             Study Session
             {sessionCount === 0 && (
               <span className="group relative inline-flex">
-                <HelpCircle size={16} className="text-zinc-500 cursor-help" />
-                <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-48 bg-zinc-800 text-zinc-200 text-xs px-3 py-2 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none text-center shadow-xl border border-zinc-700">
+                <HelpCircle size={16} className="text-on-surface-variant cursor-help" strokeWidth={1.5} />
+                <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-48 bg-surface-container-highest text-primary text-xs px-3 py-2 rounded-[var(--radius-standard)] opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none text-center shadow-[var(--shadow-default)] border border-border-default">
                   Rate your recall honestly to let FSRS schedule the next review optimally.
                 </span>
               </span>
             )}
           </h2>
-          <p className="text-zinc-400 text-sm mt-1">Reviewing {currentIndex + 1} of {cards.length}</p>
+          <p className="text-on-surface-variant text-sm mt-1 font-medium">Reviewing {currentIndex + 1} of {cards.length}</p>
         </div>
         <div className="flex items-center gap-4">
           {lastReviewedCardId && sessionCount > 0 && (
              <button 
                onClick={handleUndo}
                disabled={undoLoading}
-               className="flex items-center gap-1.5 text-sm font-medium text-zinc-400 hover:text-zinc-200 transition-colors disabled:opacity-50"
+               className="flex items-center gap-1.5 text-sm font-medium text-on-surface-variant hover:text-primary transition-colors duration-200 disabled:opacity-50"
              >
-               {undoLoading ? <Loader2 size={14} className="animate-spin" /> : <Undo2 size={14} />}
+               {undoLoading ? <Loader2 size={14} className="animate-spin" strokeWidth={2} /> : <Undo2 size={14} strokeWidth={1.5} />}
                Undo Last
              </button>
           )}
-          <div className="bg-zinc-900 border border-zinc-800 px-4 py-2 rounded-full shadow-sm flex items-center gap-2 text-sm font-medium text-zinc-300">
-            <TrendingUp size={16} className="text-emerald-500" />
+          <div className="bg-surface-container-lowest border border-border-default px-4 py-2 rounded-full shadow-[var(--shadow-default)] flex items-center gap-2 text-sm font-medium text-primary">
+            <TrendingUp size={16} className="text-accent-blue" strokeWidth={1.5} />
             Stability: {currentCard.stability.toFixed(1)} days
           </div>
         </div>
       </div>
 
       <div className="flex-1 flex flex-col mb-12">
-        <div className="bg-zinc-900 border border-zinc-800 rounded-3xl shadow-xl p-8 md:p-12 min-h-[400px] flex flex-col relative overflow-hidden">
+        <div className="bg-white rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-8 md:p-12 min-h-[400px] flex flex-col relative overflow-hidden transition-all duration-500">
           
-          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-500/0 via-emerald-500/50 to-emerald-500/0"></div>
-
           {/* Context Breadcrumb */}
           <div className="flex items-center justify-between mb-8">
-            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-emerald-500/80 bg-emerald-500/10 px-3 py-1.5 rounded-lg border border-emerald-500/20">
-              <Brain size={14} />
+            <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-accent-blue bg-blue-50/50 px-3 py-1.5 rounded-full">
+              <Brain size={14} strokeWidth={1.5} />
               {currentCard.topic_name}
             </div>
-            
-            <div className="text-[10px] text-zinc-600 font-bold uppercase tracking-widest border border-zinc-800 px-2 py-0.5 rounded-full flex items-center gap-1">
-              ☁️ Cloud
+            <div className="flex items-center gap-2">
+              <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest bg-slate-50 px-2.5 py-1 rounded-full">
+                {currentCard.concept_type}
+              </div>
+              <div className="text-[10px] text-emerald-600 font-bold uppercase tracking-widest bg-emerald-50 px-2.5 py-1 rounded-full">
+                {['New', 'Learning', 'Review', 'Relearning'][currentCard.state] || 'Unknown'}
+              </div>
             </div>
           </div>
 
           {/* Question */}
-          <div className="text-2xl text-zinc-100 font-medium mb-8 leading-relaxed">
-            {currentCard.question}
+          <div className="prose prose-slate prose-lg max-w-none mb-8 font-serif text-slate-800 leading-relaxed">
+            <MarkdownRenderer content={currentCard.question} />
           </div>
 
-          {/* Divider */}
+          {/* Answer Section */}
           {state === 'answer' && (
-            <div className="w-full border-t border-zinc-800 my-8 relative">
-              <div className="absolute left-1/2 -translate-x-1/2 top-1/2 -translate-y-1/2 bg-zinc-900 px-4 text-xs text-zinc-500 font-semibold tracking-widest uppercase">
-                Answer
+            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 fill-mode-both ease-out">
+              {/* Elegant Divider */}
+              <div className="w-full h-px bg-gradient-to-r from-transparent via-slate-200 to-transparent my-10 relative flex justify-center items-center">
+                <div className="bg-white px-4 flex gap-1.5">
+                  <div className="w-1.5 h-1.5 rounded-full bg-slate-200"></div>
+                  <div className="w-1.5 h-1.5 rounded-full bg-slate-300"></div>
+                  <div className="w-1.5 h-1.5 rounded-full bg-slate-200"></div>
+                </div>
               </div>
-            </div>
-          )}
 
-          {/* Answer */}
-          {state === 'answer' && (
-            <div className="text-lg text-zinc-300 leading-relaxed font-serif">
-              {currentCard.answer}
+              {/* Answer Text */}
+              <div className="prose prose-slate max-w-none text-slate-700">
+                <MarkdownRenderer content={currentCard.answer} />
+              </div>
             </div>
           )}
           
@@ -189,25 +195,25 @@ export function ReviewView() {
           {state === 'question' ? (
             <button 
               onClick={handleShowAnswer}
-              className="w-full bg-emerald-500 hover:bg-emerald-400 text-zinc-950 text-xl font-bold py-5 rounded-2xl shadow-[0_0_20px_rgba(16,185,129,0.3)] transition-all hover:shadow-[0_0_30px_rgba(16,185,129,0.4)]"
+              className="w-full bg-accent-blue hover:bg-accent-blue/90 text-white text-xl font-bold py-5 rounded-[var(--radius-large)] shadow-[var(--shadow-default)] hover:shadow-[var(--shadow-md)] transition-all duration-200"
             >
               Show Answer
             </button>
           ) : (
             <div className="grid grid-cols-4 gap-4">
-              <button onClick={() => handleRate(1)} className="bg-zinc-900 hover:bg-red-500/10 border border-zinc-800 hover:border-red-500/50 text-red-400 hover:text-red-300 font-semibold py-4 rounded-2xl transition-all flex flex-col items-center gap-1 group">
+              <button onClick={() => handleRate(1)} className="bg-surface-container-lowest hover:bg-error/10 border border-border-default hover:border-error/50 text-error hover:text-error/80 font-semibold py-4 rounded-[var(--radius-large)] transition-all duration-200 flex flex-col items-center gap-1 group">
                 <span className="text-lg">Again</span>
                 <span className="text-xs opacity-70 group-hover:opacity-100">&lt; 1m</span>
               </button>
-              <button onClick={() => handleRate(2)} className="bg-zinc-900 hover:bg-orange-500/10 border border-zinc-800 hover:border-orange-500/50 text-orange-400 hover:text-orange-300 font-semibold py-4 rounded-2xl transition-all flex flex-col items-center gap-1 group">
+              <button onClick={() => handleRate(2)} className="bg-surface-container-lowest hover:bg-amber-500/10 border border-border-default hover:border-amber-500/50 text-amber-600 hover:text-amber-500 font-semibold py-4 rounded-[var(--radius-large)] transition-all duration-200 flex flex-col items-center gap-1 group">
                 <span className="text-lg">Hard</span>
                 <span className="text-xs opacity-70 group-hover:opacity-100">~ 5m</span>
               </button>
-              <button onClick={() => handleRate(3)} className="bg-zinc-900 hover:bg-emerald-500/10 border border-zinc-800 hover:border-emerald-500/50 text-emerald-400 hover:text-emerald-300 font-semibold py-4 rounded-2xl transition-all flex flex-col items-center gap-1 group">
+              <button onClick={() => handleRate(3)} className="bg-surface-container-lowest hover:bg-accent-blue/10 border border-border-default hover:border-accent-blue/50 text-accent-blue hover:text-accent-blue/80 font-semibold py-4 rounded-[var(--radius-large)] transition-all duration-200 flex flex-col items-center gap-1 group">
                 <span className="text-lg">Good</span>
                 <span className="text-xs opacity-70 group-hover:opacity-100">~ 10m</span>
               </button>
-              <button onClick={() => handleRate(4)} className="bg-zinc-900 hover:bg-cyan-500/10 border border-zinc-800 hover:border-cyan-500/50 text-cyan-400 hover:text-cyan-300 font-semibold py-4 rounded-2xl transition-all flex flex-col items-center gap-1 group">
+              <button onClick={() => handleRate(4)} className="bg-surface-container-lowest hover:bg-cyan-500/10 border border-border-default hover:border-cyan-500/50 text-cyan-600 hover:text-cyan-500 font-semibold py-4 rounded-[var(--radius-large)] transition-all duration-200 flex flex-col items-center gap-1 group">
                 <span className="text-lg">Easy</span>
                 <span className="text-xs opacity-70 group-hover:opacity-100">~ 4d</span>
               </button>

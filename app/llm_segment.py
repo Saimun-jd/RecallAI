@@ -55,7 +55,7 @@ Available Assets:
 {assets_context}
 
 Section Text:
-<
+<<<
 {cleaned_section_text}
 >>>
 """
@@ -281,19 +281,33 @@ async def generate_topic_summary(heading: str, text: str, provider_override: str
 
 
 # ─── PDF Annotation: AI Explanation ───
-
-EXPLAIN_PROMPT = """You are an expert tutor. A student has highlighted the following passage from their textbook and wants you to explain it.
+EXPLAIN_PROMPT = """You are an expert tutor. A student has highlighted a passage from their textbook.
 
 HIGHLIGHTED TEXT:
-<<<
+<
 {selected_text}
 >>>
 
 STUDENT'S INSTRUCTION: {custom_prompt}
 
-Provide a clear, detailed explanation. Use Markdown formatting with headings, bullet points, and bold text.
-CRITICAL: If there are mathematical formulas, use LaTeX: `$` for inline, `$$` for block math.
-CRITICAL: If there is code, use proper fenced code blocks with language tags.
+RULES (in order of priority):
+1. The STUDENT'S INSTRUCTION is your primary directive. Follow it exactly — including any
+   constraints on length, tone, format, depth, or structure (e.g. "one sentence," "no bullet
+   points," "ELI5," "quiz me," "compare to X"). Do not add explanation, framing, or structure
+   the student did not ask for.
+2. If STUDENT'S INSTRUCTION is empty, missing, or purely generic (e.g. "explain this"),
+   default to: a clear, complete explanation of the HIGHLIGHTED TEXT using Markdown headings,
+   bullet points, and bold for key terms.
+3. Stay grounded in the HIGHLIGHTED TEXT. Do not introduce outside claims or tangents unless
+   the student's instruction explicitly asks you to connect it to something else.
+4. If the STUDENT'S INSTRUCTION is unrelated to the HIGHLIGHTED TEXT or asks you to do
+   something outside tutoring on this passage (e.g. write unrelated content, do their
+   homework for them), politely redirect: briefly note the mismatch and offer to explain the
+   highlighted passage instead.
+
+FORMATTING (apply only where relevant, and only if not overridden by the student's instruction):
+- Mathematical formulas: LaTeX, `$` inline / `$$` block.
+- Code: fenced code blocks with language tags.
 """
 
 FLASHCARD_FROM_SELECTION_PROMPT = """You are an expert educational content creator. Generate exactly {count} high-quality flashcards from the following highlighted textbook passage.

@@ -55,15 +55,15 @@ export function NotionNotesEditor({ topicId }: NotionNotesEditorProps) {
   };
 
   return (
-    <div className="flex-1 flex flex-col bg-zinc-900 rounded-lg border border-zinc-800 overflow-hidden h-full relative">
+    <div className="flex-1 flex flex-col bg-surface-container-lowest rounded-[var(--radius-large)] border border-border-default overflow-hidden h-full relative shadow-[var(--shadow-sm)]">
       {loading && (
         <div className="absolute top-4 right-4 z-10">
-          <Loader2 size={18} className="animate-spin text-emerald-500" />
+          <Loader2 size={18} className="animate-spin text-accent-blue" strokeWidth={1.5} />
         </div>
       )}
-      <div className="flex-1 overflow-y-auto p-4 relative bg-zinc-900">
-        <div className={loading ? "opacity-50 pointer-events-none transition-opacity" : "transition-opacity"}>
-          <BlockNoteView editor={editor} theme="dark" onChange={handleChange} />
+      <div className="flex-1 overflow-y-auto p-4 relative bg-surface-container-lowest">
+        <div className={loading ? "opacity-50 pointer-events-none transition-opacity duration-200" : "transition-opacity duration-200"}>
+          <BlockNoteView editor={editor} theme="light" onChange={handleChange} />
         </div>
       </div>
     </div>

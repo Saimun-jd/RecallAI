@@ -122,13 +122,16 @@ def build_granular_toc(toc, total_pages):
     filtered_toc = [entry for entry in toc if not is_noise_heading(entry[1])]
     
     for i, entry in enumerate(filtered_toc):
-        level, title, start_page = entry
+        level = entry[0]
+        title = entry[1]
+        start_page = max(1, int(entry[2]))
         end_page = total_pages
 
         # Find the next item with equal or higher structural hierarchy (<= level)
         for j in range(i + 1, len(filtered_toc)):
             if filtered_toc[j][0] <= level:
-                end_page = max(start_page, filtered_toc[j][2] - 1)
+                next_start = max(1, int(filtered_toc[j][2]))
+                end_page = max(start_page, next_start - 1)
                 break
 
         granular_toc.append({

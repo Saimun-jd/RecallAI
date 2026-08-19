@@ -21,7 +21,8 @@ from app.database import (
     init_db, save_book, resolve_and_save_topic, save_flashcards,
     get_connection, get_setting, set_setting,
     save_annotation, get_annotations_for_page, get_annotations_for_book,
-    update_annotation as db_update_annotation, delete_annotation as db_delete_annotation
+    update_annotation as db_update_annotation, delete_annotation as db_delete_annotation,
+    search_all
 )
 from app.heading_detect import detect_headings
 from app.llm_segment import extract_atomic_concepts, explain_selected_text, generate_flashcards_from_selection
@@ -57,16 +58,26 @@ app.add_middleware(
 
 app.mount("/static", StaticFiles(directory=PARSED_DOCS_DIR), name="static")
 
+from app.config import get_provider_concurrency
+
 logger = logging.getLogger(__name__)
 
-# Concurrency limit based on VRAM constraints (e.g. RTX 3050 6GB)
-OLLAMA_SEMAPHORE = None
+async def process_section(
+    sec: dict, 
+    chapter_title: str, 
+    skip_chapter_filter: bool, 
+    code_blocks: dict, 
+    images: dict, 
+    provider_override: str = None, 
+    book_id: int = None, 
+    book_hash: str = None,
+    semaphore: asyncio.Semaphore = None
+) -> list[Chunk]:
+    """Process a single section through the LLM with dynamic provider concurrency throttling."""
+    if semaphore is None:
+        concurrency = get_provider_concurrency(provider_override)
+        semaphore = asyncio.Semaphore(concurrency)
 
-async def process_section(sec: dict, chapter_title: str, skip_chapter_filter: bool, code_blocks: dict, images: dict, provider_override: str = None, book_id: int = None, book_hash: str = None) -> list[Chunk]:
-    global OLLAMA_SEMAPHORE
-    if OLLAMA_SEMAPHORE is None:
-        OLLAMA_SEMAPHORE = asyncio.Semaphore(2)
-    """Process a single section through the LLM with concurrency throttling."""
     heading, text, page_num = sec["heading"], sec["text"], sec.get("page_num")
 
     # Always filter by chapter_title if provided, but use robust matching
@@ -83,42 +94,45 @@ async def process_section(sec: dict, chapter_title: str, skip_chapter_filter: bo
         return []
 
     try:
-        async with OLLAMA_SEMAPHORE:
+        async with semaphore:
             section_extraction = await extract_atomic_concepts(heading, text, code_blocks, images, provider_override)
-            
-        if book_id:
-            breadcrumb = chapter_title or heading
-            parent_topic_id = await resolve_and_save_topic(
-                book_id=book_id, book_hash=book_hash, breadcrumb=breadcrumb,
-                title=heading, level=1, start_page=page_num, end_page=page_num, content_md=text,
-                provider_override=provider_override
-            )
             
         chunks = build_chunks(section_extraction, chapter_title, page_num, code_blocks, images)
         
+        all_summaries = [c.summary for c in chunks if c.summary]
+        all_terms = set()
+        for c in chunks:
+            if c.key_terms:
+                all_terms.update(c.key_terms)
+                
+        merged_summary = " ".join(all_summaries) if all_summaries else text[:250]
+        merged_key_terms = json.dumps(list(all_terms))
+        primary_concept_type = chunks[0].concept_type if chunks and chunks[0].concept_type else "Definition"
+        primary_code = chunks[0].code_snippet if chunks and chunks[0].code_snippet else None
+        primary_image = chunks[0].image_url if chunks and chunks[0].image_url else None
+        
         if book_id:
+            breadcrumb = chapter_title or heading
+            topic_id = await resolve_and_save_topic(
+                book_id=book_id,
+                book_hash=book_hash,
+                breadcrumb=breadcrumb,
+                title=heading,
+                level=1,
+                start_page=page_num,
+                end_page=page_num,
+                content_md=text,
+                summary=merged_summary,
+                concept_type=primary_concept_type,
+                key_terms=merged_key_terms,
+                code_snippet=primary_code,
+                image_url=primary_image,
+                status="processed",
+                provider_override=provider_override
+            )
             for chunk in chunks:
-                key_terms_json = json.dumps(chunk.key_terms) if chunk.key_terms else None
-                chunk_breadcrumb = f"{chapter_title or heading} > {chunk.topic_name}"
-                t_id = await resolve_and_save_topic(
-                    book_id=book_id,
-                    book_hash=book_hash,
-                    breadcrumb=chunk_breadcrumb,
-                    title=chunk.topic_name,
-                    level=2,
-                    parent_id=parent_topic_id,
-                    start_page=page_num,
-                    end_page=page_num,
-                    summary=chunk.summary,
-                    concept_type=chunk.concept_type,
-                    key_terms=key_terms_json,
-                    code_snippet=chunk.code_snippet,
-                    image_url=chunk.image_url,
-                    provider_override=provider_override
-                )
-                chunk.topic_id = t_id
-                # Attach breadcrumb to chunk so API returns it
-                chunk.breadcrumb = chunk_breadcrumb
+                chunk.topic_id = topic_id
+                chunk.breadcrumb = breadcrumb
             
         return chunks
     except httpx.HTTPError as e:
@@ -130,13 +144,14 @@ async def process_section(sec: dict, chapter_title: str, skip_chapter_filter: bo
 
 
 
+
 @app.post("/books/upload")
 async def upload_and_parse_toc(
     file: UploadFile,
     file_hash: str = Form(...),
     book_title: str = Form(...),
     total_pages: int = Form(default=0)
-):
+) -> dict:
     try:
         pdf_bytes = await file.read()
         
@@ -145,6 +160,13 @@ async def upload_and_parse_toc(
         with open(file_path, "wb") as f:
             f.write(pdf_bytes)
             
+        # Dynamically calculate total_pages if not provided
+        if total_pages <= 0:
+            import fitz
+            doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+            total_pages = doc.page_count
+            doc.close()
+
         # Check if book exists
         from app.database import save_book, get_connection
         book_id = save_book(title=book_title, file_path=file_path, file_hash=file_hash, total_pages=total_pages)
@@ -227,6 +249,7 @@ async def process_book_stream(book_id: int, req: ProcessRequest):
         return JSONResponse(status_code=404, content={"error": "PDF file not found on disk"})
         
     async def event_generator():
+        all_tasks = []
         try:
             doc = fitz.open(file_path)
             
@@ -251,10 +274,13 @@ async def process_book_stream(book_id: int, req: ProcessRequest):
                     
             total_chunks = len(chunk_queue)
             
+            # Step 1: Upfront PDF slicing and text extraction pass
+            from fastapi.concurrency import run_in_threadpool
+            discovered_sections = []
+            
             for i, chunk_item in enumerate(chunk_queue, 1):
                 yield f"data: {json.dumps({'status': 'processing', 'chunk': i, 'total_chunks': total_chunks, 'current_topic': chunk_item['title']})}\n\n"
                 
-                # Slice PDF
                 start_idx = max(0, chunk_item['start'] - 1)
                 end_idx = min(doc.page_count - 1, chunk_item['end'] - 1)
                 new_doc = fitz.open()
@@ -262,40 +288,68 @@ async def process_book_stream(book_id: int, req: ProcessRequest):
                 pdf_bytes = new_doc.write()
                 new_doc.close()
                 
-                # Process the slice
-                from fastapi.concurrency import run_in_threadpool
                 md_text, cache_key, start_page_num = await run_in_threadpool(extract_raw_text, pdf_bytes, chunk_item['start'])
                 modified_md_text, code_blocks, images = parse_markdown_assets(md_text, cache_key)
                 sections = detect_headings(modified_md_text, start_page_num)
                 
-                tasks = []
                 for sec in sections:
                     sec_code_blocks = {k: v for k, v in code_blocks.items() if f"[ASSET: {k}]" in sec["text"]}
                     sec_images = {k: v for k, v in images.items() if f"[ASSET: {k}]" in sec["text"]}
-                    tasks.append(
-                        asyncio.create_task(process_section(sec, chunk_item['chapter_title'], True, sec_code_blocks, sec_images, req.provider, book_id, file_hash))
-                    )
+                    discovered_sections.append({
+                        "sec": sec,
+                        "chapter_title": chunk_item['chapter_title'],
+                        "code_blocks": sec_code_blocks,
+                        "images": sec_images,
+                        "chunk_idx": i,
+                        "chunk_title": chunk_item['title']
+                    })
                     
-                total_sections = len(tasks)
-                completed_sections = 0
-                for coro in asyncio.as_completed(tasks):
-                    await coro
-                    completed_sections += 1
-                    yield f"data: {json.dumps({'status': 'processing_sections', 'chunk': i, 'total_chunks': total_chunks, 'current_topic': chunk_item['title'], 'completed_sections': completed_sections, 'total_sections': total_sections})}\n\n"
-                
             doc.close()
+            
+            total_sections = len(discovered_sections)
+            if total_sections == 0:
+                yield f"data: {json.dumps({'status': 'complete', 'book_id': book_id})}\n\n"
+                return
+
+            # Step 2: Dynamic provider-aware concurrency execution
+            concurrency_limit = get_provider_concurrency(req.provider)
+            semaphore = asyncio.Semaphore(concurrency_limit)
+            logger.info(f"Starting parallel section processing with provider '{req.provider}' and concurrency={concurrency_limit}")
+            
+            for item in discovered_sections:
+                task = asyncio.create_task(
+                    process_section(
+                        item["sec"], 
+                        item["chapter_title"], 
+                        True, 
+                        item["code_blocks"], 
+                        item["images"], 
+                        req.provider, 
+                        book_id, 
+                        file_hash,
+                        semaphore=semaphore
+                    )
+                )
+                all_tasks.append(task)
+
+            completed_sections = 0
+            for completed_task in asyncio.as_completed(all_tasks):
+                await completed_task
+                completed_sections += 1
+                yield f"data: {json.dumps({'status': 'processing_sections', 'total_chunks': total_chunks, 'completed_sections': completed_sections, 'total_sections': total_sections})}\n\n"
+                
             yield f"data: {json.dumps({'status': 'complete', 'book_id': book_id})}\n\n"
             
         except Exception as e:
             import traceback
             logger.error(f"Internal Server Error in /books/{book_id}/process-stream: {e}\n{traceback.format_exc()}")
 
-            if 'tasks' in locals():
-                for t in tasks:
-                    if not t.done():
-                        t.cancel()
+            for t in all_tasks:
+                if not t.done():
+                    t.cancel()
 
             yield f"data: {json.dumps({'status': 'error', 'error': str(e)})}\n\n"
+
             
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
@@ -347,7 +401,7 @@ class ProcessTopicRequest(BaseModel):
 
 @app.post("/topics/{topic_id}/process-stream")
 async def process_topic_stream(topic_id: int, req: ProcessTopicRequest):
-    from app.database import get_topic_by_id, update_topic_status, get_book_by_id
+    from app.database import get_topic_by_id, update_topic_status, get_book_by_id, update_topic_enrichment, get_connection
     from app.pdf_extract import extract_raw_text
     import fitz
     
@@ -367,76 +421,241 @@ async def process_topic_stream(topic_id: int, req: ProcessTopicRequest):
         try:
             update_topic_status(topic_id, "processing")
             
-            yield f"data: {json.dumps({'stage': 'reading_pdf'})}\n\n"
+            content_md = topic.get("content_md") or ""
+            code_blocks = {}
+            images = {}
             
-            # Slice PDF to the topic's page range
-            doc = fitz.open(file_path)
-            start_idx = max(0, topic['start_page'] - 1)
-            end_idx = min(doc.page_count - 1, topic['end_page'] - 1)
-            new_doc = fitz.open()
-            new_doc.insert_pdf(doc, from_page=start_idx, to_page=end_idx)
-            pdf_bytes = new_doc.write()
-            new_doc.close()
-            doc.close()
-            
-            from fastapi.concurrency import run_in_threadpool
-            md_text, cache_key, start_page_num = await run_in_threadpool(extract_raw_text, pdf_bytes, topic['start_page'])
-            modified_md_text, code_blocks, images = parse_markdown_assets(md_text, cache_key)
-            sections = detect_headings(modified_md_text, start_page_num)
+            if content_md and len(content_md.strip()) > 20:
+                yield f"data: {json.dumps({'stage': 'reading_pdf'})}\n\n"
+                modified_md_text, code_blocks, images = parse_markdown_assets(content_md, topic.get("topic_hash", "cache_key"))
+                sections = detect_headings(modified_md_text, topic.get("start_page", 1))
+            else:
+                yield f"data: {json.dumps({'stage': 'reading_pdf'})}\n\n"
+                doc = fitz.open(file_path)
+                start_idx = max(0, topic['start_page'] - 1)
+                end_idx = min(doc.page_count - 1, topic['end_page'] - 1)
+                new_doc = fitz.open()
+                new_doc.insert_pdf(doc, from_page=start_idx, to_page=end_idx)
+                pdf_bytes = new_doc.write()
+                new_doc.close()
+                doc.close()
+                
+                from fastapi.concurrency import run_in_threadpool
+                md_text, cache_key, start_page_num = await run_in_threadpool(extract_raw_text, pdf_bytes, topic['start_page'])
+                modified_md_text, code_blocks, images = parse_markdown_assets(md_text, cache_key)
+                sections = detect_headings(modified_md_text, start_page_num)
+                content_md = modified_md_text
             
             yield f"data: {json.dumps({'stage': 'extracting_topics', 'section_count': len(sections)})}\n\n"
             
-            # Process each detected section through LLM to extract atomic concepts (child topics)
-            book_id = topic["book_id"]
-            file_hash = book["file_hash"]
-            chapter_title = topic["title"]
-            child_count = 0
+            # Extract concepts from section text to enrich topic in-place
+            heading = topic.get("title") or "Section"
+            text_content = content_md or (sections[0]["text"] if sections else "")
             
-            tasks = []
-            for sec in sections:
-                sec_code_blocks = {k: v for k, v in code_blocks.items() if f"[ASSET: {k}]" in sec["text"]}
-                sec_images = {k: v for k, v in images.items() if f"[ASSET: {k}]" in sec["text"]}
-                tasks.append(
-                    asyncio.create_task(process_section(sec, chapter_title, True, sec_code_blocks, sec_images, req.provider_override, book_id, file_hash))
-                )
+            yield f"data: {json.dumps({'stage': 'extracting_topics', 'progress': 50})}\n\n"
             
-            total_tasks = len(tasks)
-            completed_tasks = 0
+            section_extraction = await extract_atomic_concepts(
+                heading, text_content, code_blocks, images, req.provider_override
+            )
             
-            # Now associate each generated chunk/topic as a child of topic_id
-            for future in asyncio.as_completed(tasks):
-                chunk_list = await future
-                completed_tasks += 1
-                yield f"data: {json.dumps({'stage': 'extracting_topics', 'progress': int((completed_tasks / max(total_tasks, 1)) * 100)})}\n\n"
-                for chunk in chunk_list:
-                    if hasattr(chunk, 'topic_id') and chunk.topic_id:
-                        # Update the generated topic's parent_id to point to the clicked topic
-                        with get_connection() as conn:
-                            cursor = conn.cursor()
-                            cursor.execute(
-                                "UPDATE topics SET parent_id = ?, status = 'processed' WHERE id = ?",
-                                (topic_id, chunk.topic_id)
-                            )
-                        child_count += 1
+            # Consolidate extracted AI concept data
+            all_summaries = []
+            all_key_terms = set()
+            primary_concept_type = "Definition"
+            primary_code_snippet = None
+            primary_image_url = None
             
-            # Mark the parent topic as processed
-            update_topic_status(topic_id, "processed")
+            if hasattr(section_extraction, 'atomic_topics') and section_extraction.atomic_topics:
+                for t in section_extraction.atomic_topics:
+                    if t.summary:
+                        all_summaries.append(t.summary)
+                    if t.key_terms:
+                        all_key_terms.update(t.key_terms)
+                    if t.concept_type and primary_concept_type == "Definition":
+                        primary_concept_type = t.concept_type
+                    if t.related_code_id and not primary_code_snippet:
+                        primary_code_snippet = str(t.related_code_id)
+                    if t.related_image_id and not primary_image_url:
+                        primary_image_url = str(t.related_image_id)
+                        
+            merged_summary = " ".join(all_summaries) if all_summaries else (topic.get("summary") or text_content[:200])
+            merged_key_terms = json.dumps(list(all_key_terms)) if all_key_terms else (topic.get("key_terms") or "[]")
             
-            yield f"data: {json.dumps({'status': 'complete', 'child_count': child_count})}\n\n"
+            # Enrich topic in-place without creating new child rows in topics table
+            update_topic_enrichment(
+                topic_id=topic_id,
+                summary=merged_summary,
+                concept_type=primary_concept_type,
+                key_terms=merged_key_terms,
+                code_snippet=primary_code_snippet,
+                image_url=primary_image_url,
+                content_md=content_md,
+                status="processed"
+            )
+            
+            yield f"data: {json.dumps({'stage': 'extracting_topics', 'progress': 100})}\n\n"
+            yield f"data: {json.dumps({'status': 'complete', 'topic_id': topic_id})}\n\n"
             
         except Exception as e:
             import traceback
             logger.error(f"Error processing topic {topic_id}: {e}\n{traceback.format_exc()}")
             update_topic_status(topic_id, "unprocessed")
-
-            if 'tasks' in locals():
-                for t in tasks:
-                    if not t.done():
-                        t.cancel()
-
             yield f"data: {json.dumps({'status': 'error', 'error': str(e)})}\n\n"
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+
+# ── Socratic Drill Endpoints ────────────────────────────────────────────
+
+class DrillGenerateRequest(BaseModel):
+    provider_override: str | None = None
+
+@app.post("/topics/{topic_id}/drill/generate")
+async def drill_generate_questions(topic_id: int, req: DrillGenerateRequest):
+    """Generate 2 tiered diagnostic questions for a topic."""
+    from app.database import get_topic_by_id, get_book_by_id
+    from app.socratic_drill import generate_diagnostic_questions
+    import fitz
+
+    topic = get_topic_by_id(topic_id)
+    if not topic:
+        return JSONResponse(status_code=404, content={"error": "Topic not found"})
+
+    # Resolve topic content: prefer stored content_md, fallback to PDF extraction
+    content = topic.get("content_md") or ""
+    if not content or len(content.strip()) < 30:
+        book = get_book_by_id(topic["book_id"])
+        if not book:
+            return JSONResponse(status_code=404, content={"error": "Book not found"})
+        file_path = book["file_path"]
+        if not os.path.exists(file_path):
+            return JSONResponse(status_code=404, content={"error": "PDF file not found"})
+        doc = fitz.open(file_path)
+        start_idx = max(0, topic["start_page"] - 1)
+        end_idx = min(doc.page_count - 1, topic["end_page"] - 1)
+        pages_text = []
+        for i in range(start_idx, end_idx + 1):
+            pages_text.append(doc[i].get_text())
+        doc.close()
+        content = "\n".join(pages_text)
+
+    try:
+        result = await generate_diagnostic_questions(
+            topic_title=topic["title"],
+            breadcrumb=topic.get("breadcrumb") or "",
+            start_page=topic["start_page"],
+            topic_content=content,
+            provider_override=req.provider_override,
+        )
+        return result.model_dump()
+    except Exception as e:
+        logger.error(f"Drill question generation failed: {e}")
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+
+class DrillEvaluateRequest(BaseModel):
+    question_id: str
+    question_text: str
+    key_invariants: list[str]
+    student_answer: str
+    provider_override: str | None = None
+
+@app.post("/topics/{topic_id}/drill/evaluate")
+async def drill_evaluate_answer(topic_id: int, req: DrillEvaluateRequest):
+    """Evaluate a student's answer and return diagnostic feedback."""
+    from app.database import get_topic_by_id, get_book_by_id, update_topic_mastery
+    from app.socratic_drill import evaluate_student_answer
+    import fitz
+
+    topic = get_topic_by_id(topic_id)
+    if not topic:
+        return JSONResponse(status_code=404, content={"error": "Topic not found"})
+
+    content = topic.get("content_md") or ""
+    if not content or len(content.strip()) < 30:
+        book = get_book_by_id(topic["book_id"])
+        if not book:
+            return JSONResponse(status_code=404, content={"error": "Book not found"})
+        file_path = book["file_path"]
+        if not os.path.exists(file_path):
+            return JSONResponse(status_code=404, content={"error": "PDF file not found"})
+        doc = fitz.open(file_path)
+        start_idx = max(0, topic["start_page"] - 1)
+        end_idx = min(doc.page_count - 1, topic["end_page"] - 1)
+        pages_text = []
+        for i in range(start_idx, end_idx + 1):
+            pages_text.append(doc[i].get_text())
+        doc.close()
+        content = "\n".join(pages_text)
+
+    try:
+        result = await evaluate_student_answer(
+            question_text=req.question_text,
+            key_invariants=req.key_invariants,
+            topic_content=content,
+            student_answer=req.student_answer,
+            provider_override=req.provider_override,
+        )
+        # Persist mastery score
+        update_topic_mastery(topic_id, result.mastery_score, result.status)
+        return result.model_dump()
+    except Exception as e:
+        logger.error(f"Drill evaluation failed: {e}")
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+
+class DrillSaveCardsRequest(BaseModel):
+    flashcards: list[dict]
+
+@app.post("/topics/{topic_id}/drill/save-cards")
+def drill_save_flashcards(topic_id: int, req: DrillSaveCardsRequest):
+    """Save targeted flashcards from a drill evaluation into the FSRS deck."""
+    from app.database import get_topic_by_id, get_connection
+    import hashlib
+
+    topic = get_topic_by_id(topic_id)
+    if not topic:
+        return JSONResponse(status_code=404, content={"error": "Topic not found"})
+
+    saved_ids = []
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        for card in req.flashcards:
+            q = card.get("question", "")
+            a = card.get("answer", "")
+            gap = card.get("gap_source", "")
+            if not q or not a:
+                continue
+            content_hash = hashlib.sha256(f"{topic_id}:{q}:{a}".encode()).hexdigest()
+            try:
+                cursor.execute("""
+                    INSERT INTO flashcards (topic_id, topic_name, concept_type, summary, question, answer, key_terms, content_hash, source_page)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    topic_id,
+                    topic["title"],
+                    "Diagnostic Gap",
+                    gap,
+                    q,
+                    a,
+                    "[]",
+                    content_hash,
+                    topic.get("start_page"),
+                ))
+                saved_ids.append(cursor.lastrowid)
+            except Exception as e:
+                logger.warning(f"Skipped duplicate drill flashcard: {e}")
+
+    return {"status": "success", "saved_count": len(saved_ids), "ids": saved_ids}
+
+
+@app.post("/books/{book_id}/clean-toc")
+def clean_book_toc(book_id: int):
+    from app.database import prune_artificial_subtopics
+    pruned = prune_artificial_subtopics(book_id)
+    return {"status": "success", "pruned_subtopics": pruned}
+
+
 
 @app.post("/topics/{topic_id}/flashcards")
 async def generate_topic_flashcards(topic_id: int, req: FlashcardGenerationRequest):
@@ -918,3 +1137,70 @@ def export_annotated_pdf(book_id: int):
         filename=f"{safe_title}_annotated.pdf",
     )
 
+@app.get("/search")
+async def search(query: str, limit: int = 20):
+    if not query or not query.strip():
+        return []
+    try:
+        results = search_all(query.strip(), limit=limit)
+        return results
+    except Exception as e:
+        logger.error(f"Search failed: {e}")
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+@app.post("/chunk/stream")
+async def chunk_stream_endpoint(
+    file: UploadFile,
+    pre_sliced: str = Form(default="false"),
+    start_page: int = Form(default=1),
+    chapter_title: str = Form(default=""),
+    provider: str | None = Form(default=None),
+    file_hash: str | None = Form(default=None),
+    book_title: str | None = Form(default=None),
+    total_pages: int | None = Form(default=None)
+):
+    async def event_generator():
+        try:
+            pdf_bytes = await file.read()
+            yield f"data: {json.dumps({'stage': 'Reading PDF'})}\n\n"
+            
+            from fastapi.concurrency import run_in_threadpool
+            md_text, cache_key, start_page_num = await run_in_threadpool(extract_raw_text, pdf_bytes, start_page)
+            yield f"data: {json.dumps({'stage': 'Extracting markdown assets'})}\n\n"
+            
+            modified_md_text, code_blocks, images = parse_markdown_assets(md_text, cache_key)
+            sections = detect_headings(modified_md_text, start_page_num)
+            
+            yield f"data: {json.dumps({'stage': 'Waiting on LLM response', 'sections': len(sections)})}\n\n"
+            
+            import asyncio
+            semaphore = asyncio.Semaphore(get_provider_concurrency(provider))
+            
+            tasks = [process_section(
+                sec["heading"], 
+                sec["text"], 
+                code_blocks, 
+                images, 
+                chapter_title or sec["heading"], 
+                start_page_num,
+                None,
+                file_hash,
+                provider,
+                semaphore
+            ) for sec in sections]
+            
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            all_chunks = []
+            for res in results:
+                if isinstance(res, Exception):
+                    logger.error(f"Section extraction failed: {res}")
+                elif isinstance(res, list):
+                    all_chunks.extend(res)
+            
+            chunks_json = [c.model_dump() for c in all_chunks]
+            yield f"data: {json.dumps({'stage': 'done', 'chunks': chunks_json})}\n\n"
+        except Exception as e:
+            logger.error(f"Chunk stream failed: {e}")
+            yield f"data: {json.dumps({'stage': 'error', 'error': str(e)})}\n\n"
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")

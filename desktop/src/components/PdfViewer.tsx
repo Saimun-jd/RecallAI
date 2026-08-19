@@ -23,11 +23,38 @@ interface PdfViewerProps {
   annotations?: PdfAnnotation[];
   onLoadSuccess?: (numPages: number) => void;
   onPageVisible?: (pageNumber: number) => void;
-  renderSelectionOverlay?: (selection: PdfSelection, cancelSelection: () => void) => JSX.Element | null;
+  renderSelectionOverlay?: (selection: PdfSelection, cancelSelection: () => void) => React.ReactNode;
   onDeleteAnnotation?: (id: number) => void;
   onUpdateAnnotation?: (id: number, content: string) => void;
   theme?: 'light' | 'dark';
 }
+
+let globalIsMouseDown = false;
+if (typeof window !== 'undefined') {
+  window.addEventListener('mousedown', () => { globalIsMouseDown = true; });
+  window.addEventListener('mouseup', () => { globalIsMouseDown = false; });
+}
+
+const DelayedSelectionOverlay = ({ children }: { children: React.ReactNode }) => {
+  const [isReady, setIsReady] = useState(!globalIsMouseDown);
+
+  useEffect(() => {
+    if (isReady) return;
+
+    const handleMouseUp = () => setIsReady(true);
+    window.addEventListener('mouseup', handleMouseUp);
+    // Safety fallback
+    const timer = setTimeout(() => setIsReady(true), 1500);
+
+    return () => {
+      window.removeEventListener('mouseup', handleMouseUp);
+      clearTimeout(timer);
+    };
+  }, [isReady]);
+
+  if (!isReady) return null;
+  return <>{children}</>;
+};
 
 export function PdfViewer({
   url,
@@ -63,7 +90,11 @@ export function PdfViewer({
     if (!content.text) return null;
     const selection = { text: content.text, pageNumber: position.pageNumber, position };
     if (renderSelectionOverlay) {
-      return renderSelectionOverlay(selection, hideTipAndSelection);
+      return (
+        <DelayedSelectionOverlay>
+          {renderSelectionOverlay(selection, hideTipAndSelection)}
+        </DelayedSelectionOverlay>
+      );
     }
     return null;
   };
@@ -209,6 +240,16 @@ export function PdfViewer({
       className={`w-full h-full bg-zinc-950 relative pdf-highlighter-container overflow-hidden theme-${theme}`}
       ref={containerRef}
     >
+      <style>{`
+        /* Elevate HighlightLayer above textLayer to ensure clicks register on highlights */
+        .PdfHighlighter .HighlightLayer {
+          z-index: 10 !important;
+        }
+        /* Ensure textLayer stays below but still enables text selection */
+        .PdfHighlighter .textLayer {
+          z-index: 2 !important;
+        }
+      `}</style>
       <PdfLoader
         url={url}
         workerSrc={workerUrl}

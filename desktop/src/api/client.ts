@@ -58,6 +58,9 @@ export interface Topic {
   concept_type?: string;
   key_terms?: string;
   content_md?: string;
+  mastery_score?: number | null;
+  mastery_status?: 'untested' | 'mastered' | 'developing' | 'fragile' | 'misconception';
+  last_drilled_at?: string | null;
 }
 
 export interface Flashcard {
@@ -123,6 +126,38 @@ export interface PdfAnnotation {
   custom_prompt: string | null;
   created_at: string;
   updated_at: string;
+}
+
+// ── Socratic Drill Types ───────────────────────────────────────────────
+
+export interface DiagnosticQuestion {
+  id: string;
+  tier: 'causal_mechanism' | 'counterfactual' | 'applied_scenario';
+  question_text: string;
+  key_invariants: string[];
+  socratic_hint: string;
+  reference_page: number | null;
+}
+
+export interface DiagnosticQuestionSet {
+  topic_title: string;
+  questions: DiagnosticQuestion[];
+}
+
+export interface SuggestedFlashcard {
+  question: string;
+  answer: string;
+  gap_source: string;
+}
+
+export interface DiagnosticEvaluation {
+  mastery_score: number;
+  status: 'mastered' | 'developing' | 'fragile' | 'misconception';
+  strengths: string[];
+  diagnosed_gaps: string[];
+  misconceptions: string[];
+  socratic_nudge: string | null;
+  suggested_flashcards: SuggestedFlashcard[];
 }
 
 export const client = {
@@ -225,6 +260,11 @@ export const client = {
       method: "POST",
     });
     if (!res.ok) throw new Error("Failed to undo review");
+    return res.json();
+  },
+  async searchAll(query: string, limit: number = 20): Promise<Array<{ type: string; id: number; title: string; subtitle: string }>> {
+    const res = await fetch(`${API_BASE}/search?query=${encodeURIComponent(query)}&limit=${limit}`);
+    if (!res.ok) throw new Error("Search failed");
     return res.json();
   },
   async getAnalytics(): Promise<AnalyticsStats> {
@@ -394,7 +434,7 @@ export const client = {
     return res.json();
   },
   
-  async generateFlashcards(topicId: number, options: { count: number; custom_prompt?: string }): Promise<{ flashcards: Flashcard[] }> {
+  async generateFlashcards(topicId: number, options: { count: number; custom_prompt?: string, provider_override?: string }): Promise<{ flashcards: Flashcard[] }> {
     const res = await fetch(`${API_BASE}/topics/${topicId}/flashcards`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -479,5 +519,56 @@ export const client = {
       method: "DELETE",
     });
     if (!res.ok) throw new Error("Failed to delete annotation");
+  },
+
+  // ── Socratic Drill Methods ─────────────────────────────────────────
+
+  async generateDrillQuestions(topicId: number, providerOverride?: string | null): Promise<DiagnosticQuestionSet> {
+    const res = await fetch(`${API_BASE}/topics/${topicId}/drill/generate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ provider_override: providerOverride || null }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: "Unknown error" }));
+      throw new Error(err.error || "Failed to generate drill questions");
+    }
+    return res.json();
+  },
+
+  async evaluateDrillAnswer(
+    topicId: number,
+    questionId: string,
+    questionText: string,
+    keyInvariants: string[],
+    studentAnswer: string,
+    providerOverride?: string | null,
+  ): Promise<DiagnosticEvaluation> {
+    const res = await fetch(`${API_BASE}/topics/${topicId}/drill/evaluate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        question_id: questionId,
+        question_text: questionText,
+        key_invariants: keyInvariants,
+        student_answer: studentAnswer,
+        provider_override: providerOverride || null,
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: "Unknown error" }));
+      throw new Error(err.error || "Failed to evaluate answer");
+    }
+    return res.json();
+  },
+
+  async saveDrillFlashcards(topicId: number, flashcards: SuggestedFlashcard[]): Promise<{ status: string; saved_count: number; ids: number[] }> {
+    const res = await fetch(`${API_BASE}/topics/${topicId}/drill/save-cards`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ flashcards }),
+    });
+    if (!res.ok) throw new Error("Failed to save drill flashcards");
+    return res.json();
   },
 };

@@ -176,9 +176,8 @@ export function PdfCommandPalette({ selection, position, onCommand, onDismiss, i
   return (
     <div
       ref={paletteRef}
-      className={`${position ? 'absolute' : 'relative'} z-50 w-80 bg-zinc-900 border border-zinc-700/80 rounded-xl shadow-2xl shadow-black/50 overflow-hidden backdrop-blur-sm`}
+      className="relative z-50 w-80 bg-zinc-900 border border-zinc-700/80 rounded-xl shadow-2xl shadow-black/50 overflow-hidden backdrop-blur-sm"
       style={{
-        ...(position ? { left: `${position.x}px`, top: `${position.y}px` } : {}),
         transform: `translateY(${offsetY}px)`,
         transition: 'transform 0.15s ease-out'
       }}

@@ -13,7 +13,7 @@ import {
   setSearchQuery
 } from '../store/readerSlice';
 import { client, type Book, type Topic, type Flashcard, type PdfAnnotation } from '../api/client';
-import { Loader2, Zap, PenTool, Link2, BrainCircuit, Play, FileText, ChevronRight, CheckCircle2, Circle, Clock, Check, X, Edit2, Trash2, BookOpen, ArrowLeft, LayoutList, ChevronDown, Search, Save, Sun, Moon } from 'lucide-react';
+import { Loader2, Zap, PenTool, Link2, BrainCircuit, Play, FileText, ChevronRight, ChevronLeft, CheckCircle2, Circle, Clock, Check, X, Edit2, Trash2, BookOpen, ArrowLeft, LayoutList, ChevronDown, Search, Save, Sun, Moon } from 'lucide-react';
 import { MarkdownRenderer } from '../components/MarkdownRenderer';
 import clsx from 'clsx';
 import { FlashcardGenModal } from '../components/FlashcardGenModal';
@@ -23,6 +23,8 @@ import { TopicPracticeModal } from '../components/TopicPracticeModal';
 import { PdfViewer, type PdfSelection } from '../components/PdfViewer';
 import { PdfCommandPalette, type PdfCommandType } from '../components/PdfCommandPalette';
 import { preprocessMarkdown } from '../utils/markdown';
+import { SocraticDrillWidget } from '../components/SocraticDrillWidget';
+import { loadSettings, saveSetting, saveSettingsStore } from '../api/settingsStore';
 
 export function BookDetailView() {
   const { id } = useParams<{ id: string }>();
@@ -36,6 +38,13 @@ export function BookDetailView() {
     isNotesOpen,
     activeTopicCards
   } = useSelector((state: RootState) => state.reader);
+
+  // Resizable TOC sidebar state
+  const [isTocCollapsed, setIsTocCollapsed] = useState(false);
+  const [tocWidth, setTocWidth] = useState(320); // default 320px (80 * 4);
+  const [isResizing, setIsResizing] = useState(false);
+  const MIN_TOC_WIDTH = 240; // min 240px (60 * 4)
+  const MAX_TOC_WIDTH = 480; // max 480px (120 * 4)
 
   const [book, setBook] = useState<Book | null>(null);
   const [topics, setTopics] = useState<Topic[]>([]);
@@ -58,14 +67,43 @@ export function BookDetailView() {
   const [pdfScrollCommand, setPdfScrollCommand] = useState<{ page: number, ts: number } | undefined>();
   const [pdfTheme, setPdfTheme] = useState<'dark' | 'light'>('dark');
 
+  // Load persistent theme preference
+  useEffect(() => {
+    loadSettings().then(settings => {
+      if (settings.pdfTheme) {
+        setPdfTheme(settings.pdfTheme);
+      }
+    });
+  }, []);
+
+  const togglePdfTheme = async () => {
+    const newTheme = pdfTheme === 'dark' ? 'light' : 'dark';
+    setPdfTheme(newTheme);
+    await saveSetting('pdfTheme', newTheme);
+    await saveSettingsStore();
+  };
+
   // Ref to track if activeTopicId change was triggered by scrolling
   const isScrollingRef = useRef(false);
 
   const listRef = useRef<HTMLDivElement>(null);
 
-  const renderCount = useRef(0);
-  renderCount.current += 1;
-  console.log(`[BookDetailView] Render count: ${renderCount.current}, viewMode: ${viewMode}, pdfScrollCommand:`, pdfScrollCommand);
+  const handleMouseDown = useCallback(() => {
+    setIsResizing(true);
+    const handleMouseMove = (e: MouseEvent) => {
+      const tocContainer = document.getElementById('toc-sidebar');
+      const leftOffset = tocContainer ? tocContainer.getBoundingClientRect().left : 0;
+      const newWidth = Math.min(Math.max(e.clientX - leftOffset, MIN_TOC_WIDTH), MAX_TOC_WIDTH);
+      setTocWidth(newWidth);
+    };
+    const handleMouseUp = () => {
+      setIsResizing(false);
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+  }, []);
 
   useEffect(() => {
     if (!bookId) return;
@@ -317,14 +355,14 @@ export function BookDetailView() {
   }, [activeTopicId, filteredTopics, rowVirtualizer]);
 
   if (loading) {
-    return <div className="flex-1 flex items-center justify-center bg-zinc-950"><Loader2 className="animate-spin text-emerald-500 w-8 h-8" /></div>;
+    return <div className="flex-1 flex items-center justify-center bg-surface"><Loader2 className="animate-spin text-accent-blue w-8 h-8" /></div>;
   }
 
   if (error || !book) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center bg-zinc-950">
+      <div className="flex-1 flex flex-col items-center justify-center bg-surface">
         <p className="text-red-400 mb-4 font-medium">{error || "Book not found."}</p>
-        <Link to="/" className="text-emerald-500 hover:text-emerald-400 inline-flex items-center gap-2 bg-emerald-500/10 px-4 py-2 rounded-lg">
+        <Link to="/" className="text-accent-blue hover:text-accent-blue inline-flex items-center gap-2 bg-active-bg px-4 py-2 rounded-lg">
           <ArrowLeft size={16} /> Back to Library
         </Link>
       </div>
@@ -332,27 +370,43 @@ export function BookDetailView() {
   }
 
   return (
-    <div className="flex-1 flex overflow-hidden bg-zinc-950 h-full w-full relative">
+    <div className="flex-1 flex overflow-hidden bg-surface h-full w-full relative">
 
-      {/* Left Sidebar: TOC */}
-      <div className="w-80 shrink-0 border-r border-zinc-800 bg-zinc-900/50 flex flex-col z-10">
-        <div className="p-4 border-b border-zinc-800 bg-zinc-900 flex flex-col gap-3">
-          <div className="flex items-center gap-3">
-            <Link to="/" className="text-zinc-400 hover:text-zinc-200 p-1.5 rounded-md hover:bg-zinc-800 transition-colors">
-              <ArrowLeft size={18} />
-            </Link>
-            <div className="text-sm font-semibold text-zinc-300 truncate">
-              {book.title}
+      {/* Left Sidebar: TOC - Resizable */}
+      <div 
+        id="toc-sidebar"
+        className={clsx(
+          "shrink-0 min-w-0 border-r border-outline-variant bg-surface-container-low flex flex-col z-10 relative overflow-hidden transition-[width] duration-200 ease-out",
+          isTocCollapsed && "border-r-0"
+        )}
+        style={{ width: isTocCollapsed ? 0 : `${tocWidth}px` }}
+      >
+        <div className="p-4 border-b border-outline-variant bg-surface-container-lowest flex flex-col gap-3 min-w-[240px]">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <Link to="/" className="text-on-surface hover:text-primary p-1.5 rounded-md hover:bg-surface-container transition-colors">
+                <ArrowLeft size={18} />
+              </Link>
+              <div className="text-sm font-semibold text-primary truncate">
+                {book.title}
+              </div>
             </div>
+            <button
+              onClick={() => setIsTocCollapsed(true)}
+              className="text-on-surface hover:text-primary p-1 rounded hover:bg-surface-container transition-colors shrink-0"
+              title="Collapse Outline"
+            >
+              <ChevronLeft size={18} />
+            </button>
           </div>
           <div className="relative">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
             <input
               type="text"
               placeholder="Filter topics..."
               value={searchQuery}
               onChange={(e) => dispatch(setSearchQuery(e.target.value))}
-              className="w-full bg-zinc-950 border border-zinc-800 rounded-md py-1.5 pl-8 pr-3 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 transition-all"
+              className="w-full bg-surface border border-outline-variant rounded-md py-1.5 pl-8 pr-3 text-sm text-primary placeholder:text-on-surface-variant focus:outline-none focus:border-accent-blue/50 focus:ring-1 focus:ring-accent-blue/50 transition-all"
             />
           </div>
         </div>
@@ -369,15 +423,13 @@ export function BookDetailView() {
                 <button
                   key={virtualRow.key}
                   onClick={() => {
-                    console.log(`[BookDetailView] Topic clicked. id: ${topic.id}, start_page: ${topic.start_page}, current viewMode: ${viewMode}`);
                     dispatch(setActiveTopicId(topic.id));
                     setPdfScrollCommand({ page: topic.start_page, ts: Date.now() });
-                    setViewMode('pdf');
-                    console.log(`[BookDetailView] new viewMode requested: pdf`);
+                    setViewMode('topics');
                   }}
                   className={clsx(
-                    "absolute top-0 left-0 w-full flex items-center text-left transition-colors border-b border-zinc-800/30 group",
-                    isSelected ? "bg-emerald-500/10 text-emerald-400 border-l-2 border-l-emerald-500" : "text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200 border-l-2 border-l-transparent"
+                    "absolute top-0 left-0 w-full flex items-center text-left transition-colors border-b border-outline-variant/30 group",
+                    isSelected ? "bg-active-bg text-accent-blue border-l-2 border-l-accent-blue" : "text-on-surface hover:bg-surface-container hover:text-primary border-l-2 border-l-transparent"
                   )}
                   style={{
                     height: `${virtualRow.size}px`,
@@ -388,7 +440,7 @@ export function BookDetailView() {
                 >
                   {hasChildren ? (
                     <div
-                      className="shrink-0 p-1 mr-1 rounded hover:bg-zinc-700 text-zinc-500"
+                      className="shrink-0 p-1 mr-1 rounded hover:bg-surface-container-high text-on-surface-variant"
                       onClick={(e) => toggleCollapse(topic.id, e)}
                     >
                       {isCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
@@ -400,14 +452,20 @@ export function BookDetailView() {
                     <div className="truncate text-sm font-medium">{topic.title}</div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    {topic.status === 'processed' ? (
-                      <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" title="Processed" />
+                    {topic.mastery_status === 'mastered' ? (
+                      <div className="w-2 h-2 rounded-full bg-emerald-500" title="Mastered" />
+                    ) : topic.mastery_status === 'developing' ? (
+                      <div className="w-2 h-2 rounded-full bg-amber-500" title="Developing" />
+                    ) : topic.mastery_status === 'fragile' ? (
+                      <div className="w-2 h-2 rounded-full bg-orange-500" title="Fragile" />
+                    ) : topic.mastery_status === 'misconception' ? (
+                      <div className="w-2 h-2 rounded-full bg-red-500" title="Misconception" />
                     ) : topic.status === 'processing' ? (
                       <Loader2 size={12} className="animate-spin text-amber-500" />
                     ) : (
-                      <div className="w-1.5 h-1.5 rounded-full bg-zinc-700" title="Unprocessed" />
+                      <div className="w-1.5 h-1.5 rounded-full bg-surface-container-high" title="Untested" />
                     )}
-                    <div className="text-[10px] text-zinc-500 font-medium bg-zinc-950 px-1.5 py-0.5 rounded border border-zinc-800">p. {topic.start_page}</div>
+                    <div className="text-[10px] text-on-surface-variant font-medium bg-surface px-1.5 py-0.5 rounded border border-outline-variant">p. {topic.start_page}</div>
                   </div>
                 </button>
               );
@@ -416,19 +474,33 @@ export function BookDetailView() {
         </div>
       </div>
 
+      {/* Resize Handle */}
+      {!isTocCollapsed && (
+        <div
+          className={clsx(
+            "w-1 cursor-col-resize hover:bg-accent-blue/50 active:bg-accent-blue transition-colors duration-150 relative z-20",
+            isResizing && "bg-accent-blue"
+          )}
+          onMouseDown={handleMouseDown}
+          style={{ flexShrink: 0 }}
+        >
+          <div className="absolute inset-y-0 -left-1 -right-1" />
+        </div>
+      )}
+
       {/* Main Workspace */}
-      <div className="flex-1 flex relative bg-zinc-950 overflow-hidden">
+      <div className="flex-1 flex relative bg-surface overflow-hidden">
         {!activeTopic ? (
-          <div className="flex-1 flex flex-col items-center justify-center text-zinc-500 p-8 text-center">
+          <div className="flex-1 flex flex-col items-center justify-center text-on-surface-variant p-8 text-center">
             <LayoutList size={48} className="mb-4 opacity-20" />
-            <h3 className="text-lg font-medium text-zinc-300 mb-2">Topic Workspace</h3>
+            <h3 className="text-lg font-medium text-primary mb-2">Topic Workspace</h3>
             <p className="max-w-md text-sm">Select a topic from the left sidebar to start studying. Generate flashcards, take notes, and view related concepts.</p>
           </div>
         ) : (
           <>
             <div 
               className={clsx(
-                "flex flex-col bg-zinc-950",
+                "flex flex-col bg-surface",
                 viewMode === 'pdf' 
                   ? "flex-1 relative h-full" 
                   : "absolute inset-0 opacity-0 pointer-events-none z-[-1]"
@@ -436,26 +508,26 @@ export function BookDetailView() {
               inert={viewMode !== 'pdf' ? true : undefined}
             >
               {/* Top Bar for PDF */}
-              <div className="h-12 border-b border-zinc-800 flex items-center justify-between px-4 bg-zinc-900 shrink-0 z-10">
+              <div className="h-12 border-b border-outline-variant flex items-center justify-between px-4 bg-surface-container-lowest shrink-0 z-10">
                 <div className="flex items-center gap-3">
                   <button
                     onClick={() => setViewMode('topics')}
-                    className="flex items-center gap-2 px-2 py-1.5 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded-md transition-colors"
+                    className="flex items-center gap-2 px-2 py-1.5 text-on-surface hover:text-zinc-100 hover:bg-surface-container rounded-md transition-colors"
                   >
                     <ArrowLeft size={16} />
                     <span className="text-sm font-medium">Back to Topics</span>
                   </button>
-                  <div className="w-px h-4 bg-zinc-700 mx-1"></div>
-                  <div className="text-sm font-medium text-zinc-300 flex items-center gap-2">
-                    <FileText size={16} className="text-emerald-500 shrink-0" />
+                  <div className="w-px h-4 bg-surface-container-high mx-1"></div>
+                  <div className="text-sm font-medium text-primary flex items-center gap-2">
+                    <FileText size={16} className="text-accent-blue shrink-0" />
                     <span className="truncate max-w-[200px]">{book?.title || 'Source PDF'}</span>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-4">
                   <button
-                    onClick={() => setPdfTheme(prev => prev === 'dark' ? 'light' : 'dark')}
-                    className="p-1.5 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded-md transition-colors"
+                    onClick={togglePdfTheme}
+                    className="p-1.5 text-on-surface hover:text-primary hover:bg-surface-container rounded-md transition-colors"
                     title={`Switch to ${pdfTheme === 'dark' ? 'light' : 'dark'} mode`}
                   >
                     {pdfTheme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
@@ -463,12 +535,12 @@ export function BookDetailView() {
                   {annotations.length > 0 && (
                     <button
                       onClick={() => window.open(`http://127.0.0.1:8000/books/${bookId}/export-annotated`, '_blank')}
-                      className="text-[11px] font-medium text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 px-2.5 py-1 rounded-md transition-colors border border-emerald-500/20"
+                      className="text-[11px] font-medium text-accent-blue bg-active-bg hover:bg-accent-blue/20 px-2.5 py-1 rounded-md transition-colors border border-accent-blue/20"
                     >
                       Export PDF
                     </button>
                   )}
-                  <div className="text-xs text-zinc-500">
+                  <div className="text-xs text-on-surface-variant">
                     {annotations.length} annotation{annotations.length !== 1 ? 's' : ''}
                   </div>
                 </div>
@@ -488,6 +560,7 @@ export function BookDetailView() {
                     renderSelectionOverlay={(sel, cancelSelection) => (
                       <PdfCommandPalette
                         selection={sel}
+                        position={{ x: 0, y: 0 }}
                         onDismiss={() => {
                           cancelSelection();
                         }}
@@ -584,65 +657,55 @@ export function BookDetailView() {
             </div>
             <div className={clsx("flex-1 flex flex-col h-full overflow-y-auto", viewMode !== 'topics' && "hidden")}>
               {/* Header & Quick Actions */}
-              <div className="p-6 border-b border-zinc-800 bg-zinc-900/30 shrink-0">
-                <div className="flex items-center gap-2 text-xs text-emerald-500/70 font-medium mb-3">
-                  <Link to="/" className="hover:text-emerald-400 transition-colors">{book.title}</Link>
+              <div className="p-6 border-b border-outline-variant bg-surface-container-lowest shrink-0">
+                <div className="flex items-center gap-2 text-xs text-accent-blue font-medium font-medium mb-3">
+                  {isTocCollapsed && (
+                    <button 
+                      onClick={() => setIsTocCollapsed(false)}
+                      className="text-accent-blue hover:text-accent-blue/80 transition-colors p-1 rounded hover:bg-surface-container -ml-1 mr-1"
+                      title="Show Outline"
+                    >
+                      <LayoutList size={16} />
+                    </button>
+                  )}
+                  <Link to="/" className="hover:text-accent-blue transition-colors">{book.title}</Link>
                   <span>/</span>
                   <span>{activeTopic.breadcrumb || 'Chapter'}</span>
                 </div>
                 <div className="flex items-start justify-between gap-4 mb-6">
-                  <h1 className="text-2xl font-semibold text-zinc-100 leading-tight">
+                  <h1 className="text-2xl font-semibold text-primary leading-tight">
                     {activeTopic.title}
                   </h1>
-                  <div className="shrink-0 text-xs font-mono text-zinc-500 bg-zinc-900 px-2 py-1 rounded border border-zinc-800">
+                  <div className="shrink-0 text-xs font-mono text-on-surface-variant bg-surface-container-lowest px-2 py-1 rounded border border-outline-variant">
                     Target: p. {activeTopic.start_page}
                   </div>
                 </div>
 
-                {activeTopic.status !== 'processed' && (
-                  <div className="mb-6 p-4 rounded-xl border border-amber-500/20 bg-amber-500/5 flex items-start justify-between">
-                    <div>
-                      <h4 className="text-amber-400 font-medium mb-1 flex items-center gap-2">
-                        Unprocessed Topic
-                        {activeTopic.status === 'processing' && processingProgress?.progress !== undefined && (
-                          <span className="text-xs px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-500">
-                            {processingProgress.progress}%
-                          </span>
-                        )}
-                      </h4>
-                      <p className="text-sm text-zinc-400">
-                        {activeTopic.status === 'processing' && processingProgress
-                          ? `Processing: ${(processingProgress.stage || 'processing').replace('_', ' ')}...`
-                          : 'This topic has not been processed by AI yet. Generate notes and flashcards on-demand.'}
-                      </p>
-                    </div>
-                    <button
-                      onClick={handleProcessTopic}
-                      disabled={activeTopic.status === 'processing'}
-                      className="shrink-0 flex items-center gap-2 px-4 py-2 bg-amber-500 text-zinc-950 rounded-lg font-semibold hover:bg-amber-400 transition-colors disabled:opacity-50"
-                    >
-                      {activeTopic.status === 'processing' ? <Loader2 size={16} className="animate-spin" /> : <BrainCircuit size={16} />}
-                      {activeTopic.status === 'processing' ? 'Processing...' : 'Process with AI'}
-                    </button>
-                  </div>
-                )}
+                <div className="mb-6">
+                  <SocraticDrillWidget
+                    topicId={activeTopic.id}
+                    topicTitle={activeTopic.title}
+                    onMasteryUpdate={(score, status) => {
+                      // Refresh topics to update TOC mastery indicators
+                      client.getTopics(bookId).then(setTopics).catch(console.error);
+                    }}
+                  />
+                </div>
 
                 {/* Quick Actions Bar */}
                 <div className="flex flex-wrap items-center gap-3">
                   <button
                     onClick={() => {
-                      console.log(`[BookDetailView] 'View PDF' clicked. id: ${activeTopic.id}, start_page: ${activeTopic.start_page}, current viewMode: ${viewMode}`);
                       setViewMode('pdf');
                       setPdfScrollCommand({ page: activeTopic.start_page, ts: Date.now() });
-                      console.log(`[BookDetailView] new viewMode requested: pdf`);
                     }}
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors border bg-zinc-900 text-zinc-300 border-zinc-700 hover:bg-zinc-800 hover:border-zinc-600"
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors border bg-surface-container-lowest text-primary border-outline-variant hover:bg-surface-container hover:border-outline"
                   >
                     <FileText size={16} /> View PDF
                   </button>
                   <button
                     onClick={() => dispatch(setIsCardGenModalOpen(true))}
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 transition-colors"
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium bg-active-bg text-accent-blue border border-accent-blue/20 hover:bg-accent-blue/20 transition-colors"
                   >
                     <Zap size={16} /> Generate Flashcards
                   </button>
@@ -650,14 +713,14 @@ export function BookDetailView() {
                     onClick={() => dispatch(setIsNotesOpen(!isNotesOpen))}
                     className={clsx(
                       "flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors border",
-                      isNotesOpen ? "bg-amber-500/10 text-amber-400 border-amber-500/20" : "bg-zinc-900 text-zinc-300 border-zinc-700 hover:bg-zinc-800 hover:border-zinc-600"
+                      isNotesOpen ? "bg-amber-500/10 text-amber-400 border-amber-500/20" : "bg-surface-container-lowest text-primary border-outline-variant hover:bg-surface-container hover:border-outline"
                     )}
                   >
                     <PenTool size={16} /> Study Notes
                   </button>
                   <button
                     onClick={() => setIsRelatedModalOpen(true)}
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium bg-zinc-900 text-zinc-300 border border-zinc-700 hover:bg-zinc-800 hover:border-zinc-600 transition-colors ml-auto"
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium bg-surface-container-lowest text-primary border border-outline-variant hover:bg-surface-container hover:border-outline transition-colors ml-auto"
                   >
                     <Link2 size={16} /> Related
                   </button>
@@ -668,20 +731,20 @@ export function BookDetailView() {
 
                 {/* Generated Topic Data (if processed) */}
                 {activeTopic.status === 'processed' && (activeTopic.summary || activeTopic.concept_type) && (
-                  <div className="bg-zinc-900 border border-emerald-500/20 rounded-xl p-5 shadow-lg">
+                  <div className="bg-surface-container-lowest border border-accent-blue/20 rounded-xl p-5 shadow-lg">
                     <div className="flex items-center gap-3 mb-4">
-                      <div className="w-8 h-8 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-400">
+                      <div className="w-8 h-8 rounded-full bg-active-bg flex items-center justify-center text-accent-blue">
                         <BrainCircuit size={18} />
                       </div>
                       <div>
-                        <h3 className="text-sm font-semibold text-emerald-400">AI Topic Summary</h3>
+                        <h3 className="text-sm font-semibold text-accent-blue">AI Topic Summary</h3>
                         {activeTopic.concept_type && (
-                          <p className="text-xs text-zinc-500">{activeTopic.concept_type}</p>
+                          <p className="text-xs text-on-surface-variant">{activeTopic.concept_type}</p>
                         )}
                       </div>
                     </div>
                     {activeTopic.summary && (
-                      <div className="text-sm text-zinc-300 leading-relaxed mb-4 font-serif prose prose-invert max-w-none prose-p:leading-relaxed prose-pre:p-0 prose-pre:bg-transparent">
+                      <div className="text-sm text-primary leading-relaxed mb-4 font-serif prose prose-slate max-w-none">
                         <MarkdownRenderer content={activeTopic.summary} />
                       </div>
                     )}
@@ -691,7 +754,7 @@ export function BookDetailView() {
                           try {
                             const terms = JSON.parse(activeTopic.key_terms);
                             return terms.map((term: string, idx: number) => (
-                              <span key={idx} className="px-2 py-1 bg-zinc-800 text-zinc-400 text-xs rounded-md border border-zinc-700">
+                              <span key={idx} className="px-2 py-1 bg-surface-container text-on-surface text-xs rounded-md border border-outline-variant">
                                 {term}
                               </span>
                             ));
@@ -708,14 +771,14 @@ export function BookDetailView() {
                 {/* Flashcards List */}
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider flex items-center gap-2">
+                    <h3 className="text-sm font-semibold text-on-surface uppercase tracking-wider flex items-center gap-2">
                       <span>Topic Flashcards</span>
-                      <span className="bg-zinc-800 text-zinc-300 px-2 py-0.5 rounded-full text-xs">{activeTopicCards.length}</span>
+                      <span className="bg-surface-container text-primary px-2 py-0.5 rounded-full text-xs">{activeTopicCards.length}</span>
                     </h3>
                     {activeTopicCards.length > 0 && (
                       <button
                         onClick={() => setIsPracticeModalOpen(true)}
-                        className="text-xs font-medium bg-emerald-500 text-zinc-950 px-3 py-1.5 rounded-lg hover:bg-emerald-400 transition-colors"
+                        className="text-xs font-medium bg-accent-blue text-zinc-950 px-3 py-1.5 rounded-lg hover:bg-emerald-400 transition-colors"
                       >
                         Practice
                       </button>
@@ -723,43 +786,43 @@ export function BookDetailView() {
                   </div>
 
                   {activeTopicCards.length === 0 ? (
-                    <div className="p-8 border border-dashed border-zinc-800 rounded-xl flex flex-col items-center justify-center text-zinc-500">
+                    <div className="p-8 border border-dashed border-outline-variant rounded-xl flex flex-col items-center justify-center text-on-surface-variant">
                       <Zap size={24} className="mb-2 opacity-50" />
                       <p className="text-sm">No flashcards generated yet.</p>
                     </div>
                   ) : (
                     <div className="grid gap-4">
                       {activeTopicCards.map(card => (
-                        <div key={card.id} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 group relative">
+                        <div key={card.id} className="bg-surface-container-lowest border border-outline-variant rounded-xl p-4 group relative">
                           {editingCardId === card.id ? (
                             <div className="space-y-4">
                               <div>
-                                <div className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-1">Question</div>
+                                <div className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-1">Question</div>
                                 <textarea
                                   value={editQuestion}
                                   onChange={(e) => setEditQuestion(e.target.value)}
-                                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-sm text-zinc-200 focus:outline-none focus:ring-1 focus:ring-emerald-500/50 focus:border-emerald-500/50 resize-y min-h-[60px]"
+                                  className="w-full bg-surface border border-outline-variant rounded-lg p-2.5 text-sm text-primary focus:outline-none focus:ring-1 focus:ring-accent-blue/50 focus:border-accent-blue/50 resize-y min-h-[60px]"
                                 />
                               </div>
                               <div>
-                                <div className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-1">Answer</div>
+                                <div className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-1">Answer</div>
                                 <textarea
                                   value={editAnswer}
                                   onChange={(e) => setEditAnswer(e.target.value)}
-                                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-sm text-zinc-200 focus:outline-none focus:ring-1 focus:ring-emerald-500/50 focus:border-emerald-500/50 resize-y min-h-[60px]"
+                                  className="w-full bg-surface border border-outline-variant rounded-lg p-2.5 text-sm text-primary focus:outline-none focus:ring-1 focus:ring-accent-blue/50 focus:border-accent-blue/50 resize-y min-h-[60px]"
                                 />
                               </div>
-                              <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-800/50">
+                              <div className="flex items-center justify-end gap-2 pt-2 border-t border-outline-variant/50">
                                 <button
                                   onClick={() => setEditingCardId(null)}
-                                  className="px-3 py-1.5 text-xs font-medium text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded-lg transition-colors"
+                                  className="px-3 py-1.5 text-xs font-medium text-on-surface hover:text-primary hover:bg-surface-container rounded-lg transition-colors"
                                 >
                                   Cancel
                                 </button>
                                 <button
                                   onClick={() => handleSaveCard(card.id)}
                                   disabled={isSavingCard}
-                                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-emerald-500 text-zinc-950 rounded-lg hover:bg-emerald-400 transition-colors disabled:opacity-50"
+                                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-accent-blue text-zinc-950 rounded-lg hover:bg-emerald-400 transition-colors disabled:opacity-50"
                                 >
                                   {isSavingCard ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
                                   Save
@@ -771,7 +834,7 @@ export function BookDetailView() {
                               <div className="absolute top-4 right-4 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                 <button
                                   onClick={() => handleStartEdit(card)}
-                                  className="p-1.5 text-zinc-400 hover:text-white hover:bg-zinc-700 rounded-md"
+                                  className="p-1.5 text-on-surface hover:text-white hover:bg-surface-container-high rounded-md"
                                 >
                                   <Edit2 size={14} />
                                 </button>
@@ -784,14 +847,14 @@ export function BookDetailView() {
                               </div>
                               <div className="pr-16 space-y-3">
                                 <div>
-                                  <div className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-1">Question</div>
-                                  <div className="text-zinc-200 font-medium prose prose-invert max-w-none prose-p:leading-relaxed prose-pre:p-0 prose-pre:bg-transparent">
+                                  <div className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-1">Question</div>
+                                  <div className="text-primary font-medium prose prose-slate max-w-none">
                                     <MarkdownRenderer content={card.question} />
                                   </div>
                                 </div>
-                                <div className="pt-3 border-t border-zinc-800/50">
-                                  <div className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-1">Answer</div>
-                                  <div className="text-zinc-400 text-sm prose prose-invert max-w-none prose-p:leading-relaxed prose-pre:p-0 prose-pre:bg-transparent">
+                                <div className="pt-3 border-t border-outline-variant/50">
+                                  <div className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-1">Answer</div>
+                                  <div className="text-on-surface text-sm prose prose-slate max-w-none">
                                     <MarkdownRenderer content={card.answer} />
                                   </div>
                                 </div>
@@ -826,19 +889,19 @@ export function BookDetailView() {
       {/* Notes Modal */}
       {isNotesOpen && activeTopic && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 md:p-8">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl w-full max-w-4xl h-full max-h-[80vh] flex flex-col overflow-hidden">
-            <div className="flex items-center justify-between p-4 border-b border-zinc-800 shrink-0 bg-zinc-950/50">
+          <div className="bg-surface-container-lowest border border-outline-variant rounded-xl shadow-2xl w-full max-w-4xl h-full max-h-[80vh] flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between p-4 border-b border-outline-variant shrink-0 bg-surface/50">
               <h2 className="text-lg font-semibold flex items-center gap-2 text-zinc-100">
                 <PenTool size={18} className="text-amber-500" /> Study Notes: {activeTopic.title}
               </h2>
               <button
                 onClick={() => dispatch(setIsNotesOpen(false))}
-                className="text-zinc-400 hover:text-white p-1.5 rounded-md hover:bg-zinc-800 transition-colors"
+                className="text-on-surface hover:text-white p-1.5 rounded-md hover:bg-surface-container transition-colors"
               >
                 <X size={18} />
               </button>
             </div>
-            <div className="flex-1 overflow-hidden p-4 bg-zinc-950">
+            <div className="flex-1 overflow-hidden p-4 bg-surface">
               <NotionNotesEditor key={activeTopic.id} topicId={activeTopic.id} />
             </div>
           </div>

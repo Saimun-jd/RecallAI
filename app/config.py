@@ -31,3 +31,16 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
 settings = Settings()
+
+PROVIDER_CONCURRENCY = {
+    "ollama": 2,
+    "openai": 10,
+    "gemini": 10,
+    "groq": 15,
+}
+
+def get_provider_concurrency(provider_name: str | None = None) -> int:
+    if not provider_name:
+        provider_name = settings.llm_provider
+    provider_name = provider_name.lower().strip()
+    return PROVIDER_CONCURRENCY.get(provider_name, 5)

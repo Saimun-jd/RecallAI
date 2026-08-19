@@ -144,27 +144,27 @@ export function LibraryView() {
   return (
     <div 
       className={clsx(
-        "p-8 h-full overflow-y-auto bg-zinc-950 transition-colors",
-        isDragging ? "bg-zinc-900/80 outline-dashed outline-2 outline-emerald-500/50 outline-offset-[-16px] rounded-xl" : ""
+        "p-8 h-full overflow-y-auto bg-surface transition-colors",
+        isDragging ? "bg-accent-blue/5 outline-dashed outline-2 outline-accent-blue/30 outline-offset-[-16px] rounded-[var(--radius-large)]" : ""
       )}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
       {isDragging && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-zinc-950/80 backdrop-blur-sm pointer-events-none">
-          <div className="flex flex-col items-center p-8 bg-zinc-900 rounded-2xl border-2 border-emerald-500/50 shadow-2xl">
-            <Upload size={48} className="text-emerald-400 mb-4 animate-bounce" />
-            <h2 className="text-2xl font-bold text-white mb-2">Drop PDF Here</h2>
-            <p className="text-zinc-400">Release to import into your library</p>
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-surface/80 backdrop-blur-sm pointer-events-none">
+          <div className="flex flex-col items-center p-8 bg-surface-container-lowest rounded-[var(--radius-large)] border border-accent-blue/30 shadow-[var(--shadow-default)]">
+            <Upload size={48} className="text-accent-blue mb-4 animate-bounce" strokeWidth={1.5} />
+            <h2 className="text-2xl font-semibold text-primary mb-2">Drop PDF Here</h2>
+            <p className="text-on-surface-variant text-sm">Release to import into your library</p>
           </div>
         </div>
       )}
       <div className="max-w-6xl mx-auto space-y-8 relative">
       <div className="flex items-center justify-between mb-10">
         <div>
-          <h2 className="text-3xl font-bold text-zinc-100 tracking-tight">Library</h2>
-          <p className="text-zinc-400 text-sm mt-1">Manage your study materials and extracted knowledge.</p>
+          <h2 className="text-[32px] font-semibold text-primary tracking-tight leading-[40px] -tracking-[0.01em]">Library</h2>
+          <p className="text-on-surface-variant text-sm mt-1 font-normal">Manage your study materials and extracted knowledge.</p>
         </div>
         
         <div>
@@ -178,9 +178,9 @@ export function LibraryView() {
           <button 
             onClick={() => fileInputRef.current?.click()}
             disabled={isUploading}
-            className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-zinc-950 px-5 py-2.5 rounded-lg font-semibold transition-all disabled:opacity-50 shadow-[0_0_15px_rgba(16,185,129,0.3)] hover:shadow-[0_0_25px_rgba(16,185,129,0.5)]"
+            className="flex items-center gap-2 bg-accent-blue hover:bg-accent-blue/90 text-white px-5 py-2.5 rounded-[var(--radius-standard)] font-medium transition-all duration-200 ease-out disabled:opacity-50 shadow-[var(--shadow-default)] hover:shadow-[var(--shadow-md)]"
           >
-            {isUploading ? <Loader2 size={18} className="animate-spin" /> : <Plus size={18} />}
+            {isUploading ? <Loader2 size={18} className="animate-spin" strokeWidth={2} /> : <Plus size={18} strokeWidth={2} />}
             {isUploading ? 'Extracting TOC...' : 'Import PDF'}
           </button>
         </div>
@@ -189,47 +189,47 @@ export function LibraryView() {
       {books.length === 0 ? (
         <div 
           onClick={() => fileInputRef.current?.click()}
-          className="bg-zinc-900/50 border-2 border-dashed border-zinc-800 rounded-2xl p-16 text-center text-zinc-500 flex flex-col items-center justify-center min-h-[400px] cursor-pointer hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-all group"
+          className="bg-surface-container-lowest border-2 border-dashed border-outline-variant rounded-[var(--radius-large)] p-16 text-center text-on-surface-variant flex flex-col items-center justify-center min-h-[400px] cursor-pointer hover:border-accent-blue/50 hover:bg-accent-blue/5 transition-all duration-200 ease-out group"
         >
-          <div className="w-20 h-20 rounded-2xl bg-zinc-800 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300 shadow-xl group-hover:bg-emerald-500/20 group-hover:text-emerald-400">
-            <Upload size={32} />
+          <div className="w-20 h-20 rounded-[var(--radius-large)] bg-surface-container flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300 group-hover:bg-accent-blue/10 group-hover:text-accent-blue">
+            <Upload size={32} strokeWidth={1.5} />
           </div>
-          <h3 className="text-xl font-semibold text-zinc-200 mb-2">Drop a PDF textbook here</h3>
-          <p className="max-w-md">Import a PDF to let the AI chunk it into intelligent study topics and flashcards automatically.</p>
+          <h3 className="text-xl font-semibold text-primary mb-2">Drop a PDF textbook here</h3>
+          <p className="max-w-md text-sm">Import a PDF to let the AI chunk it into intelligent study topics and flashcards automatically.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {books.map(book => (
             <Link to={`/books/${book.id}`} key={book.id} className="block group">
-              <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 shadow-sm hover:border-zinc-700 transition-all hover:bg-zinc-800/50 h-full flex flex-col">
+              <div className="bg-surface-container-lowest border border-border-default rounded-[var(--radius-large)] p-5 hover:border-border-hover hover:shadow-[var(--shadow-default)] transition-all duration-200 ease-out h-full flex flex-col">
                 <div className="flex items-start justify-between mb-4">
-                  <div className="w-12 h-12 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center shrink-0 border border-emerald-500/20 shadow-inner">
-                    <FileText size={22} />
+                  <div className="w-12 h-12 rounded-[var(--radius-standard)] bg-accent-blue/10 text-accent-blue flex items-center justify-center shrink-0 border border-accent-blue/20">
+                    <FileText size={22} strokeWidth={1.5} />
                   </div>
                   <button 
                     onClick={(e) => handleDelete(e, book.id)}
-                    className="text-zinc-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition p-2 hover:bg-zinc-800 rounded-md"
+                    className="text-on-surface-variant hover:text-error opacity-0 group-hover:opacity-100 transition-all duration-200 p-2 hover:bg-surface-container rounded-[var(--radius-standard)]"
                     title="Delete Book"
                   >
-                    <Trash2 size={16} />
+                    <Trash2 size={16} strokeWidth={1.5} />
                   </button>
                 </div>
                 
-                <h3 className="font-semibold text-zinc-100 line-clamp-2 leading-snug mb-2 group-hover:text-emerald-400 transition-colors" title={book.title}>
+                <h3 className="font-semibold text-primary line-clamp-2 leading-snug mb-2 group-hover:text-accent-blue transition-colors text-base" title={book.title}>
                   {book.title}
                 </h3>
                 
-                <div className="mt-auto pt-4 flex items-center justify-between text-xs text-zinc-500 border-t border-zinc-800/50">
+                <div className="mt-auto pt-4 flex items-center justify-between text-xs text-on-surface-variant border-t border-outline-variant">
                   <div className="flex flex-col gap-1">
                     <span>{new Date(book.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</span>
                     {(book.total_topics ?? 0) > 0 && (
-                      <span className="text-emerald-500/80 font-medium">
+                      <span className="text-accent-blue font-medium">
                         {book.topics_processed || 0}/{book.total_topics} topics processed
                       </span>
                     )}
                   </div>
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity text-emerald-500">
-                    View <ChevronRight size={14} />
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity text-accent-blue font-medium">
+                    View <ChevronRight size={14} strokeWidth={2} />
                   </div>
                 </div>
               </div>

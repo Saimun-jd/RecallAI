@@ -16,8 +16,10 @@ DB_PATH = os.path.join(DATA_DIR, "recall.db")
 @contextmanager
 def get_connection():
     """Yields a database connection with Row factory enabled."""
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=15.0)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA synchronous=NORMAL")
     conn.execute("PRAGMA foreign_keys = ON")
     try:
         yield conn
@@ -88,7 +90,10 @@ def init_db():
             ("image_url", "TEXT"),
             ("breadcrumb", "TEXT"),
             ("topic_hash", "TEXT"),
-            ("embedding", "TEXT")
+            ("embedding", "TEXT"),
+            ("mastery_score", "INTEGER"),
+            ("mastery_status", "TEXT DEFAULT 'untested'"),
+            ("last_drilled_at", "TIMESTAMP"),
         ]
         
         for col_name, col_type in migrations:
@@ -272,10 +277,11 @@ async def resolve_and_save_topic(
                     key_terms = COALESCE(?, key_terms),
                     code_snippet = COALESCE(?, code_snippet),
                     image_url = COALESCE(?, image_url),
-                    content_md = ?
+                    content_md = ?,
+                    status = ?
                 WHERE id = ?
                 """,
-                (summary, concept_type, key_terms, code_snippet, image_url, new_content, row['id'])
+                (summary, concept_type, key_terms, code_snippet, image_url, new_content, status, row['id'])
             )
             return row['id']
             
@@ -299,9 +305,16 @@ async def resolve_and_save_topic(
             kt_list = json.loads(key_terms)
         except Exception:
             pass
-    text_to_embed = f"Title: {title}\nKey Terms: {', '.join(kt_list)}\nSummary: {summary or ''}"
-    new_embedding = await get_embedding(text_to_embed, provider=provider)
-    new_emb_json = json.dumps(new_embedding)
+
+    try:
+        text_to_embed = f"Title: {title}\nKey Terms: {', '.join(kt_list)}\nSummary: {summary or ''}"
+        new_embedding = await get_embedding(text_to_embed, provider=provider)
+        new_emb_json = json.dumps(new_embedding) if new_embedding else None
+    except Exception as e:
+        logger.warning(f"Embedding generation skipped for '{title}': {e}")
+        new_embedding = []
+        new_emb_json = None
+
     
     with get_connection() as conn:
         cursor = conn.cursor()
@@ -364,16 +377,17 @@ async def resolve_and_save_topic(
             cursor.execute(
                 """
                 UPDATE topics SET 
-                    summary = COALESCE(summary, ?),
-                    concept_type = COALESCE(concept_type, ?),
+                    summary = COALESCE(?, summary),
+                    concept_type = COALESCE(?, concept_type),
                     key_terms = ?,
-                    code_snippet = COALESCE(code_snippet, ?),
-                    image_url = COALESCE(image_url, ?),
+                    code_snippet = COALESCE(?, code_snippet),
+                    image_url = COALESCE(?, image_url),
                     content_md = ?,
-                    embedding = ?
+                    embedding = ?,
+                    status = ?
                 WHERE id = ?
                 """,
-                (summary, concept_type, merged_kt_json, code_snippet, image_url, new_content, merged_emb_json, best_id)
+                (summary, concept_type, merged_kt_json, code_snippet, image_url, new_content, merged_emb_json, status, best_id)
             )
             return best_id
             
@@ -457,6 +471,110 @@ def get_topic_by_id(topic_id: int) -> Optional[Dict[str, Any]]:
         cursor.execute("SELECT * FROM topics WHERE id = ?", (topic_id,))
         row = cursor.fetchone()
         return dict(row) if row else None
+
+def update_topic_enrichment(
+    topic_id: int,
+    summary: str | None = None,
+    concept_type: str | None = None,
+    key_terms: str | None = None,
+    code_snippet: str | None = None,
+    image_url: str | None = None,
+    content_md: str | None = None,
+    status: str = "processed"
+):
+    """Enriches a topic in-place with AI summary, key terms, concept type, and content without creating new child rows."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            UPDATE topics SET
+                summary = COALESCE(?, summary),
+                concept_type = COALESCE(?, concept_type),
+                key_terms = COALESCE(?, key_terms),
+                code_snippet = COALESCE(?, code_snippet),
+                image_url = COALESCE(?, image_url),
+                content_md = COALESCE(?, content_md),
+                is_processed = 1,
+                status = ?
+            WHERE id = ?
+            """,
+            (summary, concept_type, key_terms, code_snippet, image_url, content_md, status, topic_id)
+        )
+
+def update_topic_mastery(topic_id: int, score: int, status: str):
+    """Updates the mastery score and status for a topic after a Socratic Drill."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            UPDATE topics SET
+                mastery_score = ?,
+                mastery_status = ?,
+                last_drilled_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+            """,
+            (score, status, topic_id)
+        )
+
+def prune_artificial_subtopics(book_id: Optional[int] = None) -> int:
+    """
+    Deletes artificial subtopic rows (topics with parent_id) that were created by earlier LLM chunking runs,
+    re-linking any associated flashcards to their parent section topics.
+    Returns the count of pruned subtopics.
+    """
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        
+        if book_id is not None:
+            cursor.execute("SELECT id, parent_id FROM topics WHERE book_id = ? AND parent_id IS NOT NULL", (book_id,))
+        else:
+            cursor.execute("SELECT id, parent_id FROM topics WHERE parent_id IS NOT NULL")
+            
+        subtopics = cursor.fetchall()
+        if not subtopics:
+            return 0
+            
+        pruned_count = len(subtopics)
+        
+        for sub in subtopics:
+            sub_id = sub['id']
+            parent_id = sub['parent_id']
+            if parent_id:
+                cursor.execute("UPDATE flashcards SET topic_id = ? WHERE topic_id = ?", (parent_id, sub_id))
+                
+        sub_ids = [sub['id'] for sub in subtopics]
+        placeholders = ','.join('?' * len(sub_ids))
+        cursor.execute(f"DELETE FROM topics WHERE id IN ({placeholders})", sub_ids)
+        
+        parent_ids = list(set(sub['parent_id'] for sub in subtopics if sub['parent_id']))
+        for p_id in parent_ids:
+            cursor.execute("""
+                UPDATE topics 
+                SET flashcard_count = (SELECT COUNT(*) FROM flashcards WHERE topic_id = ?) 
+                WHERE id = ?
+            """, (p_id, p_id))
+        
+        return pruned_count
+
+
+def get_topic_content_with_fallback(topic_id: int) -> tuple[str, str]:
+    """Retrieves the topic's content_md and summary, falling back to parent topic content if needed."""
+    topic = get_topic_by_id(topic_id)
+    if not topic:
+        return "", ""
+        
+    content_md = topic.get("content_md") or ""
+    summary = topic.get("summary") or ""
+    
+    if not content_md and topic.get("parent_id"):
+        parent = get_topic_by_id(topic.get("parent_id"))
+        if parent:
+            content_md = parent.get("content_md") or ""
+            if not summary:
+                summary = parent.get("summary") or ""
+                
+    return content_md, summary
+
 
 def get_setting(key: str) -> Optional[str]:
     """Retrieves a setting value by key."""
@@ -848,3 +966,31 @@ def delete_annotation(annotation_id: int) -> bool:
         cursor = conn.cursor()
         cursor.execute("DELETE FROM pdf_annotations WHERE id = ?", (annotation_id,))
         return cursor.rowcount > 0
+
+def search_all(query: str, limit: int = 20) -> List[Dict[str, Any]]:
+    """Search topics and flashcards for the given query."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        search_term = f"%{query}%"
+        
+        # Search topics
+        cursor.execute("""
+            SELECT 'topic' as type, id, title as title, summary as subtitle
+            FROM topics
+            WHERE title LIKE ? OR summary LIKE ?
+            LIMIT ?
+        """, (search_term, search_term, limit))
+        topic_results = [dict(r) for r in cursor.fetchall()]
+        
+        # Search flashcards
+        cursor.execute("""
+            SELECT 'flashcard' as type, id, question as title, answer as subtitle
+            FROM flashcards
+            WHERE question LIKE ? OR answer LIKE ?
+            LIMIT ?
+        """, (search_term, search_term, limit))
+        card_results = [dict(r) for r in cursor.fetchall()]
+        
+        # Combine and sort, maybe prioritizing topics
+        results = topic_results + card_results
+        return results[:limit]

@@ -25,12 +25,14 @@ export interface AppSettings {
   activeProvider: AIProviderId;
   fallbackToCloudEnabled: boolean;
   showAttributionTags: boolean;
+  pdfTheme: 'dark' | 'light';
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
   activeProvider: 'ollama',
   fallbackToCloudEnabled: false,
   showAttributionTags: true,
+  pdfTheme: 'dark',
 };
 
 export const loadSettings = async (): Promise<AppSettings> => {
@@ -43,7 +45,8 @@ export const loadSettings = async (): Promise<AppSettings> => {
     const activeProvider = await store.get<AIProviderId>('activeProvider') ?? DEFAULT_SETTINGS.activeProvider;
     const fallbackToCloudEnabled = await store.get<boolean>('fallbackToCloudEnabled') ?? DEFAULT_SETTINGS.fallbackToCloudEnabled;
     const showAttributionTags = await store.get<boolean>('showAttributionTags') ?? DEFAULT_SETTINGS.showAttributionTags;
-    return { activeProvider, fallbackToCloudEnabled, showAttributionTags };
+    const pdfTheme = await store.get<'dark' | 'light'>('pdfTheme') ?? DEFAULT_SETTINGS.pdfTheme;
+    return { activeProvider, fallbackToCloudEnabled, showAttributionTags, pdfTheme };
   } catch (error) {
     console.error('Failed to load settings:', error);
     return DEFAULT_SETTINGS;

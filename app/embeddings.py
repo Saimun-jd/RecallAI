@@ -31,9 +31,9 @@ async def get_embedding(text: str, provider: str = "ollama") -> List[float]:
             return data.get("embedding", [])
     elif provider == "gemini":
         api_key = get_setting("gemini_api_key") or settings.gemini_api_key
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-2:embedContent?key={api_key}"
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key={api_key}"
         payload = {
-            "model": "models/gemini-embedding-2",
+            "model": "models/text-embedding-004",
             "content": {
                 "parts": [{"text": text}]
             }

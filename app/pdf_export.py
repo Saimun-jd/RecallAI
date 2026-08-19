@@ -62,10 +62,18 @@ def generate_annotated_pdf(book_id: int) -> str | None:
                 # Convert from viewport coordinates to PDF points
                 # The stored coordinates are at viewportScale (typically 1.5x)
                 viewport_scale = rect_data.get("viewportScale", 1.5)
-                x = rect_data["x"] / viewport_scale
-                y = rect_data["y"] / viewport_scale
-                w = rect_data["width"] / viewport_scale
-                h = rect_data["height"] / viewport_scale
+                
+                if "boundingRect" in rect_data:
+                    bounds = rect_data["boundingRect"]
+                    x = bounds.get("x1", bounds.get("left", 0)) / viewport_scale
+                    y = bounds.get("y1", bounds.get("top", 0)) / viewport_scale
+                    w = bounds.get("width", 0) / viewport_scale
+                    h = bounds.get("height", 0) / viewport_scale
+                else:
+                    x = rect_data["x"] / viewport_scale
+                    y = rect_data["y"] / viewport_scale
+                    w = rect_data["width"] / viewport_scale
+                    h = rect_data["height"] / viewport_scale
                 
                 # Create a fitz.Rect for the annotation position
                 annot_rect = fitz.Rect(x, y, x + w, y + h)

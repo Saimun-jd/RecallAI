@@ -21,18 +21,23 @@ class OpenAIProvider(BaseLLMProvider):
             "Content-Type": "application/json"
         }
         
-        prompt_with_schema = f"{prompt}\n\nIMPORTANT: You must return a valid JSON object. Your JSON object must strictly adhere to the following JSON schema. Do not return the schema itself, return the data formatted according to the schema:\n{json.dumps(json_schema)}"
+        if json_schema is not None:
+            prompt_with_schema = f"{prompt}\n\nIMPORTANT: You must return a valid JSON object. Your JSON object must strictly adhere to the following JSON schema. Do not return the schema itself, return the data formatted according to the schema:\n{json.dumps(json_schema)}"
+        else:
+            prompt_with_schema = prompt
         
         payload = {
             "model": self.model,
             "messages": [{"role": "user", "content": prompt_with_schema}],
             "temperature": temperature,
             "max_tokens": max_tokens,
-            "response_format": {
+        }
+
+        if json_schema is not None:
+            payload["response_format"] = {
                 "type": "json_object"
             }
-        }
-        
+
         async with httpx.AsyncClient(timeout=120.0) as client:
             r = await client.post(
                 f"{self.base_url}/chat/completions",

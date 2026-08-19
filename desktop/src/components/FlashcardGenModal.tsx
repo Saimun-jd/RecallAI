@@ -13,6 +13,7 @@ export function FlashcardGenModal() {
   const [cardType, setCardType] = useState('Conceptual');
   const [difficulty, setDifficulty] = useState('Beginner');
   const [additionalPrompt, setAdditionalPrompt] = useState('');
+  const [providerOverride, setProviderOverride] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -26,7 +27,13 @@ export function FlashcardGenModal() {
       if (additionalPrompt.trim()) {
         customPrompt += `\nAdditional Instructions: ${additionalPrompt.trim()}`;
       }
-      await client.generateFlashcards(activeTopicId, { count, custom_prompt: customPrompt });
+      
+      const options: any = { count, custom_prompt: customPrompt };
+      if (providerOverride) {
+        options.provider_override = providerOverride;
+      }
+      
+      await client.generateFlashcards(activeTopicId, options);
       
       // Fetch updated cards
       const newCards = await client.getTopicFlashcards(activeTopicId);
@@ -68,29 +75,45 @@ export function FlashcardGenModal() {
             />
           </div>
           
-          <div className="space-y-1">
-            <label className="text-sm font-medium text-zinc-300">Card Type</label>
-            <select 
-              value={cardType}
-              onChange={(e) => setCardType(e.target.value)}
-              className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2 text-sm text-zinc-200 focus:ring-1 focus:ring-emerald-500 outline-none"
-            >
-              <option>Conceptual</option>
-              <option>Code/Implementation</option>
-              <option>Mixed</option>
-            </select>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <label className="text-sm font-medium text-zinc-300">Card Type</label>
+              <select 
+                value={cardType}
+                onChange={(e) => setCardType(e.target.value)}
+                className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2 text-sm text-zinc-200 focus:ring-1 focus:ring-emerald-500 outline-none"
+              >
+                <option>Conceptual</option>
+                <option>Code/Implementation</option>
+                <option>Mixed</option>
+              </select>
+            </div>
+            
+            <div className="space-y-1">
+              <label className="text-sm font-medium text-zinc-300">Difficulty</label>
+              <select 
+                value={difficulty}
+                onChange={(e) => setDifficulty(e.target.value)}
+                className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2 text-sm text-zinc-200 focus:ring-1 focus:ring-emerald-500 outline-none"
+              >
+                <option>Beginner</option>
+                <option>Intermediate</option>
+                <option>Advanced</option>
+              </select>
+            </div>
           </div>
           
           <div className="space-y-1">
-            <label className="text-sm font-medium text-zinc-300">Difficulty</label>
+            <label className="text-sm font-medium text-zinc-300">Provider Override</label>
             <select 
-              value={difficulty}
-              onChange={(e) => setDifficulty(e.target.value)}
+              value={providerOverride}
+              onChange={(e) => setProviderOverride(e.target.value)}
               className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2 text-sm text-zinc-200 focus:ring-1 focus:ring-emerald-500 outline-none"
             >
-              <option>Beginner</option>
-              <option>Intermediate</option>
-              <option>Advanced</option>
+              <option value="">Default (Settings)</option>
+              <option value="gemini">Google Gemini</option>
+              <option value="openai">OpenAI (GPT-4o)</option>
+              <option value="groq">Groq (Llama-3)</option>
             </select>
           </div>
           

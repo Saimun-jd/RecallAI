@@ -7,22 +7,25 @@ import { MarkdownRenderer } from './MarkdownRenderer';
 
 const TYPE_STYLES: Record<string, any> = {
   sidenote: {
-    bg: 'bg-yellow-400/40',
-    iconBg: 'bg-yellow-400',
-    iconColor: 'text-yellow-950 fill-yellow-950',
-    label: 'Note'
+    bg: 'bg-yellow-400/30',
+    iconBg: 'bg-yellow-500',
+    iconColor: 'text-white',
+    label: 'Note',
+    borderColor: 'border-yellow-500/20'
   },
   ai_explanation: {
-    bg: 'bg-fuchsia-500/40',
-    iconBg: 'bg-fuchsia-500',
-    iconColor: 'text-white fill-white',
-    label: 'AI Explanation'
+    bg: 'bg-ai-purple/20',
+    iconBg: 'bg-ai-purple',
+    iconColor: 'text-white',
+    label: 'AI Explanation',
+    borderColor: 'border-ai-purple/20'
   },
   flashcard_link: {
-    bg: 'bg-cyan-400/40',
-    iconBg: 'bg-cyan-400',
-    iconColor: 'text-cyan-950 fill-cyan-950',
-    label: 'Flashcards'
+    bg: 'bg-accent-blue/20',
+    iconBg: 'bg-accent-blue',
+    iconColor: 'text-white',
+    label: 'Flashcards',
+    borderColor: 'border-accent-blue/20'
   }
 };
 interface PdfAnnotationLayerProps {
@@ -69,7 +72,7 @@ export function PdfAnnotationLayer({ annotation, highlightPosition, onDelete, on
           key={i}
           title={`Click to view ${style.label}`}
           onClick={(e) => { e.stopPropagation(); setIsPopoverOpen(true); }}
-          className={`absolute ${style.bg} rounded-[2px] cursor-pointer pointer-events-auto hover:brightness-110 hover:shadow-sm transition-all z-10 backdrop-brightness-125`} 
+          className={`absolute ${style.bg} rounded-[2px] cursor-pointer pointer-events-auto hover:brightness-110 hover:shadow-md transition-all duration-150 z-10 backdrop-brightness-125`} 
           style={{
             left: `${r.left}px`,
             top: `${r.top}px`,
@@ -79,18 +82,20 @@ export function PdfAnnotationLayer({ annotation, highlightPosition, onDelete, on
         />
       ))}
 
-      {/* Visual Watermark Indicator */}
+      {/* Visual Watermark Indicator - Enhanced Visibility */}
       <div 
-        className="absolute flex items-center justify-center pointer-events-auto z-10 cursor-pointer hover:scale-110 transition-transform drop-shadow-md"
+        className="absolute flex items-center justify-center pointer-events-auto z-20 cursor-pointer hover:scale-125 transition-all duration-200 ease-out"
         onClick={(e) => { e.stopPropagation(); setIsPopoverOpen(true); }}
         style={{
           left: `${boundingRect.left}px`,
           top: `${boundingRect.top}px`,
           transform: 'translate(-50%, -50%)',
+          filter: 'drop-shadow(0 4px 6px rgba(0, 0, 0, 0.3))',
         }}
+        title={`Click to view ${style.label}`}
       >
-        <div className={`p-1.5 rounded-full ${style.iconBg} ${style.iconColor} ring-2 ring-zinc-950 shadow-lg`}>
-          <Bookmark size={14} className={style.iconColor} />
+        <div className={`p-2 rounded-full ${style.iconBg} ${style.iconColor} ring-2 ring-white shadow-xl backdrop-blur-sm`}>
+          <Bookmark size={16} className={style.iconColor} strokeWidth={2.5} />
         </div>
       </div>
 
@@ -101,38 +106,38 @@ export function PdfAnnotationLayer({ annotation, highlightPosition, onDelete, on
           onClick={(e) => { e.stopPropagation(); setIsPopoverOpen(false); }}
         >
           <div
-            className="w-full max-w-lg bg-zinc-900 border border-zinc-700/80 rounded-xl shadow-2xl flex flex-col overflow-hidden max-h-[85vh]"
+            className="w-full max-w-lg bg-surface-container-lowest border border-border-default rounded-[var(--radius-standard)] shadow-[var(--shadow-lg)] flex flex-col overflow-hidden max-h-[85vh]"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
-            <div className="px-4 py-3 border-b border-zinc-800 flex items-center justify-between bg-zinc-950/50">
+            <div className="px-4 py-3 border-b border-border-default flex items-center justify-between bg-surface-container-low">
               <div className="flex items-center gap-2">
-                <span className={style.iconColor.replace('fill-', 'text-').split(' ')[0]}>
-                  <Bookmark size={16} className={style.iconColor} />
+                <span className={style.iconColor}>
+                  <Bookmark size={16} strokeWidth={1.5} />
                 </span>
-                <span className="text-sm font-semibold text-zinc-200">{style.label}</span>
+                <span className="text-sm font-semibold text-primary">{style.label}</span>
               </div>
               <div className="flex items-center gap-2">
                 {annotation.annotation_type === 'sidenote' && (
                   <button
                     onClick={(e) => { e.stopPropagation(); setIsEditing(!isEditing); setEditContent(annotation.content || ''); }}
-                    className="p-1.5 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 rounded transition-colors"
+                    className="p-1.5 text-on-surface-variant hover:text-primary hover:bg-surface-container rounded-[var(--radius-tag)] transition-all duration-200"
                   >
-                    <Edit2 size={14} />
+                    <Edit2 size={14} strokeWidth={1.5} />
                   </button>
                 )}
                 <button
                   onClick={(e) => { e.stopPropagation(); onDelete?.(annotation.id); }}
-                  className="p-1.5 text-zinc-500 hover:text-red-400 hover:bg-zinc-800 rounded transition-colors"
+                  className="p-1.5 text-on-surface-variant hover:text-error hover:bg-error-container/20 rounded-[var(--radius-tag)] transition-all duration-200"
                 >
-                  <Trash2 size={14} />
+                  <Trash2 size={14} strokeWidth={1.5} />
                 </button>
-                <div className="w-px h-4 bg-zinc-800 mx-1" />
+                <div className="w-px h-4 bg-border-default mx-1" />
                 <button
                   onClick={(e) => { e.stopPropagation(); setIsPopoverOpen(false); }}
-                  className="p-1.5 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 rounded transition-colors"
+                  className="p-1.5 text-on-surface-variant hover:text-primary hover:bg-surface-container rounded-[var(--radius-tag)] transition-all duration-200"
                 >
-                  <X size={16} />
+                  <X size={16} strokeWidth={1.5} />
                 </button>
               </div>
             </div>
@@ -144,35 +149,45 @@ export function PdfAnnotationLayer({ annotation, highlightPosition, onDelete, on
                   <textarea
                     value={editContent}
                     onChange={e => setEditContent(e.target.value)}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded p-3 text-sm text-zinc-300 focus:outline-none focus:border-zinc-700 resize-none min-h-[120px]"
+                    className="w-full bg-surface-container-low border border-border-default rounded-[var(--radius-standard)] p-3 text-sm text-on-surface focus:outline-none focus:border-accent-blue resize-none min-h-[120px] transition-colors duration-200"
                     autoFocus
                   />
                   <div className="flex justify-end gap-2 mt-3">
-                    <button onClick={() => setIsEditing(false)} className="px-4 py-1.5 text-sm text-zinc-400 hover:text-zinc-200">Cancel</button>
-                    <button onClick={handleSave} className="px-4 py-1.5 text-sm bg-amber-500 text-zinc-950 rounded font-medium hover:bg-amber-400 shadow-sm">Save</button>
+                    <button 
+                      onClick={() => setIsEditing(false)} 
+                      className="px-4 py-1.5 text-sm text-on-surface-variant hover:text-primary transition-colors duration-200"
+                    >
+                      Cancel
+                    </button>
+                    <button 
+                      onClick={handleSave} 
+                      className="px-4 py-1.5 text-sm bg-accent-blue text-white rounded-[var(--radius-standard)] font-medium hover:bg-secondary-container shadow-[var(--shadow-sm)] transition-all duration-200"
+                    >
+                      Save
+                    </button>
                   </div>
                 </div>
               ) : (
-                <div className="p-4 text-[15px] text-zinc-300 whitespace-pre-wrap leading-relaxed">
+                <div className="p-4 text-[15px] text-on-surface whitespace-pre-wrap leading-relaxed">
                   {annotation.annotation_type === 'flashcard_link' ? (
                     <div className="space-y-4">
                       {flashcards.map((fc, i) => (
-                        <div key={i} className="bg-zinc-950/50 p-4 rounded-lg border border-zinc-800/80">
-                          <div className="font-semibold text-zinc-100 mb-2">{fc.question}</div>
-                          <div className="text-zinc-400 text-sm leading-relaxed">{fc.answer}</div>
+                        <div key={i} className="bg-surface-container-low p-4 rounded-[var(--radius-standard)] border border-border-default">
+                          <div className="font-semibold text-primary mb-2">{fc.question}</div>
+                          <div className="text-on-surface-variant text-sm leading-relaxed">{fc.answer}</div>
                         </div>
                       ))}
                       {flashcards.length === 0 && (
-                        <div className="text-zinc-500 italic text-center py-4">No flashcards found.</div>
+                        <div className="text-on-surface-variant italic text-center py-4">No flashcards found.</div>
                       )}
                     </div>
                   ) : (
                     annotation.content ? (
-                      <div className="prose prose-invert prose-sm max-w-none prose-pre:bg-zinc-950 prose-pre:border prose-pre:border-zinc-800">
+                      <div className="prose prose-slate prose-sm max-w-none">
                         <MarkdownRenderer content={annotation.content} />
                       </div>
                     ) : (
-                      <span className="text-zinc-500 italic">No content</span>
+                      <span className="text-on-surface-variant italic">No content</span>
                     )
                   )}
                 </div>

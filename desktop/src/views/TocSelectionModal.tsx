@@ -57,37 +57,37 @@ export function TocSelectionModal({ isOpen, onClose, toc, onProcess }: TocSelect
   }, 0);
 
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-surface-container-lowest border border-border-default rounded-[var(--radius-large)] shadow-[var(--shadow-lg)] w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden">
         
         {/* Header */}
-        <div className="px-6 py-5 border-b border-zinc-800 flex items-center justify-between bg-zinc-900/50">
+        <div className="px-6 py-5 border-b border-border-default flex items-center justify-between bg-surface-container-low">
           <div className="flex items-center gap-4">
-            <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center border border-emerald-500/20">
-              <Layers size={20} />
+            <div className="w-10 h-10 rounded-[var(--radius-standard)] bg-accent-blue/10 text-accent-blue flex items-center justify-center border border-accent-blue/20">
+              <Layers size={20} strokeWidth={1.5} />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-zinc-100 tracking-tight">Select Chapters</h2>
-              <p className="text-sm text-zinc-400 mt-0.5">Choose which sections to extract flashcards from.</p>
+              <h2 className="text-xl font-bold text-primary tracking-tight">Select Chapters</h2>
+              <p className="text-sm text-on-surface-variant mt-0.5">Choose which sections to extract flashcards from.</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 rounded-lg transition-colors">
-            <X size={20} />
+          <button onClick={onClose} className="p-2 text-on-surface-variant hover:text-primary hover:bg-surface-container rounded-[var(--radius-standard)] transition-all duration-200">
+            <X size={20} strokeWidth={1.5} />
           </button>
         </div>
 
         {/* Action Bar */}
-        <div className="px-6 py-3 border-b border-zinc-800/50 flex items-center justify-between bg-zinc-900">
-          <label className="flex items-center gap-2 text-sm font-medium text-zinc-300 cursor-pointer hover:text-zinc-100 transition-colors">
+        <div className="px-6 py-3 border-b border-border-default/50 flex items-center justify-between bg-surface-container-low">
+          <label className="flex items-center gap-2 text-sm font-medium text-on-surface cursor-pointer hover:text-primary transition-colors duration-200">
             <input 
               type="checkbox" 
               checked={selectedIndices.size === toc.length && toc.length > 0}
               onChange={toggleSelectAll}
-              className="rounded border-zinc-700 bg-zinc-950 text-emerald-500 focus:ring-emerald-500/20 w-4 h-4"
+              className="rounded-[var(--radius-tag)] border-outline-variant bg-surface-container-lowest text-accent-blue focus:ring-accent-blue/20 w-4 h-4"
             />
             {selectedIndices.size === toc.length ? 'Deselect All' : 'Select All'}
           </label>
-          <span className="text-sm text-emerald-500/80 font-medium px-2.5 py-1 rounded-md bg-emerald-500/10 border border-emerald-500/20">
+          <span className="text-sm text-accent-blue font-medium px-2.5 py-1 rounded-[var(--radius-tag)] bg-accent-blue/10 border border-accent-blue/20">
             {selectedIndices.size} selected
           </span>
         </div>
@@ -95,7 +95,7 @@ export function TocSelectionModal({ isOpen, onClose, toc, onProcess }: TocSelect
         {/* Content list */}
         <div className="flex-1 overflow-y-auto p-3">
           {toc.length === 0 ? (
-            <div className="text-center p-8 text-zinc-500">No chapters found.</div>
+            <div className="text-center p-8 text-on-surface-variant">No chapters found.</div>
           ) : (
             <div className="flex flex-col gap-1">
               {toc.map((entry, idx) => {
@@ -104,22 +104,22 @@ export function TocSelectionModal({ isOpen, onClose, toc, onProcess }: TocSelect
                   <label 
                     key={idx} 
                     className={clsx(
-                      "flex items-start gap-3 p-3 rounded-xl cursor-pointer transition-colors border border-transparent",
-                      isSelected ? "bg-emerald-500/5 border-emerald-500/20" : "hover:bg-zinc-800 hover:border-zinc-700/50"
+                      "flex items-start gap-3 p-3 rounded-[var(--radius-standard)] cursor-pointer transition-all duration-200 border border-transparent",
+                      isSelected ? "bg-accent-blue/5 border-accent-blue/20" : "hover:bg-surface-container hover:border-border-default"
                     )}
                   >
                     <input 
                       type="checkbox" 
                       checked={isSelected}
                       onChange={() => toggleSelection(idx)}
-                      className="mt-1 rounded border-zinc-700 bg-zinc-950 text-emerald-500 focus:ring-emerald-500/20 w-4 h-4"
+                      className="mt-1 rounded-[var(--radius-tag)] border-outline-variant bg-surface-container-lowest text-accent-blue focus:ring-accent-blue/20 w-4 h-4"
                     />
                     <div className="flex-1" style={{ paddingLeft: `${(entry.level - 1) * 1.25}rem` }}>
-                      <p className={clsx("text-sm", entry.level === 1 ? 'font-semibold text-zinc-200' : 'text-zinc-400')}>
+                      <p className={clsx("text-sm", entry.level === 1 ? 'font-semibold text-primary' : 'text-on-surface-variant')}>
                         {entry.title}
                       </p>
                     </div>
-                    <div className="text-xs text-zinc-500 font-medium whitespace-nowrap bg-zinc-950 px-2 py-1 rounded-md border border-zinc-800">
+                    <div className="text-xs text-on-surface-variant font-medium whitespace-nowrap bg-surface-container px-2 py-1 rounded-[var(--radius-tag)] border border-border-default">
                       p. {entry.start_page}-{entry.end_page}
                     </div>
                   </label>
@@ -130,21 +130,21 @@ export function TocSelectionModal({ isOpen, onClose, toc, onProcess }: TocSelect
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-5 border-t border-zinc-800 bg-zinc-900 flex items-center justify-between">
-          <div className="text-sm text-zinc-400">
-            Pages to process: <span className="font-bold text-zinc-200">{totalPages}</span>
+        <div className="px-6 py-5 border-t border-border-default bg-surface-container-low flex items-center justify-between">
+          <div className="text-sm text-on-surface-variant">
+            Pages to process: <span className="font-bold text-primary">{totalPages}</span>
           </div>
           <div className="flex gap-3">
             <button 
               onClick={onClose}
-              className="px-5 py-2.5 text-sm font-medium text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded-lg transition-colors"
+              className="px-5 py-2.5 text-sm font-medium text-on-surface-variant hover:text-primary hover:bg-surface-container rounded-[var(--radius-standard)] transition-all duration-200"
             >
               Cancel
             </button>
             <button 
               onClick={handleProcess}
               disabled={selectedIndices.size === 0}
-              className="px-6 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-zinc-950 text-sm font-semibold rounded-lg shadow-[0_0_15px_rgba(16,185,129,0.2)] transition-all disabled:opacity-50 disabled:shadow-none"
+              className="px-6 py-2.5 bg-accent-blue hover:bg-secondary-container text-white text-sm font-semibold rounded-[var(--radius-standard)] shadow-[var(--shadow-sm)] transition-all duration-200 disabled:opacity-50"
             >
               Process Selected
             </button>

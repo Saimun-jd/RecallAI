@@ -82,7 +82,7 @@ export const saveApiKey = async (provider: string, key: string): Promise<void> =
     await pluginStoreInstance.set(provider, key);
   } else if (strongholdStoreInstance) {
     const encoder = new TextEncoder();
-    await strongholdStoreInstance.insert(provider, encoder.encode(key));
+    await strongholdStoreInstance.insert(provider, Array.from(encoder.encode(key)));
   }
 };
 

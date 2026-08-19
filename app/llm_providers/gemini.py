@@ -26,7 +26,10 @@ class GeminiProvider(BaseLLMProvider):
             "Content-Type": "application/json"
         }
         
-        prompt_with_schema = f"{prompt}\n\nIMPORTANT: You must return a valid JSON object. Your JSON object must strictly adhere to the following JSON schema. Do not return the schema itself, return the data formatted according to the schema:\n{json.dumps(json_schema)}"
+        if json_schema is not None:
+            prompt_with_schema = f"{prompt}\n\nIMPORTANT: You must return a valid JSON object. Your JSON object must strictly adhere to the following JSON schema. Do not return the schema itself, return the data formatted according to the schema:\n{json.dumps(json_schema)}"
+        else:
+            prompt_with_schema = prompt
         
         payload = {
             "contents": [
@@ -36,11 +39,13 @@ class GeminiProvider(BaseLLMProvider):
             ],
             "generationConfig": {
                 "temperature": temperature,
-                "maxOutputTokens": max_tokens,
-                "responseMimeType": "application/json"
+                "maxOutputTokens": max_tokens
             }
         }
         
+        if json_schema is not None:
+            payload["generationConfig"]["responseMimeType"] = "application/json"
+
         async with httpx.AsyncClient(timeout=120.0) as client:
             r = await client.post(url, headers=headers, json=payload)
             

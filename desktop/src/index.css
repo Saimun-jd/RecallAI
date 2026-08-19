@@ -2,46 +2,256 @@
 @plugin "@tailwindcss/typography";
 
 @theme {
-  --font-sans: "Inter", "Geist Sans", "Helvetica Neue", Arial, sans-serif;
-  --font-mono: "JetBrains Mono", "Geist Mono", monospace;
+  /* ─── Typography ─── */
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Inter", ui-monospace, monospace;
   
-  --color-zinc-950: #09090b;
-  --color-zinc-900: #18181b;
-  --color-zinc-800: #27272a;
+  /* ─── Academic Precision Colors ─── */
+  /* Surface Hierarchy */
+  --color-surface: #f7f9fb;
+  --color-surface-dim: #d8dadc;
+  --color-surface-bright: #f7f9fb;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-low: #f2f4f6;
+  --color-surface-container: #eceef0;
+  --color-surface-container-high: #e6e8ea;
+  --color-surface-container-highest: #e0e3e5;
+  --color-surface-variant: #e0e3e5;
+  
+  /* Text Colors */
+  --color-on-surface: #191c1e;
+  --color-on-surface-variant: #45464d;
+  --color-inverse-surface: #2d3133;
+  --color-inverse-on-surface: #eff1f3;
+  
+  /* Primary (Deep Slate) */
+  --color-primary: #0F172A;
+  --color-on-primary: #ffffff;
+  --color-primary-container: #131b2e;
+  --color-on-primary-container: #7c839b;
+  --color-inverse-primary: #bec6e0;
+  
+  /* Secondary (Accent Blue) */
+  --color-secondary: #0051d5;
+  --color-accent-blue: #2563EB;
+  --color-on-secondary: #ffffff;
+  --color-secondary-container: #316bf3;
+  --color-on-secondary-container: #fefcff;
+  
+  /* Tertiary (AI Purple) */
+  --color-tertiary: #7C3AED;
+  --color-ai-purple: #7C3AED;
+  --color-on-tertiary: #ffffff;
+  --color-tertiary-container: #25005a;
+  --color-on-tertiary-container: #9863ff;
+  
+  /* Outline & Borders */
+  --color-outline: #76777d;
+  --color-outline-variant: #c6c6cd;
+  --color-border-default: #E2E8F0;
+  --color-border-hover: #CBD5E1;
+  --color-surface-tint: #565e74;
+  
+  /* States & Feedback */
+  --color-error: #ba1a1a;
+  --color-on-error: #ffffff;
+  --color-error-container: #ffdad6;
+  --color-on-error-container: #93000a;
+  
+  /* Active & Selection States */
+  --color-active-bg: #EFF6FF;
+  --color-hover-bg: #F1F5F9;
+  
+  /* ─── Shape Tokens ─── */
+  --radius-tag: 4px;
+  --radius-sm: 4px;
+  --radius-standard: 6px;
+  --radius-md: 6px;
+  --radius-large: 12px;
+  --radius-lg: 12px;
+  --radius-xl: 0.75rem;
+  --radius-full: 9999px;
+  
+  /* ─── Spacing System (8pt Grid) ─── */
+  --spacing-1: 8px;
+  --spacing-2: 16px;
+  --spacing-3: 24px;
+  --spacing-4: 32px;
+  --spacing-6: 48px;
+  --spacing-8: 64px;
+  
+  /* Layout Spacing */
+  --spacing-container-max: 1200px;
+  --spacing-content-readable: 720px;
+  --spacing-gutter: 24px;
+  --spacing-margin-mobile: 16px;
+  --spacing-margin-desktop: 32px;
+  --spacing-sidebar-width: 260px;
+  
+  /* ─── Typography Scale ─── */
+  --font-size-display-lg: 48px;
+  --line-height-display-lg: 56px;
+  --letter-spacing-display-lg: -0.02em;
+  --font-weight-display-lg: 700;
+  
+  --font-size-headline-lg: 32px;
+  --line-height-headline-lg: 40px;
+  --letter-spacing-headline-lg: -0.01em;
+  --font-weight-headline-lg: 600;
+  
+  --font-size-headline-lg-mobile: 28px;
+  --line-height-headline-lg-mobile: 36px;
+  --font-weight-headline-lg-mobile: 600;
+  
+  --font-size-headline-md: 24px;
+  --line-height-headline-md: 32px;
+  --font-weight-headline-md: 600;
+  
+  --font-size-body-lg: 18px;
+  --line-height-body-lg: 28px;
+  --font-weight-body-lg: 400;
+  
+  --font-size-body-md: 16px;
+  --line-height-body-md: 24px;
+  --font-weight-body-md: 400;
+  
+  --font-size-label-md: 14px;
+  --line-height-label-md: 20px;
+  --font-weight-label-md: 500;
+  
+  --font-size-label-sm: 12px;
+  --line-height-label-sm: 16px;
+  --letter-spacing-label-sm: 0.02em;
+  --font-weight-label-sm: 500;
+  
+  --font-size-mono-sm: 13px;
+  --line-height-mono-sm: 18px;
+  --font-weight-mono-sm: 400;
+  
+  /* ─── Shadows (Diffused Ambient) ─── */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-default: 0 4px 6px -1px rgb(0 0 0 / 0.05), 0 2px 4px -2px rgb(0 0 0 / 0.05);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
 }
 
 @layer base {
+  /* ─── Global Styles (Academic Precision) ─── */
   html, body {
-    @apply bg-zinc-950 text-zinc-100 antialiased h-full w-full overflow-hidden;
-    color-scheme: dark;
+    @apply bg-surface text-on-surface antialiased h-full w-full overflow-hidden;
+    font-family: var(--font-sans);
+    color-scheme: light;
   }
   
-  /* Reset some default outlines for a cleaner look */
+  /* Typography Hierarchy */
+  h1 {
+    font-size: var(--font-size-headline-lg);
+    line-height: var(--line-height-headline-lg);
+    font-weight: var(--font-weight-headline-lg);
+    letter-spacing: var(--letter-spacing-headline-lg);
+    color: var(--color-primary);
+  }
+  
+  h2 {
+    font-size: var(--font-size-headline-md);
+    line-height: var(--line-height-headline-md);
+    font-weight: var(--font-weight-headline-md);
+    color: var(--color-primary);
+  }
+  
+  p {
+    font-size: var(--font-size-body-md);
+    line-height: var(--line-height-body-md);
+    font-weight: var(--font-weight-body-md);
+  }
+  
+  /* Soft Minimalism Focus Rings (2px blue ring with 20% opacity) */
   *:focus-visible {
-    @apply outline-none ring-2 ring-emerald-500 ring-offset-2 ring-offset-zinc-950;
+    @apply outline-none;
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
+    transition: box-shadow 150ms ease-out;
   }
   
-  /* CMDK Base Styles */
+  /* ─── Command Palette (Soft Minimalism) ─── */
   [cmdk-overlay] {
     @apply fixed inset-0 bg-black/60 backdrop-blur-sm z-50;
   }
+  
   [cmdk-dialog] {
-    @apply fixed left-1/2 top-[20%] w-full max-w-xl -translate-x-1/2 z-50 bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl overflow-hidden;
+    @apply fixed left-1/2 top-[20%] w-full max-w-xl -translate-x-1/2 z-50;
+    background: var(--color-surface-container-lowest);
+    border: 1px solid var(--color-border-default);
+    border-radius: var(--radius-standard);
+    box-shadow: var(--shadow-default);
+    overflow: hidden;
   }
+  
+  [cmdk-input-wrapper] {
+    @apply flex items-center px-4 border-b border-border-default;
+  }
+  
+  [cmdk-input-wrapper] svg {
+    @apply w-5 h-5 mr-2 shrink-0;
+    color: var(--color-on-surface-variant);
+    stroke-width: 1.5;
+  }
+  
   [cmdk-input] {
-    @apply w-full border-none bg-transparent px-4 py-4 text-zinc-100 outline-none text-lg placeholder:text-zinc-500;
+    @apply w-full border-none bg-transparent outline-none;
+    padding: 16px 0;
+    font-size: var(--font-size-body-md);
+    color: var(--color-primary);
   }
+  
+  [cmdk-input]::placeholder {
+    color: var(--color-on-surface-variant);
+  }
+  
   [cmdk-list] {
-    @apply max-h-[300px] overflow-y-auto border-t border-zinc-800 p-2;
+    @apply max-h-[300px] overflow-y-auto p-2;
+    background: var(--color-surface-container-lowest);
   }
+  
+  [cmdk-group-heading] {
+    @apply px-2 py-1.5;
+    font-size: var(--font-size-label-sm);
+    font-weight: var(--font-weight-label-sm);
+    color: var(--color-on-surface-variant);
+    text-transform: uppercase;
+    letter-spacing: var(--letter-spacing-label-sm);
+  }
+  
   [cmdk-item] {
-    @apply flex items-center gap-2 rounded-md px-4 py-3 text-sm text-zinc-300 cursor-pointer select-none;
+    @apply flex items-center gap-2 cursor-pointer select-none;
+    padding: 12px 16px;
+    border-radius: var(--radius-standard);
+    font-size: var(--font-size-body-md);
+    font-weight: var(--font-weight-label-md);
+    color: var(--color-on-surface);
+    transition: background-color 200ms ease-out;
   }
+  
+  [cmdk-item] svg {
+    stroke-width: 1.5;
+  }
+  
   [cmdk-item][data-selected="true"] {
-    @apply bg-emerald-500/10 text-emerald-400;
+    background: var(--color-active-bg);
+    color: var(--color-primary);
   }
+  
+  [cmdk-item] kbd {
+    padding: 2px 6px;
+    border-radius: var(--radius-tag);
+    background: var(--color-surface-container);
+    font-size: var(--font-size-label-sm);
+    color: var(--color-on-surface-variant);
+  }
+  
   [cmdk-empty] {
-    @apply py-6 text-center text-sm text-zinc-500;
+    @apply py-6 text-center;
+    font-size: var(--font-size-body-md);
+    color: var(--color-on-surface-variant);
   }
 }
 
