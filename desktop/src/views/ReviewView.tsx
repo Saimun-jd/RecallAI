@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { client, type Flashcard } from '../api/client';
 import { Loader2, Brain, Check, X, RotateCcw, TrendingUp, Undo2, HelpCircle } from 'lucide-react';
 import clsx from 'clsx';
@@ -14,6 +14,16 @@ export function ReviewView() {
   const [sessionCount, setSessionCount] = useState(0);
   const [lastReviewedCardId, setLastReviewedCardId] = useState<number | null>(null);
   const [undoLoading, setUndoLoading] = useState(false);
+  
+  const answerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (state === 'answer' && answerRef.current) {
+      setTimeout(() => {
+        answerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }, 50);
+    }
+  }, [state]);
 
   const fetchDueCards = async () => {
     setState('loading');
@@ -170,7 +180,7 @@ export function ReviewView() {
 
           {/* Answer Section */}
           {state === 'answer' && (
-            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 fill-mode-both ease-out">
+            <div ref={answerRef} className="animate-in fade-in slide-in-from-bottom-4 duration-500 fill-mode-both ease-out">
               {/* Elegant Divider */}
               <div className="w-full h-px bg-gradient-to-r from-transparent via-slate-200 to-transparent my-10 relative flex justify-center items-center">
                 <div className="bg-white px-4 flex gap-1.5">

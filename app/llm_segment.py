@@ -76,8 +76,10 @@ Rules:
    - Write full, natural questions in the `question` field and concise responses in the `answer` field.
 
 2. FORMATTING & MATHEMATICS:
-   - If there are mathematical formulas or equations, format them strictly using Markdown LaTeX. Use `$` for inline math (e.g. `$E = mc^2$`) and `$$` for block math. NEVER use plain text for equations.
-   - For code blocks, you MUST use proper newlines (`\n`) within the JSON string. NEVER output a code block on a single line. Example: "```python\\nimport os\\n```".
+   - ALL text MUST be strictly formatted in Markdown.
+   - EVERY SINGLE math variable, equation, or vector MUST be wrapped in LaTeX `$` delimiters. Example: `$u = [u_1, u_2]$`. NEVER write math plain-text like `u = [u1]`.
+   - Use `$` for inline math and `$$` for block math.
+   - For code blocks, use fenced code blocks (```language). You MUST use proper newlines (`\\n`) within the JSON string. NEVER output a code block on a single line. Example: "```python\\nimport os\\n```".
    - Use bold text for emphasis when appropriate.
 
 3. CUSTOM INSTRUCTIONS:
@@ -112,25 +114,44 @@ TARGET TOPIC CONTENT:
 
 
 def _sanitize_llm_response(text: str) -> str:
-    """Normalize Unicode and replace smart quotes/dashes to prevent encoding artifacts."""
+    """Fix LLM JSON output so that LaTeX backslashes survive json.loads().
+
+    Problem: LLMs write \textbf inside JSON strings.  JSON spec says \t is
+    a tab, so json.loads() silently eats the backslash, producing <TAB>extbf.
+    Same for \b (backspace), \f (form-feed), \n (newline), \r (CR).
+
+    Solution: Before calling json.loads(), scan the raw JSON string and
+    double-escape every backslash that is followed by a letter sequence that
+    forms a LaTeX command so json.loads() produces the literal \textbf, etc.
+    """
+    import re
+
     # Normalize unicode to NFKC
     text = unicodedata.normalize("NFKC", text)
 
-    # Replace smart characters that often break downstream encoding
-    replacements = {
-        "’": "'",
-        "‘": "'",
-        "“": '"',
-        "”": '"',
-        "–": "-",
-        "—": "-",
-        "\u2019": "'",
-        "\u201c": '"',
-        "\u201d": '"',
+    # Replace smart quotes/dashes
+    smart_chars = {
+        "\u2018": "'", "\u2019": "'",
+        "\u201c": '"', "\u201d": '"',
+        "\u2013": "-", "\u2014": "-",
     }
-    for old, new in replacements.items():
+    for old, new in smart_chars.items():
         text = text.replace(old, new)
 
+    # ── Core fix: re-escape LaTeX backslashes before json.loads() ──
+    #
+    # Step 1: Protect already-correct double backslashes (\\textbf is fine)
+    PLACEHOLDER = "\x00DBLBS\x00"
+    text = text.replace("\\\\", PLACEHOLDER)
+
+    # Step 2: Any remaining single backslash followed by 2+ letters is a
+    #         LaTeX command the LLM forgot to double-escape.
+    #         \t alone (JSON tab) has only 1 char after \, so it won't match.
+    #         \textbf has 5 chars after \, so it WILL match → becomes \\textbf.
+    text = re.sub(r'\\([a-zA-Z]{2,})', lambda m: "\\\\" + m.group(1), text)
+
+    # Step 3: Restore the protected double backslashes
+    text = text.replace(PLACEHOLDER, "\\\\")
     return text
 
 
@@ -306,8 +327,9 @@ RULES (in order of priority):
    highlighted passage instead.
 
 FORMATTING (apply only where relevant, and only if not overridden by the student's instruction):
-- Mathematical formulas: LaTeX, `$` inline / `$$` block.
-- Code: fenced code blocks with language tags.
+- ALL output MUST be strictly formatted in Markdown.
+- Mathematical formulas: LaTeX, `$` inline / `$$` block. Ensure you use standard Markdown math blocks.
+- Code: fenced code blocks with language tags (e.g., ```python).
 """
 
 FLASHCARD_FROM_SELECTION_PROMPT = """You are an expert educational content creator. Generate exactly {count} high-quality flashcards from the following highlighted textbook passage.
@@ -323,8 +345,10 @@ Rules:
 1. Each flashcard should test a single, distinct concept from the passage.
 2. Questions should be specific and unambiguous.
 3. Answers should be concise but complete.
-4. Use LaTeX ($..$ for inline, $$...$$ for block) for any mathematical content.
-5. Use fenced code blocks with language tags for code.
+4. ALL text MUST be strictly formatted in Markdown.
+5. EVERY SINGLE math variable, equation, or vector MUST be wrapped in LaTeX `$` delimiters. Example: `$u = [u_1, u_2]$`. NEVER write math plain-text.
+6. Because you are outputting JSON, you MUST double-escape all LaTeX backslashes! (e.g., `\\alpha` instead of `\alpha`, `\\mathbf` instead of `\mathbf`).
+7. Use fenced code blocks with language tags for code (e.g., ```python\ncode\n```). Use proper newlines (`\n`) within the JSON string.
 
 Respond ONLY with a valid JSON object matching this schema:
 {{

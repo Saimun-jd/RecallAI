@@ -10,7 +10,8 @@ import {
   setIsCardGenModalOpen,
   setIsNotesOpen,
   setActiveTopicCards,
-  setSearchQuery
+  setSearchQuery,
+  setPdfTheme
 } from '../store/readerSlice';
 import { client, type Book, type Topic, type Flashcard, type PdfAnnotation } from '../api/client';
 import { Loader2, Zap, PenTool, Link2, BrainCircuit, Play, FileText, ChevronRight, ChevronLeft, CheckCircle2, Circle, Clock, Check, X, Edit2, Trash2, BookOpen, ArrowLeft, LayoutList, ChevronDown, Search, Save, Sun, Moon } from 'lucide-react';
@@ -36,7 +37,8 @@ export function BookDetailView() {
     searchQuery,
     isPdfDrawerOpen,
     isNotesOpen,
-    activeTopicCards
+    activeTopicCards,
+    pdfTheme
   } = useSelector((state: RootState) => state.reader);
 
   // Resizable TOC sidebar state
@@ -65,20 +67,11 @@ export function BookDetailView() {
   const [annotations, setAnnotations] = useState<PdfAnnotation[]>([]);
   const [isAnnotationLoading, setIsAnnotationLoading] = useState(false);
   const [pdfScrollCommand, setPdfScrollCommand] = useState<{ page: number, ts: number } | undefined>();
-  const [pdfTheme, setPdfTheme] = useState<'dark' | 'light'>('dark');
-
-  // Load persistent theme preference
-  useEffect(() => {
-    loadSettings().then(settings => {
-      if (settings.pdfTheme) {
-        setPdfTheme(settings.pdfTheme);
-      }
-    });
-  }, []);
+  // pdfTheme is now globally managed by Redux and initialized in App.tsx
 
   const togglePdfTheme = async () => {
     const newTheme = pdfTheme === 'dark' ? 'light' : 'dark';
-    setPdfTheme(newTheme);
+    dispatch(setPdfTheme(newTheme));
     await saveSetting('pdfTheme', newTheme);
     await saveSettingsStore();
   };

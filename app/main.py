@@ -846,6 +846,41 @@ def get_book_by_id_api(book_id: int):
         return JSONResponse(status_code=404, content={"error": "Book not found"})
     return book
 
+@app.get("/books/{book_id}/cover")
+def get_book_cover_api(book_id: int):
+    from app.database import get_book_by_id
+    from fastapi.responses import FileResponse
+    import os
+    import fitz
+    
+    book = get_book_by_id(book_id)
+    if not book:
+        return JSONResponse(status_code=404, content={"error": "Book not found"})
+        
+    covers_dir = os.path.join(DATA_DIR, "covers")
+    os.makedirs(covers_dir, exist_ok=True)
+    
+    cover_path = os.path.join(covers_dir, f"{book['file_hash']}.png")
+    
+    # Generate cover if it doesn't exist
+    if not os.path.exists(cover_path):
+        try:
+            doc = fitz.open(book["file_path"])
+            # Fallback to empty if PDF has no pages
+            if doc.page_count == 0:
+                doc.close()
+                return JSONResponse(status_code=404, content={"error": "PDF has no pages"})
+                
+            page = doc.load_page(0)
+            # scale for better quality
+            pix = page.get_pixmap(matrix=fitz.Matrix(1, 1)) # standard scale is fine for thumbnails
+            pix.save(cover_path)
+            doc.close()
+        except Exception as e:
+            return JSONResponse(status_code=500, content={"error": f"Failed to extract cover: {str(e)}"})
+            
+    return FileResponse(cover_path, media_type="image/png")
+
 @app.delete("/books/{book_id}")
 def delete_book_api(book_id: int):
     from app.database import delete_book

@@ -264,17 +264,19 @@
   mix-blend-mode: normal !important;
 }
 
-/* Make default selection highlights transparent since we removed multiply blend mode */
+/* Deep blue selection and highlights for dark mode */
 body .pdf-highlighter-container.theme-dark .Highlight__part,
-body .pdf-highlighter-container.theme-dark div[class*="mouseSelection"],
-body .pdf-highlighter-container.theme-dark .Highlight {
-  background-color: rgba(255, 226, 143, 0.4) !important;
-  background: rgba(255, 226, 143, 0.4) !important;
-  opacity: 0.4 !important;
+body .pdf-highlighter-container.theme-dark div[class*="ouseSelection"],
+body .pdf-highlighter-container.theme-dark .textLayer ::selection {
+  background-color: rgba(37, 99, 235, 0.4) !important;
+  background: rgba(37, 99, 235, 0.4) !important;
+  opacity: 1 !important; /* Opacity is handled by rgba alpha */
 }
 
-body .pdf-highlighter-container.theme-dark div[class*="mouseSelection"] {
-  border-color: rgba(255, 226, 143, 0.6) !important;
+/* Ensure the wrapper doesn't draw a giant background box */
+body .pdf-highlighter-container.theme-dark .Highlight {
+  background: transparent !important;
+  background-color: transparent !important;
 }
 
 /* Ensure highlights sit above text selection layer for clicking */

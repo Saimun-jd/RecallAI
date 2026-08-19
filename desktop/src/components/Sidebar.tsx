@@ -21,7 +21,7 @@ export function Sidebar() {
     "flex items-center gap-3 py-2.5 text-[14px] font-medium transition-all duration-200 ease-out relative",
     "rounded-[var(--radius-standard)]",
     location.pathname === path 
-      ? "bg-active-bg text-primary before:absolute before:left-0 before:top-1 before:bottom-1 before:w-1 before:bg-accent-blue before:rounded-r" 
+      ? "bg-active-bg text-primary before:absolute before:left-0 before:top-2 before:bottom-2 before:w-[2px] before:bg-accent-blue before:rounded-r" 
       : "text-on-surface hover:bg-hover-bg",
     isCollapsed ? "justify-center" : "px-4",
   );

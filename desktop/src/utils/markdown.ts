@@ -87,6 +87,21 @@ export function preprocessMarkdown(text: string | undefined | null): string {
   // 1. Convert escaped newlines to real newlines (common in JSON-serialized LLM output)
   processed = processed.replace(/\\n/g, '\n');
 
+  // 1.5 Fix LaTeX matrix row separators and multi-line inline math
+  // LLMs often output \\ c & d which loses the double backslash during JSON parsing.
+  // Convert multi-line inline math $...$ to block math $$...$$ so remark-math can parse it.
+  processed = processed.replace(/(?<!\$)\$(?!\$)([\s\S]+?)(?<!\$)\$(?!\$)/g, (match, mathContent) => {
+    let fixedMath = mathContent;
+    // Fix broken LaTeX newlines (e.g., "\\ c & d" -> "\\\\ c & d")
+    fixedMath = fixedMath.replace(/\\\s/g, '\\\\ ');
+    
+    // If the math contains a newline, it MUST be a block math $$ for remark-math to parse it
+    if (fixedMath.includes('\n')) {
+      return `$$${fixedMath}$$`;
+    }
+    return `$${fixedMath}$`;
+  });
+
   // 2. Fix single-line code blocks (LLMs sometimes output ```python import foo bar``` on one line)
   processed = processed.replace(/```(\w+)\s+(?=.)/g, '```$1\n');
   processed = processed.replace(/```(\w+)\n(.*?)```/gs, (match, lang, code) => {

@@ -12,6 +12,7 @@ export interface ReaderState {
   isNotesOpen: boolean;
   activeTopicCards: Flashcard[];
   searchQuery: string;
+  pdfTheme: 'dark' | 'light';
 }
 
 const initialState: ReaderState = {
@@ -24,6 +25,7 @@ const initialState: ReaderState = {
   isNotesOpen: false,
   activeTopicCards: [],
   searchQuery: '',
+  pdfTheme: 'dark',
 };
 
 const readerSlice = createSlice({
@@ -57,6 +59,9 @@ const readerSlice = createSlice({
     setSearchQuery: (state, action: PayloadAction<string>) => {
       state.searchQuery = action.payload;
     },
+    setPdfTheme: (state, action: PayloadAction<'dark' | 'light'>) => {
+      state.pdfTheme = action.payload;
+    },
   },
 });
 
@@ -69,6 +74,7 @@ export const {
   setIsCardGenModalOpen,
   setIsNotesOpen,
   setActiveTopicCards,
-  setSearchQuery
+  setSearchQuery,
+  setPdfTheme,
 } = readerSlice.actions;
 export default readerSlice.reducer;

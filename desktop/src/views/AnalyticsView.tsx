@@ -46,15 +46,15 @@ export function AnalyticsView() {
   const { totals, queue, fsrs_metrics, forecast_7d } = stats;
 
   const StatCard = ({ title, value, icon: Icon, colorClass, subtitle }: any) => (
-    <div className="bg-surface-container-lowest border border-border-default rounded-[var(--radius-large)] p-6 shadow-[var(--shadow-default)] relative overflow-hidden group hover:border-border-hover hover:shadow-[var(--shadow-md)] transition-all duration-200">
+    <div className="bg-surface-container-lowest border border-border-default rounded-[var(--radius-large)] p-5 shadow-[var(--shadow-default)] relative overflow-hidden group hover:border-border-hover hover:shadow-[var(--shadow-md)] transition-all duration-200 flex flex-col min-h-[120px]">
       <div className={clsx("absolute top-0 right-0 w-24 h-24 -mr-8 -mt-8 rounded-full blur-2xl opacity-10 transition-opacity group-hover:opacity-20", colorClass)} />
-      <div className="flex justify-between items-start mb-4 relative">
-        <h3 className="text-sm font-medium text-on-surface-variant">{title}</h3>
-        <div className={clsx("p-2 rounded-[var(--radius-standard)] border border-outline-variant", colorClass.replace('bg-', 'text-').replace('/10', ''), "bg-surface-container")}>
+      <div className="flex items-center gap-3 relative mb-4">
+        <div className={clsx("p-2 rounded-[var(--radius-standard)] border border-outline-variant shrink-0", colorClass.replace('bg-', 'text-').replace('/10', ''), "bg-surface-container")}>
           <Icon size={18} strokeWidth={1.5} />
         </div>
+        <h3 className="text-sm font-medium text-on-surface-variant leading-snug">{title}</h3>
       </div>
-      <div className="relative">
+      <div className="relative mt-auto">
         <div className="text-3xl font-bold text-primary">{value}</div>
         {subtitle && <p className="text-xs text-on-surface-variant mt-1">{subtitle}</p>}
       </div>
@@ -111,9 +111,10 @@ export function AnalyticsView() {
                   tick={{fill: '#76777d', fontSize: 12}} 
                   tickLine={false}
                   axisLine={false}
-                  tickFormatter={(val: string | number) => {
-                    const d = new Date(val);
-                    return `${d.getMonth()+1}/${d.getDate()}`;
+                  tickFormatter={(val: string) => {
+                    // Prevent UTC timezone shift by splitting the YYYY-MM-DD string
+                    const [, m, d] = val.split('-');
+                    return `${parseInt(m)}/${parseInt(d)}`;
                   }}
                 />
                 <YAxis 
@@ -127,7 +128,10 @@ export function AnalyticsView() {
                   itemStyle={{ color: '#2563EB' }}
                   labelStyle={{ color: '#45464d', marginBottom: '4px' }}
                   formatter={(value: any) => [value, 'Due Cards']}
-                  labelFormatter={(label: any) => new Date(label).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}
+                  labelFormatter={(label: any) => {
+                     // Append T12:00:00 to prevent local timezone from shifting the date backwards
+                     return new Date(label + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
+                  }}
                 />
                 <Bar 
                   dataKey="due_count" 

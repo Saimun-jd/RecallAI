@@ -38,6 +38,9 @@ export default function App() {
         if (settings.activeProvider) {
           dispatch({ type: 'providers/setActiveProvider', payload: settings.activeProvider });
         }
+        if (settings.pdfTheme) {
+          dispatch({ type: 'reader/setPdfTheme', payload: settings.pdfTheme });
+        }
         
         // Hydrate API keys
         console.log('[Keychain] Hydrating keys on startup...');

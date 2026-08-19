@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { client, type Flashcard } from '../api/client';
 import { Brain, Check, X, TrendingUp, HelpCircle } from 'lucide-react';
 import { MarkdownRenderer } from '../components/MarkdownRenderer';
@@ -28,6 +28,16 @@ export function TopicPracticeModal({ isOpen, onClose, topicId, topicName, cards:
       setSessionCount(0);
     }
   }, [isOpen, initialCards]);
+
+  const answerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (state === 'answer' && answerRef.current) {
+      setTimeout(() => {
+        answerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }, 50);
+    }
+  }, [state]);
 
   if (!isOpen) return null;
 
@@ -154,7 +164,7 @@ export function TopicPracticeModal({ isOpen, onClose, topicId, topicName, cards:
 
             {/* Answer Section */}
             {state === 'answer' && (
-              <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 fill-mode-both ease-out pb-8">
+              <div ref={answerRef} className="animate-in fade-in slide-in-from-bottom-4 duration-500 fill-mode-both ease-out pb-8">
                 {/* Elegant Divider */}
                 <div className="w-full h-px bg-gradient-to-r from-transparent via-slate-200 to-transparent my-10 relative flex justify-center items-center">
                   <div className="bg-white px-4 flex gap-1.5">

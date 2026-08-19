@@ -739,7 +739,7 @@ def get_books(skip: int = 0, limit: int = 100) -> List[Dict[str, Any]]:
         cursor.execute("""
             SELECT b.*,
                 (SELECT COUNT(*) FROM topics t WHERE t.book_id = b.id) as total_topics,
-                (SELECT COUNT(*) FROM topics t WHERE t.book_id = b.id AND t.status = 'processed') as topics_processed
+                (SELECT COUNT(*) FROM topics t WHERE t.book_id = b.id AND (t.is_processed = 1 OR t.status = 'processed' OR (SELECT COUNT(*) FROM flashcards f WHERE f.topic_id = t.id) > 0)) as topics_processed
             FROM books b
             ORDER BY b.created_at DESC 
             LIMIT ? OFFSET ?
