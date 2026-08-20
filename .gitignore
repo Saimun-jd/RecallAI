@@ -78,3 +78,7 @@ desktop/brain/
 # Build outputs
 build/
 *.spec
+
+#Skills
+/.agents/skills
+/skills-lock.json

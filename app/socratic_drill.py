@@ -17,6 +17,7 @@ from typing import Optional
 from app.config import settings
 from app.llm_providers.factory import get_llm_provider
 from app.schemas import DiagnosticQuestionSet, DiagnosticEvaluation
+from langfuse import observe
 
 logger = logging.getLogger(__name__)
 
@@ -147,6 +148,7 @@ def _sanitize_llm_response(text: str) -> str:
     return text
 
 
+@observe(name="generate_diagnostic_questions", as_type="span")
 async def generate_diagnostic_questions(
     topic_title: str,
     breadcrumb: str,
@@ -183,6 +185,7 @@ async def generate_diagnostic_questions(
         raise ValueError(f"LLM returned invalid question format: {e}")
 
 
+@observe(name="evaluate_student_answer", as_type="span")
 async def evaluate_student_answer(
     question_text: str,
     key_invariants: list[str],

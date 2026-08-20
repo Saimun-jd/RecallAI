@@ -10,7 +10,7 @@ DEFAULT_MODELS = {
     "gemini": "gemini-2.5-flash",
     "openai": "gpt-4o-mini",
     "ollama": "gemma2:2b",
-    "groq": "llama-3.1-8b-instant",
+    "groq": "openai/gpt-oss-20b",
 }
 
 def get_llm_provider(config: Settings, provider_override: str = None) -> BaseLLMProvider:
@@ -37,21 +37,30 @@ def get_llm_provider(config: Settings, provider_override: str = None) -> BaseLLM
         config, f"{target_provider}_model", DEFAULT_MODELS.get(target_provider, "gemini-1.5-flash")
     )
 
+    def log_usage(msg):
+        print(msg)
+        with open("provider_usage.log", "a") as f:
+            f.write(msg + "\n")
+
     if target_provider == "openai":
         api_key = get_setting("openai_api_key") or getattr(config, "openai_api_key", "")
         base_url = (db_config.get("base_url") if db_matches_target else None) \
             or getattr(config, "openai_base_url", "https://api.openai.com/v1")
+        log_usage(f"[DEBUG] LLM Factory returning OpenAIProvider. Key: {api_key[:4]}...{api_key[-4:] if len(api_key)>8 else ''}")
         return OpenAIProvider(api_key=api_key, model=model_name, base_url=base_url)
 
     elif target_provider == "gemini":
         api_key = get_setting("gemini_api_key") or getattr(config, "gemini_api_key", "")
+        log_usage(f"[DEBUG] LLM Factory returning GeminiProvider. Key: {api_key[:4]}...{api_key[-4:] if len(api_key)>8 else ''}")
         return GeminiProvider(api_key=api_key, model=model_name)
 
     elif target_provider == "groq":
         api_key = get_setting("groq_api_key") or getattr(config, "groq_api_key", "")
+        log_usage(f"[DEBUG] LLM Factory returning GroqProvider. Key: {api_key[:4]}...{api_key[-4:] if len(api_key)>8 else ''}")
         return GroqProvider(api_key=api_key, model=model_name)
 
     else:
         host = (db_config.get("host") if db_matches_target else None) \
             or getattr(config, "ollama_host", "http://localhost:11434")
+        log_usage(f"[DEBUG] LLM Factory returning OllamaProvider on {host}")
         return OllamaProvider(host=host, model=model_name)

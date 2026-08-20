@@ -12,7 +12,7 @@ class AtomicTopic(BaseModel):
 
 class FlashcardItem(BaseModel):
     concept_type: Literal["Definition", "Key Feature", "Formula", "Comparison", "Process Step", "Code Example", "Diagram"]
-    summary: Optional[str] = Field(None, description="1-3 sentence self-contained explanation (optional)")
+    # summary: Optional[str] = Field(None, description="1-3 sentence self-contained explanation (optional)")
     question: str = Field(description="Clear test question")
     answer: str = Field(description="Complete answer to the question")
     key_terms: List[str] = Field(description="Key domain terms")

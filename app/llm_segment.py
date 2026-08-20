@@ -5,6 +5,7 @@ import unicodedata
 from app.config import settings
 from app.schemas import SectionExtraction, AtomicTopic
 from app.llm_providers.factory import get_llm_provider
+from langfuse import observe
 
 logger = logging.getLogger(__name__)
 
@@ -155,6 +156,7 @@ def _sanitize_llm_response(text: str) -> str:
     return text
 
 
+@observe(name="extract_atomic_concepts", as_type="span")
 async def extract_atomic_concepts(heading: str, text: str, code_blocks: dict = None, images: dict = None, provider_override: str = None) -> SectionExtraction:
     code_blocks = code_blocks or {}
     images = images or {}
@@ -222,6 +224,7 @@ async def extract_atomic_concepts(heading: str, text: str, code_blocks: dict = N
         return SectionExtraction(section_title=heading, atomic_topics=[])
 
 
+@observe(name="generate_flashcards_for_topic", as_type="span")
 async def generate_flashcards_for_topic(
     topic_name: str,
     breadcrumb: str,
@@ -275,6 +278,7 @@ TOPIC CONTENT:
 >
 """
 
+@observe(name="generate_topic_summary", as_type="span")
 async def generate_topic_summary(heading: str, text: str, provider_override: str = None) -> str:
     prompt = SUMMARY_PROMPT.format(heading_title=heading, text=text)
     
@@ -361,6 +365,7 @@ Respond ONLY with a valid JSON object matching this schema:
 }}
 """
 
+@observe(name="explain_selected_text", as_type="span")
 async def explain_selected_text(selected_text: str, custom_prompt: str = None, provider_override: str = None) -> str:
     """Call the LLM with the EXPLAIN_PROMPT and return the raw Markdown response."""
     prompt = EXPLAIN_PROMPT.format(
@@ -382,6 +387,7 @@ async def explain_selected_text(selected_text: str, custom_prompt: str = None, p
     return raw.strip()
 
 
+@observe(name="generate_flashcards_from_selection", as_type="span")
 async def generate_flashcards_from_selection(selected_text: str, count: int = 5, custom_prompt: str = None, provider_override: str = None) -> list:
     """Generate flashcards from a highlighted PDF text selection."""
     prompt = FLASHCARD_FROM_SELECTION_PROMPT.format(

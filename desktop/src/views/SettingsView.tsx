@@ -18,7 +18,7 @@ export function SettingsView() {
   const [loadingStep, setLoadingStep] = useState('Starting initialization...');
 
   // Local state for keys input
-  const [keys, setKeys] = useState<{ [key in AIProviderId]?: string }>({});
+  const [keys, setKeys] = useState<{ [key: string]: string }>({});
 
   useEffect(() => {
     async function init() {
@@ -32,11 +32,13 @@ export function SettingsView() {
         // Load keys from stronghold securely in the background
         const loadKeysBackground = async () => {
           try {
-            for (const provider of ['openai', 'gemini', 'groq']) {
+            for (const provider of ['openai', 'gemini', 'groq', 'langfuse_secret_key', 'langfuse_public_key', 'langfuse_host']) {
               const key = await getApiKey(provider);
               if (key) {
                 setKeys(prev => ({...prev, [provider]: key}));
-                dispatch(setConfiguredProvider({ provider: provider as AIProviderId, isConfigured: true }));
+                if (['openai', 'gemini', 'groq'].includes(provider)) {
+                  dispatch(setConfiguredProvider({ provider: provider as AIProviderId, isConfigured: true }));
+                }
               }
             }
           } catch (e) {
@@ -68,16 +70,24 @@ export function SettingsView() {
       const backendKeys: any = {};
       const vaultPromises: Promise<void>[] = [];
 
-      for (const provider of ['openai', 'gemini', 'groq'] as AIProviderId[]) {
+      for (const provider of ['openai', 'gemini', 'groq', 'langfuse_secret_key', 'langfuse_public_key', 'langfuse_host']) {
         const val = keys[provider];
         if (val && val.trim().length > 0) {
           vaultPromises.push(saveApiKey(provider, val.trim()));
-          dispatch(setConfiguredProvider({ provider, isConfigured: true }));
-          backendKeys[`${provider}_api_key`] = val.trim();
+          if (['openai', 'gemini', 'groq'].includes(provider)) {
+            dispatch(setConfiguredProvider({ provider: provider as AIProviderId, isConfigured: true }));
+            backendKeys[`${provider}_api_key`] = val.trim();
+          } else {
+            backendKeys[provider] = val.trim();
+          }
         } else if (val === '') {
           vaultPromises.push(removeApiKey(provider));
-          dispatch(setConfiguredProvider({ provider, isConfigured: false }));
-          backendKeys[`${provider}_api_key`] = "";
+          if (['openai', 'gemini', 'groq'].includes(provider)) {
+            dispatch(setConfiguredProvider({ provider: provider as AIProviderId, isConfigured: false }));
+            backendKeys[`${provider}_api_key`] = "";
+          } else {
+            backendKeys[provider] = "";
+          }
         }
       }
 
@@ -97,6 +107,11 @@ export function SettingsView() {
           console.warn('[Settings] Non-critical backend key sync error:', err)
         );
       }
+      
+      // Push active provider to backend
+      client.updateSetting('llm_provider', JSON.stringify({ type: activeProvider })).catch((err) =>
+        console.warn('[Settings] Non-critical backend provider sync error:', err)
+      );
 
       setMessage({ text: 'Settings saved successfully', type: 'success' });
     } catch (err: any) {
@@ -215,9 +230,9 @@ export function SettingsView() {
             />
             <ProviderCard 
               id="groq" 
-              name="Groq (Llama 3.1 8B)" 
+              name="Groq(gpt-oss-20b)" 
               icon={Cloud} 
-              description="Ultra-low latency inference using Llama 3.1. Extremely fast generation speeds."
+              description="Ultra-low latency inference using gpt-oss-20b. Extremely fast generation speeds."
               cost="Free Tier Available"
             />
           </div>
@@ -291,6 +306,34 @@ export function SettingsView() {
                        <ShieldCheck size={16} className="text-accent-blue/50" strokeWidth={1.5} />
                      </div>
                   )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* Langfuse Telemetry */}
+        <section>
+          <div className="flex items-center justify-between mb-4 border-b border-border-default pb-2">
+            <h3 className="text-lg font-semibold text-primary flex items-center gap-2">
+              <Info size={18} className="text-accent-blue" strokeWidth={1.5} />
+              Langfuse Telemetry
+            </h3>
+          </div>
+          <p className="text-sm text-on-surface-variant mb-6">Connect to Langfuse to track LLM generations, latency, and costs.</p>
+          
+          <div className="space-y-4 max-w-2xl">
+            {['langfuse_secret_key', 'langfuse_public_key', 'langfuse_host'].map((p) => (
+              <div key={p} className="flex flex-col gap-1.5">
+                <label className="text-sm font-medium text-primary capitalize">{p.replace(/_/g, ' ')}</label>
+                <div className="relative">
+                  <input 
+                    type={p.includes('secret') ? 'password' : 'text'} 
+                    value={keys[p] ?? ''}
+                    onChange={(e) => setKeys(prev => ({ ...prev, [p]: e.target.value }))}
+                    placeholder={`Enter ${p}`}
+                    className="w-full bg-surface-container-low border border-border-default rounded-[var(--radius-standard)] px-4 py-2.5 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-accent-blue/20 focus:border-accent-blue transition-all placeholder:text-on-surface-variant"
+                  />
                 </div>
               </div>
             ))}

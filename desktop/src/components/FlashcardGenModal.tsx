@@ -8,12 +8,13 @@ import { X, Loader2, Zap } from 'lucide-react';
 export function FlashcardGenModal() {
   const dispatch = useDispatch();
   const { activeTopicId, isCardGenModalOpen } = useSelector((state: RootState) => state.reader);
+  const { activeProvider } = useSelector((state: RootState) => state.providers);
   
   const [count, setCount] = useState(3);
   const [cardType, setCardType] = useState('Conceptual');
   const [difficulty, setDifficulty] = useState('Beginner');
   const [additionalPrompt, setAdditionalPrompt] = useState('');
-  const [providerOverride, setProviderOverride] = useState('');
+  const [providerOverride, setProviderOverride] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -29,9 +30,7 @@ export function FlashcardGenModal() {
       }
       
       const options: any = { count, custom_prompt: customPrompt };
-      if (providerOverride) {
-        options.provider_override = providerOverride;
-      }
+      options.provider_override = providerOverride || activeProvider;
       
       await client.generateFlashcards(activeTopicId, options);
       

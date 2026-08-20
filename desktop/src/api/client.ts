@@ -220,7 +220,7 @@ export const client = {
     if (!res.ok) throw new Error("Failed to update setting");
     return res.json();
   },
-  async saveApiKeys(keys: { gemini_api_key?: string, groq_api_key?: string, openai_api_key?: string }): Promise<{ status: string }> {
+  async saveApiKeys(keys: { gemini_api_key?: string, groq_api_key?: string, openai_api_key?: string, langfuse_secret_key?: string, langfuse_public_key?: string, langfuse_host?: string }): Promise<{ status: string }> {
     try {
       const res = await fetch(`${API_BASE}/settings/api-keys`, {
         method: "POST",
@@ -295,15 +295,11 @@ export const client = {
     return res.json();
   },
   
-  async processTopicStream(topicId: number, provider: string | null = null, onProgress: (event: any) => void): Promise<void> {
+  async processTopicStream(topicId: number, activeProvider: string, onEvent: (event: any) => void): Promise<void> {
     const res = await fetch(`${API_BASE}/topics/${topicId}/process-stream`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        provider_override: provider
-      }),
+      headers: { "Accept": "text/event-stream", "Content-Type": "application/json" },
+      body: JSON.stringify({ provider_override: activeProvider })
     });
     
     if (!res.ok) throw new Error("Failed to start processing");
@@ -478,6 +474,7 @@ export const client = {
     page_number: number;
     rect_json: string;
     save?: boolean;
+    provider_override?: string;
   }): Promise<PdfAnnotation> {
     const res = await fetch(`${API_BASE}/books/${bookId}/annotations/explain`, {
       method: "POST",
@@ -495,6 +492,7 @@ export const client = {
     page_number: number;
     rect_json: string;
     save?: boolean;
+    provider_override?: string;
   }): Promise<{ id: number; flashcards: Array<{ question: string; answer: string }> }> {
     const res = await fetch(`${API_BASE}/books/${bookId}/annotations/generate-flashcards`, {
       method: "POST",

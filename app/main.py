@@ -24,6 +24,7 @@ from app.database import (
     update_annotation as db_update_annotation, delete_annotation as db_delete_annotation,
     search_all
 )
+from langfuse import observe
 from app.heading_detect import detect_headings
 from app.llm_segment import extract_atomic_concepts, explain_selected_text, generate_flashcards_from_selection
 from app.pdf_extract import extract_raw_text
@@ -36,7 +37,28 @@ from app.markdown_ast import parse_markdown_assets
 async def lifespan(app: FastAPI):
     init_db()
     os.makedirs(PARSED_DOCS_DIR, exist_ok=True)
+    
+    sk = get_setting("langfuse_secret_key")
+    pk = get_setting("langfuse_public_key")
+    host = get_setting("langfuse_host") or "https://cloud.langfuse.com"
+    
+    if sk and pk:
+        os.environ["LANGFUSE_SECRET_KEY"] = sk
+        os.environ["LANGFUSE_PUBLIC_KEY"] = pk
+        os.environ["LANGFUSE_HOST"] = host
+        from langfuse import Langfuse
+        try:
+            Langfuse(public_key=pk, secret_key=sk, host=host)
+        except Exception as e:
+            logger.error(f"Failed to initialize Langfuse: {e}")
+
     yield
+    
+    try:
+        from langfuse import get_client
+        get_client().flush()
+    except Exception:
+        pass
 
 
 app = FastAPI(title="Chunking Service", lifespan=lifespan)
@@ -364,6 +386,9 @@ class APIKeys(BaseModel):
     gemini_api_key: str | None = None
     groq_api_key: str | None = None
     openai_api_key: str | None = None
+    langfuse_secret_key: str | None = None
+    langfuse_public_key: str | None = None
+    langfuse_host: str | None = None
 
 @app.post("/settings/api-keys")
 def save_api_keys(keys: APIKeys):
@@ -377,6 +402,27 @@ def save_api_keys(keys: APIKeys):
     if keys.openai_api_key is not None:
         set_setting("openai_api_key", keys.openai_api_key)
         os.environ["OPENAI_API_KEY"] = keys.openai_api_key
+    if keys.langfuse_secret_key is not None:
+        set_setting("langfuse_secret_key", keys.langfuse_secret_key)
+        os.environ["LANGFUSE_SECRET_KEY"] = keys.langfuse_secret_key
+    if keys.langfuse_public_key is not None:
+        set_setting("langfuse_public_key", keys.langfuse_public_key)
+        os.environ["LANGFUSE_PUBLIC_KEY"] = keys.langfuse_public_key
+    if keys.langfuse_host is not None:
+        set_setting("langfuse_host", keys.langfuse_host)
+        os.environ["LANGFUSE_HOST"] = keys.langfuse_host
+        
+    if keys.langfuse_secret_key is not None or keys.langfuse_public_key is not None:
+        pk = keys.langfuse_public_key or os.environ.get("LANGFUSE_PUBLIC_KEY")
+        sk = keys.langfuse_secret_key or os.environ.get("LANGFUSE_SECRET_KEY")
+        host = keys.langfuse_host or os.environ.get("LANGFUSE_HOST", "https://cloud.langfuse.com")
+        if pk and sk:
+            from langfuse import Langfuse
+            try:
+                Langfuse(public_key=pk, secret_key=sk, host=host)
+            except Exception as e:
+                logger.error(f"Failed to initialize Langfuse: {e}")
+            
     return {"status": "updated"}
 
 @app.get("/settings/api-keys", response_model=APIKeys)
@@ -384,7 +430,10 @@ def get_api_keys():
     return {
         "gemini_api_key": get_setting("gemini_api_key") or "",
         "groq_api_key": get_setting("groq_api_key") or "",
-        "openai_api_key": get_setting("openai_api_key") or ""
+        "openai_api_key": get_setting("openai_api_key") or "",
+        "langfuse_secret_key": get_setting("langfuse_secret_key") or "",
+        "langfuse_public_key": get_setting("langfuse_public_key") or "",
+        "langfuse_host": get_setting("langfuse_host") or "https://cloud.langfuse.com",
     }
 
 
@@ -658,6 +707,7 @@ def clean_book_toc(book_id: int):
 
 
 @app.post("/topics/{topic_id}/flashcards")
+@observe(name="generate_topic_flashcards", as_type="span")
 async def generate_topic_flashcards(topic_id: int, req: FlashcardGenerationRequest):
     from app.database import get_topic_by_id
     from app.llm_segment import generate_flashcards_for_topic
@@ -674,6 +724,23 @@ async def generate_topic_flashcards(topic_id: int, req: FlashcardGenerationReque
         parent = get_topic_by_id(topic.get("parent_id"))
         if parent:
             topic_text = parent.get("content_md") or ""
+
+    # Fallback to PDF extraction if content is still empty
+    if not topic_text or len(topic_text.strip()) < 30:
+        from app.database import get_book_by_id
+        import fitz
+        book = get_book_by_id(topic["book_id"])
+        if book:
+            file_path = book["file_path"]
+            if os.path.exists(file_path):
+                doc = fitz.open(file_path)
+                start_idx = max(0, topic.get("start_page", 1) - 1)
+                end_idx = min(doc.page_count - 1, topic.get("end_page", doc.page_count) - 1)
+                pages_text = []
+                for i in range(start_idx, end_idx + 1):
+                    pages_text.append(doc[i].get_text())
+                doc.close()
+                topic_text = "\n".join(pages_text)
             
     flashcard_list = await generate_flashcards_for_topic(
         topic_name=topic.get("title", ""),
@@ -1004,6 +1071,7 @@ class ExplainRequest(BaseModel):
     page_number: int
     rect_json: str
     save: bool = True
+    provider_override: Optional[str] = None
 
 class FlashcardSelectionRequest(BaseModel):
     selected_text: str
@@ -1012,6 +1080,7 @@ class FlashcardSelectionRequest(BaseModel):
     page_number: int
     rect_json: str
     save: bool = True
+    provider_override: Optional[str] = None
 
 
 @app.post("/books/{book_id}/annotations")
@@ -1060,14 +1129,15 @@ async def explain_annotation(book_id: int, body: ExplainRequest):
     """AI-explain selected text and save as annotation."""
     try:
         # Get provider override from settings
-        provider_override = None
-        try:
-            provider_json = get_setting("llm_provider")
-            if provider_json:
-                provider_data = json.loads(provider_json)
-                provider_override = provider_data.get("type")
-        except Exception:
-            pass
+        provider_override = body.provider_override
+        if not provider_override:
+            try:
+                provider_json = get_setting("llm_provider")
+                if provider_json:
+                    provider_data = json.loads(provider_json)
+                    provider_override = provider_data.get("type")
+            except Exception:
+                pass
 
         explanation = await explain_selected_text(
             selected_text=body.selected_text,
@@ -1105,14 +1175,15 @@ async def generate_flashcards_annotation(book_id: int, body: FlashcardSelectionR
     """Generate flashcards from selected text and save as annotation."""
     try:
         # Get provider override from settings
-        provider_override = None
-        try:
-            provider_json = get_setting("llm_provider")
-            if provider_json:
-                provider_data = json.loads(provider_json)
-                provider_override = provider_data.get("type")
-        except Exception:
-            pass
+        provider_override = body.provider_override
+        if not provider_override:
+            try:
+                provider_json = get_setting("llm_provider")
+                if provider_json:
+                    provider_data = json.loads(provider_json)
+                    provider_override = provider_data.get("type")
+            except Exception:
+                pass
 
         flashcards = await generate_flashcards_from_selection(
             selected_text=body.selected_text,

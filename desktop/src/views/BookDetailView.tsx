@@ -422,7 +422,9 @@ export function BookDetailView() {
                   }}
                   className={clsx(
                     "absolute top-0 left-0 w-full flex items-center text-left transition-colors border-b border-outline-variant/30 group",
-                    isSelected ? "bg-active-bg text-accent-blue border-l-2 border-l-accent-blue" : "text-on-surface hover:bg-surface-container hover:text-primary border-l-2 border-l-transparent"
+                    isSelected 
+                      ? "bg-accent-blue/5 text-accent-blue font-semibold before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:h-3/5 before:w-1 before:bg-accent-blue before:rounded-r-full" 
+                      : "text-on-surface hover:bg-surface-container hover:text-primary"
                   )}
                   style={{
                     height: `${virtualRow.size}px`,
@@ -586,6 +588,7 @@ export function BookDetailView() {
                                   page_number: sel.pageNumber,
                                   rect_json: rectJson,
                                   save: !options?.preview,
+                                  provider_override: activeProvider,
                                 });
                                 if (options?.preview) return res;
                               }
@@ -607,6 +610,7 @@ export function BookDetailView() {
                                   page_number: sel.pageNumber,
                                   rect_json: rectJson,
                                   save: !options?.preview,
+                                  provider_override: activeProvider,
                                 });
                                 if (options?.preview) return res;
                               }

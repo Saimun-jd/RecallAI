@@ -1,6 +1,7 @@
 import httpx
 import json
 from typing import Any, Dict
+from langfuse import get_client
 from app.llm_providers.base import BaseLLMProvider
 
 class GeminiProvider(BaseLLMProvider):
@@ -46,14 +47,47 @@ class GeminiProvider(BaseLLMProvider):
         if json_schema is not None:
             payload["generationConfig"]["responseMimeType"] = "application/json"
 
-        async with httpx.AsyncClient(timeout=120.0) as client:
-            r = await client.post(url, headers=headers, json=payload)
+        langfuse = get_client()
+        with langfuse.start_as_current_observation(
+            as_type="generation",
+            name="gemini_generation",
+            model=self.model,
+            input=prompt_with_schema,
+        ) as generation:
+            try:
+                async with httpx.AsyncClient(timeout=120.0) as client:
+                    r = await client.post(url, headers=headers, json=payload)
+            except Exception as e:
+                generation.update(level="ERROR", status_message=str(e))
+                raise
+                
+            generation.update(metadata={"status_code": r.status_code})
             
-        r.raise_for_status()
-        
-        resp_data = r.json()
-        try:
-            return resp_data["candidates"][0]["content"]["parts"][0]["text"]
-        except (KeyError, IndexError):
-            raise ValueError(f"Unexpected response format from Gemini: {resp_data}")
-        
+            try:
+                r.raise_for_status()
+            except httpx.HTTPStatusError as e:
+                generation.update(level="ERROR", status_message=f"HTTP {r.status_code}: {r.text}")
+                raise
+            
+            resp_data = r.json()
+            try:
+                content = resp_data["candidates"][0]["content"]["parts"][0]["text"]
+                
+                usage = resp_data.get("usageMetadata")
+                if usage:
+                    generation.update(
+                        output=content,
+                        usage={
+                            "input": usage.get("promptTokenCount"),
+                            "output": usage.get("candidatesTokenCount"),
+                            "total": usage.get("totalTokenCount")
+                        }
+                    )
+                else:
+                    generation.update(output=content)
+                    
+                return content
+            except (KeyError, IndexError):
+                err_msg = f"Unexpected response format from Gemini: {resp_data}"
+                generation.update(level="ERROR", status_message=err_msg)
+                raise ValueError(err_msg)

@@ -14,3 +14,4 @@ python-dotenv
 fsrs
 platformdirs
 pyinstaller
+langfuse
