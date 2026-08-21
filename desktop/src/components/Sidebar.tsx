@@ -14,16 +14,15 @@ export function Sidebar() {
   
   const MIN_WIDTH = 200;
   const MAX_WIDTH = 400;
-  const COLLAPSED_WIDTH = 64;
+  const COLLAPSED_WIDTH = 80;
   
-  // Academic Precision: Soft Minimalism with clear visual hierarchy
+  // Neo-Brutalist Navigation Links
   const linkClass = (path: string) => cn(
-    "flex items-center gap-3 py-2.5 text-[14px] font-medium transition-all duration-200 ease-out relative",
-    "rounded-[var(--radius-standard)]",
+    "flex items-center gap-3 p-3 font-bold uppercase transition-all duration-200 border-2 border-transparent",
     location.pathname === path 
-      ? "bg-active-bg text-primary before:absolute before:left-0 before:top-2 before:bottom-2 before:w-[2px] before:bg-accent-blue before:rounded-r" 
-      : "text-on-surface hover:bg-hover-bg",
-    isCollapsed ? "justify-center" : "px-4",
+      ? "bg-blue-500 text-white border-on-background shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] rounded-lg" 
+      : "text-on-surface hover:bg-surface-container-high hover:border-on-background hover:-translate-x-[2px] hover:-translate-y-[2px] rounded-lg",
+    isCollapsed ? "justify-center px-0" : "px-4",
   );
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
@@ -57,7 +56,7 @@ export function Sidebar() {
 
   return (
     <div 
-      className="bg-surface-container-low flex flex-col h-full shrink-0 z-10 relative border-r border-border-default min-w-0"
+      className="bg-surface flex flex-col h-full shrink-0 z-10 relative border-r-4 border-on-background shadow-[4px_0px_0px_0px_rgba(0,0,0,1)] min-w-0"
       style={{ 
         width: `${currentWidth}px`, 
         maxWidth: `${currentWidth}px`,
@@ -65,78 +64,58 @@ export function Sidebar() {
       }}
     >
       {/* Header */}
-      <div className={cn("border-b border-border-default bg-surface-container-lowest shrink-0", isCollapsed ? "p-4" : "p-6")}>
+      <div className={cn("border-b-4 border-on-background bg-surface shrink-0 flex items-center", isCollapsed ? "justify-center py-6 px-2" : "p-6")}>
         {!isCollapsed ? (
-          <h1 className="text-2xl font-semibold flex items-center gap-2 tracking-tight text-primary">
-            <BrainCircuit className="text-ai-purple w-6 h-6" strokeWidth={2} />
-            Recall
-          </h1>
+          <div className="flex items-center space-x-3 w-full">
+            <div className="w-10 h-10 border-2 border-on-background bg-secondary-container flex items-center justify-center shrink-0">
+              <Book size={24} className="text-on-background" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <h1 className="text-xl font-black text-on-surface truncate">Recall AI</h1>
+            </div>
+          </div>
         ) : (
-          <div className="flex justify-center">
-            <BrainCircuit className="text-ai-purple w-6 h-6" strokeWidth={2} />
+          <div className="w-10 h-10 border-2 border-on-background bg-secondary-container flex items-center justify-center shrink-0">
+            <Book size={24} className="text-on-background" />
           </div>
         )}
       </div>
       
       {/* Navigation */}
-      <nav className={cn("flex-1 space-y-1 overflow-y-auto overflow-x-hidden", isCollapsed ? "px-2 py-4" : "p-4")}>
-        <Link to="/" className={linkClass("/")} title={isCollapsed ? "Knowledge Hub" : undefined}>
-          <Book size={20} strokeWidth={1.5} />
-          {!isCollapsed && "Knowledge Hub"}
+      <nav className={cn("flex-1 space-y-2 overflow-y-auto overflow-x-hidden", isCollapsed ? "px-2 py-6" : "p-4")}>
+        <Link to="/" className={linkClass("/")} title={isCollapsed ? "Dashboard" : undefined}>
+          <Book size={20} strokeWidth={2.5} className="shrink-0" />
+          {!isCollapsed && "Dashboard"}
         </Link>
         <Link to="/review" className={linkClass("/review")} title={isCollapsed ? "Flashcards" : undefined}>
-          <Zap size={20} strokeWidth={1.5} />
+          <BrainCircuit size={20} strokeWidth={2.5} className="shrink-0" />
           {!isCollapsed && "Flashcards"}
         </Link>
         <Link to="/analytics" className={linkClass("/analytics")} title={isCollapsed ? "Analytics" : undefined}>
-          <BarChart3 size={20} strokeWidth={1.5} />
+          <BarChart3 size={20} strokeWidth={2.5} className="shrink-0" />
           {!isCollapsed && "Analytics"}
         </Link>
         <Link to="/settings" className={linkClass("/settings")} title={isCollapsed ? "Settings" : undefined}>
-          <Settings size={20} strokeWidth={1.5} />
+          <Settings size={20} strokeWidth={2.5} className="shrink-0" />
           {!isCollapsed && "Settings"}
         </Link>
       </nav>
       
-      {/* Keyboard Shortcut Hint - Soft Minimalism */}
-      {!isCollapsed && (
-        <div className="p-4 border-t border-border-default bg-surface-container-lowest shrink-0">
-          <button 
-            onClick={() => dispatch(setCommandOpen(true))}
-            className="w-full flex items-center justify-between px-3 py-2.5 text-xs font-medium text-on-surface-variant bg-surface-container hover:bg-surface-container-high transition-colors border border-border-default rounded-[var(--radius-standard)] cursor-pointer"
-          >
-            <span className="flex items-center gap-2 min-w-0">
-              <Search size={14} strokeWidth={1.5} className="shrink-0" />
-              <span className="truncate">Search</span>
-            </span>
-            <div className="flex items-center gap-1 shrink-0 ml-2">
-              <kbd className="bg-surface-container-high px-2 py-0.5 border border-outline-variant rounded-[var(--radius-tag)] text-[11px] font-medium shrink-0">
-                Ctrl
-              </kbd>
-              <span className="text-outline shrink-0">+</span>
-              <kbd className="bg-surface-container-high px-2 py-0.5 border border-outline-variant rounded-[var(--radius-tag)] text-[11px] font-medium shrink-0">
-                K
-              </kbd>
-            </div>
-          </button>
-        </div>
-      )}
-
       {/* Collapse Toggle Button */}
       <button
         onClick={() => setIsCollapsed(!isCollapsed)}
-        className="absolute -right-3 top-24 w-6 h-6 bg-surface-container-lowest border border-border-default rounded-full flex items-center justify-center text-on-surface-variant hover:text-primary hover:bg-surface-container transition-all duration-200 shadow-[var(--shadow-default)] z-20"
+        className="absolute -right-4 top-24 w-8 h-8 bg-surface border-2 border-on-background rounded flex items-center justify-center text-on-surface hover:bg-surface-container-high transition-all shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none z-20"
         title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
       >
-        {isCollapsed ? <ChevronRight size={14} strokeWidth={2} /> : <ChevronLeft size={14} strokeWidth={2} />}
+        {isCollapsed ? <ChevronRight size={18} strokeWidth={3} /> : <ChevronLeft size={18} strokeWidth={3} />}
       </button>
       
       {/* Resize Handle */}
       {!isCollapsed && (
         <div
           className={cn(
-            "absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-accent-blue/50 active:bg-accent-blue transition-colors duration-150 z-10",
-            isResizing && "bg-accent-blue"
+            "absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-primary/50 active:bg-primary transition-colors duration-150 z-10",
+            isResizing && "bg-primary"
           )}
           onMouseDown={handleMouseDown}
         >

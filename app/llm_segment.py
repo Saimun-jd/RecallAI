@@ -40,7 +40,7 @@ Expected Object Format:
   "atomic_topics": [
     {{
       "topic_name": "...",
-      "concept_type": "Definition | Formula | Process Step | Code Example | Comparison",
+      "concept_type": "Definition", // MUST BE EXACTLY ONE OF: "Definition", "Key Feature", "Formula", "Comparison", "Process Step", "Code Example", "Diagram"
       "summary": "...",
       "key_terms": ["term1", "term2"],
       "related_code_id": null,
@@ -92,7 +92,7 @@ Expected Object Format:
 {{
   "flashcards": [
     {{
-      "concept_type": "Definition | Formula | Process Step | Code Example | Comparison",
+      "concept_type": "Definition", // MUST BE EXACTLY ONE OF: "Definition", "Key Feature", "Formula", "Comparison", "Process Step", "Code Example", "Diagram"
       "question": "...",
       "answer": "...",
       "key_terms": ["term1", "term2"],
@@ -259,7 +259,8 @@ async def generate_flashcards_for_topic(
         return FlashcardList.model_validate(parsed)
     except Exception as e:
         logger.error(f"Failed to generate flashcards: {e}")
-        return FlashcardList(flashcards=[])
+        from fastapi import HTTPException
+        raise HTTPException(status_code=500, detail=f"Failed to generate flashcards: {e}")
 
 from pydantic import BaseModel
 class TopicSummary(BaseModel):

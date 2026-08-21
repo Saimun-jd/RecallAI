@@ -369,12 +369,12 @@ export function BookDetailView() {
       <div 
         id="toc-sidebar"
         className={clsx(
-          "shrink-0 min-w-0 border-r border-outline-variant bg-surface-container-low flex flex-col z-10 relative overflow-hidden transition-[width] duration-200 ease-out",
+          "shrink-0 min-w-0 border-r-[3px] border-on-background bg-surface-container-low flex flex-col z-10 relative overflow-hidden transition-[width] duration-200 ease-out",
           isTocCollapsed && "border-r-0"
         )}
         style={{ width: isTocCollapsed ? 0 : `${tocWidth}px` }}
       >
-        <div className="p-4 border-b border-outline-variant bg-surface-container-lowest flex flex-col gap-3 min-w-[240px]">
+        <div className="p-4 border-b-[3px] border-on-background bg-surface-container-lowest flex flex-col gap-3 min-w-[240px]">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <Link to="/" className="text-on-surface hover:text-primary p-1.5 rounded-md hover:bg-surface-container transition-colors">
@@ -393,13 +393,13 @@ export function BookDetailView() {
             </button>
           </div>
           <div className="relative">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
+            <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
             <input
               type="text"
               placeholder="Filter topics..."
               value={searchQuery}
               onChange={(e) => dispatch(setSearchQuery(e.target.value))}
-              className="w-full bg-surface border border-outline-variant rounded-md py-1.5 pl-8 pr-3 text-sm text-primary placeholder:text-on-surface-variant focus:outline-none focus:border-accent-blue/50 focus:ring-1 focus:ring-accent-blue/50 transition-all"
+              className="w-full bg-surface border-[3px] border-on-background py-2 pl-10 pr-3 text-label-md font-label-md text-primary placeholder:text-on-surface-variant focus:outline-none focus:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all"
             />
           </div>
         </div>
@@ -421,9 +421,9 @@ export function BookDetailView() {
                     setViewMode('topics');
                   }}
                   className={clsx(
-                    "absolute top-0 left-0 w-full flex items-center text-left transition-colors border-b border-outline-variant/30 group",
+                    "absolute top-0 left-0 w-full flex items-center text-left transition-colors border-b-[3px] border-on-background group",
                     isSelected 
-                      ? "bg-accent-blue/5 text-accent-blue font-semibold before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:h-3/5 before:w-1 before:bg-accent-blue before:rounded-r-full" 
+                      ? "bg-primary-container text-on-primary-container neo-shadow-sm z-10" 
                       : "text-on-surface hover:bg-surface-container hover:text-primary"
                   )}
                   style={{
@@ -458,9 +458,9 @@ export function BookDetailView() {
                     ) : topic.status === 'processing' ? (
                       <Loader2 size={12} className="animate-spin text-amber-500" />
                     ) : (
-                      <div className="w-1.5 h-1.5 rounded-full bg-surface-container-high" title="Untested" />
+                      <div className="w-1.5 h-1.5 rounded-full bg-on-background" title="Untested" />
                     )}
-                    <div className="text-[10px] text-on-surface-variant font-medium bg-surface px-1.5 py-0.5 rounded border border-outline-variant">p. {topic.start_page}</div>
+                    <div className="text-[10px] font-bold text-on-surface-variant bg-surface px-2 py-0.5 border-2 border-on-background">p. {topic.start_page}</div>
                   </div>
                 </button>
               );
@@ -503,7 +503,7 @@ export function BookDetailView() {
               inert={viewMode !== 'pdf' ? true : undefined}
             >
               {/* Top Bar for PDF */}
-              <div className="h-12 border-b border-outline-variant flex items-center justify-between px-4 bg-surface-container-lowest shrink-0 z-10">
+              <div className="h-16 border-b-[3px] border-primary flex items-center justify-between px-4 bg-surface-container-lowest shrink-0 z-10 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] relative">
                 <div className="flex items-center gap-3">
                   <button
                     onClick={() => setViewMode('topics')}
@@ -530,7 +530,7 @@ export function BookDetailView() {
                   {annotations.length > 0 && (
                     <button
                       onClick={() => window.open(`http://127.0.0.1:8000/books/${bookId}/export-annotated`, '_blank')}
-                      className="text-[11px] font-medium text-accent-blue bg-active-bg hover:bg-accent-blue/20 px-2.5 py-1 rounded-md transition-colors border border-accent-blue/20"
+                      className="text-label-sm font-bold text-primary bg-tertiary-fixed px-3 py-1.5 transition-colors border-[3px] border-primary neo-shadow-sm active-neo-press"
                     >
                       Export PDF
                     </button>
@@ -654,7 +654,7 @@ export function BookDetailView() {
             </div>
             <div className={clsx("flex-1 flex flex-col h-full overflow-y-auto", viewMode !== 'topics' && "hidden")}>
               {/* Header & Quick Actions */}
-              <div className="p-6 border-b border-outline-variant bg-surface-container-lowest shrink-0">
+              <div className="p-6 border-b-[3px] border-primary bg-surface-container-lowest shrink-0 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] z-10 relative">
                 <div className="flex items-center gap-2 text-xs text-accent-blue font-medium font-medium mb-3">
                   {isTocCollapsed && (
                     <button 
@@ -670,10 +670,10 @@ export function BookDetailView() {
                   <span>{activeTopic.breadcrumb || 'Chapter'}</span>
                 </div>
                 <div className="flex items-start justify-between gap-4 mb-6">
-                  <h1 className="text-2xl font-semibold text-primary leading-tight">
+                  <h1 className="font-headline-lg text-headline-lg font-black text-primary leading-tight">
                     {activeTopic.title}
                   </h1>
-                  <div className="shrink-0 text-xs font-mono text-on-surface-variant bg-surface-container-lowest px-2 py-1 rounded border border-outline-variant">
+                  <div className="shrink-0 text-label-sm font-label-sm font-bold text-on-surface-variant bg-surface-container px-3 py-1 border-[3px] border-primary neo-shadow-sm">
                     Target: p. {activeTopic.start_page}
                   </div>
                 </div>
@@ -690,36 +690,36 @@ export function BookDetailView() {
                 </div>
 
                 {/* Quick Actions Bar */}
-                <div className="flex flex-wrap items-center gap-3">
+                <div className="flex flex-wrap items-center gap-4">
                   <button
                     onClick={() => {
                       setViewMode('pdf');
                       setPdfScrollCommand({ page: activeTopic.start_page, ts: Date.now() });
                     }}
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors border bg-surface-container-lowest text-primary border-outline-variant hover:bg-surface-container hover:border-outline"
+                    className="flex items-center gap-2 px-6 py-3 text-label-md font-bold transition-all border-[3px] border-primary bg-surface-container-lowest text-primary neo-shadow-sm active-neo-press"
                   >
-                    <FileText size={16} /> View PDF
+                    <FileText size={18} /> View PDF
                   </button>
                   <button
                     onClick={() => dispatch(setIsCardGenModalOpen(true))}
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium bg-active-bg text-accent-blue border border-accent-blue/20 hover:bg-accent-blue/20 transition-colors"
+                    className="flex items-center gap-2 px-6 py-3 text-label-md font-bold transition-all bg-surface-container-lowest text-primary border-[3px] border-primary neo-shadow-sm active-neo-press"
                   >
-                    <Zap size={16} /> Generate Flashcards
+                    <Zap size={18} style={{ fontVariationSettings: "'FILL' 1" }} /> Generate Flashcards
                   </button>
                   <button
                     onClick={() => dispatch(setIsNotesOpen(!isNotesOpen))}
                     className={clsx(
-                      "flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors border",
-                      isNotesOpen ? "bg-amber-500/10 text-amber-400 border-amber-500/20" : "bg-surface-container-lowest text-primary border-outline-variant hover:bg-surface-container hover:border-outline"
+                      "flex items-center gap-2 px-6 py-3 text-label-md font-bold transition-all border-[3px] border-primary neo-shadow-sm active-neo-press",
+                      isNotesOpen ? "bg-amber-500 text-zinc-950" : "bg-surface-container-lowest text-primary"
                     )}
                   >
-                    <PenTool size={16} /> Study Notes
+                    <PenTool size={18} /> Study Notes
                   </button>
                   <button
                     onClick={() => setIsRelatedModalOpen(true)}
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium bg-surface-container-lowest text-primary border border-outline-variant hover:bg-surface-container hover:border-outline transition-colors ml-auto"
+                    className="flex items-center gap-2 px-6 py-3 text-label-md font-bold bg-surface-container-lowest text-primary border-[3px] border-primary neo-shadow-sm active-neo-press ml-auto"
                   >
-                    <Link2 size={16} /> Related
+                    <Link2 size={18} /> Related
                   </button>
                 </div>
               </div>
@@ -728,15 +728,15 @@ export function BookDetailView() {
 
                 {/* Generated Topic Data (if processed) */}
                 {activeTopic.status === 'processed' && (activeTopic.summary || activeTopic.concept_type) && (
-                  <div className="bg-surface-container-lowest border border-accent-blue/20 rounded-xl p-5 shadow-lg">
+                  <div className="bg-surface-container-lowest border-[3px] border-on-background neo-shadow-lg p-6">
                     <div className="flex items-center gap-3 mb-4">
-                      <div className="w-8 h-8 rounded-full bg-active-bg flex items-center justify-center text-accent-blue">
-                        <BrainCircuit size={18} />
+                      <div className="w-10 h-10 border-[3px] border-on-background bg-surface-container-lowest flex items-center justify-center neo-shadow-sm text-primary">
+                        <BrainCircuit size={20} />
                       </div>
                       <div>
-                        <h3 className="text-sm font-semibold text-accent-blue">AI Topic Summary</h3>
+                        <h3 className="font-headline-md text-headline-md font-bold text-primary">AI Topic Summary</h3>
                         {activeTopic.concept_type && (
-                          <p className="text-xs text-on-surface-variant">{activeTopic.concept_type}</p>
+                          <p className="text-label-sm font-label-sm font-bold uppercase tracking-wider text-secondary">{activeTopic.concept_type}</p>
                         )}
                       </div>
                     </div>
@@ -751,7 +751,7 @@ export function BookDetailView() {
                           try {
                             const terms = JSON.parse(activeTopic.key_terms);
                             return terms.map((term: string, idx: number) => (
-                              <span key={idx} className="px-2 py-1 bg-surface-container text-on-surface text-xs rounded-md border border-outline-variant">
+                              <span key={idx} className="px-3 py-1 bg-surface-container text-primary font-bold text-label-sm uppercase border-[3px] border-primary neo-shadow-sm">
                                 {term}
                               </span>
                             ));
@@ -766,35 +766,35 @@ export function BookDetailView() {
 
 
                 {/* Flashcards List */}
-                <div className="space-y-4">
+                <div className="space-y-6">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-semibold text-on-surface uppercase tracking-wider flex items-center gap-2">
+                    <h3 className="font-headline-md text-headline-md font-black uppercase tracking-wider flex items-center gap-3">
                       <span>Topic Flashcards</span>
-                      <span className="bg-surface-container text-primary px-2 py-0.5 rounded-full text-xs">{activeTopicCards.length}</span>
+                      <span className="bg-primary text-white border-[3px] border-primary px-3 py-1 text-label-md font-black neo-shadow-sm">{activeTopicCards.length}</span>
                     </h3>
                     {activeTopicCards.length > 0 && (
                       <button
                         onClick={() => setIsPracticeModalOpen(true)}
-                        className="text-xs font-medium bg-accent-blue text-zinc-950 px-3 py-1.5 rounded-lg hover:bg-emerald-400 transition-colors"
+                        className="text-label-md font-black bg-secondary text-white border-[3px] border-primary px-6 py-2 neo-shadow-sm active-neo-press transition-all flex items-center gap-2"
                       >
-                        Practice
+                        <Play size={16} style={{ fontVariationSettings: "'FILL' 1" }} /> Practice
                       </button>
                     )}
                   </div>
 
                   {activeTopicCards.length === 0 ? (
-                    <div className="p-8 border border-dashed border-outline-variant rounded-xl flex flex-col items-center justify-center text-on-surface-variant">
-                      <Zap size={24} className="mb-2 opacity-50" />
-                      <p className="text-sm">No flashcards generated yet.</p>
+                    <div className="p-8 border-[3px] border-dashed border-primary flex flex-col items-center justify-center text-on-surface-variant bg-surface-container hover:bg-surface-container-high transition-colors min-h-[200px]">
+                      <Zap size={32} className="mb-4 text-primary" />
+                      <p className="font-label-lg text-label-lg font-bold">No flashcards generated yet.</p>
                     </div>
                   ) : (
-                    <div className="grid gap-4">
+                    <div className="grid gap-6">
                       {activeTopicCards.map(card => (
-                        <div key={card.id} className="bg-surface-container-lowest border border-outline-variant rounded-xl p-4 group relative">
+                        <div key={card.id} className="bg-surface-container-lowest border-[3px] border-on-background neo-shadow p-6 group relative hover:translate-x-[-2px] hover:translate-y-[-2px] hover:shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] transition-all">
                           {editingCardId === card.id ? (
                             <div className="space-y-4">
                               <div>
-                                <div className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-1">Question</div>
+                                <div className="font-label-md text-label-md font-bold text-on-surface-variant uppercase tracking-wider mb-2">Question</div>
                                 <textarea
                                   value={editQuestion}
                                   onChange={(e) => setEditQuestion(e.target.value)}
@@ -802,27 +802,25 @@ export function BookDetailView() {
                                 />
                               </div>
                               <div>
-                                <div className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-1">Answer</div>
+                                <div className="font-label-md text-label-md font-bold text-on-surface-variant uppercase tracking-wider mb-2">Answer</div>
                                 <textarea
                                   value={editAnswer}
                                   onChange={(e) => setEditAnswer(e.target.value)}
-                                  className="w-full bg-surface border border-outline-variant rounded-lg p-2.5 text-sm text-primary focus:outline-none focus:ring-1 focus:ring-accent-blue/50 focus:border-accent-blue/50 resize-y min-h-[60px]"
+                                  className="w-full bg-surface border-[3px] border-on-background p-3 text-label-md font-label-md text-primary placeholder:text-on-surface-variant focus:outline-none focus:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all resize-y min-h-[100px]"
                                 />
                               </div>
-                              <div className="flex items-center justify-end gap-2 pt-2 border-t border-outline-variant/50">
+                              <div className="flex justify-end gap-3 pt-2">
                                 <button
                                   onClick={() => setEditingCardId(null)}
-                                  className="px-3 py-1.5 text-xs font-medium text-on-surface hover:text-primary hover:bg-surface-container rounded-lg transition-colors"
+                                  className="px-4 py-2 text-label-md font-bold text-on-surface-variant hover:text-primary transition-colors border-[3px] border-transparent hover:border-on-background"
                                 >
                                   Cancel
                                 </button>
                                 <button
-                                  onClick={() => handleSaveCard(card.id)}
-                                  disabled={isSavingCard}
-                                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-accent-blue text-zinc-950 rounded-lg hover:bg-emerald-400 transition-colors disabled:opacity-50"
+                                  onClick={() => handleSaveCardEdit(card.id)}
+                                  className="px-6 py-2 bg-primary text-white font-bold border-[3px] border-primary neo-shadow-sm active-neo-press transition-all"
                                 >
-                                  {isSavingCard ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-                                  Save
+                                  Save Changes
                                 </button>
                               </div>
                             </div>
@@ -842,16 +840,16 @@ export function BookDetailView() {
                                   <Trash2 size={14} />
                                 </button>
                               </div>
-                              <div className="pr-16 space-y-3">
+                              <div className="pr-16 space-y-4">
                                 <div>
-                                  <div className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-1">Question</div>
-                                  <div className="text-primary font-medium prose prose-slate max-w-none">
+                                  <div className="font-label-md text-label-md font-bold text-on-surface-variant uppercase tracking-wider mb-2">Question</div>
+                                  <div className="font-body-lg text-body-lg text-primary font-medium prose prose-slate max-w-none">
                                     <MarkdownRenderer content={card.question} />
                                   </div>
                                 </div>
-                                <div className="pt-3 border-t border-outline-variant/50">
-                                  <div className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-1">Answer</div>
-                                  <div className="text-on-surface text-sm prose prose-slate max-w-none">
+                                <div className="bg-surface-container-low border-[3px] border-on-background p-4 neo-shadow-sm">
+                                  <div className="font-label-md text-label-md font-bold text-on-surface-variant uppercase tracking-wider mb-2">Answer</div>
+                                  <div className="text-body-md font-body-md text-on-surface prose prose-slate max-w-none">
                                     <MarkdownRenderer content={card.answer} />
                                   </div>
                                 </div>

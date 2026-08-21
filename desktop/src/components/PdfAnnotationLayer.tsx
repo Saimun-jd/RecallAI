@@ -70,9 +70,7 @@ export function PdfAnnotationLayer({ annotation, highlightPosition, onDelete, on
       {rects.map((r, i) => (
         <div 
           key={i}
-          title={`Click to view ${style.label}`}
-          onClick={(e) => { e.stopPropagation(); setIsPopoverOpen(true); }}
-          className={`absolute ${style.bg} rounded-[2px] cursor-pointer pointer-events-auto hover:brightness-110 hover:shadow-md transition-all duration-150 z-10 backdrop-brightness-125`} 
+          className={`absolute ${style.bg} rounded-[2px] pointer-events-none z-10`} 
           style={{
             left: `${r.left}px`,
             top: `${r.top}px`,

@@ -82,3 +82,5 @@ build/
 #Skills
 /.agents/skills
 /skills-lock.json
+
+desktop/src-tauri/icons

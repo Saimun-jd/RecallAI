@@ -108,11 +108,37 @@ def extract_fallback_toc(doc):
 
 def get_toc_entries(doc):
     """Returns table of contents from PDF metadata or fallback heading scan."""
-    toc = doc.get_toc()
-    if not toc:
-        logger.info("No embedded Table of Contents found. Scanning document text for headings...")
-        toc = extract_fallback_toc(doc)
-    return toc
+    native_toc = doc.get_toc()
+    
+    logger.info("Scanning document text for fallback headings to supplement embedded TOC...")
+    fallback_toc = extract_fallback_toc(doc)
+    
+    if not native_toc:
+        return fallback_toc
+        
+    # Hybrid merge strategy:
+    max_native_level = max([entry[0] for entry in native_toc]) if native_toc else 0
+    native_pages = set([entry[2] for entry in native_toc])
+    native_titles = set([re.sub(r'[^a-zA-Z0-9]', '', entry[1].lower()) for entry in native_toc])
+    
+    hybrid_toc = list(native_toc)
+    
+    for fb_entry in fallback_toc:
+        level, title, page = fb_entry
+        clean_title = re.sub(r'[^a-zA-Z0-9]', '', title.lower())
+        
+        if clean_title in native_titles:
+            continue
+            
+        # Add if deeper than native max level, or if it appears on a page completely missing from native TOC
+        if level > max_native_level or page not in native_pages:
+            hybrid_toc.append(fb_entry)
+            native_titles.add(clean_title)
+            
+    # Sort by page number, then by level (lower level numbers = higher hierarchy, should come first on same page)
+    hybrid_toc.sort(key=lambda x: (x[2], x[0]))
+    
+    return hybrid_toc
 
 
 def build_granular_toc(toc, total_pages):

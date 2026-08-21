@@ -42,6 +42,7 @@ Rules:
 - Questions must be specific to the provided content, not generic.
 - Do NOT ask simple definition or recall questions (e.g. "What is X?", "List the steps of Y").
 - Set reference_page to the start_page of the topic if available.
+- Escape any newlines inside your JSON strings as \\n. Do NOT use literal newlines inside strings.
 
 STRICT JSON: Respond ONLY with a valid JSON object matching this schema:
 {{

@@ -1,6 +1,6 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { client, type Flashcard } from '../api/client';
-import { Loader2, Brain, Check, X, RotateCcw, TrendingUp, Undo2, HelpCircle } from 'lucide-react';
+import { Loader2, Brain, Check, Undo2, TrendingUp } from 'lucide-react';
 import clsx from 'clsx';
 import { MarkdownRenderer } from '../components/MarkdownRenderer';
 
@@ -14,16 +14,6 @@ export function ReviewView() {
   const [sessionCount, setSessionCount] = useState(0);
   const [lastReviewedCardId, setLastReviewedCardId] = useState<number | null>(null);
   const [undoLoading, setUndoLoading] = useState(false);
-  
-  const answerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (state === 'answer' && answerRef.current) {
-      setTimeout(() => {
-        answerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      }, 50);
-    }
-  }, [state]);
 
   const fetchDueCards = async () => {
     setState('loading');
@@ -47,7 +37,11 @@ export function ReviewView() {
   }, []);
 
   const handleShowAnswer = () => {
-    setState('answer');
+    if (state === 'question') {
+      setState('answer');
+    } else if (state === 'answer') {
+      setState('question');
+    }
   };
 
   const handleRate = async (rating: number) => {
@@ -84,152 +78,220 @@ export function ReviewView() {
     }
   };
 
+  // Keyboard shortcut for spacebar
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't trigger if user is typing in an input (though there shouldn't be one here)
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+      
+      if (e.code === 'Space') {
+        e.preventDefault();
+        if (state === 'question' || state === 'answer') {
+          handleShowAnswer();
+        }
+      }
+
+      if (state === 'answer') {
+        if (e.key === '1') handleRate(1);
+        if (e.key === '2') handleRate(2);
+        if (e.key === '3') handleRate(3);
+        if (e.key === '4') handleRate(4);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [state, currentIndex, cards]); // Need dependencies for handleRate closure
+
   if (state === 'loading') {
-    return <div className="p-8 flex justify-center h-full items-center bg-surface"><Loader2 className="animate-spin text-accent-blue w-8 h-8" strokeWidth={1.5} /></div>;
+    return (
+      <div className="flex-1 flex justify-center items-center bg-surface">
+        <Loader2 className="animate-spin text-primary w-12 h-12" strokeWidth={2.5} />
+      </div>
+    );
   }
 
   if (state === 'done') {
     return (
-      <div className="p-8 max-w-3xl mx-auto flex flex-col items-center justify-center min-h-[60vh] text-center h-full bg-surface">
-        <div className="w-24 h-24 bg-accent-blue/10 text-accent-blue rounded-full flex items-center justify-center mb-6 shadow-[var(--shadow-default)] border border-accent-blue/20">
-          <Check size={48} strokeWidth={1.5} />
-        </div>
-        <h2 className="text-3xl font-semibold text-primary tracking-tight mb-3">You're all caught up!</h2>
-        <p className="text-on-surface-variant max-w-md text-lg">
-          You have no more cards to review right now.
-        </p>
-        
-        <div className="mt-8 bg-surface-container-lowest border border-border-default rounded-[var(--radius-large)] p-6 w-full max-w-sm shadow-[var(--shadow-default)]">
-          <h3 className="text-primary font-semibold mb-4">Session Stats</h3>
-          <div className="flex justify-between items-center bg-surface-container px-4 py-3 rounded-[var(--radius-standard)] border border-outline-variant">
-            <span className="text-on-surface-variant font-medium">Cards Reviewed</span>
-            <span className="text-accent-blue font-bold text-xl">{sessionCount}</span>
+      <div className="flex-1 flex flex-col items-center justify-center p-8 bg-surface">
+        <div className="w-full max-w-lg bg-surface-container-lowest border-4 border-primary p-12 text-center neo-shadow-lg flex flex-col items-center gap-6">
+          <div className="w-24 h-24 bg-secondary border-4 border-primary text-white rounded-full flex items-center justify-center neo-shadow">
+            <Check size={48} strokeWidth={4} />
           </div>
+          <h2 className="text-4xl font-black text-primary uppercase tracking-tight">You're all caught up!</h2>
+          <p className="text-on-surface-variant font-medium text-lg">
+            No more cards to review right now.
+          </p>
+          
+          <div className="w-full mt-4 p-4 border-4 border-primary bg-primary-container text-on-primary-container flex justify-between items-center neo-shadow">
+            <span className="font-bold uppercase tracking-wider text-sm">Session Stats</span>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-bold">Cards Reviewed:</span>
+              <span className="bg-secondary text-white px-3 py-1 font-black rounded-sm border-2 border-primary">{sessionCount}</span>
+            </div>
+          </div>
+          
+          <button 
+            onClick={fetchDueCards}
+            className="w-full mt-4 py-4 bg-primary text-white font-black uppercase text-xl border-4 border-primary neo-shadow hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all"
+          >
+            Check Again
+          </button>
         </div>
-        
-        <button 
-          onClick={fetchDueCards}
-          className="mt-8 flex items-center gap-2 text-on-surface-variant hover:text-primary font-medium transition-colors duration-200"
-        >
-          <RotateCcw size={16} strokeWidth={1.5} /> Check again
-        </button>
       </div>
     );
   }
 
   const currentCard = cards[currentIndex];
+  const isFlipped = state === 'answer';
 
   return (
-    <div className="p-8 max-w-3xl mx-auto flex flex-col h-full overflow-y-auto bg-surface">
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h2 className="text-2xl font-semibold text-primary tracking-tight flex items-center gap-2">
-            Study Session
-            {sessionCount === 0 && (
-              <span className="group relative inline-flex">
-                <HelpCircle size={16} className="text-on-surface-variant cursor-help" strokeWidth={1.5} />
-                <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-48 bg-surface-container-highest text-primary text-xs px-3 py-2 rounded-[var(--radius-standard)] opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none text-center shadow-[var(--shadow-default)] border border-border-default">
-                  Rate your recall honestly to let FSRS schedule the next review optimally.
-                </span>
-              </span>
-            )}
-          </h2>
-          <p className="text-on-surface-variant text-sm mt-1 font-medium">Reviewing {currentIndex + 1} of {cards.length}</p>
+    <div className="flex-1 flex flex-col h-full overflow-hidden bg-surface">
+      {/* Header */}
+      <header className="h-20 border-b-4 border-primary flex items-center justify-between px-8 bg-surface-container-lowest z-10 shrink-0">
+        <div className="flex items-center gap-4">
+          <h2 className="text-2xl font-black text-primary uppercase tracking-tight">Study Center</h2>
+          <div className="h-6 w-1 bg-outline-variant"></div>
+          <div className="flex items-center gap-2 px-3 py-1 bg-surface-container rounded-full border-2 border-primary">
+            <span className="w-2 h-2 rounded-full bg-secondary animate-pulse"></span>
+            <span className="text-xs font-bold uppercase tracking-wider text-on-surface-variant">Focus Mode Active</span>
+          </div>
         </div>
+        
         <div className="flex items-center gap-4">
           {lastReviewedCardId && sessionCount > 0 && (
              <button 
                onClick={handleUndo}
                disabled={undoLoading}
-               className="flex items-center gap-1.5 text-sm font-medium text-on-surface-variant hover:text-primary transition-colors duration-200 disabled:opacity-50"
+               className="flex items-center gap-2 px-4 py-2 border-4 border-primary bg-surface-container-lowest font-bold text-primary neo-shadow-sm active:translate-x-0.5 active:translate-y-0.5 active:shadow-none transition-all disabled:opacity-50"
              >
-               {undoLoading ? <Loader2 size={14} className="animate-spin" strokeWidth={2} /> : <Undo2 size={14} strokeWidth={1.5} />}
-               Undo Last
+               {undoLoading ? <Loader2 size={16} className="animate-spin" strokeWidth={3} /> : <Undo2 size={16} strokeWidth={3} />}
+               UNDO LAST
              </button>
           )}
-          <div className="bg-surface-container-lowest border border-border-default px-4 py-2 rounded-full shadow-[var(--shadow-default)] flex items-center gap-2 text-sm font-medium text-primary">
-            <TrendingUp size={16} className="text-accent-blue" strokeWidth={1.5} />
-            Stability: {currentCard.stability.toFixed(1)} days
+          <div className="px-4 py-2 bg-secondary-container border-4 border-primary font-bold text-on-secondary-container flex items-center gap-2 neo-shadow-sm">
+            <TrendingUp size={18} strokeWidth={3} />
+            STABILITY: {currentCard.stability.toFixed(1)}D
           </div>
         </div>
-      </div>
+      </header>
 
-      <div className="flex-1 flex flex-col mb-12">
-        <div className="bg-white rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-8 md:p-12 min-h-[400px] flex flex-col relative overflow-hidden transition-all duration-500">
-          
-          {/* Context Breadcrumb */}
-          <div className="flex items-center justify-between mb-8">
-            <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-accent-blue bg-blue-50/50 px-3 py-1.5 rounded-full">
-              <Brain size={14} strokeWidth={1.5} />
-              {currentCard.topic_name}
-            </div>
+      {/* Main Study Zone */}
+      <div className="flex-1 overflow-y-auto flex flex-col items-center justify-center p-8 lg:p-12">
+        
+        {/* Progress Header */}
+        <div className="w-full max-w-[800px] flex justify-between items-end mb-8 shrink-0">
+          <div className="flex flex-col gap-2">
+            <span className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Session Progress</span>
             <div className="flex items-center gap-2">
-              <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest bg-slate-50 px-2.5 py-1 rounded-full">
-                {currentCard.concept_type}
-              </div>
-              <div className="text-[10px] text-emerald-600 font-bold uppercase tracking-widest bg-emerald-50 px-2.5 py-1 rounded-full">
-                {['New', 'Learning', 'Review', 'Relearning'][currentCard.state] || 'Unknown'}
-              </div>
+              <span className="text-2xl font-black text-primary">{currentIndex + 1}</span>
+              <span className="text-on-surface-variant font-bold">/ {cards.length} CARDS</span>
             </div>
           </div>
+        </div>
 
-          {/* Question */}
-          <div className="prose prose-slate prose-lg max-w-none mb-8 font-serif text-slate-800 leading-relaxed">
-            <MarkdownRenderer content={currentCard.question} />
-          </div>
-
-          {/* Answer Section */}
-          {state === 'answer' && (
-            <div ref={answerRef} className="animate-in fade-in slide-in-from-bottom-4 duration-500 fill-mode-both ease-out">
-              {/* Elegant Divider */}
-              <div className="w-full h-px bg-gradient-to-r from-transparent via-slate-200 to-transparent my-10 relative flex justify-center items-center">
-                <div className="bg-white px-4 flex gap-1.5">
-                  <div className="w-1.5 h-1.5 rounded-full bg-slate-200"></div>
-                  <div className="w-1.5 h-1.5 rounded-full bg-slate-300"></div>
-                  <div className="w-1.5 h-1.5 rounded-full bg-slate-200"></div>
+        {/* 3D Flashcard Container */}
+        <div className="relative w-full max-w-[800px] aspect-[1.5/1] min-h-[400px] group mb-12 shrink-0">
+          <div className={clsx(
+            "flashcard-inner w-full h-full relative cursor-pointer",
+            isFlipped && "flashcard-flipped"
+          )} onClick={handleShowAnswer}>
+            
+            {/* Front of Card */}
+            <div className="flashcard-face absolute inset-0 bg-surface-container-lowest border-4 border-primary neo-shadow-lg flex flex-col overflow-hidden">
+              <div className="p-8 flex justify-between items-center border-b-4 border-primary bg-primary-container text-on-primary-container">
+                <span className="text-sm font-bold uppercase tracking-widest text-secondary flex items-center gap-2">
+                  <Brain size={18} strokeWidth={3} />
+                  {currentCard.topic_name}
+                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-black uppercase tracking-widest bg-surface-container-highest text-primary px-3 py-1 border-2 border-primary">
+                    {currentCard.concept_type}
+                  </span>
+                  <span className="text-xs font-black uppercase tracking-widest bg-emerald-100 text-emerald-800 px-3 py-1 border-2 border-primary">
+                    {['New', 'Learning', 'Review', 'Relearning'][currentCard.state] || 'Unknown'}
+                  </span>
                 </div>
               </div>
-
-              {/* Answer Text */}
-              <div className="prose prose-slate max-w-none text-slate-700">
-                <MarkdownRenderer content={currentCard.answer} />
+              <div className="flex-1 flex flex-col justify-center items-center text-center p-12 overflow-y-auto custom-scrollbar">
+                <div className="prose prose-lg max-w-none prose-p:font-sans prose-p:font-bold prose-p:text-2xl prose-p:leading-tight prose-p:text-primary prose-headings:font-bold prose-headings:text-primary">
+                  <MarkdownRenderer content={currentCard.question} />
+                </div>
+                <div className="mt-12 flex items-center gap-2 text-on-surface-variant animate-pulse opacity-70">
+                  <span className="text-sm font-bold uppercase tracking-widest bg-surface-container-high px-3 py-1 border-2 border-outline-variant rounded-md">SPACE</span>
+                  <span className="font-bold">or TAP TO REVEAL</span>
+                </div>
               </div>
             </div>
-          )}
-          
-          <div className="flex-1"></div>
+
+            {/* Back of Card */}
+            <div className="flashcard-face flashcard-back absolute inset-0 bg-surface-container-lowest border-4 border-primary neo-shadow-lg flex flex-col overflow-hidden">
+              <div className="p-8 flex justify-between items-center border-b-4 border-primary bg-secondary-fixed text-on-secondary-fixed">
+                <span className="text-sm font-bold uppercase tracking-widest flex items-center gap-2">
+                  ANSWER REVEALED
+                </span>
+                <span className="text-xs font-bold opacity-70">
+                  RATE YOUR MEMORY BELOW
+                </span>
+              </div>
+              <div className="flex-1 flex flex-col justify-center items-center text-center p-12 overflow-y-auto custom-scrollbar">
+                <div className="prose prose-lg max-w-none prose-p:font-sans prose-p:font-bold prose-p:text-2xl prose-p:leading-tight prose-p:text-primary prose-headings:font-bold prose-headings:text-primary">
+                  <MarkdownRenderer content={currentCard.answer} />
+                </div>
+              </div>
+            </div>
+
+          </div>
         </div>
 
-        {/* Controls */}
-        <div className="mt-8 px-4">
-          {state === 'question' ? (
-            <button 
-              onClick={handleShowAnswer}
-              className="w-full bg-accent-blue hover:bg-accent-blue/90 text-white text-xl font-bold py-5 rounded-[var(--radius-large)] shadow-[var(--shadow-default)] hover:shadow-[var(--shadow-md)] transition-all duration-200"
-            >
-              Show Answer
-            </button>
-          ) : (
-            <div className="grid grid-cols-4 gap-4">
-              <button onClick={() => handleRate(1)} className="bg-surface-container-lowest hover:bg-error/10 border border-border-default hover:border-error/50 text-error hover:text-error/80 font-semibold py-4 rounded-[var(--radius-large)] transition-all duration-200 flex flex-col items-center gap-1 group">
-                <span className="text-lg">Again</span>
-                <span className="text-xs opacity-70 group-hover:opacity-100">&lt; 1m</span>
-              </button>
-              <button onClick={() => handleRate(2)} className="bg-surface-container-lowest hover:bg-amber-500/10 border border-border-default hover:border-amber-500/50 text-amber-600 hover:text-amber-500 font-semibold py-4 rounded-[var(--radius-large)] transition-all duration-200 flex flex-col items-center gap-1 group">
-                <span className="text-lg">Hard</span>
-                <span className="text-xs opacity-70 group-hover:opacity-100">~ 5m</span>
-              </button>
-              <button onClick={() => handleRate(3)} className="bg-surface-container-lowest hover:bg-accent-blue/10 border border-border-default hover:border-accent-blue/50 text-accent-blue hover:text-accent-blue/80 font-semibold py-4 rounded-[var(--radius-large)] transition-all duration-200 flex flex-col items-center gap-1 group">
-                <span className="text-lg">Good</span>
-                <span className="text-xs opacity-70 group-hover:opacity-100">~ 10m</span>
-              </button>
-              <button onClick={() => handleRate(4)} className="bg-surface-container-lowest hover:bg-cyan-500/10 border border-border-default hover:border-cyan-500/50 text-cyan-600 hover:text-cyan-500 font-semibold py-4 rounded-[var(--radius-large)] transition-all duration-200 flex flex-col items-center gap-1 group">
-                <span className="text-lg">Easy</span>
-                <span className="text-xs opacity-70 group-hover:opacity-100">~ 4d</span>
-              </button>
-            </div>
-          )}
+        {/* Study Controls */}
+        <div className={clsx(
+          "w-full max-w-[800px] grid grid-cols-4 gap-6 transition-all duration-300 shrink-0",
+          !isFlipped && "opacity-20 pointer-events-none grayscale"
+        )}>
+          <button 
+            onClick={() => handleRate(1)}
+            disabled={!isFlipped}
+            className="flex flex-col items-center justify-center gap-2 p-6 bg-error-container text-on-error-container border-4 border-primary neo-shadow hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all cursor-pointer"
+          >
+            <span className="text-xs font-black opacity-60 bg-white/50 px-2 py-0.5 rounded-sm mb-1 border-2 border-primary/30">1</span>
+            <span className="text-2xl font-black uppercase">Again</span>
+            <span className="text-sm font-bold opacity-80">&lt; 1m</span>
+          </button>
+
+          <button 
+            onClick={() => handleRate(2)}
+            disabled={!isFlipped}
+            className="flex flex-col items-center justify-center gap-2 p-6 bg-amber-200 text-amber-900 border-4 border-primary neo-shadow hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all cursor-pointer"
+          >
+            <span className="text-xs font-black opacity-60 bg-white/50 px-2 py-0.5 rounded-sm mb-1 border-2 border-primary/30">2</span>
+            <span className="text-2xl font-black uppercase">Hard</span>
+            <span className="text-sm font-bold opacity-80">~ 5m</span>
+          </button>
+
+          <button 
+            onClick={() => handleRate(3)}
+            disabled={!isFlipped}
+            className="flex flex-col items-center justify-center gap-2 p-6 bg-secondary-fixed text-on-secondary-fixed border-4 border-primary neo-shadow hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all cursor-pointer"
+          >
+            <span className="text-xs font-black opacity-60 bg-white/50 px-2 py-0.5 rounded-sm mb-1 border-2 border-primary/30">3</span>
+            <span className="text-2xl font-black uppercase">Good</span>
+            <span className="text-sm font-bold opacity-80">~ 10m</span>
+          </button>
+
+          <button 
+            onClick={() => handleRate(4)}
+            disabled={!isFlipped}
+            className="flex flex-col items-center justify-center gap-2 p-6 bg-cyan-200 text-cyan-900 border-4 border-primary neo-shadow hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all cursor-pointer"
+          >
+            <span className="text-xs font-black opacity-60 bg-white/50 px-2 py-0.5 rounded-sm mb-1 border-2 border-primary/30">4</span>
+            <span className="text-2xl font-black uppercase">Easy</span>
+            <span className="text-sm font-bold opacity-80">~ 4d</span>
+          </button>
         </div>
+
       </div>
     </div>
   );

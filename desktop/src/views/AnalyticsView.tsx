@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { client } from '../api/client';
 import { 
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer 
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  Cell
 } from 'recharts';
-import { Activity, Book, Layers, Brain, CheckCircle2, TrendingUp, Clock, AlertCircle } from 'lucide-react';
+import { Book, Layers, Brain, CheckCircle2, Download, Share2, AlertCircle, TrendingUp } from 'lucide-react';
 import clsx from 'clsx';
 
 export function AnalyticsView() {
@@ -28,17 +29,17 @@ export function AnalyticsView() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full bg-surface">
-        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-accent-blue"></div>
+      <div className="flex items-center justify-center h-full bg-[#f0f0f0]">
+        <div className="animate-spin rounded-full h-12 w-12 border-[4px] border-black border-t-blue-500"></div>
       </div>
     );
   }
 
   if (!stats) {
     return (
-      <div className="flex items-center justify-center h-full bg-surface text-on-surface-variant flex-col gap-2">
-        <AlertCircle size={32} strokeWidth={1.5} />
-        <p>Could not load analytics data.</p>
+      <div className="flex items-center justify-center h-full bg-[#f0f0f0] text-black flex-col gap-4 font-bold">
+        <AlertCircle size={48} strokeWidth={2.5} />
+        <p className="text-xl">Could not load analytics data.</p>
       </div>
     );
   }
@@ -46,157 +47,208 @@ export function AnalyticsView() {
   const { totals, queue, fsrs_metrics, forecast_7d } = stats;
 
   const StatCard = ({ title, value, icon: Icon, colorClass, subtitle }: any) => (
-    <div className="bg-surface-container-lowest border border-border-default rounded-[var(--radius-large)] p-5 shadow-[var(--shadow-default)] relative overflow-hidden group hover:border-border-hover hover:shadow-[var(--shadow-md)] transition-all duration-200 flex flex-col min-h-[120px]">
-      <div className={clsx("absolute top-0 right-0 w-24 h-24 -mr-8 -mt-8 rounded-full blur-2xl opacity-10 transition-opacity group-hover:opacity-20", colorClass)} />
-      <div className="flex items-center gap-3 relative mb-4">
-        <div className={clsx("p-2 rounded-[var(--radius-standard)] border border-outline-variant shrink-0", colorClass.replace('bg-', 'text-').replace('/10', ''), "bg-surface-container")}>
-          <Icon size={18} strokeWidth={1.5} />
+    <div className={clsx("border-[3px] border-black neo-shadow p-5 relative overflow-hidden transition-all duration-200 hover:-translate-y-1 flex flex-col min-h-[140px] justify-between gap-4", colorClass)}>
+      <div className="flex items-center gap-3">
+        <div className="p-2 border-2 border-black bg-white rounded-md shrink-0 flex items-center justify-center">
+          <Icon size={22} strokeWidth={2.5} className="text-black" />
         </div>
-        <h3 className="text-sm font-medium text-on-surface-variant leading-snug">{title}</h3>
+        <h3 className="text-sm lg:text-base font-black text-black uppercase tracking-wider break-words min-w-0 leading-tight">
+          {title}
+        </h3>
       </div>
-      <div className="relative mt-auto">
-        <div className="text-3xl font-bold text-primary">{value}</div>
-        {subtitle && <p className="text-xs text-on-surface-variant mt-1">{subtitle}</p>}
+      <div>
+        <div className="text-4xl font-black text-black">{value}</div>
+        {subtitle && <p className="text-xs font-bold text-black mt-1 opacity-80">{subtitle}</p>}
       </div>
     </div>
   );
 
+  const colors = ['#3b82f6', '#eab308', '#22c55e', '#ef4444', '#a855f7', '#f97316', '#ec4899'];
+
+  const QueueItem = ({ label, count, total, color }: any) => {
+    const percentage = total > 0 ? Math.round((count / total) * 100) : 0;
+    return (
+      <div className="mb-4 last:mb-0">
+        <div className="flex justify-between font-bold mb-2">
+          <span className="text-black uppercase tracking-wide text-sm">{label}</span>
+          <span className="text-black">{count}</span>
+        </div>
+        <div className="h-4 border-[3px] border-black bg-white rounded-full overflow-hidden">
+          <div 
+            className="h-full border-r-[3px] border-black last:border-r-0"
+            style={{ width: `${percentage}%`, backgroundColor: color }}
+          />
+        </div>
+      </div>
+    );
+  };
+  
+  const totalQueue = (queue.new || 0) + (queue.learning || 0) + (queue.review || 0);
+
   return (
-    <div className="p-8 max-w-6xl mx-auto w-full flex-1 overflow-y-auto bg-surface">
-      <div className="mb-8">
-        <h2 className="text-3xl font-semibold text-primary tracking-tight">Analytics Overview</h2>
-        <p className="text-on-surface-variant mt-2">Track your learning progress and spaced repetition metrics.</p>
+    <div className="p-8 max-w-7xl mx-auto w-full flex-1 overflow-y-auto bg-[#f4f4f0] font-sans selection:bg-black selection:text-white pb-20">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-10 gap-6">
+        <div>
+          <h2 className="text-4xl md:text-5xl font-black text-black tracking-tight mb-2">Learning Analytics</h2>
+          <p className="text-lg font-bold text-black/70 max-w-2xl border-l-[4px] border-black pl-4 py-1">
+            Visualizing your knowledge acquisition, retention rates, and study performance across all digital workspaces.
+          </p>
+        </div>
+        <div className="flex gap-4">
+          <button 
+            onClick={() => console.log('Download Report')}
+            className="flex items-center gap-2 px-6 py-3 bg-white text-black font-bold uppercase tracking-wide border-[3px] border-black neo-shadow hover:bg-yellow-400 transition-colors active:translate-y-1 active:translate-x-1 active:shadow-none"
+          >
+            <Download size={20} strokeWidth={2.5} /> Download Report
+          </button>
+          <button 
+            onClick={() => console.log('Share Data')}
+            className="flex items-center gap-2 px-6 py-3 bg-blue-500 text-white font-bold uppercase tracking-wide border-[3px] border-black neo-shadow hover:bg-blue-600 transition-colors active:translate-y-1 active:translate-x-1 active:shadow-none"
+          >
+            <Share2 size={20} strokeWidth={2.5} /> Share Data
+          </button>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-10">
         <StatCard 
-          title="Total Documents" 
+          title="Documents" 
           value={totals.books} 
           icon={Book} 
-          colorClass="bg-accent-blue/10 text-accent-blue"
+          colorClass="bg-blue-400"
         />
         <StatCard 
-          title="Extracted Topics" 
+          title="Topics" 
           value={totals.topics} 
           icon={Layers} 
-          colorClass="bg-indigo-500/10 text-indigo-600"
+          colorClass="bg-purple-400"
         />
         <StatCard 
-          title="Total Flashcards" 
+          title="Flashcards" 
           value={totals.flashcards} 
           icon={Brain} 
-          colorClass="bg-amber-500/10 text-amber-600"
+          colorClass="bg-yellow-400"
         />
         <StatCard 
-          title="Reviews Completed" 
+          title="Reviews" 
           value={totals.total_reviews} 
           icon={CheckCircle2} 
-          colorClass="bg-accent-blue/10 text-accent-blue"
+          colorClass="bg-green-400"
         />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-        <div className="lg:col-span-2 bg-surface-container-lowest border border-border-default rounded-[var(--radius-large)] p-6 shadow-[var(--shadow-default)]">
-          <div className="flex items-center gap-2 mb-6">
-            <TrendingUp size={20} className="text-accent-blue" strokeWidth={1.5} />
-            <h3 className="text-lg font-semibold text-primary">7-Day Forecast</h3>
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-10">
+        {/* Chart Section */}
+        <div className="xl:col-span-2 bg-white border-[3px] border-black neo-shadow p-6 lg:p-8 flex flex-col">
+          <div className="flex items-center gap-3 mb-8 border-b-[3px] border-black pb-4">
+            <TrendingUp size={28} strokeWidth={2.5} className="text-black" />
+            <h3 className="text-2xl font-black uppercase tracking-wide text-black">7-Day Forecast</h3>
           </div>
-          <div className="h-64">
+          <div className="h-[350px] w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={forecast_7d} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#c6c6cd" vertical={false} />
+              <BarChart data={forecast_7d} margin={{ top: 20, right: 10, left: -20, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="0" stroke="#000" vertical={false} strokeWidth={2} />
                 <XAxis 
                   dataKey="date" 
-                  stroke="#76777d" 
-                  tick={{fill: '#76777d', fontSize: 12}} 
-                  tickLine={false}
-                  axisLine={false}
+                  stroke="#000" 
+                  tick={{fill: '#000', fontSize: 14, fontWeight: 'bold'}} 
+                  tickLine={{stroke: '#000', strokeWidth: 2}}
+                  axisLine={{stroke: '#000', strokeWidth: 3}}
                   tickFormatter={(val: string) => {
-                    // Prevent UTC timezone shift by splitting the YYYY-MM-DD string
                     const [, m, d] = val.split('-');
                     return `${parseInt(m)}/${parseInt(d)}`;
                   }}
+                  dy={10}
                 />
                 <YAxis 
-                  stroke="#76777d" 
-                  tick={{fill: '#76777d', fontSize: 12}} 
-                  tickLine={false}
-                  axisLine={false}
+                  stroke="#000" 
+                  tick={{fill: '#000', fontSize: 14, fontWeight: 'bold'}} 
+                  tickLine={{stroke: '#000', strokeWidth: 2}}
+                  axisLine={{stroke: '#000', strokeWidth: 3}}
                 />
                 <Tooltip 
-                  contentStyle={{ backgroundColor: '#ffffff', borderColor: '#E2E8F0', borderRadius: '6px' }}
-                  itemStyle={{ color: '#2563EB' }}
-                  labelStyle={{ color: '#45464d', marginBottom: '4px' }}
+                  cursor={{fill: 'rgba(0,0,0,0.05)'}}
+                  contentStyle={{ 
+                    backgroundColor: '#fff', 
+                    border: '3px solid #000', 
+                    boxShadow: '4px 4px 0px 0px rgba(0,0,0,1)',
+                    borderRadius: '0',
+                    fontWeight: 'bold',
+                    padding: '12px'
+                  }}
+                  itemStyle={{ color: '#000', fontWeight: '900', fontSize: '18px' }}
+                  labelStyle={{ color: '#000', marginBottom: '8px', textTransform: 'uppercase', fontSize: '12px' }}
                   formatter={(value: any) => [value, 'Due Cards']}
                   labelFormatter={(label: any) => {
-                     // Append T12:00:00 to prevent local timezone from shifting the date backwards
                      return new Date(label + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
                   }}
                 />
                 <Bar 
                   dataKey="due_count" 
-                  fill="#2563EB" 
-                  radius={[4, 4, 0, 0]} 
-                  barSize={40}
-                  animationDuration={1500}
-                />
+                  radius={[0, 0, 0, 0]} 
+                  barSize={50}
+                  animationDuration={1000}
+                >
+                  {
+                    forecast_7d.map((entry: any, index: number) => (
+                      <Cell key={`cell-${index}`} fill={colors[index % colors.length]} stroke="#000" strokeWidth={3} />
+                    ))
+                  }
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           </div>
         </div>
 
-        <div className="bg-surface-container-lowest border border-border-default rounded-[var(--radius-large)] p-6 shadow-[var(--shadow-default)] flex flex-col">
-          <div className="flex items-center gap-2 mb-6">
-            <Activity size={20} className="text-indigo-600" strokeWidth={1.5} />
-            <h3 className="text-lg font-semibold text-primary">Current Queue</h3>
+        {/* Queue / Subject Breakdown Section */}
+        <div className="bg-white border-[3px] border-black neo-shadow p-6 lg:p-8 flex flex-col">
+          <div className="mb-8 border-b-[3px] border-black pb-4">
+            <h3 className="text-2xl font-black uppercase tracking-wide text-black">Current Queue</h3>
           </div>
-          <div className="flex-1 flex flex-col justify-center gap-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-3 h-3 rounded-full bg-accent-blue"></div>
-                <span className="text-on-surface font-medium">New Cards</span>
+          
+          <div className="flex-1 flex flex-col justify-center mb-8">
+            <QueueItem label="New Cards" count={queue.new} total={totalQueue} color="#3b82f6" />
+            <QueueItem label="Learning" count={queue.learning} total={totalQueue} color="#eab308" />
+            <QueueItem label="To Review" count={queue.review} total={totalQueue} color="#a855f7" />
+          </div>
+          
+          <div className="mt-auto">
+            <div className="bg-red-400 border-[3px] border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] p-5 flex items-center justify-between transition-transform hover:-translate-y-1">
+              <div className="text-black font-black uppercase tracking-wide">
+                Due Now
               </div>
-              <span className="text-xl font-semibold text-primary">{queue.new}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-3 h-3 rounded-full bg-amber-500"></div>
-                <span className="text-on-surface font-medium">Learning</span>
-              </div>
-              <span className="text-xl font-semibold text-primary">{queue.learning}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-3 h-3 rounded-full bg-accent-blue"></div>
-                <span className="text-on-surface font-medium">To Review</span>
-              </div>
-              <span className="text-xl font-semibold text-primary">{queue.review}</span>
-            </div>
-            
-            <div className="mt-4 pt-6 border-t border-outline-variant">
-              <div className="bg-accent-blue/10 border border-accent-blue/20 rounded-[var(--radius-large)] p-4 flex items-center justify-between">
-                <div className="flex items-center gap-2 text-accent-blue font-medium">
-                  <Clock size={18} strokeWidth={1.5} /> Due Now
-                </div>
-                <span className="text-2xl font-bold text-accent-blue">{queue.due_now}</span>
-              </div>
+              <span className="text-3xl font-black text-white px-3 bg-black border-2 border-black rounded-sm shadow-[2px_2px_0px_0px_rgba(255,255,255,0.5)]">
+                {queue.due_now}
+              </span>
             </div>
           </div>
         </div>
       </div>
       
-      <div className="bg-surface-container-lowest border border-border-default rounded-[var(--radius-large)] p-6 shadow-[var(--shadow-default)]">
-        <h3 className="text-lg font-semibold text-primary mb-6">Algorithm Health (FSRS)</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="p-4 bg-surface-container rounded-[var(--radius-standard)] border border-outline-variant">
-            <div className="text-sm font-medium text-on-surface-variant mb-1">Average Memory Stability</div>
-            <div className="text-2xl font-bold text-primary">{fsrs_metrics.average_stability_days} <span className="text-sm font-normal text-on-surface-variant">days</span></div>
-            <p className="text-xs text-on-surface-variant mt-2">How long you will remember information before forgetting.</p>
+      {/* Algorithm Health / Table replacement */}
+      <div className="bg-white border-[3px] border-black neo-shadow p-6 lg:p-8">
+        <h3 className="text-2xl font-black uppercase tracking-wide text-black mb-6 border-b-[3px] border-black pb-4">
+          Algorithm Health (FSRS)
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div className="flex flex-col md:flex-row gap-6 items-center p-6 bg-[#f4f4f0] border-[3px] border-black hover:bg-green-100 transition-colors">
+            <div className="w-24 h-24 bg-green-400 border-[3px] border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex items-center justify-center shrink-0 rounded-full">
+              <span className="text-2xl font-black">{fsrs_metrics.average_stability_days}d</span>
+            </div>
+            <div>
+              <div className="text-lg font-black uppercase tracking-wide mb-1 text-black">Memory Stability</div>
+              <p className="text-sm font-bold text-black/70">Average time before you forget information.</p>
+            </div>
           </div>
-          <div className="p-4 bg-surface-container rounded-[var(--radius-standard)] border border-outline-variant">
-            <div className="text-sm font-medium text-on-surface-variant mb-1">Average Card Difficulty</div>
-            <div className="text-2xl font-bold text-primary">{fsrs_metrics.average_difficulty} <span className="text-sm font-normal text-on-surface-variant">/ 10</span></div>
-            <p className="text-xs text-on-surface-variant mt-2">Inherent complexity of your flashcards.</p>
+          
+          <div className="flex flex-col md:flex-row gap-6 items-center p-6 bg-[#f4f4f0] border-[3px] border-black hover:bg-orange-100 transition-colors">
+            <div className="w-24 h-24 bg-orange-400 border-[3px] border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex items-center justify-center shrink-0 rounded-full">
+              <span className="text-2xl font-black">{fsrs_metrics.average_difficulty}<span className="text-sm">/10</span></span>
+            </div>
+            <div>
+              <div className="text-lg font-black uppercase tracking-wide mb-1 text-black">Card Difficulty</div>
+              <p className="text-sm font-bold text-black/70">Inherent complexity of your current flashcards.</p>
+            </div>
           </div>
         </div>
       </div>

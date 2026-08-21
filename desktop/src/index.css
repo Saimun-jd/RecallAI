@@ -25,7 +25,9 @@
   --color-inverse-on-surface: #eff1f3;
   
   /* Primary (Deep Slate) */
-  --color-primary: #0F172A;
+  --color-primary: #004ac6;
+  --color-on-primary: #ffffff;
+  --color-on-background: #1b1b1b;
   --color-on-primary: #ffffff;
   --color-primary-container: #131b2e;
   --color-on-primary-container: #7c839b;
@@ -252,6 +254,41 @@
     @apply py-6 text-center;
     font-size: var(--font-size-body-md);
     color: var(--color-on-surface-variant);
+  }
+}
+
+@layer utilities {
+  .neo-shadow {
+    box-shadow: 4px 4px 0px 0px rgba(0,0,0,1);
+  }
+  .neo-shadow-lg {
+    box-shadow: 8px 8px 0px 0px rgba(0,0,0,1);
+  }
+  .neo-border {
+    border: 3px solid #1b1b1b;
+  }
+  .neo-shadow-button:active {
+    transform: translate(4px, 4px);
+    box-shadow: 0px 0px 0px 0px rgba(0,0,0,1);
+  }
+  .neo-shadow-card:hover {
+    transform: translate(-2px, -2px);
+    box-shadow: 8px 8px 0px 0px rgba(0,0,0,1);
+  }
+  
+  .flashcard-inner {
+    perspective: 1000px;
+    transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+    transform-style: preserve-3d;
+  }
+  .flashcard-flipped {
+    transform: rotateY(180deg);
+  }
+  .flashcard-face {
+    backface-visibility: hidden;
+  }
+  .flashcard-back {
+    transform: rotateY(180deg);
   }
 }
 

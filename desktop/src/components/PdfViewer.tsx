@@ -241,13 +241,15 @@ export function PdfViewer({
       ref={containerRef}
     >
       <style>{`
-        /* Elevate HighlightLayer above textLayer to ensure clicks register on highlights */
+        /* Elevate HighlightLayer above textLayer to ensure clicks register on watermark icons */
         .PdfHighlighter .HighlightLayer {
           z-index: 10 !important;
+          pointer-events: none !important;
         }
-        /* Ensure textLayer stays below but still enables text selection */
+        /* Ensure textLayer stays below but fully receives text selection events */
         .PdfHighlighter .textLayer {
           z-index: 2 !important;
+          pointer-events: auto !important;
         }
       `}</style>
       <PdfLoader

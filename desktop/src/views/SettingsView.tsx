@@ -5,7 +5,7 @@ import { setActiveProvider, setFallbackToCloud, setShowAttributionTags, setConfi
 import { loadSettings, saveSetting, saveSettingsStore } from '../api/settingsStore';
 import { getApiKey, saveApiKey, removeApiKey, saveKeychain } from '../api/keychain';
 import { client } from '../api/client';
-import { Settings, Save, Loader2, Key, Cpu, ShieldCheck, HardDrive, Cloud, Info } from 'lucide-react';
+import { Loader2, ChevronDown, Keyboard, LifeBuoy, ExternalLink, MessageSquare, Users, Megaphone, ArrowRight } from 'lucide-react';
 import clsx from 'clsx';
 
 export function SettingsView() {
@@ -126,241 +126,246 @@ export function SettingsView() {
 
   if (loading) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center min-h-[500px]">
-        <Loader2 className="w-8 h-8 animate-spin text-accent-blue mb-4" strokeWidth={1.5} />
-        <p className="text-on-surface-variant">Loading settings...</p>
-        <p className="text-on-surface-variant text-sm mt-2">{loadingStep}</p>
+      <div className="flex-1 flex flex-col items-center justify-center min-h-[500px] bg-surface">
+        <Loader2 className="w-8 h-8 animate-spin text-primary mb-4" strokeWidth={1.5} />
+        <p className="text-on-surface-variant font-bold">Loading settings...</p>
+        <p className="text-on-surface-variant text-sm mt-2 font-bold">{loadingStep}</p>
       </div>
     );
   }
 
-  const ProviderCard = ({ id, name, icon: Icon, description, cost, isLocal }: { id: AIProviderId, name: string, icon: any, description: string, cost: string, isLocal?: boolean }) => {
-    const isSelected = activeProvider === id;
-    return (
-      <label className={clsx(
-        "relative flex flex-col border rounded-[var(--radius-standard)] p-5 cursor-pointer transition-all duration-200",
-        isSelected 
-          ? "border-accent-blue/50 bg-accent-blue/5 ring-1 ring-accent-blue/50" 
-          : "border-border-default bg-surface-container-low hover:border-border-hover hover:bg-surface-container"
-      )}>
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-3">
-            <div className={clsx(
-              "w-5 h-5 rounded-full border flex items-center justify-center transition-colors",
-              isSelected ? "border-accent-blue bg-accent-blue" : "border-outline-variant bg-transparent"
-            )}>
-              {isSelected && <div className="w-2 h-2 bg-white rounded-full" />}
-            </div>
-            <input 
-              type="radio" 
-              name="provider" 
-              value={id} 
-              checked={isSelected} 
-              onChange={() => dispatch(setActiveProvider(id))} 
-              className="sr-only" 
-            />
-            <div className="flex items-center gap-2">
-              <Icon size={16} className={isSelected ? "text-accent-blue" : "text-on-surface-variant"} strokeWidth={1.5} />
-              <span className={clsx("font-semibold", isSelected ? "text-primary" : "text-on-surface")}>{name}</span>
-            </div>
-          </div>
-          {isLocal ? (
-            <span className="flex items-center gap-1 text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-accent-blue/10 text-accent-blue border border-accent-blue/20">
-              <ShieldCheck size={10} strokeWidth={1.5} /> Local
-            </span>
-          ) : (
-            <span className="flex items-center gap-1 text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-secondary/10 text-secondary border border-secondary/20">
-              <Cloud size={10} strokeWidth={1.5} /> Cloud
-            </span>
-          )}
-        </div>
-        <p className="text-sm text-on-surface-variant flex-1 leading-relaxed">{description}</p>
-        <div className="mt-4 flex items-center justify-between border-t border-border-default pt-3">
-          <span className="text-xs text-on-surface-variant font-medium">Cost Estimate</span>
-          <span className={clsx("text-xs font-semibold", isLocal ? "text-accent-blue" : "text-on-surface")}>{cost}</span>
-        </div>
-      </label>
-    );
-  };
-
   return (
-    <div className="p-8 max-w-4xl mx-auto flex flex-col h-full overflow-y-auto">
-      <div className="flex items-center gap-4 mb-8">
-        <div className="w-12 h-12 bg-surface-container text-on-surface rounded-[var(--radius-standard)] flex items-center justify-center border border-border-default">
-          <Settings size={24} strokeWidth={1.5} />
-        </div>
-        <div>
-          <h2 className="text-2xl font-bold text-primary tracking-tight">AI Settings</h2>
-          <p className="text-on-surface-variant text-sm mt-1">Configure your LLM engine and API keys securely.</p>
-        </div>
-      </div>
-
-      <div className="space-y-8 pb-20">
+    <div className="flex-1 overflow-y-auto bg-surface custom-scrollbar text-on-surface">
+      <div className="max-w-[1200px] mx-auto px-8 py-12 flex gap-10">
         
-        {/* Provider Selection */}
-        <section>
-          <h3 className="text-lg font-semibold text-primary flex items-center gap-2 mb-2">
-            <Cpu size={18} className="text-accent-blue" strokeWidth={1.5} />
-            Active AI Provider
-          </h3>
-          <p className="text-sm text-on-surface-variant mb-6">Select the engine used to extract atomic concepts and generate flashcards.</p>
-          
-          <div className="grid grid-cols-2 gap-4">
-            <ProviderCard 
-              id="ollama" 
-              name="Ollama (Gemma 3)" 
-              icon={HardDrive} 
-              description="Runs 100% locally on your machine. Private, secure, and free. Requires sufficient VRAM (8GB+ recommended)."
-              cost="Free"
-              isLocal
-            />
-            <ProviderCard 
-              id="gemini" 
-              name="Gemini 2.5 Flash" 
-              icon={Cloud} 
-              description="Google's lightning-fast multimodal model. High quality and generous free tier."
-              cost="Free Tier Available"
-            />
-            <ProviderCard 
-              id="openai" 
-              name="OpenAI (GPT-4o Mini)" 
-              icon={Cloud} 
-              description="Industry standard for high quality reasoning. Fast and highly capable for complex textbooks."
-              cost="~$0.15 / 1M tokens"
-            />
-            <ProviderCard 
-              id="groq" 
-              name="Groq(gpt-oss-20b)" 
-              icon={Cloud} 
-              description="Ultra-low latency inference using gpt-oss-20b. Extremely fast generation speeds."
-              cost="Free Tier Available"
-            />
+        {/* Left Nav */}
+        <nav className="w-64 shrink-0 flex flex-col gap-10">
+          <div>
+            <p className="text-sm font-extrabold text-black uppercase tracking-tighter mb-4 px-3 border-b-2 border-black pb-1">Account</p>
+            <div className="flex flex-col gap-2">
+              <button className="w-full text-left px-3 py-2 text-sm text-on-surface-variant hover:text-black font-bold uppercase transition-all">Profile</button>
+              <button className="w-full text-left px-3 py-2 text-sm text-on-surface-variant hover:text-black font-bold uppercase transition-all">Account Information</button>
+              <button className="w-full text-left px-3 py-2 text-sm text-on-surface-variant hover:text-black font-bold uppercase transition-all">Security</button>
+            </div>
           </div>
-        </section>
+          <div>
+            <p className="text-sm font-extrabold text-black uppercase tracking-tighter mb-4 px-3 border-b-2 border-black pb-1">Learning</p>
+            <div className="flex flex-col gap-2">
+              <button className="w-full text-left px-3 py-2 neo-border bg-secondary text-white font-black uppercase neo-shadow-sm">AI Preferences</button>
+              <button className="w-full text-left px-3 py-2 text-sm text-on-surface-variant hover:text-black font-bold uppercase transition-all">Study Preferences</button>
+              <button className="w-full text-left px-3 py-2 text-sm text-on-surface-variant hover:text-black font-bold uppercase transition-all">Flashcard Preferences</button>
+            </div>
+          </div>
+          <div>
+            <p className="text-sm font-extrabold text-black uppercase tracking-tighter mb-4 px-3 border-b-2 border-black pb-1">Application</p>
+            <div className="flex flex-col gap-2">
+              <button className="w-full text-left px-3 py-2 text-sm text-on-surface-variant hover:text-black font-bold uppercase transition-all">Notifications</button>
+              <button className="w-full text-left px-3 py-2 text-sm text-on-surface-variant hover:text-black font-bold uppercase transition-all">Appearance</button>
+              <button className="w-full text-left px-3 py-2 text-sm text-on-surface-variant hover:text-black font-bold uppercase transition-all">Language</button>
+            </div>
+          </div>
+          <div>
+            <p className="text-sm font-extrabold text-black uppercase tracking-tighter mb-4 px-3 border-b-2 border-black pb-1">Advanced</p>
+            <div className="flex flex-col gap-2">
+              <button className="w-full text-left px-3 py-2 text-sm text-on-surface-variant hover:text-black font-bold uppercase transition-all">Privacy</button>
+              <button className="w-full text-left px-3 py-2 text-sm text-on-surface-variant hover:text-black font-bold uppercase transition-all">Data Export</button>
+              <button className="w-full text-left px-3 py-2 text-sm text-error hover:bg-black hover:text-white font-black uppercase transition-all">Delete Account</button>
+            </div>
+          </div>
+        </nav>
 
-        {/* Global Settings */}
-        <section>
-          <div className="flex items-center justify-between mb-4 border-b border-border-default pb-2">
-            <h3 className="text-lg font-semibold text-primary flex items-center gap-2">
-              <Settings size={18} className="text-accent-blue" strokeWidth={1.5} />
-              Global Preferences
-            </h3>
-          </div>
-          
-          <div className="space-y-4">
-            <label className="flex items-center justify-between p-4 bg-surface-container-low border border-border-default rounded-[var(--radius-standard)] cursor-pointer hover:border-border-hover transition-all duration-200">
-              <div>
-                <div className="font-medium text-primary">Cloud Fallback</div>
-                <div className="text-sm text-on-surface-variant">If local Ollama fails or is too slow, seamlessly fall back to your configured cloud provider.</div>
-              </div>
-              <input 
-                type="checkbox" 
-                checked={fallbackToCloudEnabled} 
-                onChange={(e) => dispatch(setFallbackToCloud(e.target.checked))} 
-                className="w-5 h-5 rounded-[var(--radius-tag)] border-outline-variant text-accent-blue focus:ring-accent-blue/20 bg-surface-container-lowest" 
-              />
-            </label>
-            <label className="flex items-center justify-between p-4 bg-surface-container-low border border-border-default rounded-[var(--radius-standard)] cursor-pointer hover:border-border-hover transition-all duration-200">
-              <div>
-                <div className="font-medium text-primary">Attribution Tags</div>
-                <div className="text-sm text-on-surface-variant">Append small non-intrusive metadata to flashcards indicating which model generated them.</div>
-              </div>
-              <input 
-                type="checkbox" 
-                checked={showAttributionTags} 
-                onChange={(e) => dispatch(setShowAttributionTags(e.target.checked))} 
-                className="w-5 h-5 rounded-[var(--radius-tag)] border-outline-variant text-accent-blue focus:ring-accent-blue/20 bg-surface-container-lowest" 
-              />
-            </label>
-          </div>
-        </section>
+        {/* Main Content Area */}
+        <div className="flex-1 max-w-[720px] bg-white neo-border neo-shadow-large p-10">
+          <header className="mb-10 border-b-[3px] border-black pb-6">
+            <h2 className="text-3xl font-black uppercase text-primary mb-2 tracking-tight">AI Preferences</h2>
+            <p className="text-base text-on-surface font-bold">Customize how the Recall AI assistant interacts with your research materials.</p>
+          </header>
 
-        {/* Secure API Keys */}
-        <section>
-          <div className="flex items-center justify-between mb-4 border-b border-border-default pb-2">
-            <h3 className="text-lg font-semibold text-primary flex items-center gap-2">
-              <Key size={18} className="text-accent-blue" strokeWidth={1.5} />
-              Secure API Keys
-            </h3>
-            <span className="flex items-center gap-1.5 text-xs text-on-surface-variant font-medium">
-              <ShieldCheck size={14} className="text-accent-blue" strokeWidth={1.5} />
-              Tauri Stronghold Encrypted
-            </span>
-          </div>
-          <p className="text-sm text-on-surface-variant mb-6">Keys never leave your machine. They are encrypted using OS-native secure enclaves via Tauri Stronghold.</p>
-          
-          <div className="space-y-4 max-w-2xl">
-            {['openai', 'gemini', 'groq'].map((p) => (
-              <div key={p} className="flex flex-col gap-1.5">
-                <label className="text-sm font-medium text-primary capitalize">{p} API Key</label>
-                <div className="relative">
-                  <input 
-                    type="password" 
-                    value={keys[p as AIProviderId] ?? ''}
-                    onChange={(e) => setKeys(prev => ({ ...prev, [p]: e.target.value }))}
-                    placeholder={`Enter ${p} key (e.g. ${p === 'openai' ? 'sk-...' : '...'})`}
-                    className="w-full bg-surface-container-low border border-border-default rounded-[var(--radius-standard)] px-4 py-2.5 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-accent-blue/20 focus:border-accent-blue transition-all placeholder:text-on-surface-variant"
-                  />
-                  {keys[p as AIProviderId] && keys[p as AIProviderId]!.length > 0 && (
-                     <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                       <ShieldCheck size={16} className="text-accent-blue/50" strokeWidth={1.5} />
-                     </div>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* Langfuse Telemetry */}
-        <section>
-          <div className="flex items-center justify-between mb-4 border-b border-border-default pb-2">
-            <h3 className="text-lg font-semibold text-primary flex items-center gap-2">
-              <Info size={18} className="text-accent-blue" strokeWidth={1.5} />
-              Langfuse Telemetry
-            </h3>
-          </div>
-          <p className="text-sm text-on-surface-variant mb-6">Connect to Langfuse to track LLM generations, latency, and costs.</p>
-          
-          <div className="space-y-4 max-w-2xl">
-            {['langfuse_secret_key', 'langfuse_public_key', 'langfuse_host'].map((p) => (
-              <div key={p} className="flex flex-col gap-1.5">
-                <label className="text-sm font-medium text-primary capitalize">{p.replace(/_/g, ' ')}</label>
-                <div className="relative">
-                  <input 
-                    type={p.includes('secret') ? 'password' : 'text'} 
-                    value={keys[p] ?? ''}
-                    onChange={(e) => setKeys(prev => ({ ...prev, [p]: e.target.value }))}
-                    placeholder={`Enter ${p}`}
-                    className="w-full bg-surface-container-low border border-border-default rounded-[var(--radius-standard)] px-4 py-2.5 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-accent-blue/20 focus:border-accent-blue transition-all placeholder:text-on-surface-variant"
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* Save Bar */}
-        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-surface-container-low border border-border-default px-6 py-4 rounded-[var(--radius-large)] shadow-[var(--shadow-lg)] z-40">
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="flex items-center gap-2 bg-accent-blue hover:bg-secondary-container text-white px-6 py-2 rounded-[var(--radius-standard)] font-semibold transition-all duration-200 disabled:opacity-50"
-          >
-            {saving ? <Loader2 size={18} className="animate-spin" strokeWidth={1.5} /> : <Save size={18} strokeWidth={1.5} />}
-            Save Preferences
-          </button>
-          
           {message && (
             <div className={clsx(
-              "flex items-center gap-2 px-4 py-2 rounded-[var(--radius-standard)] text-sm font-medium animate-in fade-in slide-in-from-bottom-2",
-              message.type === 'success' ? "bg-accent-blue/10 text-accent-blue" : "bg-error/10 text-error"
+              "mb-8 p-4 neo-border font-bold text-sm uppercase flex items-center gap-2",
+              message.type === 'success' ? "bg-green-300 text-black" : "bg-red-300 text-black"
             )}>
-              {message.type === 'success' ? <ShieldCheck size={16} strokeWidth={1.5} /> : <Info size={16} strokeWidth={1.5} />}
               {message.text}
             </div>
           )}
+
+          <div className="space-y-12">
+            
+            {/* Model Selection */}
+            <section>
+              <label className="block text-sm font-black text-black uppercase mb-3">Preferred AI Model</label>
+              <div className="relative max-w-sm">
+                <select 
+                  value={activeProvider}
+                  onChange={(e) => dispatch(setActiveProvider(e.target.value as AIProviderId))}
+                  className="w-full appearance-none bg-white neo-border px-4 py-3 text-sm focus:bg-surface-container font-bold cursor-pointer uppercase"
+                >
+                  <option value="ollama">Ollama (Gemma 3) - Local & Free</option>
+                  <option value="gemini">Gemini 2.5 Flash - Cloud & Fast</option>
+                  <option value="openai">OpenAI (GPT-4o Mini) - High Quality</option>
+                  <option value="groq">Groq (gpt-oss-20b) - Low Latency</option>
+                </select>
+                <ChevronDown size={20} className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-black font-bold" strokeWidth={3} />
+              </div>
+              <p className="text-xs text-on-surface-variant mt-3 italic font-bold">Higher capability models may consume research tokens faster.</p>
+            </section>
+
+            {/* Global Settings (Toggles) */}
+            <section className="space-y-8 pt-8 border-t-[3px] border-black">
+              <div className="flex items-center justify-between group">
+                <div>
+                  <p className="text-sm font-black text-black uppercase">Cloud Fallback</p>
+                  <p className="text-sm text-on-surface-variant font-bold">Seamlessly fall back to cloud provider if local Ollama fails.</p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    className="sr-only peer" 
+                    checked={fallbackToCloudEnabled}
+                    onChange={(e) => dispatch(setFallbackToCloud(e.target.checked))}
+                  />
+                  <div className={clsx("w-14 h-8 border-[3px] border-black transition-colors flex items-center px-1", fallbackToCloudEnabled ? "bg-secondary" : "bg-white")}>
+                    <div className={clsx("w-4 h-4 transition-all duration-200", fallbackToCloudEnabled ? "bg-white translate-x-[26px]" : "bg-black translate-x-0")}></div>
+                  </div>
+                </label>
+              </div>
+
+              <div className="flex items-center justify-between group">
+                <div>
+                  <p className="text-sm font-black text-black uppercase">Attribution Tags</p>
+                  <p className="text-sm text-on-surface-variant font-bold">Append metadata indicating which model generated flashcards.</p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    className="sr-only peer" 
+                    checked={showAttributionTags}
+                    onChange={(e) => dispatch(setShowAttributionTags(e.target.checked))}
+                  />
+                  <div className={clsx("w-14 h-8 border-[3px] border-black transition-colors flex items-center px-1", showAttributionTags ? "bg-secondary" : "bg-white")}>
+                    <div className={clsx("w-4 h-4 transition-all duration-200", showAttributionTags ? "bg-white translate-x-[26px]" : "bg-black translate-x-0")}></div>
+                  </div>
+                </label>
+              </div>
+            </section>
+
+            {/* Secure API Keys */}
+            <section className="pt-8 border-t-[3px] border-black">
+              <div className="mb-6">
+                <h3 className="text-lg font-black text-black uppercase mb-1">Secure API Keys</h3>
+                <p className="text-sm text-on-surface-variant font-bold">Keys never leave your machine (Tauri Stronghold Encrypted).</p>
+              </div>
+              <div className="space-y-4 max-w-sm">
+                {['openai', 'gemini', 'groq'].map((p) => (
+                  <div key={p} className="flex flex-col gap-2">
+                    <label className="text-xs font-black text-black uppercase">{p} Key</label>
+                    <input 
+                      type="password" 
+                      value={keys[p as AIProviderId] ?? ''}
+                      onChange={(e) => setKeys(prev => ({ ...prev, [p]: e.target.value }))}
+                      placeholder={`Enter ${p} key`}
+                      className="w-full bg-white neo-border px-4 py-2 text-sm text-black focus:outline-none focus:ring-0 focus:bg-surface-container transition-all font-bold"
+                    />
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            {/* Langfuse Telemetry */}
+            <section className="pt-8 border-t-[3px] border-black">
+              <div className="mb-6">
+                <h3 className="text-lg font-black text-black uppercase mb-1">Langfuse Telemetry</h3>
+                <p className="text-sm text-on-surface-variant font-bold">Track LLM generations, latency, and costs.</p>
+              </div>
+              <div className="space-y-4 max-w-sm">
+                {['langfuse_secret_key', 'langfuse_public_key', 'langfuse_host'].map((p) => (
+                  <div key={p} className="flex flex-col gap-2">
+                    <label className="text-xs font-black text-black uppercase">{p.replace(/_/g, ' ')}</label>
+                    <input 
+                      type={p.includes('secret') ? 'password' : 'text'} 
+                      value={keys[p] ?? ''}
+                      onChange={(e) => setKeys(prev => ({ ...prev, [p]: e.target.value }))}
+                      placeholder={`Enter ${p}`}
+                      className="w-full bg-white neo-border px-4 py-2 text-sm text-black focus:outline-none focus:ring-0 focus:bg-surface-container transition-all font-bold"
+                    />
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            <div className="flex justify-end gap-4 pt-10 mt-10 border-t-[3px] border-black">
+              <button 
+                onClick={() => window.location.reload()}
+                className="px-8 py-3 neo-border bg-white text-black font-black uppercase hover:bg-surface-container transition-all"
+              >
+                Discard
+              </button>
+              <button 
+                onClick={handleSave}
+                disabled={saving}
+                className="px-8 py-3 neo-border bg-secondary text-white font-black uppercase neo-shadow hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all disabled:opacity-50 disabled:hover:translate-x-0 disabled:hover:translate-y-0 disabled:hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex items-center gap-2"
+              >
+                {saving && <Loader2 size={16} className="animate-spin" />}
+                Save Changes
+              </button>
+            </div>
+          </div>
         </div>
+
+        {/* Right Aside */}
+        <aside className="w-72 shrink-0 flex flex-col gap-8 hidden xl:flex">
+          {/* Shortcuts */}
+          <div className="bg-white neo-border neo-shadow p-6">
+            <div className="flex items-center gap-2 mb-5">
+              <Keyboard size={20} className="text-secondary" strokeWidth={3} />
+              <h3 className="text-sm font-black uppercase tracking-tight">Shortcuts</h3>
+            </div>
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <span className="text-xs font-bold uppercase text-on-surface-variant">Search</span>
+                <kbd className="px-2 py-1 bg-black text-white font-black text-[10px]">⌘ K</kbd>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-xs font-bold uppercase text-on-surface-variant">Save</span>
+                <kbd className="px-2 py-1 bg-black text-white font-black text-[10px]">⌘ S</kbd>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-xs font-bold uppercase text-on-surface-variant">Dashboard</span>
+                <kbd className="px-2 py-1 bg-black text-white font-black text-[10px]">⌘ D</kbd>
+              </div>
+            </div>
+          </div>
+
+          {/* Support */}
+          <div className="bg-white neo-border neo-shadow p-6">
+            <div className="flex items-center gap-2 mb-5">
+              <LifeBuoy size={20} className="text-secondary" strokeWidth={3} />
+              <h3 className="text-sm font-black uppercase tracking-tight">Support</h3>
+            </div>
+            <ul className="space-y-4">
+              <li><a className="text-xs font-black uppercase hover:text-secondary flex items-center justify-between transition-colors" href="#">Docs <ExternalLink size={16} strokeWidth={2.5} /></a></li>
+              <li><a className="text-xs font-black uppercase hover:text-secondary flex items-center justify-between transition-colors" href="#">Chat <MessageSquare size={16} strokeWidth={2.5} /></a></li>
+              <li><a className="text-xs font-black uppercase hover:text-secondary flex items-center justify-between transition-colors" href="#">Forum <Users size={16} strokeWidth={2.5} /></a></li>
+            </ul>
+          </div>
+
+          {/* Update */}
+          <div className="bg-black text-white neo-border neo-shadow p-6 relative overflow-hidden">
+            <div className="relative z-10">
+              <div className="flex items-center gap-2 mb-3">
+                <Megaphone size={20} className="text-secondary" strokeWidth={3} />
+                <h3 className="text-sm font-black uppercase">Update</h3>
+              </div>
+              <p className="text-xs font-bold mb-5 leading-relaxed">Claude 3.5 Sonnet is now live for deeper academic reasoning.</p>
+              <button className="text-xs font-black uppercase flex items-center gap-2 bg-secondary text-white px-3 py-2 neo-border hover:bg-white hover:text-black transition-all">
+                Release Notes
+                <ArrowRight size={16} strokeWidth={3} />
+              </button>
+            </div>
+          </div>
+        </aside>
+
       </div>
     </div>
   );

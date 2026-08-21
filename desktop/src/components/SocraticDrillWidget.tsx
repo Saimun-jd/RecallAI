@@ -40,6 +40,18 @@ export function SocraticDrillWidget({ topicId, topicTitle, onMasteryUpdate }: So
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // Reset state when topic changes
+  useEffect(() => {
+    setPhase('idle');
+    setQuestions([]);
+    setCurrentQIdx(0);
+    setAnswer('');
+    setEvaluation(null);
+    setHintOpen(false);
+    setError(null);
+    setSavedCards(new Set());
+  }, [topicId]);
+
   const currentQuestion = questions[currentQIdx];
   const tierInfo = currentQuestion ? TIER_LABELS[currentQuestion.tier] : null;
 
@@ -126,27 +138,27 @@ export function SocraticDrillWidget({ topicId, topicTitle, onMasteryUpdate }: So
   // ─── Idle State ─────────────────────────────────────────────────────
   if (phase === 'idle') {
     return (
-      <div className="rounded-xl border border-accent-blue/20 bg-surface-container-lowest p-5">
-        <div className="flex items-center gap-3 mb-3">
-          <div className="w-9 h-9 rounded-full bg-active-bg flex items-center justify-center text-accent-blue">
-            <BrainCircuit size={20} />
+      <div className="bg-surface-container-lowest border-[3px] border-on-background neo-shadow-lg p-6">
+        <div className="flex items-center gap-4 mb-4">
+          <div className="w-12 h-12 border-[3px] border-on-background bg-surface-container-lowest text-primary flex items-center justify-center neo-shadow-sm">
+            <BrainCircuit size={24} />
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-primary">Socratic Diagnostic Drill</h3>
-            <p className="text-xs text-on-surface-variant">Test your understanding with probing questions</p>
+            <h3 className="font-headline-md text-headline-md font-bold text-primary">Socratic Diagnostic Drill</h3>
+            <p className="text-label-sm font-label-sm font-bold uppercase tracking-wider text-secondary">Test your understanding with probing questions</p>
           </div>
         </div>
-        <p className="text-sm text-on-surface mb-4 leading-relaxed">
-          The AI will generate targeted questions about <strong className="text-primary">{topicTitle}</strong> to probe your causal understanding, test edge cases, and diagnose gaps. Only flashcards for concepts you miss will be suggested.
+        <p className="text-body-md font-body-md text-on-surface mb-6 leading-relaxed">
+          The AI will generate targeted questions about <strong className="text-primary font-bold">{topicTitle}</strong> to probe your causal understanding, test edge cases, and diagnose gaps. Only flashcards for concepts you miss will be suggested.
         </p>
         {error && (
-          <p className="text-xs text-red-400 mb-3 p-2 bg-red-500/10 rounded-lg border border-red-500/20">{error}</p>
+          <p className="text-label-sm text-on-error bg-error p-3 border-[3px] border-primary mb-4 neo-shadow-sm font-bold">{error}</p>
         )}
         <button
           onClick={handleStartDrill}
-          className="flex items-center gap-2 px-4 py-2.5 bg-accent-blue text-zinc-950 rounded-lg font-semibold hover:bg-accent-blue/90 transition-colors text-sm"
+          className="flex items-center gap-2 px-6 py-3 bg-secondary text-white font-bold border-[3px] border-primary neo-shadow-sm active-neo-press transition-all"
         >
-          <BrainCircuit size={16} />
+          <BrainCircuit size={18} />
           Start Diagnostic Drill
         </button>
       </div>
@@ -156,9 +168,9 @@ export function SocraticDrillWidget({ topicId, topicTitle, onMasteryUpdate }: So
   // ─── Generating State ───────────────────────────────────────────────
   if (phase === 'generating') {
     return (
-      <div className="rounded-xl border border-accent-blue/20 bg-surface-container-lowest p-6 flex flex-col items-center gap-3">
-        <Loader2 size={28} className="animate-spin text-accent-blue" />
-        <p className="text-sm text-on-surface-variant">Analyzing topic and generating diagnostic questions…</p>
+      <div className="bg-surface-container-lowest border-[3px] border-on-background neo-shadow-lg p-8 flex flex-col items-center gap-4">
+        <Loader2 size={32} className="animate-spin text-primary" />
+        <p className="font-label-md text-label-md font-bold text-on-surface-variant uppercase tracking-wider">Analyzing topic and generating diagnostic questions…</p>
       </div>
     );
   }
@@ -166,47 +178,47 @@ export function SocraticDrillWidget({ topicId, topicTitle, onMasteryUpdate }: So
   // ─── Answering State ────────────────────────────────────────────────
   if (phase === 'answering' && currentQuestion) {
     return (
-      <div className="rounded-xl border border-accent-blue/20 bg-surface-container-lowest overflow-hidden">
+      <div className="bg-surface-container-lowest border-[3px] border-on-background neo-shadow-lg overflow-hidden">
         {/* Header */}
-        <div className="px-5 py-3 border-b border-outline-variant flex items-center justify-between bg-surface-container-low">
-          <div className="flex items-center gap-2">
-            <BrainCircuit size={16} className="text-accent-blue" />
-            <span className="text-sm font-semibold text-primary">Socratic Drill</span>
-            <span className="text-xs text-on-surface-variant">
+        <div className="px-6 py-4 border-b-[3px] border-on-background flex items-center justify-between bg-surface-container-low">
+          <div className="flex items-center gap-3">
+            <BrainCircuit size={20} className="text-primary" />
+            <span className="font-headline-sm text-headline-sm font-bold text-primary">Socratic Drill</span>
+            <span className="text-label-sm font-label-sm font-bold text-on-surface-variant uppercase tracking-wider bg-surface px-2 py-1 border-[3px] border-primary">
               Q{currentQIdx + 1} of {questions.length}
             </span>
           </div>
           {tierInfo && (
-            <span className={clsx("text-[11px] font-semibold px-2.5 py-1 rounded-full", tierInfo.bg, tierInfo.color)}>
+            <span className={clsx("text-label-sm font-label-sm font-bold uppercase tracking-wider px-3 py-1 border-[3px] border-primary neo-shadow-sm", tierInfo.bg, tierInfo.color)}>
               {tierInfo.label}
             </span>
           )}
         </div>
 
-        <div className="p-5">
+        <div className="p-6">
           {/* Question */}
-          <p className="text-sm text-primary leading-relaxed mb-4 font-medium">
+          <p className="font-body-lg text-body-lg text-primary font-medium leading-relaxed mb-6">
             {currentQuestion.question_text}
           </p>
 
           {/* Socratic Hint Accordion */}
           <button
             onClick={() => setHintOpen(!hintOpen)}
-            className="flex items-center gap-1.5 text-xs text-amber-400 hover:text-amber-300 mb-4 transition-colors"
+            className="flex items-center gap-2 text-label-sm font-label-sm font-bold text-amber-500 hover:text-amber-600 mb-6 transition-colors uppercase tracking-wider"
           >
-            <Lightbulb size={14} />
-            {hintOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+            <Lightbulb size={16} />
+            {hintOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
             {hintOpen ? 'Hide Hint' : 'Request Socratic Hint'}
           </button>
           {hintOpen && (
-            <div className="mb-4 p-3 rounded-lg bg-amber-500/5 border border-amber-500/20 text-xs text-amber-300/90 leading-relaxed italic">
+            <div className="mb-6 p-4 bg-amber-500/10 border-[3px] border-amber-500 text-body-md font-body-md text-amber-700 leading-relaxed italic neo-shadow-sm">
               💡 {currentQuestion.socratic_hint}
             </div>
           )}
 
           {/* Answer Textarea */}
-          <div className="mb-4">
-            <label className="text-[11px] uppercase tracking-wider text-on-surface-variant font-semibold mb-1.5 block">
+          <div className="mb-6">
+            <label className="text-label-sm font-label-sm font-bold uppercase tracking-wider text-on-surface-variant block mb-2">
               Your Explanation
             </label>
             <textarea
@@ -215,22 +227,22 @@ export function SocraticDrillWidget({ topicId, topicTitle, onMasteryUpdate }: So
               onChange={(e) => setAnswer(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Explain your understanding... (bullet points or paragraph)"
-              className="w-full bg-surface border border-outline-variant rounded-lg p-3 text-sm text-primary placeholder:text-on-surface-variant/50 focus:outline-none focus:border-accent-blue/50 focus:ring-1 focus:ring-accent-blue/50 transition-all resize-none min-h-[120px]"
+              className="w-full bg-surface border-[3px] border-on-background p-4 text-label-md font-label-md text-primary placeholder:text-on-surface-variant focus:outline-none focus:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all resize-none min-h-[140px]"
               rows={5}
             />
-            <p className="text-[10px] text-on-surface-variant mt-1">Press Ctrl+Enter to submit</p>
+            <p className="text-label-sm font-label-sm text-on-surface-variant mt-2 font-bold uppercase">Press Ctrl+Enter to submit</p>
           </div>
 
           {error && (
-            <p className="text-xs text-red-400 mb-3 p-2 bg-red-500/10 rounded-lg border border-red-500/20">{error}</p>
+            <p className="text-label-sm text-on-error bg-error p-3 border-[3px] border-primary mb-4 neo-shadow-sm font-bold">{error}</p>
           )}
 
           <button
             onClick={handleSubmitAnswer}
             disabled={!answer.trim()}
-            className="flex items-center gap-2 px-4 py-2 bg-accent-blue text-zinc-950 rounded-lg font-semibold hover:bg-accent-blue/90 transition-colors text-sm disabled:opacity-40 disabled:cursor-not-allowed"
+            className="flex items-center gap-2 px-6 py-3 bg-primary text-white font-bold border-[3px] border-primary neo-shadow-sm active-neo-press transition-all disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            <ArrowRight size={16} />
+            <ArrowRight size={18} />
             Submit & Diagnose
           </button>
         </div>
@@ -241,9 +253,9 @@ export function SocraticDrillWidget({ topicId, topicTitle, onMasteryUpdate }: So
   // ─── Evaluating State ───────────────────────────────────────────────
   if (phase === 'evaluating') {
     return (
-      <div className="rounded-xl border border-accent-blue/20 bg-surface-container-lowest p-6 flex flex-col items-center gap-3">
-        <Loader2 size={28} className="animate-spin text-accent-blue" />
-        <p className="text-sm text-on-surface-variant">Analyzing your answer against the source material…</p>
+      <div className="bg-surface-container-lowest border-[3px] border-on-background neo-shadow-lg p-8 flex flex-col items-center gap-4">
+        <Loader2 size={32} className="animate-spin text-primary" />
+        <p className="font-label-md text-label-md font-bold text-on-surface-variant uppercase tracking-wider">Analyzing your answer against the source material…</p>
       </div>
     );
   }
@@ -255,30 +267,30 @@ export function SocraticDrillWidget({ topicId, topicTitle, onMasteryUpdate }: So
     const hasNextQ = currentQIdx < questions.length - 1;
 
     return (
-      <div className="rounded-xl border border-accent-blue/20 bg-surface-container-lowest overflow-hidden">
+      <div className="bg-surface-container-lowest border-[3px] border-on-background neo-shadow-lg overflow-hidden">
         {/* Header */}
-        <div className="px-5 py-3 border-b border-outline-variant flex items-center justify-between bg-surface-container-low">
-          <div className="flex items-center gap-2">
-            <BrainCircuit size={16} className="text-accent-blue" />
-            <span className="text-sm font-semibold text-primary">Diagnostic Results</span>
+        <div className="px-6 py-4 border-b-[3px] border-on-background flex items-center justify-between bg-surface-container-low">
+          <div className="flex items-center gap-3">
+            <BrainCircuit size={20} className="text-primary" />
+            <span className="font-headline-sm text-headline-sm font-bold text-primary">Diagnostic Results</span>
           </div>
-          <div className={clsx("flex items-center gap-1.5 text-sm font-semibold px-3 py-1 rounded-full", statusInfo?.bg, statusInfo?.color)}>
-            <StatusIcon size={14} />
+          <div className={clsx("flex items-center gap-2 font-label-md text-label-md font-bold px-3 py-1 border-[3px] border-primary neo-shadow-sm", statusInfo?.bg, statusInfo?.color)}>
+            <StatusIcon size={16} />
             {evaluation.mastery_score}/100 — {statusInfo?.label}
           </div>
         </div>
 
-        <div className="p-5 space-y-4">
+        <div className="p-6 space-y-6">
           {/* Mastery Bar */}
           <div>
-            <div className="flex items-center justify-between text-xs text-on-surface-variant mb-1.5">
+            <div className="flex items-center justify-between font-label-md text-label-md font-bold text-on-surface-variant mb-2 uppercase tracking-wider">
               <span>Mastery Level</span>
               <span className="font-mono">{evaluation.mastery_score}%</span>
             </div>
-            <div className="w-full h-2 bg-surface-container rounded-full overflow-hidden">
+            <div className="w-full h-4 bg-surface-container border-[3px] border-on-background overflow-hidden">
               <div
                 className={clsx(
-                  "h-full rounded-full transition-all duration-700",
+                  "h-full transition-all duration-700",
                   evaluation.mastery_score >= 85 ? "bg-emerald-500" :
                   evaluation.mastery_score >= 60 ? "bg-amber-500" :
                   evaluation.mastery_score >= 35 ? "bg-orange-500" : "bg-red-500"
@@ -291,8 +303,8 @@ export function SocraticDrillWidget({ topicId, topicTitle, onMasteryUpdate }: So
           {/* Strengths */}
           {evaluation.strengths.length > 0 && (
             <div>
-              <h4 className="text-xs font-semibold text-emerald-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                <CheckCircle2 size={13} /> What You Mastered
+              <h4 className="font-label-md text-label-md font-bold text-emerald-500 uppercase tracking-wider mb-3 flex items-center gap-2">
+                <CheckCircle2 size={16} /> What You Mastered
               </h4>
               <ul className="space-y-1">
                 {evaluation.strengths.map((s, i) => (
@@ -308,8 +320,8 @@ export function SocraticDrillWidget({ topicId, topicTitle, onMasteryUpdate }: So
           {/* Gaps */}
           {evaluation.diagnosed_gaps.length > 0 && (
             <div>
-              <h4 className="text-xs font-semibold text-amber-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                <AlertTriangle size={13} /> Gaps Identified
+              <h4 className="font-label-md text-label-md font-bold text-amber-500 uppercase tracking-wider mb-3 flex items-center gap-2">
+                <AlertTriangle size={16} /> Gaps Identified
               </h4>
               <ul className="space-y-1">
                 {evaluation.diagnosed_gaps.map((g, i) => (
@@ -325,8 +337,8 @@ export function SocraticDrillWidget({ topicId, topicTitle, onMasteryUpdate }: So
           {/* Misconceptions */}
           {evaluation.misconceptions.length > 0 && (
             <div>
-              <h4 className="text-xs font-semibold text-red-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                <XCircle size={13} /> Misconceptions Detected
+              <h4 className="font-label-md text-label-md font-bold text-red-500 uppercase tracking-wider mb-3 flex items-center gap-2">
+                <XCircle size={16} /> Misconceptions Detected
               </h4>
               <ul className="space-y-1">
                 {evaluation.misconceptions.map((m, i) => (
@@ -341,37 +353,37 @@ export function SocraticDrillWidget({ topicId, topicTitle, onMasteryUpdate }: So
 
           {/* Socratic Nudge */}
           {evaluation.socratic_nudge && (
-            <div className="p-3 rounded-lg bg-accent-blue/5 border border-accent-blue/20">
-              <p className="text-xs font-semibold text-accent-blue mb-1 flex items-center gap-1.5">
-                <Lightbulb size={13} /> Think Deeper
+            <div className="p-4 bg-primary-container text-on-primary-container border-[3px] border-primary neo-shadow-sm">
+              <p className="font-label-md text-label-md font-bold mb-2 flex items-center gap-2 uppercase tracking-wider">
+                <Lightbulb size={16} /> Think Deeper
               </p>
-              <p className="text-sm text-on-surface leading-relaxed italic">{evaluation.socratic_nudge}</p>
+              <p className="font-body-md text-body-md leading-relaxed italic">{evaluation.socratic_nudge}</p>
             </div>
           )}
 
           {/* Targeted Flashcards */}
           {evaluation.suggested_flashcards.length > 0 && (
             <div>
-              <h4 className="text-xs font-semibold text-accent-blue uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                <CreditCard size={13} /> Targeted Flashcards ({evaluation.suggested_flashcards.length})
+              <h4 className="font-label-md text-label-md font-bold text-primary uppercase tracking-wider mb-3 flex items-center gap-2">
+                <CreditCard size={16} /> Targeted Flashcards ({evaluation.suggested_flashcards.length})
               </h4>
-              <div className="space-y-2">
+              <div className="space-y-4">
                 {evaluation.suggested_flashcards.map((card, i) => (
-                  <div key={i} className="p-3 rounded-lg bg-surface border border-outline-variant">
-                    <p className="text-[10px] uppercase tracking-wider text-on-surface-variant font-semibold mb-0.5">Gap: {card.gap_source}</p>
-                    <p className="text-sm text-primary font-medium mb-1">Q: {card.question}</p>
-                    <p className="text-sm text-on-surface mb-2">A: {card.answer}</p>
+                  <div key={i} className="p-4 bg-surface border-[3px] border-on-background neo-shadow-sm">
+                    <p className="text-label-sm font-label-sm font-bold uppercase tracking-wider text-on-surface-variant mb-2">Gap: {card.gap_source}</p>
+                    <p className="font-body-md text-body-md text-primary font-bold mb-2">Q: {card.question}</p>
+                    <p className="font-body-md text-body-md text-on-surface mb-4">A: {card.answer}</p>
                     <button
                       onClick={() => handleSaveCard(card, i)}
                       disabled={savedCards.has(i)}
                       className={clsx(
-                        "flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-semibold transition-colors",
+                        "flex items-center gap-2 px-4 py-2 text-label-md font-bold transition-colors",
                         savedCards.has(i)
-                          ? "bg-emerald-500/10 text-emerald-400 cursor-default"
-                          : "bg-accent-blue/10 text-accent-blue hover:bg-accent-blue/20"
+                          ? "bg-emerald-500/10 text-emerald-500 cursor-default"
+                          : "bg-surface-container border-[3px] border-primary text-primary hover:bg-surface-container-high neo-shadow-sm active-neo-press"
                       )}
                     >
-                      {savedCards.has(i) ? <><CheckCircle2 size={12} /> Saved to Deck</> : <><Save size={12} /> Add to SRS Deck</>}
+                      {savedCards.has(i) ? <><CheckCircle2 size={16} /> Saved to Deck</> : <><Save size={16} /> Add to SRS Deck</>}
                     </button>
                   </div>
                 ))}
@@ -380,25 +392,25 @@ export function SocraticDrillWidget({ topicId, topicTitle, onMasteryUpdate }: So
           )}
 
           {error && (
-            <p className="text-xs text-red-400 p-2 bg-red-500/10 rounded-lg border border-red-500/20">{error}</p>
+            <p className="text-label-sm text-on-error bg-error p-3 border-[3px] border-primary mb-4 neo-shadow-sm font-bold">{error}</p>
           )}
 
           {/* Actions */}
-          <div className="flex items-center gap-3 pt-2">
+          <div className="flex items-center gap-4 pt-4">
             {hasNextQ && (
               <button
                 onClick={handleNextQuestion}
-                className="flex items-center gap-2 px-4 py-2 bg-accent-blue text-zinc-950 rounded-lg font-semibold hover:bg-accent-blue/90 transition-colors text-sm"
+                className="flex items-center gap-2 px-6 py-3 bg-secondary text-white font-bold border-[3px] border-primary neo-shadow-sm active-neo-press transition-all"
               >
-                <ArrowRight size={16} />
+                <ArrowRight size={18} />
                 Next Question
               </button>
             )}
             <button
               onClick={() => { setPhase('idle'); setQuestions([]); setEvaluation(null); setAnswer(''); }}
-              className="flex items-center gap-2 px-4 py-2 bg-surface-container text-on-surface rounded-lg font-medium hover:bg-surface-container-high transition-colors text-sm border border-outline-variant"
+              className="flex items-center gap-2 px-6 py-3 bg-surface-container text-on-surface font-bold border-[3px] border-primary neo-shadow-sm active-neo-press transition-all"
             >
-              <RotateCcw size={14} />
+              <RotateCcw size={16} />
               {hasNextQ ? 'Restart Drill' : 'Done'}
             </button>
           </div>

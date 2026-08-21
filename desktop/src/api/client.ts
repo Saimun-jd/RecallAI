@@ -436,7 +436,10 @@ export const client = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(options),
     });
-    if (!res.ok) throw new Error("Failed to generate flashcards");
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: "Unknown error" }));
+      throw new Error(err.error || err.detail || "Failed to generate flashcards");
+    }
     return res.json();
   },
 
@@ -481,7 +484,10 @@ export const client = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
     });
-    if (!res.ok) throw new Error("AI explanation failed");
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: "Unknown error" }));
+      throw new Error(err.error || err.detail || "AI explanation failed");
+    }
     return res.json();
   },
 
@@ -499,7 +505,10 @@ export const client = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
     });
-    if (!res.ok) throw new Error("Flashcard generation from selection failed");
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: "Unknown error" }));
+      throw new Error(err.error || err.detail || "Flashcard generation from selection failed");
+    }
     return res.json();
   },
 

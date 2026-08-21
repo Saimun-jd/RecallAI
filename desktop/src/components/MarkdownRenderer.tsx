@@ -47,7 +47,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content }) =
               className="rounded-lg border border-zinc-800 !bg-zinc-900/80 !m-0 !p-4 font-sans text-sm"
             />
           ) : (
-            <code {...props} className={className ? `${className} bg-zinc-800/50 rounded px-1.5 py-0.5 text-emerald-400 font-sans text-sm` : 'bg-zinc-800/50 rounded px-1.5 py-0.5 text-emerald-400 font-sans text-sm'}>
+            <code {...props} className={className ? `${className} bg-surface-container-highest border-2 border-primary rounded-sm px-1.5 py-0.5 font-mono text-[0.9em] text-primary` : 'bg-surface-container-highest border-2 border-primary rounded-sm px-1.5 py-0.5 font-mono text-[0.9em] text-primary'}>
               {children}
             </code>
           );
