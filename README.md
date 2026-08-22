@@ -1,6 +1,7 @@
-# Recall: Socratic Review System
+# Recall: AI-powered PDF Study Assistant
 
-Recall is an intelligent desktop application designed for deep learning, active recall, and rigorous academic assessment. It transforms static PDF documents into an interactive learning pipeline, combining a modern PDF viewer with AI-driven extraction of structured concepts, flashcards, and Socratic diagnostic drills.
+Recall is an intelligent desktop application designed for leveraging the power of ai for active recall, and rigorous academic assessment. It transforms static PDF documents into an interactive learning pipeline, combining a modern PDF viewer with AI-driven extraction of structured concepts, flashcards, and Socratic diagnostic drills.
+![Recall Logo](./desktop/app-icon.png)
 
 ## The Perspective
 
@@ -36,10 +37,13 @@ Recall supports a flexible Factory Pattern for LLM providers. You can configure 
 
 1. **Local LLMs (Recommended for Privacy):**
    - Install [Ollama](https://ollama.ai/) on your machine.
-   - Pull a capable model (e.g., `ollama run gemma2:2b` or `llama3.1`).
+   - Pull a capable model (e.g., `ollama run gemma3:4b` or `llama3.1`).
    - In Recall's settings, select **Ollama** as your active provider.
 2. **Cloud LLMs (For Speed/Quality):**
    - In Recall's settings, you can securely enter API keys for **OpenAI**, **Gemini**, or **Groq**.
+   - These keys are stored safely in your operating system's native keychain, not in plaintext.
+3. **Analyze the AI output by tracing it using langfuse**
+   - In Recall's settings, you can securely enter your Langfuse keys.
    - These keys are stored safely in your operating system's native keychain, not in plaintext.
 
 ---
@@ -79,7 +83,7 @@ pnpm tauri dev
 If you make changes to the Python backend and want to compile a production Tauri build, you must rebuild the sidecar binary using PyInstaller:
 
 ```bash
-# From the root directory
-python scripts/build_sidecar.py
+# From the /app directory
+pyinstaller --onefile --clean --name recall-backend --collect-all pymupdf --collect-all pymupdf4llm --collect-all markdown_it --hidden-import python_multipart --hidden-import multipart __main__.py
 ```
-After building the sidecar, you can build the Tauri app normally via `pnpm tauri build`.
+After building the sidecar, you can build the Tauri app normally via `pnpm tauri build` by navigating to `/desktop` directory.
