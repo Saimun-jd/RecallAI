@@ -64,6 +64,20 @@ def main():
         "--exclude-module", "PySide6",
         "--exclude-module", "tkinter",
         "--exclude-module", "matplotlib",
+        "--exclude-module", "IPython",
+        "--exclude-module", "notebook",
+        "--exclude-module", "jupyter",
+        "--exclude-module", "PIL",
+        "--exclude-module", "cv2",
+        "--exclude-module", "scipy",
+        "--exclude-module", "pandas",
+        "--exclude-module", "boto3",
+        "--exclude-module", "botocore",
+        "--exclude-module", "unittest",
+        "--exclude-module", "pytest",
+        "--exclude-module", "jinja2",
+        "--exclude-module", "torch",
+        "--exclude-module", "torchvision",
         "app/__main__.py"
     ]
 

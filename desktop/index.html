@@ -10,6 +10,20 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      window.addEventListener('error', function(e) {
+        var pre = document.createElement('pre');
+        pre.style = 'position:fixed;top:0;left:0;right:0;bottom:0;background:black;color:red;z-index:9999;padding:20px;white-space:pre-wrap;';
+        pre.textContent = "Global Error: " + e.message + "\n\n" + e.filename + ":" + e.lineno + "\n\n" + (e.error ? e.error.stack : "");
+        document.body.appendChild(pre);
+      });
+      window.addEventListener('unhandledrejection', function(e) {
+        var pre = document.createElement('pre');
+        pre.style = 'position:fixed;top:0;left:0;right:0;bottom:0;background:black;color:red;z-index:9999;padding:20px;white-space:pre-wrap;';
+        pre.textContent = "Unhandled Promise Rejection: " + (e.reason ? (e.reason.stack || e.reason) : "Unknown reason");
+        document.body.appendChild(pre);
+      });
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

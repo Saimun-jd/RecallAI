@@ -7,7 +7,7 @@ from app.config import Settings
 from app.database import get_setting
 
 DEFAULT_MODELS = {
-    "gemini": "gemini-2.5-flash",
+    "gemini": "gemini-3.6-flash",
     "openai": "gpt-4o-mini",
     "ollama": "gemma2:2b",
     "groq": "openai/gpt-oss-20b",
@@ -60,7 +60,8 @@ def get_llm_provider(config: Settings, provider_override: str = None) -> BaseLLM
         return GroqProvider(api_key=api_key, model=model_name)
 
     else:
-        host = (db_config.get("host") if db_matches_target else None) \
+        host = get_setting("ollama_host") \
+            or (db_config.get("host") if db_matches_target else None) \
             or getattr(config, "ollama_host", "http://localhost:11434")
         log_usage(f"[DEBUG] LLM Factory returning OllamaProvider on {host}")
         return OllamaProvider(host=host, model=model_name)

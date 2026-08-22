@@ -5,12 +5,12 @@ from langfuse import get_client
 from app.llm_providers.base import BaseLLMProvider
 
 class GeminiProvider(BaseLLMProvider):
-    def __init__(self, api_key: str, model: str = "gemini-2.5-flash"):
+    def __init__(self, api_key: str, model: str = "gemini-3.6-flash"):
         self.api_key = api_key
 
         if not model or ":" in model or "gemini" not in model.lower():
-            print(f"[GeminiProvider WARNING] Invalid model '{model}' passed to GeminiProvider. Forcing 'gemini-2.5-flash'.")
-            model = "gemini-2.5-flash"
+            print(f"[GeminiProvider WARNING] Invalid model '{model}' passed to GeminiProvider. Forcing 'gemini-3.6-flash'.")
+            model = "gemini-3.6-flash"
 
         self.model = model
         self.base_url = "https://generativelanguage.googleapis.com/v1beta"

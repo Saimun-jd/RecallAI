@@ -19,7 +19,8 @@ async def get_embedding(text: str, provider: str = "ollama") -> List[float]:
             logger.info(f"{provider} does not support embeddings. Falling back to Ollama.")
         
     if provider == "ollama":
-        url = f"{settings.ollama_host}/api/embeddings"
+        host = get_setting("ollama_host") or settings.ollama_host
+        url = f"{host}/api/embeddings"
         payload = {
             "model": settings.ollama_embedding_model,
             "prompt": text

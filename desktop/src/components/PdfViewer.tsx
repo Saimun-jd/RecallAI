@@ -1,6 +1,11 @@
 import { useEffect, useRef, useState, useMemo } from 'react';
 import type { PdfAnnotation } from '../api/client';
 import { PdfAnnotationLayer } from './PdfAnnotationLayer';
+import * as pdfjsLib from 'pdfjs-dist';
+
+if (typeof globalThis !== 'undefined' && !(globalThis as any).pdfjsLib) {
+  (globalThis as any).pdfjsLib = pdfjsLib;
+}
 
 import {
   PdfLoader,

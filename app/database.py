@@ -21,6 +21,9 @@ def get_connection():
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA synchronous=NORMAL")
     conn.execute("PRAGMA foreign_keys = ON")
+    conn.execute("PRAGMA cache_size = -64000")
+    conn.execute("PRAGMA temp_store = MEMORY")
+    conn.execute("PRAGMA mmap_size = 2147483648")
     try:
         yield conn
         conn.commit()
@@ -199,6 +202,10 @@ def init_db():
                 FOREIGN KEY (book_id) REFERENCES books (id) ON DELETE CASCADE
             )
         """)
+        
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_topics_book_id ON topics(book_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_flashcards_topic_id ON flashcards(topic_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_flashcards_due ON flashcards(due)")
         
         # Seed default settings if empty
         cursor.execute("SELECT COUNT(*) as count FROM settings")

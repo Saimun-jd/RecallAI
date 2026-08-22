@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useMemo, useCallback } from 'react';
+import { useEffect, useState, useRef, useMemo, useCallback, lazy, Suspense } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useDispatch, useSelector } from 'react-redux';
@@ -19,9 +19,10 @@ import { MarkdownRenderer } from '../components/MarkdownRenderer';
 import clsx from 'clsx';
 import { FlashcardGenModal } from '../components/FlashcardGenModal';
 import { RelatedTopicsModal } from '../components/RelatedTopicsModal';
-import { NotionNotesEditor } from '../components/NotionNotesEditor';
+const NotionNotesEditor = lazy(() => import('../components/NotionNotesEditor').then(m => ({ default: m.NotionNotesEditor })));
 import { TopicPracticeModal } from '../components/TopicPracticeModal';
-import { PdfViewer, type PdfSelection } from '../components/PdfViewer';
+const PdfViewer = lazy(() => import('../components/PdfViewer').then(m => ({ default: m.PdfViewer })));
+import type { PdfSelection } from '../components/PdfViewer';
 import { PdfCommandPalette, type PdfCommandType } from '../components/PdfCommandPalette';
 import { preprocessMarkdown } from '../utils/markdown';
 import { SocraticDrillWidget } from '../components/SocraticDrillWidget';
@@ -543,6 +544,7 @@ export function BookDetailView() {
 
               <div className="flex-1 min-h-0 relative">
                 <ErrorBoundary>
+                  <Suspense fallback={<div className="flex flex-col items-center justify-center h-full"><Loader2 className="animate-spin text-accent-blue w-8 h-8 mb-4" /><p className="text-sm font-medium text-on-surface-variant">Loading PDF Viewer...</p></div>}>
                   <PdfViewer
                     theme={pdfTheme}
                     url={`http://127.0.0.1:8000/books/${bookId}/pdf`}
@@ -649,6 +651,7 @@ export function BookDetailView() {
                       }
                     }}
                   />
+                  </Suspense>
                 </ErrorBoundary>
               </div>
             </div>
@@ -817,7 +820,7 @@ export function BookDetailView() {
                                   Cancel
                                 </button>
                                 <button
-                                  onClick={() => handleSaveCardEdit(card.id)}
+                                  onClick={() => handleSaveCard(card.id)}
                                   className="px-6 py-2 bg-primary text-white font-bold border-[3px] border-primary neo-shadow-sm active-neo-press transition-all"
                                 >
                                   Save Changes
@@ -897,7 +900,9 @@ export function BookDetailView() {
               </button>
             </div>
             <div className="flex-1 overflow-hidden p-4 bg-surface">
-              <NotionNotesEditor key={activeTopic.id} topicId={activeTopic.id} />
+              <Suspense fallback={<div className="flex flex-col items-center justify-center h-full"><Loader2 className="animate-spin text-accent-blue w-8 h-8 mb-4" /><p className="text-sm font-medium text-on-surface-variant">Loading Editor...</p></div>}>
+                <NotionNotesEditor key={activeTopic.id} topicId={activeTopic.id} />
+              </Suspense>
             </div>
           </div>
         </div>

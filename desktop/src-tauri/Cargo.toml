@@ -1,6 +1,6 @@
 [package]
 name = "app"
-version = "0.1.0"
+version = "0.1.5"
 description = "A Tauri App"
 authors = ["you"]
 license = ""
@@ -28,3 +28,11 @@ tauri-plugin-stronghold = "2"
 tauri-plugin-store = "2"
 argon2 = "0.5"
 rand = "0.8"
+tauri-plugin-http = "2.5.9"
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = 3
+panic = "abort"
+strip = true

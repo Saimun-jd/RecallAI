@@ -1,11 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import type { RootState, AIProviderId } from '../store';
 import { setActiveProvider, setFallbackToCloud, setShowAttributionTags, setConfiguredProvider } from '../store';
 import { loadSettings, saveSetting, saveSettingsStore } from '../api/settingsStore';
 import { getApiKey, saveApiKey, removeApiKey, saveKeychain } from '../api/keychain';
 import { client } from '../api/client';
-import { Loader2, ChevronDown, Keyboard, LifeBuoy, ExternalLink, MessageSquare, Users, Megaphone, ArrowRight } from 'lucide-react';
+import { Loader2, ChevronDown, Keyboard, LifeBuoy, ExternalLink, MessageSquare, Users, Megaphone, ArrowRight, RefreshCcw } from 'lucide-react';
 import clsx from 'clsx';
 
 export function SettingsView() {
@@ -19,6 +19,27 @@ export function SettingsView() {
 
   // Local state for keys input
   const [keys, setKeys] = useState<{ [key: string]: string }>({});
+  const [ollamaStatus, setOllamaStatus] = useState<'checking' | 'active' | 'inactive' | null>(null);
+  const ollamaHostRef = useRef(keys['ollama_host'] ?? 'http://localhost:11434');
+
+  // Keep ref in sync
+  useEffect(() => {
+    ollamaHostRef.current = keys['ollama_host'] ?? 'http://localhost:11434';
+  }, [keys['ollama_host']]);
+
+  const verifyOllamaHealth = useCallback(async (host: string) => {
+    if (!host) {
+      setOllamaStatus(null);
+      return;
+    }
+    setOllamaStatus('checking');
+    try {
+      const res = await client.verifyOllama(host);
+      setOllamaStatus(res.active ? 'active' : 'inactive');
+    } catch (e) {
+      setOllamaStatus('inactive');
+    }
+  }, []);
 
   useEffect(() => {
     async function init() {
@@ -32,7 +53,7 @@ export function SettingsView() {
         // Load keys from stronghold securely in the background
         const loadKeysBackground = async () => {
           try {
-            for (const provider of ['openai', 'gemini', 'groq', 'langfuse_secret_key', 'langfuse_public_key', 'langfuse_host']) {
+            for (const provider of ['openai', 'gemini', 'groq', 'langfuse_secret_key', 'langfuse_public_key', 'langfuse_host', 'ollama_host']) {
               const key = await getApiKey(provider);
               if (key) {
                 setKeys(prev => ({...prev, [provider]: key}));
@@ -56,6 +77,20 @@ export function SettingsView() {
     init();
   }, [dispatch]);
 
+  // Setup debounce for typing
+  useEffect(() => {
+    if (activeProvider !== 'ollama') return;
+    
+    // Debounce when typing changes the host
+    const typingTimer = setTimeout(() => {
+      verifyOllamaHealth(keys['ollama_host'] ?? 'http://localhost:11434');
+    }, 500);
+
+    return () => {
+      clearTimeout(typingTimer);
+    };
+  }, [keys['ollama_host'], activeProvider, verifyOllamaHealth]);
+
   const handleSave = async () => {
     setSaving(true);
     setMessage(null);
@@ -70,7 +105,7 @@ export function SettingsView() {
       const backendKeys: any = {};
       const vaultPromises: Promise<void>[] = [];
 
-      for (const provider of ['openai', 'gemini', 'groq', 'langfuse_secret_key', 'langfuse_public_key', 'langfuse_host']) {
+      for (const provider of ['openai', 'gemini', 'groq', 'langfuse_secret_key', 'langfuse_public_key', 'langfuse_host', 'ollama_host']) {
         const val = keys[provider];
         if (val && val.trim().length > 0) {
           vaultPromises.push(saveApiKey(provider, val.trim()));
@@ -208,7 +243,38 @@ export function SettingsView() {
                 </select>
                 <ChevronDown size={20} className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-black font-bold" strokeWidth={3} />
               </div>
-              <p className="text-xs text-on-surface-variant mt-3 italic font-bold">Higher capability models may consume research tokens faster.</p>
+              
+              {activeProvider === 'ollama' && (
+                <div className="mt-4 max-w-sm flex flex-col gap-2 animate-in fade-in slide-in-from-top-2 duration-300">
+                  <div className="flex items-center gap-2">
+                    <label className="text-xs font-black text-black uppercase">Ollama Host URL</label>
+                    {ollamaStatus === 'checking' && <span className="text-[10px] bg-yellow-200 text-yellow-800 px-2 py-0.5 rounded-full font-bold uppercase">Checking...</span>}
+                    {ollamaStatus === 'active' && <span className="text-[10px] bg-green-200 text-green-800 px-2 py-0.5 rounded-full font-bold uppercase">Active</span>}
+                    {ollamaStatus === 'inactive' && <span className="text-[10px] bg-red-200 text-red-800 px-2 py-0.5 rounded-full font-bold uppercase">Not Active</span>}
+                    <button 
+                      type="button" 
+                      onClick={() => verifyOllamaHealth(keys['ollama_host'] ?? 'http://localhost:11434')}
+                      className="ml-auto text-on-surface-variant hover:text-black transition-colors"
+                      title="Verify Connection"
+                    >
+                      <RefreshCcw size={14} className={ollamaStatus === 'checking' ? 'animate-spin' : ''} />
+                    </button>
+                  </div>
+                  <input 
+                    type="text" 
+                    value={keys['ollama_host'] ?? 'http://localhost:11434'}
+                    onChange={(e) => setKeys(prev => ({ ...prev, ollama_host: e.target.value }))}
+                    placeholder="http://localhost:11434"
+                    className={clsx(
+                      "w-full bg-white neo-border px-4 py-2 text-sm text-black focus:outline-none focus:ring-0 transition-all font-bold",
+                      ollamaStatus === 'inactive' ? "bg-red-50 border-red-500" : "focus:bg-surface-container"
+                    )}
+                  />
+                  <p className="text-[10px] text-on-surface-variant font-bold leading-tight uppercase">Local or remote Ollama server. Must include http://</p>
+                </div>
+              )}
+              
+              <p className="text-xs text-on-surface-variant mt-4 italic font-bold">Higher capability models may consume research tokens faster.</p>
             </section>
 
             {/* Global Settings (Toggles) */}

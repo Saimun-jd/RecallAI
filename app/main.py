@@ -71,7 +71,8 @@ app.add_middleware(
         "http://localhost:5173", 
         "http://127.0.0.1:5173",
         "http://localhost:8000",
-        "http://127.0.0.1:8000"
+        "http://127.0.0.1:8000",
+        "*"
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -389,6 +390,7 @@ class APIKeys(BaseModel):
     langfuse_secret_key: str | None = None
     langfuse_public_key: str | None = None
     langfuse_host: str | None = None
+    ollama_host: str | None = None
 
 @app.post("/settings/api-keys")
 def save_api_keys(keys: APIKeys):
@@ -411,6 +413,9 @@ def save_api_keys(keys: APIKeys):
     if keys.langfuse_host is not None:
         set_setting("langfuse_host", keys.langfuse_host)
         os.environ["LANGFUSE_HOST"] = keys.langfuse_host
+    if keys.ollama_host is not None:
+        set_setting("ollama_host", keys.ollama_host)
+        os.environ["OLLAMA_HOST"] = keys.ollama_host
         
     if keys.langfuse_secret_key is not None or keys.langfuse_public_key is not None:
         pk = keys.langfuse_public_key or os.environ.get("LANGFUSE_PUBLIC_KEY")
@@ -434,7 +439,21 @@ def get_api_keys():
         "langfuse_secret_key": get_setting("langfuse_secret_key") or "",
         "langfuse_public_key": get_setting("langfuse_public_key") or "",
         "langfuse_host": get_setting("langfuse_host") or "https://cloud.langfuse.com",
+        "ollama_host": get_setting("ollama_host") or "http://localhost:11434"
     }
+
+@app.get("/settings/verify-ollama")
+async def verify_ollama(url: str):
+    import httpx
+    try:
+        if not url.startswith("http"):
+            return {"active": False, "error": "Invalid URL"}
+        async with httpx.AsyncClient(timeout=3.0) as client:
+            r = await client.get(f"{url.rstrip('/')}/api/tags")
+            r.raise_for_status()
+            return {"active": True, "error": None}
+    except Exception as e:
+        return {"active": False, "error": str(e)}
 
 
 from pydantic import BaseModel

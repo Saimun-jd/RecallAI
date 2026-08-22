@@ -1,3 +1,5 @@
+import { fetch } from '@tauri-apps/plugin-http';
+
 export interface TocEntry {
   level: number;
   title: string;
@@ -220,7 +222,7 @@ export const client = {
     if (!res.ok) throw new Error("Failed to update setting");
     return res.json();
   },
-  async saveApiKeys(keys: { gemini_api_key?: string, groq_api_key?: string, openai_api_key?: string, langfuse_secret_key?: string, langfuse_public_key?: string, langfuse_host?: string }): Promise<{ status: string }> {
+  async saveApiKeys(keys: { gemini_api_key?: string, groq_api_key?: string, openai_api_key?: string, langfuse_secret_key?: string, langfuse_public_key?: string, langfuse_host?: string, ollama_host?: string }): Promise<{ status: string }> {
     try {
       const res = await fetch(`${API_BASE}/settings/api-keys`, {
         method: "POST",
@@ -235,6 +237,10 @@ export const client = {
       }
       throw error;
     }
+  },
+  async verifyOllama(url: string): Promise<{ active: boolean; error?: string }> {
+    const res = await fetch(`${API_BASE}/settings/verify-ollama?url=${encodeURIComponent(url)}`);
+    return res.json();
   },
   async resetFlashcard(id: number): Promise<{ message: string; flashcard_id: number }> {
     const res = await fetch(`${API_BASE}/flashcards/${id}/reset`, { method: "POST" });
@@ -326,7 +332,7 @@ export const client = {
             const dataStr = chunk.slice(6);
             try {
               const data = JSON.parse(dataStr);
-              onProgress(data);
+              onEvent(data);
               if (data.status === 'complete' || data.status === 'error' || data.stage === 'complete' || data.stage === 'error') {
                 finishedCleanly = true;
               }
