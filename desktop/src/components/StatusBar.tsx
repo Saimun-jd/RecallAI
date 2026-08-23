@@ -15,15 +15,10 @@ export function StatusBar({ bootTime, sidecarStatus }: { bootTime: number, sidec
   const isBooting = elapsed < 30 && sidecarStatus !== 'connected';
 
   return (
-    <div className="h-10 bg-surface-container-lowest text-on-surface-variant text-[12px] font-medium flex items-center px-6 border-t border-outline-variant justify-between shrink-0 select-none z-20">
-      <div className="flex items-center gap-4">
-        <span className="text-on-surface-variant">Recall v0.2.0</span>
-      </div>
-      <div className="flex items-center gap-2">
-        <span>Engine:</span>
+    <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider bg-surface border-2 border-on-surface px-2.5 py-1 rounded-md shadow-[2px_2px_0px_0px_#191b23]">
         {sidecarStatus === 'connected' ? (
-          <span className="text-accent-blue flex items-center gap-2 font-medium">
-            <span className="w-2 h-2 rounded-full bg-accent-blue"></span> 
+          <span className="text-green-600 flex items-center gap-1.5 font-black">
+            <span className="w-2 h-2 rounded-full bg-green-500"></span> 
             Online
           </span>
         ) : isBooting ? (
@@ -32,12 +27,11 @@ export function StatusBar({ bootTime, sidecarStatus }: { bootTime: number, sidec
             Waking up ({elapsed}s)
           </span>
         ) : (
-          <span className="text-error flex items-center gap-2 font-medium">
-            <span className="w-2 h-2 rounded-full bg-error"></span> 
+          <span className="text-red-600 flex items-center gap-1.5 font-black">
+            <span className="w-2 h-2 rounded-full bg-red-500"></span> 
             Disconnected
           </span>
         )}
-      </div>
     </div>
   );
 }

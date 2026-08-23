@@ -382,7 +382,7 @@ export function SettingsView() {
         {/* Right Aside */}
         <aside className="w-72 shrink-0 flex flex-col gap-8 hidden xl:flex">
           {/* Shortcuts */}
-          <div className="bg-white neo-border neo-shadow p-6">
+          <div className="bg-surface-container-lowest text-on-surface neo-border neo-shadow p-6">
             <div className="flex items-center gap-2 mb-5">
               <Keyboard size={20} className="text-secondary" strokeWidth={3} />
               <h3 className="text-sm font-black uppercase tracking-tight">Shortcuts</h3>
@@ -404,7 +404,7 @@ export function SettingsView() {
           </div>
 
           {/* Support */}
-          <div className="bg-white neo-border neo-shadow p-6">
+          <div className="bg-surface-container-lowest text-on-surface neo-border neo-shadow p-6">
             <div className="flex items-center gap-2 mb-5">
               <LifeBuoy size={20} className="text-secondary" strokeWidth={3} />
               <h3 className="text-sm font-black uppercase tracking-tight">Support</h3>
@@ -417,14 +417,14 @@ export function SettingsView() {
           </div>
 
           {/* Update */}
-          <div className="bg-black text-white neo-border neo-shadow p-6 relative overflow-hidden">
+          <div className="bg-surface-container-lowest text-on-surface neo-border neo-shadow p-6 relative overflow-hidden">
             <div className="relative z-10">
               <div className="flex items-center gap-2 mb-3">
                 <Megaphone size={20} className="text-secondary" strokeWidth={3} />
                 <h3 className="text-sm font-black uppercase">Update</h3>
               </div>
               <p className="text-xs font-bold mb-5 leading-relaxed">Claude 3.5 Sonnet is now live for deeper academic reasoning.</p>
-              <button className="text-xs font-black uppercase flex items-center gap-2 bg-secondary text-white px-3 py-2 neo-border hover:bg-white hover:text-black transition-all">
+              <button className="text-xs font-black uppercase flex items-center gap-2 bg-on-surface text-surface px-3 py-2 neo-border hover:bg-surface-container-high hover:text-on-surface transition-all">
                 Release Notes
                 <ArrowRight size={16} strokeWidth={3} />
               </button>

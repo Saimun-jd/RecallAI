@@ -116,26 +116,26 @@ export function ReviewView() {
   if (state === 'done') {
     return (
       <div className="flex-1 flex flex-col items-center justify-center p-8 bg-surface">
-        <div className="w-full max-w-lg bg-surface-container-lowest border-4 border-primary p-12 text-center neo-shadow-lg flex flex-col items-center gap-6">
-          <div className="w-24 h-24 bg-secondary border-4 border-primary text-white rounded-full flex items-center justify-center neo-shadow">
-            <Check size={48} strokeWidth={4} />
+        <div className="w-full max-w-lg bg-surface-container-lowest border-2 border-on-surface rounded-xl p-10 text-center shadow-[8px_8px_0px_0px_#191b23] flex flex-col items-center gap-6">
+          <div className="w-20 h-20 bg-secondary border-2 border-on-surface text-white rounded-full flex items-center justify-center shadow-[4px_4px_0px_0px_#191b23]">
+            <Check size={40} strokeWidth={3} />
           </div>
-          <h2 className="text-4xl font-black text-primary uppercase tracking-tight">You're all caught up!</h2>
-          <p className="text-on-surface-variant font-medium text-lg">
+          <h2 className="text-3xl font-black text-on-surface uppercase tracking-tight">You're all caught up!</h2>
+          <p className="text-on-surface-variant font-bold text-base">
             No more cards to review right now.
           </p>
           
-          <div className="w-full mt-4 p-4 border-4 border-primary bg-primary-container text-on-primary-container flex justify-between items-center neo-shadow">
+          <div className="w-full mt-4 p-4 border-2 border-on-surface rounded-lg bg-surface text-on-surface flex justify-between items-center shadow-[4px_4px_0px_0px_#191b23]">
             <span className="font-bold uppercase tracking-wider text-sm">Session Stats</span>
             <div className="flex items-center gap-2">
               <span className="text-sm font-bold">Cards Reviewed:</span>
-              <span className="bg-secondary text-white px-3 py-1 font-black rounded-sm border-2 border-primary">{sessionCount}</span>
+              <span className="bg-primary text-white px-3 py-1 font-black rounded-md border-2 border-on-surface">{sessionCount}</span>
             </div>
           </div>
           
           <button 
             onClick={fetchDueCards}
-            className="w-full mt-4 py-4 bg-primary text-white font-black uppercase text-xl border-4 border-primary neo-shadow hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all"
+            className="w-full mt-4 py-4 bg-primary text-white font-black uppercase text-lg rounded-xl border-2 border-on-surface shadow-[4px_4px_0px_0px_#191b23] active:shadow-none active:translate-x-[2px] active:translate-y-[2px] transition-all"
           >
             Check Again
           </button>
@@ -150,94 +150,94 @@ export function ReviewView() {
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden bg-surface">
       {/* Header */}
-      <header className="h-20 border-b-4 border-primary flex items-center justify-between px-8 bg-surface-container-lowest z-10 shrink-0">
+      <header className="h-16 border-b-2 border-on-surface flex items-center justify-between px-6 bg-surface-container-lowest z-10 shrink-0">
         <div className="flex items-center gap-4">
-          <h2 className="text-2xl font-black text-primary uppercase tracking-tight">Study Center</h2>
-          <div className="h-6 w-1 bg-outline-variant"></div>
-          <div className="flex items-center gap-2 px-3 py-1 bg-surface-container rounded-full border-2 border-primary">
+          <h2 className="text-xl font-black text-on-surface uppercase tracking-tight">Study Center</h2>
+          <div className="h-6 w-0.5 bg-on-surface/20"></div>
+          <div className="flex items-center gap-2 px-3 py-1 bg-surface rounded-full border-2 border-on-surface shadow-[2px_2px_0px_0px_#191b23]">
             <span className="w-2 h-2 rounded-full bg-secondary animate-pulse"></span>
-            <span className="text-xs font-bold uppercase tracking-wider text-on-surface-variant">Focus Mode Active</span>
+            <span className="text-xs font-bold uppercase tracking-wider text-on-surface">Focus Mode Active</span>
           </div>
         </div>
         
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           {lastReviewedCardId && sessionCount > 0 && (
              <button 
                onClick={handleUndo}
                disabled={undoLoading}
-               className="flex items-center gap-2 px-4 py-2 border-4 border-primary bg-surface-container-lowest font-bold text-primary neo-shadow-sm active:translate-x-0.5 active:translate-y-0.5 active:shadow-none transition-all disabled:opacity-50"
+               className="flex items-center gap-1.5 px-3 py-1.5 border-2 border-on-surface rounded-lg bg-surface text-sm font-bold text-on-surface shadow-[2px_2px_0px_0px_#191b23] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all disabled:opacity-50"
              >
-               {undoLoading ? <Loader2 size={16} className="animate-spin" strokeWidth={3} /> : <Undo2 size={16} strokeWidth={3} />}
+               {undoLoading ? <Loader2 size={14} className="animate-spin" strokeWidth={3} /> : <Undo2 size={14} strokeWidth={3} />}
                UNDO LAST
              </button>
           )}
-          <div className="px-4 py-2 bg-secondary-container border-4 border-primary font-bold text-on-secondary-container flex items-center gap-2 neo-shadow-sm">
-            <TrendingUp size={18} strokeWidth={3} />
+          <div className="px-3 py-1.5 bg-primary/10 border-2 border-on-surface rounded-lg text-sm font-bold text-primary flex items-center gap-1.5 shadow-[2px_2px_0px_0px_#191b23]">
+            <TrendingUp size={14} strokeWidth={3} />
             STABILITY: {currentCard.stability.toFixed(1)}D
           </div>
         </div>
       </header>
 
       {/* Main Study Zone */}
-      <div className="flex-1 overflow-y-auto flex flex-col items-center justify-center p-8 lg:p-12">
+      <div className="flex-1 overflow-y-auto flex flex-col items-center justify-center p-6 lg:p-8">
         
         {/* Progress Header */}
-        <div className="w-full max-w-[800px] flex justify-between items-end mb-8 shrink-0">
-          <div className="flex flex-col gap-2">
-            <span className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Session Progress</span>
+        <div className="w-full max-w-2xl flex justify-between items-end mb-4 shrink-0">
+          <div className="flex flex-col gap-1">
+            <span className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Session Progress</span>
             <div className="flex items-center gap-2">
-              <span className="text-2xl font-black text-primary">{currentIndex + 1}</span>
-              <span className="text-on-surface-variant font-bold">/ {cards.length} CARDS</span>
+              <span className="text-xl font-black text-on-surface">{currentIndex + 1}</span>
+              <span className="text-on-surface-variant font-bold text-sm">/ {cards.length} CARDS</span>
             </div>
           </div>
         </div>
 
         {/* 3D Flashcard Container */}
-        <div className="relative w-full max-w-[800px] aspect-[1.5/1] min-h-[400px] group mb-12 shrink-0">
+        <div className="relative w-full max-w-2xl min-h-[320px] h-[45vh] max-h-[450px] group mb-8 shrink-0">
           <div className={clsx(
             "flashcard-inner w-full h-full relative cursor-pointer",
             isFlipped && "flashcard-flipped"
           )} onClick={handleShowAnswer}>
             
             {/* Front of Card */}
-            <div className="flashcard-face absolute inset-0 bg-surface-container-lowest border-4 border-primary neo-shadow-lg flex flex-col overflow-hidden">
-              <div className="p-8 flex justify-between items-center border-b-4 border-primary bg-primary-container text-on-primary-container">
-                <span className="text-sm font-bold uppercase tracking-widest text-secondary flex items-center gap-2">
-                  <Brain size={18} strokeWidth={3} />
-                  {currentCard.topic_name}
+            <div className="flashcard-face absolute inset-0 bg-surface-container-lowest border-2 border-on-surface shadow-[8px_8px_0px_0px_#191b23] rounded-xl flex flex-col overflow-hidden">
+              <div className="px-6 py-4 flex justify-between items-center border-b-2 border-on-surface bg-secondary text-white">
+                <span className="text-xs font-bold uppercase tracking-widest flex items-center gap-2">
+                  <Brain size={16} strokeWidth={2.5} />
+                  <span className="truncate max-w-[200px]">{currentCard.topic_name}</span>
                 </span>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-black uppercase tracking-widest bg-surface-container-highest text-primary px-3 py-1 border-2 border-primary">
+                  <span className="text-[10px] font-black uppercase tracking-widest bg-surface text-on-surface px-2 py-1 border-2 border-on-surface rounded shadow-[2px_2px_0px_0px_#191b23]">
                     {currentCard.concept_type}
                   </span>
-                  <span className="text-xs font-black uppercase tracking-widest bg-emerald-100 text-emerald-800 px-3 py-1 border-2 border-primary">
+                  <span className="text-[10px] font-black uppercase tracking-widest bg-emerald-100 text-emerald-800 px-2 py-1 border-2 border-on-surface rounded shadow-[2px_2px_0px_0px_#191b23]">
                     {['New', 'Learning', 'Review', 'Relearning'][currentCard.state] || 'Unknown'}
                   </span>
                 </div>
               </div>
-              <div className="flex-1 flex flex-col justify-center items-center text-center p-12 overflow-y-auto custom-scrollbar">
-                <div className="prose prose-lg max-w-none prose-p:font-sans prose-p:font-bold prose-p:text-2xl prose-p:leading-tight prose-p:text-primary prose-headings:font-bold prose-headings:text-primary">
+              <div className="flex-1 flex flex-col justify-center items-center text-center p-8 overflow-y-auto custom-scrollbar">
+                <div className="prose prose-slate max-w-none prose-p:font-sans prose-p:font-bold prose-p:text-xl prose-p:leading-snug prose-p:text-on-surface prose-headings:font-bold prose-headings:text-on-surface">
                   <MarkdownRenderer content={currentCard.question} />
                 </div>
-                <div className="mt-12 flex items-center gap-2 text-on-surface-variant animate-pulse opacity-70">
-                  <span className="text-sm font-bold uppercase tracking-widest bg-surface-container-high px-3 py-1 border-2 border-outline-variant rounded-md">SPACE</span>
-                  <span className="font-bold">or TAP TO REVEAL</span>
+                <div className="mt-8 flex items-center gap-2 text-on-surface-variant animate-pulse opacity-70">
+                  <span className="text-[10px] font-bold uppercase tracking-widest bg-surface px-2 py-1 border-2 border-on-surface rounded shadow-[2px_2px_0px_0px_#191b23]">SPACE</span>
+                  <span className="text-[10px] font-bold uppercase tracking-widest">or TAP TO REVEAL</span>
                 </div>
               </div>
             </div>
 
             {/* Back of Card */}
-            <div className="flashcard-face flashcard-back absolute inset-0 bg-surface-container-lowest border-4 border-primary neo-shadow-lg flex flex-col overflow-hidden">
-              <div className="p-8 flex justify-between items-center border-b-4 border-primary bg-secondary-fixed text-on-secondary-fixed">
-                <span className="text-sm font-bold uppercase tracking-widest flex items-center gap-2">
+            <div className="flashcard-face flashcard-back absolute inset-0 bg-surface-container-lowest border-2 border-on-surface shadow-[8px_8px_0px_0px_#191b23] rounded-xl flex flex-col overflow-hidden">
+              <div className="px-6 py-4 flex justify-between items-center border-b-2 border-on-surface bg-primary text-white">
+                <span className="text-xs font-bold uppercase tracking-widest flex items-center gap-2">
                   ANSWER REVEALED
                 </span>
-                <span className="text-xs font-bold opacity-70">
+                <span className="text-[10px] font-bold opacity-80 uppercase tracking-widest">
                   RATE YOUR MEMORY BELOW
                 </span>
               </div>
-              <div className="flex-1 flex flex-col justify-center items-center text-center p-12 overflow-y-auto custom-scrollbar">
-                <div className="prose prose-lg max-w-none prose-p:font-sans prose-p:font-bold prose-p:text-2xl prose-p:leading-tight prose-p:text-primary prose-headings:font-bold prose-headings:text-primary">
+              <div className="flex-1 flex flex-col justify-center items-center text-center p-8 overflow-y-auto custom-scrollbar bg-primary/5">
+                <div className="prose prose-slate max-w-none prose-p:font-sans prose-p:font-bold prose-p:text-xl prose-p:leading-snug prose-p:text-on-surface prose-headings:font-bold prose-headings:text-on-surface">
                   <MarkdownRenderer content={currentCard.answer} />
                 </div>
               </div>
@@ -248,47 +248,43 @@ export function ReviewView() {
 
         {/* Study Controls */}
         <div className={clsx(
-          "w-full max-w-[800px] grid grid-cols-4 gap-6 transition-all duration-300 shrink-0",
+          "w-full max-w-2xl grid grid-cols-4 gap-4 transition-all duration-300 shrink-0",
           !isFlipped && "opacity-20 pointer-events-none grayscale"
         )}>
           <button 
             onClick={() => handleRate(1)}
             disabled={!isFlipped}
-            className="flex flex-col items-center justify-center gap-2 p-6 bg-error-container text-on-error-container border-4 border-primary neo-shadow hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all cursor-pointer"
+            className="flex flex-col items-center justify-center gap-1 py-4 bg-surface hover:bg-error/10 text-error border-2 border-on-surface rounded-xl shadow-[4px_4px_0px_0px_#191b23] active:shadow-none active:translate-x-[2px] active:translate-y-[2px] transition-all cursor-pointer group"
           >
-            <span className="text-xs font-black opacity-60 bg-white/50 px-2 py-0.5 rounded-sm mb-1 border-2 border-primary/30">1</span>
-            <span className="text-2xl font-black uppercase">Again</span>
-            <span className="text-sm font-bold opacity-80">&lt; 1m</span>
+            <span className="text-lg font-bold uppercase pointer-events-none">Again</span>
+            <span className="text-xs font-bold uppercase tracking-wider opacity-70 group-hover:opacity-100 pointer-events-none">&lt; 1m</span>
           </button>
 
           <button 
             onClick={() => handleRate(2)}
             disabled={!isFlipped}
-            className="flex flex-col items-center justify-center gap-2 p-6 bg-amber-200 text-amber-900 border-4 border-primary neo-shadow hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all cursor-pointer"
+            className="flex flex-col items-center justify-center gap-1 py-4 bg-surface hover:bg-orange-500/10 text-orange-600 border-2 border-on-surface rounded-xl shadow-[4px_4px_0px_0px_#191b23] active:shadow-none active:translate-x-[2px] active:translate-y-[2px] transition-all cursor-pointer group"
           >
-            <span className="text-xs font-black opacity-60 bg-white/50 px-2 py-0.5 rounded-sm mb-1 border-2 border-primary/30">2</span>
-            <span className="text-2xl font-black uppercase">Hard</span>
-            <span className="text-sm font-bold opacity-80">~ 5m</span>
+            <span className="text-lg font-bold uppercase pointer-events-none">Hard</span>
+            <span className="text-xs font-bold uppercase tracking-wider opacity-70 group-hover:opacity-100 pointer-events-none">~ 5m</span>
           </button>
 
           <button 
             onClick={() => handleRate(3)}
             disabled={!isFlipped}
-            className="flex flex-col items-center justify-center gap-2 p-6 bg-secondary-fixed text-on-secondary-fixed border-4 border-primary neo-shadow hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all cursor-pointer"
+            className="flex flex-col items-center justify-center gap-1 py-4 bg-surface hover:bg-primary/10 text-primary border-2 border-on-surface rounded-xl shadow-[4px_4px_0px_0px_#191b23] active:shadow-none active:translate-x-[2px] active:translate-y-[2px] transition-all cursor-pointer group"
           >
-            <span className="text-xs font-black opacity-60 bg-white/50 px-2 py-0.5 rounded-sm mb-1 border-2 border-primary/30">3</span>
-            <span className="text-2xl font-black uppercase">Good</span>
-            <span className="text-sm font-bold opacity-80">~ 10m</span>
+            <span className="text-lg font-bold uppercase pointer-events-none">Good</span>
+            <span className="text-xs font-bold uppercase tracking-wider opacity-70 group-hover:opacity-100 pointer-events-none">~ 10m</span>
           </button>
 
           <button 
             onClick={() => handleRate(4)}
             disabled={!isFlipped}
-            className="flex flex-col items-center justify-center gap-2 p-6 bg-cyan-200 text-cyan-900 border-4 border-primary neo-shadow hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all cursor-pointer"
+            className="flex flex-col items-center justify-center gap-1 py-4 bg-surface hover:bg-green-600/10 text-green-700 border-2 border-on-surface rounded-xl shadow-[4px_4px_0px_0px_#191b23] active:shadow-none active:translate-x-[2px] active:translate-y-[2px] transition-all cursor-pointer group"
           >
-            <span className="text-xs font-black opacity-60 bg-white/50 px-2 py-0.5 rounded-sm mb-1 border-2 border-primary/30">4</span>
-            <span className="text-2xl font-black uppercase">Easy</span>
-            <span className="text-sm font-bold opacity-80">~ 4d</span>
+            <span className="text-lg font-bold uppercase pointer-events-none">Easy</span>
+            <span className="text-xs font-bold uppercase tracking-wider opacity-70 group-hover:opacity-100 pointer-events-none">~ 4d</span>
           </button>
         </div>
 

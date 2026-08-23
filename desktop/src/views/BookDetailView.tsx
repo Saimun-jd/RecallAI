@@ -14,7 +14,7 @@ import {
   setPdfTheme
 } from '../store/readerSlice';
 import { client, type Book, type Topic, type Flashcard, type PdfAnnotation } from '../api/client';
-import { Loader2, Zap, PenTool, Link2, BrainCircuit, Play, FileText, ChevronRight, ChevronLeft, CheckCircle2, Circle, Clock, Check, X, Edit2, Trash2, BookOpen, ArrowLeft, LayoutList, ChevronDown, Search, Save, Sun, Moon } from 'lucide-react';
+import { Loader2, Zap, PenTool, Link2, BrainCircuit, Play, FileText, ChevronRight, ChevronLeft, CheckCircle2, Circle, Clock, Check, X, Edit2, Trash2, BookOpen, ArrowLeft, LayoutList, ChevronDown, Search, Save, Sun, Moon, MoreHorizontal } from 'lucide-react';
 import { MarkdownRenderer } from '../components/MarkdownRenderer';
 import clsx from 'clsx';
 import { FlashcardGenModal } from '../components/FlashcardGenModal';
@@ -62,6 +62,7 @@ export function BookDetailView() {
   const [editQuestion, setEditQuestion] = useState("");
   const [editAnswer, setEditAnswer] = useState("");
   const [isSavingCard, setIsSavingCard] = useState(false);
+  const [currentCardIndex, setCurrentCardIndex] = useState(0);
 
   // PDF Annotation state
   const [viewMode, setViewMode] = useState<'topics' | 'pdf'>('topics');
@@ -136,6 +137,7 @@ export function BookDetailView() {
     }
     // Reset edit state when topic changes
     setEditingCardId(null);
+    setCurrentCardIndex(0);
   }, [activeTopicId, dispatch]);
 
   const handleStartEdit = (card: Flashcard) => {
@@ -367,24 +369,21 @@ export function BookDetailView() {
     <div className="flex-1 flex overflow-hidden bg-surface h-full w-full relative">
 
       {/* Left Sidebar: TOC - Resizable */}
-      <div 
+      <aside 
         id="toc-sidebar"
         className={clsx(
-          "shrink-0 min-w-0 border-r-[3px] border-on-background bg-surface-container-low flex flex-col z-10 relative overflow-hidden transition-[width] duration-200 ease-out",
+          "shrink-0 min-w-0 border-r-2 border-on-surface bg-surface-container-lowest flex flex-col h-[calc(100vh-64px)] sticky top-0 overflow-hidden z-10 transition-[width] duration-200 ease-out",
           isTocCollapsed && "border-r-0"
         )}
         style={{ width: isTocCollapsed ? 0 : `${tocWidth}px` }}
       >
-        <div className="p-4 border-b-[3px] border-on-background bg-surface-container-lowest flex flex-col gap-3 min-w-[240px]">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <Link to="/" className="text-on-surface hover:text-primary p-1.5 rounded-md hover:bg-surface-container transition-colors">
-                <ArrowLeft size={18} />
-              </Link>
-              <div className="text-sm font-semibold text-primary truncate">
-                {book.title}
-              </div>
-            </div>
+        <div className="h-16 px-4 flex items-center border-b-2 border-on-surface bg-surface-container-lowest shrink-0 min-w-[240px]">
+          <span className="font-bold text-2xl text-primary tracking-tight">Recall AI</span>
+        </div>
+        
+        <div className="p-4 border-b border-outline-variant bg-surface-container-lowest shrink-0 min-w-[240px]">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-xl font-bold text-on-surface">Topics</h2>
             <button
               onClick={() => setIsTocCollapsed(true)}
               className="text-on-surface hover:text-primary p-1 rounded hover:bg-surface-container transition-colors shrink-0"
@@ -394,13 +393,13 @@ export function BookDetailView() {
             </button>
           </div>
           <div className="relative">
-            <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
+            <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-outline" />
             <input
               type="text"
               placeholder="Filter topics..."
               value={searchQuery}
               onChange={(e) => dispatch(setSearchQuery(e.target.value))}
-              className="w-full bg-surface border-[3px] border-on-background py-2 pl-10 pr-3 text-label-md font-label-md text-primary placeholder:text-on-surface-variant focus:outline-none focus:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all"
+              className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 pl-10 pr-4 text-sm focus:outline-none focus:border-primary transition-colors"
             />
           </div>
         </div>
@@ -422,10 +421,10 @@ export function BookDetailView() {
                     setViewMode('topics');
                   }}
                   className={clsx(
-                    "absolute top-0 left-0 w-full flex items-center text-left transition-colors border-b-[3px] border-on-background group",
+                    "absolute top-0 left-0 w-full flex items-center text-left transition-colors group",
                     isSelected 
-                      ? "bg-primary-container text-on-primary-container neo-shadow-sm z-10" 
-                      : "text-on-surface hover:bg-surface-container hover:text-primary"
+                      ? "bg-primary/10 border-l-4 border-primary text-primary font-bold z-10" 
+                      : "text-on-surface hover:bg-surface-container hover:text-primary border-l-4 border-transparent"
                   )}
                   style={{
                     height: `${virtualRow.size}px`,
@@ -468,7 +467,7 @@ export function BookDetailView() {
             })}
           </div>
         </div>
-      </div>
+      </aside>
 
       {/* Resize Handle */}
       {!isTocCollapsed && (
@@ -655,79 +654,77 @@ export function BookDetailView() {
                 </ErrorBoundary>
               </div>
             </div>
-            <div className={clsx("flex-1 flex flex-col h-full overflow-y-auto", viewMode !== 'topics' && "hidden")}>
-              {/* Header & Quick Actions */}
-              <div className="p-6 border-b-[3px] border-primary bg-surface-container-lowest shrink-0 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] z-10 relative">
-                <div className="flex items-center gap-2 text-xs text-accent-blue font-medium font-medium mb-3">
+            <div className={clsx("flex-1 flex justify-center h-full overflow-y-auto custom-scrollbar", viewMode !== 'topics' && "hidden")}>
+              <div className="w-full max-w-5xl flex flex-col min-h-full">
+              {/* Header */}
+              <div className="px-5 pt-3 flex items-center justify-between text-sm text-outline">
+                <div className="flex items-center gap-1">
                   {isTocCollapsed && (
                     <button 
                       onClick={() => setIsTocCollapsed(false)}
-                      className="text-accent-blue hover:text-accent-blue/80 transition-colors p-1 rounded hover:bg-surface-container -ml-1 mr-1"
+                      className="bg-surface-container-lowest border-2 border-on-surface rounded-md p-1.5 hover:bg-surface-container shadow-[2px_2px_0px_0px_#191b23] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none text-on-surface mr-3 flex items-center justify-center shrink-0 transition-all"
                       title="Show Outline"
                     >
-                      <LayoutList size={16} />
+                      <LayoutList size={20} />
                     </button>
                   )}
-                  <Link to="/" className="hover:text-accent-blue transition-colors">{book.title}</Link>
-                  <span>/</span>
-                  <span>{activeTopic.breadcrumb || 'Chapter'}</span>
+                  <Link to="/" className="hover:text-primary transition-colors truncate max-w-[200px]">{book.title}</Link>
+                  <ChevronRight size={16} />
+                  <span className="truncate max-w-[200px]">{activeTopic.breadcrumb || 'Chapter'}</span>
                 </div>
-                <div className="flex items-start justify-between gap-4 mb-6">
-                  <h1 className="font-headline-lg text-headline-lg font-black text-primary leading-tight">
-                    {activeTopic.title}
-                  </h1>
-                  <div className="shrink-0 text-label-sm font-label-sm font-bold text-on-surface-variant bg-surface-container px-3 py-1 border-[3px] border-primary neo-shadow-sm">
+                <div className="flex items-center gap-3">
+                  <span className="px-3 py-1 bg-surface-container rounded-full border border-outline-variant font-bold text-on-surface">
                     Target: p. {activeTopic.start_page}
-                  </div>
-                </div>
-
-                <div className="mb-6">
-                  <SocraticDrillWidget
-                    topicId={activeTopic.id}
-                    topicTitle={activeTopic.title}
-                    onMasteryUpdate={(score, status) => {
-                      // Refresh topics to update TOC mastery indicators
-                      client.getTopics(bookId).then(setTopics).catch(console.error);
-                    }}
-                  />
-                </div>
-
-                {/* Quick Actions Bar */}
-                <div className="flex flex-wrap items-center gap-4">
-                  <button
-                    onClick={() => {
-                      setViewMode('pdf');
-                      setPdfScrollCommand({ page: activeTopic.start_page, ts: Date.now() });
-                    }}
-                    className="flex items-center gap-2 px-6 py-3 text-label-md font-bold transition-all border-[3px] border-primary bg-surface-container-lowest text-primary neo-shadow-sm active-neo-press"
-                  >
-                    <FileText size={18} /> View PDF
-                  </button>
-                  <button
-                    onClick={() => dispatch(setIsCardGenModalOpen(true))}
-                    className="flex items-center gap-2 px-6 py-3 text-label-md font-bold transition-all bg-surface-container-lowest text-primary border-[3px] border-primary neo-shadow-sm active-neo-press"
-                  >
-                    <Zap size={18} style={{ fontVariationSettings: "'FILL' 1" }} /> Generate Flashcards
-                  </button>
-                  <button
-                    onClick={() => dispatch(setIsNotesOpen(!isNotesOpen))}
-                    className={clsx(
-                      "flex items-center gap-2 px-6 py-3 text-label-md font-bold transition-all border-[3px] border-primary neo-shadow-sm active-neo-press",
-                      isNotesOpen ? "bg-amber-500 text-zinc-950" : "bg-surface-container-lowest text-primary"
-                    )}
-                  >
-                    <PenTool size={18} /> Study Notes
-                  </button>
-                  <button
-                    onClick={() => setIsRelatedModalOpen(true)}
-                    className="flex items-center gap-2 px-6 py-3 text-label-md font-bold bg-surface-container-lowest text-primary border-[3px] border-primary neo-shadow-sm active-neo-press ml-auto"
-                  >
-                    <Link2 size={18} /> Related
+                  </span>
+                  <button className="w-8 h-8 flex items-center justify-center rounded-full bg-surface-container hover:bg-surface-variant transition-colors border border-outline-variant">
+                    <MoreHorizontal size={18} className="text-on-surface" />
                   </button>
                 </div>
               </div>
 
-              <div className="p-6 flex flex-col gap-6 flex-1 min-h-0">
+              <div className="px-5 mt-2">
+                <SocraticDrillWidget
+                  topicId={activeTopic.id}
+                  topicTitle={activeTopic.title}
+                  onMasteryUpdate={(score, status) => {
+                    // Refresh topics to update TOC mastery indicators
+                    client.getTopics(bookId).then(setTopics).catch(console.error);
+                  }}
+                />
+              </div>
+
+              {/* Quick Actions Bar */}
+              <div className="px-5 mt-2 flex overflow-x-auto gap-3 pb-1 hide-scrollbar snap-x snap-mandatory items-center">
+                <button
+                  onClick={() => {
+                    setViewMode('pdf');
+                    setPdfScrollCommand({ page: activeTopic.start_page, ts: Date.now() });
+                  }}
+                  className="snap-start shrink-0 bg-surface-container-lowest border-2 border-on-surface rounded-lg px-3 py-1.5 flex items-center gap-2 hover:bg-surface-container shadow-[2px_2px_0px_0px_#191b23] active:shadow-none active:translate-x-[1px] active:translate-y-[1px] transition-all h-9 text-on-surface"
+                >
+                  <FileText size={16} />
+                  <span className="font-bold text-xs">View PDF</span>
+                </button>
+                <button
+                  onClick={() => dispatch(setIsCardGenModalOpen(true))}
+                  className="snap-start shrink-0 bg-surface-container-lowest border-2 border-on-surface rounded-lg px-3 py-1.5 flex items-center gap-2 hover:bg-surface-container shadow-[2px_2px_0px_0px_#191b23] active:shadow-none active:translate-x-[1px] active:translate-y-[1px] transition-all h-9 text-on-surface"
+                >
+                  <Zap size={16} />
+                  <span className="font-bold text-xs">Generate Flashcards</span>
+                </button>
+                <button
+                  onClick={() => dispatch(setIsNotesOpen(!isNotesOpen))}
+                  className={clsx(
+                    "snap-start shrink-0 bg-surface-container-lowest border-2 border-on-surface rounded-lg px-3 py-1.5 flex items-center gap-2 hover:bg-surface-container shadow-[2px_2px_0px_0px_#191b23] active:shadow-none active:translate-x-[1px] active:translate-y-[1px] transition-all h-9 text-on-surface",
+                    isNotesOpen && "bg-primary/10 text-primary border-primary"
+                  )}
+                >
+                  <PenTool size={16} />
+                  <span className="font-bold text-xs">Study Notes</span>
+                </button>
+              </div>
+
+              <div className="px-5 pb-4 flex flex-col gap-2 flex-1 min-h-0 mt-1">
 
                 {/* Generated Topic Data (if processed) */}
                 {activeTopic.status === 'processed' && (activeTopic.summary || activeTopic.concept_type) && (
@@ -769,101 +766,141 @@ export function BookDetailView() {
 
 
                 {/* Flashcards List */}
-                <div className="space-y-6">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-headline-md text-headline-md font-black uppercase tracking-wider flex items-center gap-3">
+                <div className="flex flex-col flex-1 min-h-[400px] gap-2">
+                  <div className="flex items-center justify-between shrink-0">
+                    <h3 className="text-lg font-black uppercase tracking-tight flex items-center gap-3 text-on-surface">
                       <span>Topic Flashcards</span>
-                      <span className="bg-primary text-white border-[3px] border-primary px-3 py-1 text-label-md font-black neo-shadow-sm">{activeTopicCards.length}</span>
+                      <span className="bg-primary text-white border-2 border-on-surface px-2.5 py-0.5 text-sm rounded-md shadow-[2px_2px_0px_0px_#191b23]">
+                        {activeTopicCards.length > 0 ? `${currentCardIndex + 1} / ${activeTopicCards.length}` : '0'}
+                      </span>
                     </h3>
                     {activeTopicCards.length > 0 && (
-                      <button
-                        onClick={() => setIsPracticeModalOpen(true)}
-                        className="text-label-md font-black bg-secondary text-white border-[3px] border-primary px-6 py-2 neo-shadow-sm active-neo-press transition-all flex items-center gap-2"
-                      >
-                        <Play size={16} style={{ fontVariationSettings: "'FILL' 1" }} /> Practice
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setCurrentCardIndex(Math.max(0, currentCardIndex - 1))}
+                          disabled={currentCardIndex === 0}
+                          className="bg-surface-container-lowest text-on-surface border-2 border-on-surface rounded-lg p-2 shadow-[2px_2px_0px_0px_#191b23] disabled:opacity-50 active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all"
+                        >
+                          <ChevronLeft size={20} />
+                        </button>
+                        <button
+                          onClick={() => setCurrentCardIndex(Math.min(activeTopicCards.length - 1, currentCardIndex + 1))}
+                          disabled={currentCardIndex === activeTopicCards.length - 1}
+                          className="bg-surface-container-lowest text-on-surface border-2 border-on-surface rounded-lg p-2 shadow-[2px_2px_0px_0px_#191b23] disabled:opacity-50 active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all"
+                        >
+                          <ChevronRight size={20} />
+                        </button>
+                        <button
+                          onClick={() => setIsPracticeModalOpen(true)}
+                          className="bg-primary text-on-primary border-2 border-on-surface rounded-lg px-5 py-2.5 text-sm font-bold flex items-center gap-2 shadow-[4px_4px_0px_0px_#191b23] active:shadow-none active:translate-x-[2px] active:translate-y-[2px] transition-all ml-2"
+                        >
+                          <Play size={16} style={{ fontVariationSettings: "'FILL' 1" }} /> Practice
+                        </button>
+                      </div>
                     )}
                   </div>
 
                   {activeTopicCards.length === 0 ? (
-                    <div className="p-8 border-[3px] border-dashed border-primary flex flex-col items-center justify-center text-on-surface-variant bg-surface-container hover:bg-surface-container-high transition-colors min-h-[200px]">
-                      <Zap size={32} className="mb-4 text-primary" />
-                      <p className="font-label-lg text-label-lg font-bold">No flashcards generated yet.</p>
+                    <div className="flex-1 min-h-0 bg-surface-container-lowest border-2 border-dashed border-on-surface/20 rounded-xl flex flex-col items-center justify-center p-8 relative overflow-hidden">
+                      <svg className="absolute inset-0 w-full h-full text-on-surface/5" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                          <pattern id="grid-pattern" width="40" height="40" patternUnits="userSpaceOnUse">
+                            <path d="M 40 0 L 0 0 0 40" fill="none" stroke="currentColor" strokeWidth="1" />
+                          </pattern>
+                        </defs>
+                        <rect width="100%" height="100%" fill="url(#grid-pattern)" />
+                      </svg>
+                      <div className="w-20 h-20 rounded-full bg-secondary-container border-2 border-on-surface shadow-[4px_4px_0px_0px_#191b23] flex items-center justify-center relative z-10 animate-[bounce_3s_infinite]">
+                        <Zap size={40} className="text-on-secondary-container" style={{ fontVariationSettings: "'FILL' 1" }} />
+                      </div>
+                      <div className="text-center z-10 relative mt-4">
+                        <h3 className="text-2xl font-bold text-on-surface mb-2">No flashcards generated yet</h3>
+                        <p className="text-sm text-on-surface-variant max-w-md mx-auto">
+                          Click 'Generate Flashcards' above to automatically extract key concepts and definitions from this section.
+                        </p>
+                      </div>
                     </div>
                   ) : (
-                    <div className="grid gap-6">
-                      {activeTopicCards.map(card => (
-                        <div key={card.id} className="bg-surface-container-lowest border-[3px] border-on-background neo-shadow p-6 group relative hover:translate-x-[-2px] hover:translate-y-[-2px] hover:shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] transition-all">
-                          {editingCardId === card.id ? (
-                            <div className="space-y-4">
-                              <div>
-                                <div className="font-label-md text-label-md font-bold text-on-surface-variant uppercase tracking-wider mb-2">Question</div>
-                                <textarea
-                                  value={editQuestion}
-                                  onChange={(e) => setEditQuestion(e.target.value)}
-                                  className="w-full bg-surface border border-outline-variant rounded-lg p-2.5 text-sm text-primary focus:outline-none focus:ring-1 focus:ring-accent-blue/50 focus:border-accent-blue/50 resize-y min-h-[60px]"
-                                />
+                    <div className="flex-1 min-h-0 overflow-y-auto pr-2 pb-6 relative">
+                      {(() => {
+                        const card = activeTopicCards[currentCardIndex];
+                        if (!card) return null;
+                        return (
+                          <div key={card.id} className="bg-surface-container-lowest border-2 border-on-surface rounded-xl shadow-[6px_6px_0px_0px_#191b23] group relative transition-all overflow-hidden flex flex-col mb-4">
+                            {editingCardId === card.id ? (
+                              <div className="p-6 flex flex-col gap-6">
+                                <div className="flex flex-col">
+                                  <div className="inline-block self-start px-3 py-1 bg-secondary text-white text-xs font-bold uppercase tracking-wider rounded-md border-2 border-on-surface mb-2 shadow-[2px_2px_0px_0px_#191b23]">Question</div>
+                                  <textarea
+                                    value={editQuestion}
+                                    onChange={(e) => setEditQuestion(e.target.value)}
+                                    className="w-full min-h-[100px] bg-surface-container-lowest border-2 border-on-surface rounded-lg p-3 text-base font-bold text-on-surface focus:outline-none focus:shadow-[4px_4px_0px_0px_#191b23] transition-all resize-y"
+                                  />
+                                </div>
+                                <div className="flex flex-col">
+                                  <div className="inline-block self-start px-3 py-1 bg-surface-container-lowest text-on-surface text-xs font-bold uppercase tracking-wider rounded-md border-2 border-on-surface mb-2 shadow-[2px_2px_0px_0px_#191b23]">Answer</div>
+                                  <textarea
+                                    value={editAnswer}
+                                    onChange={(e) => setEditAnswer(e.target.value)}
+                                    className="w-full min-h-[150px] bg-primary/5 border-2 border-on-surface rounded-lg p-3 text-base font-medium text-on-surface focus:outline-none focus:shadow-[4px_4px_0px_0px_#191b23] transition-all resize-y"
+                                  />
+                                </div>
+                                <div className="flex justify-end gap-3 pt-2 shrink-0">
+                                  <button
+                                    onClick={() => setEditingCardId(null)}
+                                    className="px-5 py-2.5 text-sm font-bold text-on-surface bg-surface-container-lowest border-2 border-on-surface rounded-lg hover:bg-surface-container shadow-[2px_2px_0px_0px_#191b23] active:shadow-none active:translate-x-[2px] active:translate-y-[2px] transition-all"
+                                  >
+                                    Cancel
+                                  </button>
+                                  <button
+                                    onClick={() => handleSaveCard(card.id)}
+                                    className="px-5 py-2.5 bg-primary text-on-primary font-bold border-2 border-on-surface rounded-lg shadow-[2px_2px_0px_0px_#191b23] active:shadow-none active:translate-x-[2px] active:translate-y-[2px] transition-all text-sm"
+                                  >
+                                    Save Changes
+                                  </button>
+                                </div>
                               </div>
-                              <div>
-                                <div className="font-label-md text-label-md font-bold text-on-surface-variant uppercase tracking-wider mb-2">Answer</div>
-                                <textarea
-                                  value={editAnswer}
-                                  onChange={(e) => setEditAnswer(e.target.value)}
-                                  className="w-full bg-surface border-[3px] border-on-background p-3 text-label-md font-label-md text-primary placeholder:text-on-surface-variant focus:outline-none focus:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all resize-y min-h-[100px]"
-                                />
-                              </div>
-                              <div className="flex justify-end gap-3 pt-2">
-                                <button
-                                  onClick={() => setEditingCardId(null)}
-                                  className="px-4 py-2 text-label-md font-bold text-on-surface-variant hover:text-primary transition-colors border-[3px] border-transparent hover:border-on-background"
-                                >
-                                  Cancel
-                                </button>
-                                <button
-                                  onClick={() => handleSaveCard(card.id)}
-                                  className="px-6 py-2 bg-primary text-white font-bold border-[3px] border-primary neo-shadow-sm active-neo-press transition-all"
-                                >
-                                  Save Changes
-                                </button>
-                              </div>
-                            </div>
-                          ) : (
-                            <>
-                              <div className="absolute top-4 right-4 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <button
-                                  onClick={() => handleStartEdit(card)}
-                                  className="p-1.5 text-on-surface hover:text-white hover:bg-surface-container-high rounded-md"
-                                >
-                                  <Edit2 size={14} />
-                                </button>
-                                <button
-                                  className="p-1.5 text-red-400 hover:text-red-300 hover:bg-red-400/10 rounded-md"
-                                  onClick={() => handleDeleteCard(card.id)}
-                                >
-                                  <Trash2 size={14} />
-                                </button>
-                              </div>
-                              <div className="pr-16 space-y-4">
-                                <div>
-                                  <div className="font-label-md text-label-md font-bold text-on-surface-variant uppercase tracking-wider mb-2">Question</div>
-                                  <div className="font-body-lg text-body-lg text-primary font-medium prose prose-slate max-w-none">
+                            ) : (
+                              <>
+                                <div className="absolute top-6 right-6 flex items-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                                  <button
+                                    onClick={() => handleStartEdit(card)}
+                                    className="p-2 text-on-surface bg-surface hover:bg-surface-container border-2 border-on-surface rounded-lg shadow-[2px_2px_0px_0px_#191b23] transition-all active:translate-x-[1px] active:translate-y-[1px] active:shadow-none"
+                                  >
+                                    <Edit2 size={16} />
+                                  </button>
+                                  <button
+                                    className="p-2 text-error bg-error/10 hover:bg-error/20 border-2 border-error rounded-lg shadow-[2px_2px_0px_0px_var(--color-error)] transition-all active:translate-x-[1px] active:translate-y-[1px] active:shadow-none"
+                                    onClick={() => handleDeleteCard(card.id)}
+                                  >
+                                    <Trash2 size={16} />
+                                  </button>
+                                </div>
+                                <div className="p-6 bg-surface-container-lowest relative">
+                                  <div className="inline-block px-3 py-1 bg-secondary text-white text-xs font-bold uppercase tracking-wider rounded-md border-2 border-on-surface mb-4 shadow-[2px_2px_0px_0px_#191b23]">
+                                    Question
+                                  </div>
+                                  <div className="text-lg text-on-surface font-bold prose prose-slate max-w-none pr-24 leading-relaxed">
                                     <MarkdownRenderer content={card.question} />
                                   </div>
                                 </div>
-                                <div className="bg-surface-container-low border-[3px] border-on-background p-4 neo-shadow-sm">
-                                  <div className="font-label-md text-label-md font-bold text-on-surface-variant uppercase tracking-wider mb-2">Answer</div>
-                                  <div className="text-body-md font-body-md text-on-surface prose prose-slate max-w-none">
+                                <div className="p-6 bg-primary/5 border-t-2 border-on-surface">
+                                  <div className="inline-block px-3 py-1 bg-surface-container-lowest text-on-surface text-xs font-bold uppercase tracking-wider rounded-md border-2 border-on-surface mb-4 shadow-[2px_2px_0px_0px_#191b23]">
+                                    Answer
+                                  </div>
+                                  <div className="text-base text-on-surface font-medium prose prose-slate max-w-none leading-relaxed">
                                     <MarkdownRenderer content={card.answer} />
                                   </div>
                                 </div>
-                              </div>
-                            </>
-                          )}
-                        </div>
-                      ))}
+                              </>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </div>
                   )}
                 </div>
+              </div>
               </div>
             </div>
           </>

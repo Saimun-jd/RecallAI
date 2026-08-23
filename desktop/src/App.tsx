@@ -13,10 +13,88 @@ import { loadSettings } from './api/settingsStore';
 import { getApiKey } from './api/keychain';
 import { Sidebar } from './components/Sidebar';
 import { StatusBar } from './components/StatusBar';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 
 export default function App() {
   const [bootTime] = useState(Date.now());
   const [sidecarStatus, setSidecarStatus] = useState<'connected' | 'error' | 'booting'>('booting');
+  const [contrastLevel, setContrastLevel] = useState(() => {
+    return parseInt(localStorage.getItem('app-contrast-level') || '0', 10);
+  });
+
+  useEffect(() => {
+    const root = document.documentElement;
+    if (contrastLevel === 0) {
+      root.style.removeProperty('--color-background');
+      root.style.removeProperty('--color-surface');
+      root.style.removeProperty('--color-surface-container-lowest');
+      root.style.removeProperty('--color-surface-container-low');
+      root.style.removeProperty('--color-surface-container');
+      root.style.removeProperty('--color-surface-container-high');
+      root.style.removeProperty('--color-surface-container-highest');
+      root.style.removeProperty('--color-on-background');
+      root.style.removeProperty('--color-on-surface');
+      root.style.removeProperty('--color-on-surface-variant');
+      root.style.removeProperty('--color-primary');
+      root.style.removeProperty('--color-outline');
+      root.style.removeProperty('--color-outline-variant');
+      localStorage.setItem('app-contrast-level', '0');
+      return;
+    }
+    
+    const lerpColor = (hex: string, targetHex: string, ratio: number) => {
+      const parse = (c: string) => {
+        if (c.startsWith('#')) c = c.slice(1);
+        if (c.length === 3) c = c.split('').map(x => x + x).join('');
+        return [
+          parseInt(c.slice(0, 2), 16),
+          parseInt(c.slice(2, 4), 16),
+          parseInt(c.slice(4, 6), 16)
+        ];
+      };
+      
+      const [r1, g1, b1] = parse(hex);
+      const [r2, g2, b2] = parse(targetHex);
+      
+      const clamp = (val: number) => Math.min(255, Math.max(0, val));
+      const r = clamp(Math.round(r1 + (r2 - r1) * ratio));
+      const g = clamp(Math.round(g1 + (g2 - g1) * ratio));
+      const b = clamp(Math.round(b1 + (b2 - b1) * ratio));
+      
+      return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
+    };
+
+    const ratio = contrastLevel / 100;
+    
+    const bgColors = {
+      '--color-background': '#faf8ff',
+      '--color-surface': '#F8F7F4',
+      '--color-surface-container-lowest': '#F8F7F4',
+      '--color-surface-container-low': '#F2F0EA',
+      '--color-surface-container': '#EDEBE3',
+      '--color-surface-container-high': '#E5E2D8',
+      '--color-surface-container-highest': '#e2e2ec',
+    };
+    
+    const textColors = {
+      '--color-on-background': '#191b23',
+      '--color-on-surface': '#191b23',
+      '--color-on-surface-variant': '#434654',
+      '--color-primary': '#003594',
+      '--color-outline': '#737685',
+      '--color-outline-variant': '#c3c6d6',
+    };
+
+    Object.entries(bgColors).forEach(([key, baseHex]) => {
+      root.style.setProperty(key, lerpColor(baseHex, '#ffffff', ratio));
+    });
+
+    Object.entries(textColors).forEach(([key, baseHex]) => {
+      root.style.setProperty(key, lerpColor(baseHex, '#000000', ratio));
+    });
+    
+    localStorage.setItem('app-contrast-level', contrastLevel.toString());
+  }, [contrastLevel]);
 
   const dispatch = useDispatch();
 
@@ -62,15 +140,66 @@ export default function App() {
     return () => clearInterval(interval);
   }, [dispatch]);
 
+  // F11 Fullscreen toggle
+  useEffect(() => {
+    const handleKeyDown = async (e: KeyboardEvent) => {
+      if (e.key === 'F11') {
+        e.preventDefault();
+        try {
+          const appWindow = getCurrentWindow();
+          const isFullscreen = await appWindow.isFullscreen();
+          if (isFullscreen) {
+            await appWindow.setFullscreen(false);
+            await appWindow.setDecorations(true);
+          } else {
+            await appWindow.setDecorations(false);
+            await appWindow.setFullscreen(true);
+          }
+        } catch (err) {
+          console.error("Failed to toggle fullscreen", err);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   return (
-    <div className="flex flex-col h-screen bg-surface text-on-surface overflow-hidden font-sans antialiased">
+    <div className="flex flex-col h-screen bg-background text-on-surface font-sans antialiased overflow-hidden">
       <CommandPalette />
       
-      <div className="flex flex-1 overflow-hidden">
+      {/* Global Header */}
+      <header className="fixed top-0 inset-x-0 z-50 bg-surface-container-low border-b-2 border-on-surface pt-[env(safe-area-inset-top,0px)]">
+        <div className="h-16 px-5 flex items-center justify-between">
+          <StatusBar bootTime={bootTime} sidecarStatus={sidecarStatus} />
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 border-2 border-on-surface rounded-lg px-3 py-1.5 bg-surface shadow-[2px_2px_0px_0px_#191b23]">
+              <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Contrast</span>
+              <input 
+                type="range" 
+                min="-100" 
+                max="100" 
+                value={contrastLevel}
+                onChange={(e) => setContrastLevel(parseInt(e.target.value, 10))}
+                className="w-20 lg:w-24 accent-on-surface cursor-pointer"
+              />
+            </div>
+            <button className="w-10 h-10 flex items-center justify-center rounded-lg border-2 border-on-surface active:translate-y-0.5 transition-transform hover:bg-surface-container">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-on-surface"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+            </button>
+            <div className="w-10 h-10 rounded-full border-2 border-on-surface bg-primary flex items-center justify-center overflow-hidden">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-on-primary"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            </div>
+          </div>
+        </div>
+      </header>
+      
+      <div className="flex relative w-full pt-16 flex-row flex-1 h-full overflow-hidden">
         <Sidebar />
         
-        {/* Main Viewport - Academic Precision: Clean background hierarchy */}
-        <main className="flex-1 overflow-y-auto relative flex flex-col bg-surface">
+        {/* Main Viewport */}
+        <main className="flex-1 flex flex-col bg-background relative min-w-0 overflow-y-auto">
           <Routes>
             <Route path="/" element={<LibraryView />} />
             <Route path="/review" element={<ReviewView />} />
@@ -82,7 +211,7 @@ export default function App() {
         </main>
       </div>
       
-      <StatusBar bootTime={bootTime} sidecarStatus={sidecarStatus} />
+
     </div>
   );
 }

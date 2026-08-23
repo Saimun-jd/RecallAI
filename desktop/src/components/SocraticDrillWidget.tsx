@@ -138,29 +138,35 @@ export function SocraticDrillWidget({ topicId, topicTitle, onMasteryUpdate }: So
   // ─── Idle State ─────────────────────────────────────────────────────
   if (phase === 'idle') {
     return (
-      <div className="bg-surface-container-lowest border-[3px] border-on-background neo-shadow-lg p-6">
-        <div className="flex items-center gap-4 mb-4">
-          <div className="w-12 h-12 border-[3px] border-on-background bg-surface-container-lowest text-primary flex items-center justify-center neo-shadow-sm">
-            <BrainCircuit size={24} />
-          </div>
-          <div>
-            <h3 className="font-headline-md text-headline-md font-bold text-primary">Socratic Diagnostic Drill</h3>
-            <p className="text-label-sm font-label-sm font-bold uppercase tracking-wider text-secondary">Test your understanding with probing questions</p>
+      <div className="w-full border-2 rounded-xl shadow-[2px_2px_0px_0px_#191b23] p-4 flex flex-col gap-3 relative overflow-hidden group hover:-translate-y-[1px] hover:shadow-[4px_4px_0px_0px_#191b23] transition-all duration-300 border-outline-variant bg-surface-container-lowest">
+        <div className="absolute -right-12 -top-12 w-48 h-48 bg-primary/5 rounded-full blur-2xl group-hover:bg-primary/10 transition-colors pointer-events-none"></div>
+        <div className="flex items-start justify-between z-10">
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-2 mb-1">
+              <div className="w-6 h-6 rounded-full bg-primary flex items-center justify-center border-2 border-on-surface shadow-[2px_2px_0px_0px_#191b23]">
+                <BrainCircuit size={14} className="text-on-primary" />
+              </div>
+              <h1 className="text-lg font-bold text-on-surface m-0 leading-none">Socratic Diagnostic Drill</h1>
+            </div>
+            <p className="text-sm text-on-surface-variant max-w-2xl mt-1">
+              The AI will generate targeted questions about <span className="font-bold text-on-surface bg-surface-variant px-1 rounded">{topicTitle}</span> to probe your causal understanding, test edge cases, and diagnose gaps.
+            </p>
           </div>
         </div>
-        <p className="text-body-md font-body-md text-on-surface mb-6 leading-relaxed">
-          The AI will generate targeted questions about <strong className="text-primary font-bold">{topicTitle}</strong> to probe your causal understanding, test edge cases, and diagnose gaps. Only flashcards for concepts you miss will be suggested.
-        </p>
+        
         {error && (
-          <p className="text-label-sm text-on-error bg-error p-3 border-[3px] border-primary mb-4 neo-shadow-sm font-bold">{error}</p>
+          <p className="text-sm text-on-error bg-error p-2 border-2 border-primary rounded-lg mb-2 shadow-[2px_2px_0px_0px_#191b23] font-bold z-10">{error}</p>
         )}
-        <button
-          onClick={handleStartDrill}
-          className="flex items-center gap-2 px-6 py-3 bg-secondary text-white font-bold border-[3px] border-primary neo-shadow-sm active-neo-press transition-all"
-        >
-          <BrainCircuit size={18} />
-          Start Diagnostic Drill
-        </button>
+        
+        <div className="flex items-center justify-between mt-2 z-10">
+          <button
+            onClick={handleStartDrill}
+            className="bg-primary text-on-primary font-bold text-sm px-6 py-2.5 rounded-lg border-2 border-on-surface shadow-[2px_2px_0px_0px_#191b23] flex items-center gap-2 hover:bg-academic-blue active:shadow-none active:translate-x-[1px] active:translate-y-[1px] transition-all whitespace-nowrap"
+          >
+            <BrainCircuit size={16} />
+            Start Socratic Drill
+          </button>
+        </div>
       </div>
     );
   }

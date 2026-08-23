@@ -48,35 +48,35 @@ export function FlashcardGenModal() {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200 p-4">
-      <div className="bg-surface-container-lowest border-[3px] border-on-background neo-shadow-xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
+      <div className="bg-surface border-2 border-on-surface rounded-xl shadow-[6px_6px_0px_0px_#191b23] w-full max-w-md max-h-[90vh] flex flex-col animate-in zoom-in-95 duration-200">
         
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b-[3px] border-on-background bg-surface-container-low">
-          <h2 className="font-headline-sm text-headline-sm font-bold flex items-center gap-3 text-primary">
+        <div className="flex items-center justify-between px-5 py-4 border-b-2 border-on-surface bg-surface-container-low shrink-0 rounded-t-xl">
+          <h2 className="font-bold text-lg flex items-center gap-2 text-on-surface">
             <Zap size={20} className="text-secondary" fill="currentColor" /> Generate Flashcards
           </h2>
           <button 
             onClick={() => dispatch(setIsCardGenModalOpen(false))}
-            className="text-on-surface hover:text-error transition-colors p-1"
+            className="text-on-surface hover:text-error transition-colors p-1 hover:bg-surface-container rounded-md"
           >
-            <X size={24} strokeWidth={3} />
+            <X size={20} strokeWidth={3} />
           </button>
         </div>
         
-        <div className="p-6 space-y-6">
+        <div className="p-5 overflow-y-auto space-y-4">
           {error && (
-            <div className="text-label-md text-on-error bg-error p-3 border-[3px] border-on-background neo-shadow-sm font-bold">
+            <div className="text-sm text-on-error bg-error p-3 border-2 border-on-surface rounded-lg font-bold">
               {error}
             </div>
           )}
           
           {/* Number of Cards Slider */}
-          <div className="space-y-3">
+          <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <label className="text-label-sm font-label-sm uppercase tracking-wider text-on-surface-variant font-bold">
+              <label className="text-xs uppercase tracking-wider text-on-surface-variant font-bold">
                 Number of Cards
               </label>
-              <span className="text-label-md font-bold text-on-surface bg-surface px-3 py-1 border-[3px] border-on-background neo-shadow-sm">
+              <span className="text-sm font-bold text-on-surface bg-surface-container-lowest px-2 py-0.5 border-2 border-on-surface rounded-md">
                 {count}
               </span>
             </div>
@@ -85,17 +85,17 @@ export function FlashcardGenModal() {
               min="1" max="10" 
               value={count} 
               onChange={(e) => setCount(parseInt(e.target.value))}
-              className="w-full accent-primary h-2 bg-surface-container border-[3px] border-on-background rounded-none appearance-none cursor-pointer"
+              className="w-full accent-primary h-2 bg-surface-container-lowest border-2 border-on-surface rounded-full appearance-none cursor-pointer"
             />
           </div>
           
-          <div className="grid grid-cols-2 gap-6">
-            <div className="space-y-2">
-              <label className="text-label-sm font-label-sm uppercase tracking-wider text-on-surface-variant font-bold">Card Type</label>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-xs uppercase tracking-wider text-on-surface-variant font-bold">Card Type</label>
               <select 
                 value={cardType}
                 onChange={(e) => setCardType(e.target.value)}
-                className="w-full bg-surface border-[3px] border-on-background p-3 text-label-md font-bold text-on-surface focus:outline-none focus:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all cursor-pointer appearance-none rounded-none"
+                className="w-full bg-surface-container-lowest border-2 border-on-surface rounded-lg p-2.5 text-sm font-bold text-on-surface focus:outline-none focus:shadow-[2px_2px_0px_0px_#191b23] transition-all cursor-pointer"
               >
                 <option>Conceptual</option>
                 <option>Code/Implementation</option>
@@ -103,12 +103,12 @@ export function FlashcardGenModal() {
               </select>
             </div>
             
-            <div className="space-y-2">
-              <label className="text-label-sm font-label-sm uppercase tracking-wider text-on-surface-variant font-bold">Difficulty</label>
+            <div className="space-y-1.5">
+              <label className="text-xs uppercase tracking-wider text-on-surface-variant font-bold">Difficulty</label>
               <select 
                 value={difficulty}
                 onChange={(e) => setDifficulty(e.target.value)}
-                className="w-full bg-surface border-[3px] border-on-background p-3 text-label-md font-bold text-on-surface focus:outline-none focus:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all cursor-pointer appearance-none rounded-none"
+                className="w-full bg-surface-container-lowest border-2 border-on-surface rounded-lg p-2.5 text-sm font-bold text-on-surface focus:outline-none focus:shadow-[2px_2px_0px_0px_#191b23] transition-all cursor-pointer"
               >
                 <option>Beginner</option>
                 <option>Intermediate</option>
@@ -117,12 +117,12 @@ export function FlashcardGenModal() {
             </div>
           </div>
           
-          <div className="space-y-2">
-            <label className="text-label-sm font-label-sm uppercase tracking-wider text-on-surface-variant font-bold">Provider Override</label>
+          <div className="space-y-1.5">
+            <label className="text-xs uppercase tracking-wider text-on-surface-variant font-bold">Provider Override</label>
             <select 
               value={providerOverride}
               onChange={(e) => setProviderOverride(e.target.value)}
-              className="w-full bg-surface border-[3px] border-on-background p-3 text-label-md font-bold text-on-surface focus:outline-none focus:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all cursor-pointer appearance-none rounded-none"
+              className="w-full bg-surface-container-lowest border-2 border-on-surface rounded-lg p-2.5 text-sm font-bold text-on-surface focus:outline-none focus:shadow-[2px_2px_0px_0px_#191b23] transition-all cursor-pointer"
             >
               <option value="">Default (Settings)</option>
               <option value="gemini">Google Gemini</option>
@@ -131,33 +131,33 @@ export function FlashcardGenModal() {
             </select>
           </div>
           
-          <div className="space-y-2">
-            <label className="text-label-sm font-label-sm uppercase tracking-wider text-on-surface-variant font-bold">
+          <div className="space-y-1.5">
+            <label className="text-xs uppercase tracking-wider text-on-surface-variant font-bold">
               Additional Instructions <span className="font-normal lowercase opacity-75">(optional)</span>
             </label>
             <textarea 
               value={additionalPrompt}
               onChange={(e) => setAdditionalPrompt(e.target.value)}
               placeholder="e.g. Focus specifically on matrix multiplication rules"
-              className="w-full bg-surface border-[3px] border-on-background p-3 text-label-md font-bold text-primary focus:outline-none focus:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all resize-none min-h-[100px] placeholder:text-on-surface-variant/50 rounded-none"
+              className="w-full bg-surface-container-lowest border-2 border-on-surface rounded-lg p-2.5 text-sm font-bold text-on-surface focus:outline-none focus:shadow-[2px_2px_0px_0px_#191b23] transition-all resize-none min-h-[60px] placeholder:text-on-surface-variant/50"
             />
           </div>
         </div>
         
         {/* Footer Actions */}
-        <div className="px-6 py-5 border-t-[3px] border-on-background bg-surface-container-low flex justify-end gap-4">
+        <div className="px-5 py-4 border-t-2 border-on-surface bg-surface-container-low shrink-0 flex justify-end gap-3 rounded-b-xl">
           <button 
             onClick={() => dispatch(setIsCardGenModalOpen(false))}
-            className="px-6 py-3 font-label-lg font-bold text-on-surface bg-surface border-[3px] border-on-background hover:bg-surface-container neo-shadow-sm active-neo-press transition-all"
+            className="px-4 py-2 text-sm font-bold text-on-surface bg-surface-container-lowest border-2 border-on-surface rounded-lg hover:bg-surface-container shadow-[2px_2px_0px_0px_#191b23] active:shadow-none active:translate-x-[1px] active:translate-y-[1px] transition-all"
           >
             Cancel
           </button>
           <button 
             onClick={handleGenerate}
             disabled={loading}
-            className="px-6 py-3 bg-primary text-on-primary font-label-lg font-bold border-[3px] border-on-background flex items-center gap-2 neo-shadow-sm active-neo-press transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-4 py-2 text-sm font-bold bg-primary text-on-primary border-2 border-on-surface rounded-lg flex items-center gap-2 shadow-[2px_2px_0px_0px_#191b23] active:shadow-none active:translate-x-[1px] active:translate-y-[1px] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {loading ? <Loader2 size={20} className="animate-spin" /> : <><Zap size={20} fill="currentColor" /> Generate Flashcards</>}
+            {loading ? <Loader2 size={16} className="animate-spin" /> : <><Zap size={16} fill="currentColor" /> Generate</>}
           </button>
         </div>
 
