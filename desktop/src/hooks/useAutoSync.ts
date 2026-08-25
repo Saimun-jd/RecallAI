@@ -1,0 +1,65 @@
+import { useEffect, useCallback } from 'react';
+import { useToast } from './useToast';
+
+let isSyncingGlobally = false;
+
+export function useAutoSync(token: string | null) {
+  const { showToast } = useToast();
+
+  const triggerSync = useCallback(async (silent = true) => {
+    if (!token || isSyncingGlobally) return;
+    
+    isSyncingGlobally = true;
+    try {
+      const response = await fetch('http://localhost:8000/api/sync', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      
+      if (!silent) {
+        if (response.ok) {
+          showToast("success", "Sync completed successfully");
+        } else {
+          showToast("error", "Sync failed");
+        }
+      }
+    } catch (err: any) {
+      if (!silent) {
+        showToast("error", "Sync failed: " + err.message);
+      } else {
+        console.error("Background sync failed:", err);
+      }
+    } finally {
+      isSyncingGlobally = false;
+    }
+  }, [token, showToast]);
+
+  useEffect(() => {
+    if (!token) return;
+
+    // 1. Sync on login/mount
+    triggerSync(true);
+
+    // 2. Periodic sync every 60 seconds
+    const interval = setInterval(() => {
+      triggerSync(true);
+    }, 60000);
+
+    // 3. Listen for global mutation events
+    const handleMutationSync = () => {
+      // Debounce slightly to allow local DB to settle
+      setTimeout(() => triggerSync(true), 2000);
+    };
+
+    window.addEventListener('trigger-sync', handleMutationSync);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('trigger-sync', handleMutationSync);
+    };
+  }, [token, triggerSync]);
+
+  return { triggerSync };
+}

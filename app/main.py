@@ -185,6 +185,107 @@ async def process_section(
         return []
 
 
+from fastapi import Header, HTTPException
+
+@app.post("/api/sync")
+async def sync_data(authorization: str = Header(None)):
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing or invalid Authorization header")
+    
+    token = authorization.split("Bearer ")[1]
+    
+    from app.sync_service import sync_with_remote
+    try:
+        # Run sync in thread pool to avoid blocking the event loop
+        result = await asyncio.to_thread(sync_with_remote, token)
+        return result
+    except Exception as e:
+        logger.error(f"Sync error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+class SetUserRequest(BaseModel):
+    user_id: str | None = None
+    token: str | None = None
+
+@app.post("/api/set-user")
+async def set_active_user(req: SetUserRequest):
+    from app.database import set_active_db_path, init_db, DATA_DIR
+    import os
+    
+    default_db_path = os.path.join(DATA_DIR, "recall.db")
+    
+    if req.user_id:
+        new_db_path = os.path.join(DATA_DIR, f"user_{req.user_id}_recall.db")
+        
+        if os.path.exists(default_db_path):
+            has_data = False
+            import sqlite3
+            try:
+                conn = sqlite3.connect(default_db_path)
+                cursor = conn.cursor()
+                cursor.execute("SELECT COUNT(*) FROM books")
+                row = cursor.fetchone()
+                if row and row[0] > 0:
+                    has_data = True
+                conn.close()
+            except Exception:
+                pass
+                
+            if has_data:
+                if not os.path.exists(new_db_path):
+                    # First login: rename the offline db to claim it
+                    os.rename(default_db_path, new_db_path)
+                else:
+                    # Merge offline data to cloud via push
+                    if req.token:
+                        from app.sync_service import push_changes, get_supabase_client
+                        try:
+                            supabase = get_supabase_client(req.token)
+                            set_active_db_path(default_db_path)
+                            push_changes(supabase, "1970-01-01 00:00:00")
+                            os.remove(default_db_path)
+                        except Exception as e:
+                            logger.error(f"Failed to push offline data during login: {e}")
+                        
+        set_active_db_path(new_db_path)
+        init_db()
+    else:
+        set_active_db_path(default_db_path)
+        init_db()
+        
+    return {"status": "ok"}
+
+@app.post("/api/delete-all-data")
+async def delete_all_data(authorization: str = Header(None)):
+    from app.sync_service import get_supabase_client, SYNC_TABLES, update_last_sync_time
+    from app.database import get_connection
+    
+    # 1. Clear local SQLite database (always do this, regardless of auth)
+    try:
+        with get_connection() as conn:
+            for table in reversed(SYNC_TABLES):
+                conn.execute(f"DELETE FROM {table}")
+        update_last_sync_time("1970-01-01 00:00:00")
+    except Exception as e:
+        logger.error(f"Failed to clear local data: {e}")
+        raise HTTPException(status_code=500, detail="Failed to clear local data")
+        
+    # 2. Delete from Supabase (only if authenticated)
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.split("Bearer ")[1]
+        if token.strip():
+            try:
+                supabase = get_supabase_client(token)
+                user_response = supabase.auth.get_user()
+                if user_response and user_response.user:
+                    user_id = user_response.user.id
+                    for table in reversed(SYNC_TABLES):
+                        supabase.table(table).delete().eq("user_id", user_id).execute()
+            except Exception as e:
+                logger.error(f"Failed to delete cloud data: {e}")
+                raise HTTPException(status_code=500, detail="Local data cleared, but failed to clear cloud data")
+            
+    return {"status": "success"}
 
 
 @app.post("/books/upload")
@@ -395,6 +496,36 @@ async def process_book_stream(book_id: int, req: ProcessRequest):
             
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
+
+from fastapi.responses import HTMLResponse
+
+@app.get("/auth-success", response_class=HTMLResponse)
+def auth_success():
+    return """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Login Successful</title>
+        <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; text-align: center; padding-top: 100px; color: #fff; background-color: #121212; }
+            a.button { display: inline-block; padding: 10px 20px; margin-top: 20px; background-color: #4CAF50; color: white; text-decoration: none; border-radius: 4px; font-weight: bold; }
+            a.button:hover { background-color: #45a049; }
+        </style>
+    </head>
+    <body>
+        <h2>Login Successful!</h2>
+        <p>You can securely close this tab.</p>
+        <a href="#" id="fallback" class="button">Open App</a>
+        
+        <script>
+            // Combine both search (?code=) and hash (#access_token=) in case they change flow types
+            var target = "recallai://login-callback" + window.location.search + window.location.hash;
+            document.getElementById('fallback').href = target;
+            window.location.href = target;
+        </script>
+    </body>
+    </html>
+    """
 
 @app.get("/health")
 def health():

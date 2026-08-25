@@ -1,6 +1,14 @@
 # config.py
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+import sys
+import os
+
+if hasattr(sys, '_MEIPASS'):
+    ENV_PATH = os.path.join(sys._MEIPASS, '.env')
+else:
+    ENV_PATH = '.env'
+
 class Settings(BaseSettings):
     llm_provider: str = "openai"  # "ollama" or "openai"
     
@@ -32,11 +40,15 @@ class Settings(BaseSettings):
     prefilter_threshold: float = 0.55
     min_chunk_tokens: int = 40
 
+    # Supabase Settings
+    supabase_url: str = ""
+    supabase_anon_key: str = ""
+
     # Error system: debug_mode=True shows full tracebacks in API responses.
     # Set RECALL_DEBUG=0 in production builds to hide internal details.
     debug_mode: bool = True
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(env_file=ENV_PATH, env_file_encoding="utf-8")
 
 settings = Settings()
 

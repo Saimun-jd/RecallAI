@@ -1,28 +1,60 @@
-use tauri_plugin_shell::process::{CommandEvent, CommandChild};
-use tauri_plugin_shell::ShellExt;
-use tauri::Manager;
 use std::sync::Mutex;
+use tauri::{Manager, Emitter};
+use tauri_plugin_shell::process::{CommandChild, CommandEvent};
+use tauri_plugin_shell::ShellExt;
+use tauri_plugin_deep_link::DeepLinkExt;
 
 struct SidecarState(Mutex<Option<CommandChild>>);
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let mut builder = tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
+            let _ = app.emit("deep-link-urls", args);
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.set_focus();
+            }
+        }))
+        .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_store::Builder::new().build())
-        .plugin(tauri_plugin_stronghold::Builder::new(|password| {
-            let salt = b"recall-static-salt-v1"; // see note below
-            let argon2 = argon2::Argon2::default();
-            let mut key = vec![0u8; 32];
-            argon2
-                .hash_password_into(password.as_bytes(), salt, &mut key)
-                .expect("failed to hash password");
-            key
-        }).build())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_http::init());
 
     let app = builder
         .setup(|app| {
+            #[cfg(any(windows, target_os = "linux"))]
+            {
+                let _ = app.deep_link().register_all();
+            }
+
+            // Generate or load a random salt for Stronghold
+            let data_dir = app.path().app_local_data_dir().expect("Failed to get local data dir");
+            std::fs::create_dir_all(&data_dir).expect("Failed to create data dir");
+            let salt_path = data_dir.join("salt.bin");
+
+            let salt: [u8; 16] = if salt_path.exists() {
+                let mut buf = [0u8; 16];
+                let data = std::fs::read(&salt_path).expect("Failed to read salt");
+                buf.copy_from_slice(&data[..16]);
+                buf
+            } else {
+                let s: [u8; 16] = rand::random();
+                std::fs::write(&salt_path, s).expect("Failed to write salt");
+                s
+            };
+
+            app.handle().plugin(
+                tauri_plugin_stronghold::Builder::new(move |password| {
+                    let argon2 = argon2::Argon2::default();
+                    let mut key = vec![0u8; 32];
+                    argon2
+                        .hash_password_into(password.as_bytes(), &salt, &mut key)
+                        .expect("failed to hash password");
+                    key
+                })
+                .build(),
+            ).expect("Failed to initialize stronghold");
+            
             if cfg!(debug_assertions) {
                 app.handle().plugin(
                     tauri_plugin_log::Builder::default()

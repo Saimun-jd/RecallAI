@@ -19,6 +19,7 @@
     "stronghold:default",
     "store:default",
     "http:default",
+    "shell:allow-open",
     {
       "identifier": "http:default",
       "allow": [
@@ -26,6 +27,7 @@
           "url": "http://127.0.0.1:8000/*"
         }
       ]
-    }
+    },
+    "deep-link:default"
   ]
 }

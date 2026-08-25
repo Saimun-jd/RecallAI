@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import { Book, BrainCircuit, Settings, BarChart3, Menu } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { AuthButton } from './AuthButton';
 
 export function Sidebar() {
   const location = useLocation();
@@ -59,6 +60,7 @@ export function Sidebar() {
           <span className={cn("font-bold text-sm", !isExpanded && "hidden")}>Settings</span>
         </Link>
       </div>
+      <AuthButton isExpanded={isExpanded} />
     </aside>
   );
 }

@@ -15,11 +15,16 @@ import { Sidebar } from './components/Sidebar';
 import { StatusBar } from './components/StatusBar';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { WelcomeScreen } from './components/WelcomeScreen';
+import { supabase } from './lib/supabase';
+import { useAutoSync } from './hooks/useAutoSync';
 
 import { setSidecarStatus } from './store';
 
 export default function App() {
   const [bootTime] = useState(Date.now());
+  const [user, setUser] = useState<any>(null);
+  const [activeUserId, setActiveUserId] = useState<string | null>(null);
+  const [isSwitchingDb, setIsSwitchingDb] = useState(true);
   const sidecarStatus = useSelector((state: RootState) => state.system.sidecarStatus);
   const [contrastLevel, setContrastLevel] = useState(() => {
     return parseInt(localStorage.getItem('app-contrast-level') || '0', 10);
@@ -108,6 +113,12 @@ export default function App() {
   }, [contrastLevel]);
 
   const dispatch = useDispatch();
+  
+  // We need the token for auto-sync, so let's extract it from the session state
+  const [sessionToken, setSessionToken] = useState<string | null>(null);
+  
+  // Import the auto sync hook
+  const { triggerSync } = useAutoSync(sessionToken);
 
   useEffect(() => {
     // Health check polling
@@ -119,6 +130,44 @@ export default function App() {
         dispatch(setSidecarStatus('error'));
       }
     };
+
+    // Helper to switch backend DB
+    const updateBackendUser = async (sessionUser: any, sessionToken: string | null = null) => {
+      setIsSwitchingDb(true);
+      try {
+        await fetch('http://localhost:8000/api/set-user', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            user_id: sessionUser?.id || null,
+            token: sessionToken || null
+          })
+        });
+      } catch (e) {
+        console.error("Failed to set backend user", e);
+      } finally {
+        setUser(sessionUser || null);
+        setActiveUserId(sessionUser?.id || 'default');
+        setSessionToken(sessionToken);
+        setIsSwitchingDb(false);
+      }
+    };
+
+    // Load user session
+    const refreshSession = () => {
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        updateBackendUser(session?.user, session?.access_token);
+      });
+    };
+
+    refreshSession();
+    window.addEventListener('auth-session-updated', refreshSession);
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      updateBackendUser(session?.user, session?.access_token);
+    });
 
     // Load global settings and hydrate keychain on boot
     const loadGlobalSettings = async () => {
@@ -148,7 +197,11 @@ export default function App() {
     checkHealth();
     loadGlobalSettings();
     const interval = setInterval(checkHealth, 3000);
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      subscription.unsubscribe();
+      window.removeEventListener('auth-session-updated', refreshSession);
+    };
   }, [dispatch]);
 
   // F11 Fullscreen toggle
@@ -200,8 +253,12 @@ export default function App() {
             <button className="w-10 h-10 flex items-center justify-center rounded-lg border-2 border-on-surface active:translate-y-0.5 transition-transform hover:bg-surface-container">
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-on-surface"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
             </button>
-            <div className="w-10 h-10 rounded-full border-2 border-on-surface bg-primary flex items-center justify-center overflow-hidden">
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-on-primary"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            <div className="w-10 h-10 rounded-full border-2 border-on-surface bg-primary flex items-center justify-center overflow-hidden shrink-0">
+              {user?.user_metadata?.avatar_url ? (
+                <img src={user.user_metadata.avatar_url} referrerPolicy="no-referrer" alt="Profile" className="w-full h-full object-cover" />
+              ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-on-primary"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              )}
             </div>
           </div>
         </div>
@@ -212,14 +269,21 @@ export default function App() {
         
         {/* Main Viewport */}
         <main className="flex-1 flex flex-col bg-background relative min-w-0 overflow-y-auto">
-          <Routes>
-            <Route path="/" element={<LibraryView />} />
-            <Route path="/review" element={<ReviewView />} />
-            <Route path="/analytics" element={<AnalyticsView />} />
-            <Route path="/settings" element={<SettingsView />} />
-            <Route path="/books/:id" element={<BookDetailView />} />
-            <Route path="*" element={<LibraryView />} />
-          </Routes>
+          {isSwitchingDb ? (
+            <div className="flex-1 flex flex-col items-center justify-center gap-3">
+              <div className="w-6 h-6 border-2 border-on-surface border-t-transparent rounded-full animate-spin"></div>
+              <span className="text-on-surface-variant font-medium text-sm">Syncing local database...</span>
+            </div>
+          ) : (
+            <Routes key={activeUserId || 'default'}>
+              <Route path="/" element={<LibraryView />} />
+              <Route path="/review" element={<ReviewView />} />
+              <Route path="/analytics" element={<AnalyticsView />} />
+              <Route path="/settings" element={<SettingsView />} />
+              <Route path="/books/:id" element={<BookDetailView />} />
+              <Route path="*" element={<LibraryView />} />
+            </Routes>
+          )}
         </main>
       </div>
       

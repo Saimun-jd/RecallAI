@@ -1,5 +1,15 @@
-import { fetch } from '@tauri-apps/plugin-http';
+import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
 import { parseApiError, parseSSEError, type ApiError } from './errors';
+
+const fetch = async (url: string, options?: any) => {
+  const res = await tauriFetch(url, options);
+  if (options && options.method && ['POST', 'PUT', 'DELETE', 'PATCH'].includes(options.method.toUpperCase())) {
+    if (res.ok) {
+      window.dispatchEvent(new Event('trigger-sync'));
+    }
+  }
+  return res;
+};
 
 export interface TocEntry {
   level: number;

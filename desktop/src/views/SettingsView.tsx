@@ -5,6 +5,7 @@ import { setActiveProvider, setFallbackToCloud, setShowAttributionTags, setConfi
 import { loadSettings, saveSetting, saveSettingsStore } from '../api/settingsStore';
 import { getApiKey, saveApiKey, removeApiKey, saveKeychain } from '../api/keychain';
 import { client } from '../api/client';
+import { supabase } from '../lib/supabase';
 import { Loader2, ChevronDown, Keyboard, LifeBuoy, ExternalLink, MessageSquare, Users, Megaphone, ArrowRight, RefreshCcw } from 'lucide-react';
 import clsx from 'clsx';
 import { useToast } from '../hooks/useToast';
@@ -18,6 +19,33 @@ export function SettingsView() {
   const [saving, setSaving] = useState(false);
   const { showToast } = useToast();
   const [loadingStep, setLoadingStep] = useState('Starting initialization...');
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleDeleteAllData = async () => {
+    if (!window.confirm("Are you absolutely sure you want to delete ALL your data? This will clear your local device and your cloud sync, and cannot be undone.")) {
+      return;
+    }
+    setIsDeleting(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch('http://localhost:8000/api/delete-all-data', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session?.access_token || ''}`
+        }
+      });
+      if (!res.ok) {
+        throw new Error(await res.text());
+      }
+      showToast('success', 'All data has been permanently deleted.');
+      window.location.reload();
+    } catch (e: any) {
+      console.error(e);
+      showToast('error', 'Failed to delete data', e.message);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   // Local state for keys input
   const [keys, setKeys] = useState<{ [key: string]: string }>({});
@@ -349,6 +377,31 @@ export function SettingsView() {
                     />
                   </div>
                 ))}
+              </div>
+            </section>
+
+            {/* Danger Zone */}
+            <section className="pt-8 border-t-[3px] border-black">
+              <div className="mb-6">
+                <h3 className="text-lg font-black text-red-600 uppercase mb-1">Danger Zone</h3>
+                <p className="text-sm text-on-surface-variant font-bold">Irreversible actions for your account.</p>
+              </div>
+              <div className="space-y-4">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-5 bg-red-50 border-2 border-red-600">
+                  <div>
+                    <h4 className="font-black text-black uppercase text-sm mb-1">Delete All Data</h4>
+                    <p className="text-xs text-on-surface-variant font-bold max-w-sm">Permanently wipe all books, topics, and flashcards from your local device and the cloud. This action cannot be undone.</p>
+                  </div>
+                  <button 
+                    type="button"
+                    onClick={handleDeleteAllData}
+                    disabled={isDeleting}
+                    className="mt-4 sm:mt-0 px-6 py-2 bg-red-600 text-white font-black uppercase border-2 border-red-600 hover:bg-red-700 transition-colors shrink-0 flex items-center gap-2 disabled:opacity-50"
+                  >
+                    {isDeleting && <Loader2 size={16} className="animate-spin" />}
+                    Delete Data
+                  </button>
+                </div>
               </div>
             </section>
 

@@ -11,12 +11,35 @@ logger = logging.getLogger(__name__)
 
 # Ensure it connects to cross-platform user data dir
 DATA_DIR = user_data_dir("Recall", "Recall")
-DB_PATH = os.path.join(DATA_DIR, "recall.db")
+
+ACTIVE_DB_FILE = os.path.join(DATA_DIR, "active_db.json")
+
+def _get_initial_db_path():
+    try:
+        if os.path.exists(ACTIVE_DB_FILE):
+            with open(ACTIVE_DB_FILE, "r") as f:
+                path = json.load(f).get("path")
+                if path:
+                    return path
+    except Exception:
+        pass
+    return os.path.join(DATA_DIR, "recall.db")
+
+ACTIVE_DB_PATH = _get_initial_db_path()
+
+def set_active_db_path(path: str):
+    global ACTIVE_DB_PATH
+    ACTIVE_DB_PATH = path
+    try:
+        with open(ACTIVE_DB_FILE, "w") as f:
+            json.dump({"path": path}, f)
+    except Exception as e:
+        logger.error(f"Failed to save active DB path: {e}")
 
 @contextmanager
 def get_connection():
     """Yields a database connection with Row factory enabled."""
-    conn = sqlite3.connect(DB_PATH, timeout=15.0)
+    conn = sqlite3.connect(ACTIVE_DB_PATH, timeout=15.0)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA synchronous=NORMAL")
@@ -35,7 +58,7 @@ def get_connection():
 
 def init_db():
     """Initializes the database schema if it doesn't exist."""
-    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+    os.makedirs(os.path.dirname(ACTIVE_DB_PATH), exist_ok=True)
     
     with get_connection() as conn:
         cursor = conn.cursor()
@@ -203,9 +226,57 @@ def init_db():
             )
         """)
         
+        # Generic migration for sync columns
+        import uuid
+        sync_tables = ["books", "topics", "flashcards", "notes", "review_log", "pdf_annotations"]
+        sync_columns = [
+            ("uuid", "TEXT"),
+            ("user_id", "TEXT"),
+            ("updated_at", "TIMESTAMP"),
+            ("deleted_at", "TIMESTAMP")
+        ]
+        
+        for table in sync_tables:
+            cursor.execute(f"PRAGMA table_info({table})")
+            existing_cols = [row['name'] for row in cursor.fetchall()]
+            for col_name, col_type in sync_columns:
+                if col_name not in existing_cols:
+                    cursor.execute(f"ALTER TABLE {table} ADD COLUMN {col_name} {col_type}")
+                    # If uuid was just added, populate it for existing rows
+                    if col_name == "uuid":
+                        cursor.execute(f"SELECT id FROM {table} WHERE uuid IS NULL")
+                        rows = cursor.fetchall()
+                        for r in rows:
+                            cursor.execute(f"UPDATE {table} SET uuid = ? WHERE id = ?", (str(uuid.uuid4()), r['id']))
+            
+            cursor.execute(f"UPDATE {table} SET updated_at = CURRENT_TIMESTAMP WHERE updated_at IS NULL")
+            cursor.execute(f"CREATE UNIQUE INDEX IF NOT EXISTS idx_{table}_uuid ON {table}(uuid)")
+
+            # Create triggers to automatically manage updated_at
+            cursor.execute(f"""
+                CREATE TRIGGER IF NOT EXISTS {table}_set_updated_at_insert
+                AFTER INSERT ON {table}
+                FOR EACH ROW
+                WHEN NEW.updated_at IS NULL
+                BEGIN
+                    UPDATE {table} SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
+                END;
+            """)
+            
+            cursor.execute(f"""
+                CREATE TRIGGER IF NOT EXISTS {table}_set_updated_at_update
+                AFTER UPDATE ON {table}
+                FOR EACH ROW
+                WHEN NEW.updated_at = OLD.updated_at OR NEW.updated_at IS NULL
+                BEGIN
+                    UPDATE {table} SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
+                END;
+            """)
+
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_topics_book_id ON topics(book_id)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_flashcards_topic_id ON flashcards(topic_id)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_flashcards_due ON flashcards(due)")
+
         
         # Seed default settings if empty
         cursor.execute("SELECT COUNT(*) as count FROM settings")
@@ -217,7 +288,7 @@ def init_db():
             ]
             cursor.executemany("INSERT INTO settings (key, value) VALUES (?, ?)", defaults)
             
-        logger.info(f"Database initialized successfully at {DB_PATH}")
+        logger.info(f"Database initialized successfully at {ACTIVE_DB_PATH}")
 
 def save_book(title: str, file_path: str, file_hash: str, total_pages: int) -> int:
     """Inserts a new book or returns the existing book ID if file_hash matches."""

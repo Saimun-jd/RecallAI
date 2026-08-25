@@ -73,6 +73,7 @@ export function BookDetailView() {
   const [isAnnotationLoading, setIsAnnotationLoading] = useState(false);
   const [pdfScrollCommand, setPdfScrollCommand] = useState<{ page: number, ts: number } | undefined>();
   const [viewMode, setViewMode] = useState<'topics' | 'pdf'>('topics');
+  const hasInitializedScrollRef = useRef(false);
   // pdfTheme is now globally managed by Redux and initialized in App.tsx
 
   const togglePdfTheme = async () => {
@@ -149,6 +150,17 @@ export function BookDetailView() {
     setEditingCardId(null);
     setCurrentCardIndex(0);
   }, [activeTopicId, dispatch]);
+
+  // Restore PDF scroll position on mount if we already have an active topic
+  useEffect(() => {
+    if (topics.length > 0 && activeTopicId && !hasInitializedScrollRef.current) {
+      const topic = topics.find(t => t.id === activeTopicId);
+      if (topic) {
+        setPdfScrollCommand({ page: topic.start_page, ts: Date.now() });
+      }
+      hasInitializedScrollRef.current = true;
+    }
+  }, [topics, activeTopicId]);
 
   const handleStartEdit = (card: Flashcard) => {
     setEditingCardId(card.id);
