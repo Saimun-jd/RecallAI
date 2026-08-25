@@ -4,6 +4,8 @@ import { client, type DiagnosticQuestion, type DiagnosticQuestionSet, type Diagn
 import { useSelector } from 'react-redux';
 import type { RootState } from '../store';
 import clsx from 'clsx';
+import { useToast } from '../hooks/useToast';
+import type { ApiError } from '../api/errors';
 
 const TIER_LABELS: Record<string, { label: string; color: string; bg: string }> = {
   causal_mechanism: { label: 'Causal Mechanism', color: 'text-blue-400', bg: 'bg-blue-500/10' },
@@ -35,8 +37,8 @@ export function SocraticDrillWidget({ topicId, topicTitle, onMasteryUpdate }: So
   const [answer, setAnswer] = useState('');
   const [evaluation, setEvaluation] = useState<DiagnosticEvaluation | null>(null);
   const [hintOpen, setHintOpen] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [savedCards, setSavedCards] = useState<Set<number>>(new Set());
+  const { showToast } = useToast();
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -48,7 +50,6 @@ export function SocraticDrillWidget({ topicId, topicTitle, onMasteryUpdate }: So
     setAnswer('');
     setEvaluation(null);
     setHintOpen(false);
-    setError(null);
     setSavedCards(new Set());
   }, [topicId]);
 
@@ -57,7 +58,6 @@ export function SocraticDrillWidget({ topicId, topicTitle, onMasteryUpdate }: So
 
   const handleStartDrill = async () => {
     setPhase('generating');
-    setError(null);
     setQuestions([]);
     setCurrentQIdx(0);
     setAnswer('');
@@ -72,7 +72,7 @@ export function SocraticDrillWidget({ topicId, topicTitle, onMasteryUpdate }: So
       setQuestions(result.questions);
       setPhase('answering');
     } catch (e: any) {
-      setError(e.message || "Failed to generate questions");
+      showToast('error', e?.userMessage || "Failed to generate questions", e?.debugDetail);
       setPhase('idle');
     }
   };
@@ -80,7 +80,6 @@ export function SocraticDrillWidget({ topicId, topicTitle, onMasteryUpdate }: So
   const handleSubmitAnswer = async () => {
     if (!answer.trim() || !currentQuestion) return;
     setPhase('evaluating');
-    setError(null);
 
     try {
       const result = await client.evaluateDrillAnswer(
@@ -95,7 +94,7 @@ export function SocraticDrillWidget({ topicId, topicTitle, onMasteryUpdate }: So
       setPhase('feedback');
       onMasteryUpdate?.(result.mastery_score, result.status);
     } catch (e: any) {
-      setError(e.message || "Failed to evaluate answer");
+      showToast('error', e?.userMessage || "Failed to evaluate answer", e?.debugDetail);
       setPhase('answering');
     }
   };
@@ -115,8 +114,9 @@ export function SocraticDrillWidget({ topicId, topicTitle, onMasteryUpdate }: So
     try {
       await client.saveDrillFlashcards(topicId, [card]);
       setSavedCards(prev => new Set(prev).add(idx));
+      showToast('success', 'Flashcard saved to SRS deck.');
     } catch (e: any) {
-      setError(e.message || "Failed to save flashcard");
+      showToast('error', e?.userMessage || "Failed to save flashcard", e?.debugDetail);
     }
   };
 
@@ -153,10 +153,6 @@ export function SocraticDrillWidget({ topicId, topicTitle, onMasteryUpdate }: So
             </p>
           </div>
         </div>
-        
-        {error && (
-          <p className="text-sm text-on-error bg-error p-2 border-2 border-primary rounded-lg mb-2 shadow-[2px_2px_0px_0px_#191b23] font-bold z-10">{error}</p>
-        )}
         
         <div className="flex items-center justify-between mt-2 z-10">
           <button
@@ -238,10 +234,6 @@ export function SocraticDrillWidget({ topicId, topicTitle, onMasteryUpdate }: So
             />
             <p className="text-label-sm font-label-sm text-on-surface-variant mt-2 font-bold uppercase">Press Ctrl+Enter to submit</p>
           </div>
-
-          {error && (
-            <p className="text-label-sm text-on-error bg-error p-3 border-[3px] border-primary mb-4 neo-shadow-sm font-bold">{error}</p>
-          )}
 
           <button
             onClick={handleSubmitAnswer}
@@ -395,10 +387,6 @@ export function SocraticDrillWidget({ topicId, topicTitle, onMasteryUpdate }: So
                 ))}
               </div>
             </div>
-          )}
-
-          {error && (
-            <p className="text-label-sm text-on-error bg-error p-3 border-[3px] border-primary mb-4 neo-shadow-sm font-bold">{error}</p>
           )}
 
           {/* Actions */}

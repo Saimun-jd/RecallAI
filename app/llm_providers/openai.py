@@ -6,6 +6,7 @@ import httpx
 from langfuse import get_client
 
 from app.llm_providers.base import BaseLLMProvider
+from app.errors import RecallError, ErrorCode, classify_error
 
 
 def _make_schema_strict(schema: Any) -> Any:
@@ -68,6 +69,9 @@ class OpenAIProvider(BaseLLMProvider):
         temperature: float = 0.1,
         max_tokens: int = 4096,
     ) -> str:
+        if not self.api_key or not self.api_key.strip():
+            raise RecallError(ErrorCode.API_KEY_MISSING, f"No API key configured for OpenAI-compatible provider ({self.base_url}).")
+
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
@@ -124,11 +128,11 @@ class OpenAIProvider(BaseLLMProvider):
             except httpx.TimeoutException as e:
                 print(f"⏱️ [OpenAIProvider] Request to {self.base_url} timed out: {e}")
                 generation.update(level="ERROR", status_message=str(e))
-                raise
+                raise classify_error(e, provider_hint="openai")
             except httpx.RequestError as e:
                 print(f"🔌 [OpenAIProvider] Network error calling {self.base_url}: {e}")
                 generation.update(level="ERROR", status_message=str(e))
-                raise
+                raise classify_error(e, provider_hint="openai")
 
             print(f"📥 [OpenAIProvider] Received response with status code: {r.status_code}")
             generation.update(metadata={"status_code": r.status_code})
@@ -136,21 +140,31 @@ class OpenAIProvider(BaseLLMProvider):
             if r.status_code >= 400:
                 print(f"response text: {r.text}")
                 generation.update(level="ERROR", status_message=f"HTTP {r.status_code}: {r.text}")
-                r.raise_for_status()
+                try:
+                    r.raise_for_status()
+                except httpx.HTTPStatusError as e:
+                    raise classify_error(e, provider_hint="openai")
 
             try:
                 data = r.json()
             except json.JSONDecodeError as e:
                 print(f"❌ [OpenAIProvider] Response was not valid JSON: {r.text[:500]}")
                 generation.update(level="ERROR", status_message=str(e))
-                raise ValueError(f"Non-JSON response from {self.base_url}: {e}") from e
+                raise RecallError(ErrorCode.LLM_INVALID_RESPONSE, f"Non-JSON response from {self.base_url}: {r.text[:500]}", e)
 
             choices = data.get("choices") or []
             if not choices:
                 print(f"❌ [OpenAIProvider] Response had no 'choices': {data}")
                 err_msg = f"No choices returned from {self.base_url}: {data}"
                 generation.update(level="ERROR", status_message=err_msg)
-                raise ValueError(err_msg)
+                raise RecallError(ErrorCode.LLM_INVALID_RESPONSE, err_msg)
+
+            # Detect content filtering
+            finish_reason = choices[0].get("finish_reason", "")
+            if finish_reason == "content_filter":
+                err_msg = f"Content filter triggered by {self.base_url}: {data}"
+                generation.update(level="ERROR", status_message=err_msg)
+                raise RecallError(ErrorCode.LLM_CONTENT_FILTERED, err_msg)
 
             message = choices[0].get("message") or {}
             content = message.get("content")
@@ -158,7 +172,7 @@ class OpenAIProvider(BaseLLMProvider):
                 print(f"❌ [OpenAIProvider] Response had no message content: {data}")
                 err_msg = f"No content in response from {self.base_url}: {data}"
                 generation.update(level="ERROR", status_message=err_msg)
-                raise ValueError(err_msg)
+                raise RecallError(ErrorCode.LLM_INVALID_RESPONSE, err_msg)
 
             print(f"✅ [OpenAIProvider] Successfully generated {len(content)} characters of content")
             

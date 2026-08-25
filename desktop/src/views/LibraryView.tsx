@@ -8,6 +8,8 @@ import type { RootState } from '../store';
 import { setBooks, setTocTree, setIsUploading, setIngestionProgress } from '../store';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import clsx from 'clsx';
+import { useToast } from '../hooks/useToast';
+import type { ApiError } from '../api/errors';
 
 const BookCover = ({ bookId, className }: { bookId: number, className?: string }) => {
   const [error, setError] = useState(false);
@@ -33,9 +35,11 @@ const BookCover = ({ bookId, className }: { bookId: number, className?: string }
 export function LibraryView() {
   const navigate = useNavigate();
   const dispatch = useDispatch();
+  const { showToast } = useToast();
   
   const { books, isUploading, ingestionProgress } = useSelector((state: RootState) => state.library);
   const { activeProvider } = useSelector((state: RootState) => state.providers);
+  const sidecarStatus = useSelector((state: RootState) => state.system.sidecarStatus);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [stats, setStats] = useState<any>(null);
@@ -50,16 +54,19 @@ export function LibraryView() {
       ]);
       dispatch(setBooks(booksData));
       if (analyticsData) setStats(analyticsData);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
+      showToast('error', err?.userMessage || 'Failed to load library data.', err?.debugDetail);
     } finally {
       setLoadingStats(false);
     }
   };
 
   useEffect(() => {
-    fetchData();
-  }, [dispatch]);
+    if (sidecarStatus === 'connected') {
+      fetchData();
+    }
+  }, [dispatch, sidecarStatus]);
 
   const processFile = async (file: File) => {
     dispatch(setIsUploading(true));
@@ -67,9 +74,9 @@ export function LibraryView() {
       const res = await client.uploadPdfAndGetToc(file, file.name.replace('.pdf', ''), 100);
       await fetchData();
       navigate(`/books/${res.book_id}`);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      alert("Failed to upload book or extract TOC.");
+      showToast('error', err?.userMessage || 'Failed to upload book or extract TOC.', err?.debugDetail);
     } finally {
       dispatch(setIsUploading(false));
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -99,7 +106,7 @@ export function LibraryView() {
     
     const file = e.dataTransfer.files?.[0];
     if (!file || file.type !== 'application/pdf') {
-      alert('Please drop a valid PDF file.');
+      showToast('warning', 'Please drop a valid PDF file.');
       return;
     }
     
@@ -113,8 +120,9 @@ export function LibraryView() {
     try {
       await client.deleteBook(id);
       dispatch(setBooks(books.filter(b => b.id !== id)));
-    } catch (err) {
-      alert("Failed to delete document.");
+      showToast('success', 'Document deleted.');
+    } catch (err: any) {
+      showToast('error', err?.userMessage || 'Failed to delete document.', err?.debugDetail);
     }
   };
 

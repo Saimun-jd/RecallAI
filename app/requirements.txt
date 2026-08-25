@@ -11,3 +11,4 @@ pymupdf4llm==1.28.2
 uvicorn==0.52.4
 markdown-it-py
 python-multipart
+fsrs==6.3.2

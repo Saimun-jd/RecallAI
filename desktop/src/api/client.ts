@@ -1,4 +1,5 @@
 import { fetch } from '@tauri-apps/plugin-http';
+import { parseApiError, parseSSEError, type ApiError } from './errors';
 
 export interface TocEntry {
   level: number;
@@ -28,6 +29,8 @@ export interface ProgressEvent {
   total_sections?: number;
   book_id?: number;
   error?: string;
+  error_code?: string;
+  _apiError?: ApiError;
 }
 
 export const API_BASE = "http://127.0.0.1:8000";
@@ -163,35 +166,42 @@ export interface DiagnosticEvaluation {
 }
 
 export const client = {
+  /** Parse structured API errors and throw as ApiError */
+  async _throwIfError(res: Response, fallbackMsg: string): Promise<void> {
+    if (!res.ok) {
+      throw await parseApiError(res);
+    }
+  },
+
   async getBooks(): Promise<Book[]> {
     const res = await fetch(`${API_BASE}/books`);
-    if (!res.ok) throw new Error("Failed to fetch books");
+    await this._throwIfError(res, "Failed to fetch books");
     return res.json();
   },
   async getBook(id: number): Promise<Book> {
     const res = await fetch(`${API_BASE}/books/${id}`);
-    if (!res.ok) throw new Error("Failed to fetch book");
+    await this._throwIfError(res, "Failed to fetch book");
     return res.json();
   },
   async deleteBook(id: number): Promise<{ message: string }> {
     const res = await fetch(`${API_BASE}/books/${id}`, { method: "DELETE" });
-    if (!res.ok) throw new Error("Failed to delete book");
+    await this._throwIfError(res, "Failed to delete book");
     return res.json();
   },
   async getTopics(bookId?: number): Promise<Topic[]> {
     const url = bookId ? `${API_BASE}/topics?book_id=${bookId}` : `${API_BASE}/topics`;
     const res = await fetch(url);
-    if (!res.ok) throw new Error("Failed to fetch topics");
+    await this._throwIfError(res, "Failed to fetch topics");
     return res.json();
   },
   async getTopic(id: number): Promise<Topic> {
     const res = await fetch(`${API_BASE}/topics/${id}`);
-    if (!res.ok) throw new Error("Failed to fetch topic");
+    await this._throwIfError(res, "Failed to fetch topic");
     return res.json();
   },
   async getFlashcard(id: number): Promise<Flashcard> {
     const res = await fetch(`${API_BASE}/flashcards/${id}`);
-    if (!res.ok) throw new Error("Failed to fetch flashcard");
+    await this._throwIfError(res, "Failed to fetch flashcard");
     return res.json();
   },
   async updateFlashcard(id: number, data: { question: string; answer: string }): Promise<{ message: string; flashcard_id: number }> {
@@ -200,17 +210,17 @@ export const client = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
     });
-    if (!res.ok) throw new Error("Failed to update flashcard");
+    await this._throwIfError(res, "Failed to update flashcard");
     return res.json();
   },
   async deleteFlashcard(id: number): Promise<{ message: string }> {
     const res = await fetch(`${API_BASE}/flashcards/${id}`, { method: "DELETE" });
-    if (!res.ok) throw new Error("Failed to delete flashcard");
+    await this._throwIfError(res, "Failed to delete flashcard");
     return res.json();
   },
   async getSettings(): Promise<Record<string, string>> {
     const res = await fetch(`${API_BASE}/settings`);
-    if (!res.ok) throw new Error("Failed to fetch settings");
+    await this._throwIfError(res, "Failed to fetch settings");
     return res.json();
   },
   async updateSetting(key: string, value: string): Promise<{ status: string; key: string; value: string }> {
@@ -219,7 +229,7 @@ export const client = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ value }),
     });
-    if (!res.ok) throw new Error("Failed to update setting");
+    await this._throwIfError(res, "Failed to update setting");
     return res.json();
   },
   async saveApiKeys(keys: { gemini_api_key?: string, groq_api_key?: string, openai_api_key?: string, langfuse_secret_key?: string, langfuse_public_key?: string, langfuse_host?: string, ollama_host?: string }): Promise<{ status: string }> {
@@ -229,7 +239,7 @@ export const client = {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(keys),
       });
-      if (!res.ok) throw new Error("Failed to save API keys to backend");
+      if (!res.ok) throw await parseApiError(res);
       return res.json();
     } catch (error: any) {
       if (error.name === 'TypeError' || error.message === 'Failed to fetch') {
@@ -244,12 +254,12 @@ export const client = {
   },
   async resetFlashcard(id: number): Promise<{ message: string; flashcard_id: number }> {
     const res = await fetch(`${API_BASE}/flashcards/${id}/reset`, { method: "POST" });
-    if (!res.ok) throw new Error("Failed to reset flashcard");
+    await this._throwIfError(res, "Failed to reset flashcard");
     return res.json();
   },
   async getDueCards(limit: number = 20): Promise<Flashcard[]> {
     const res = await fetch(`${API_BASE}/flashcards/due?limit=${limit}`);
-    if (!res.ok) throw new Error("Failed to fetch due cards");
+    await this._throwIfError(res, "Failed to fetch due cards");
     return res.json();
   },
   async submitReview(id: number, rating: number): Promise<{ message: string; next_due: string }> {
@@ -258,29 +268,29 @@ export const client = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ rating }),
     });
-    if (!res.ok) throw new Error("Failed to submit review");
+    await this._throwIfError(res, "Failed to submit review");
     return res.json();
   },
   async undoReview(id: number): Promise<{ message: string; flashcard_id: number }> {
     const res = await fetch(`${API_BASE}/flashcards/${id}/undo-review`, {
       method: "POST",
     });
-    if (!res.ok) throw new Error("Failed to undo review");
+    await this._throwIfError(res, "Failed to undo review");
     return res.json();
   },
   async searchAll(query: string, limit: number = 20): Promise<Array<{ type: string; id: number; title: string; subtitle: string }>> {
     const res = await fetch(`${API_BASE}/search?query=${encodeURIComponent(query)}&limit=${limit}`);
-    if (!res.ok) throw new Error("Search failed");
+    await this._throwIfError(res, "Search failed");
     return res.json();
   },
   async getAnalytics(): Promise<AnalyticsStats> {
     const res = await fetch(`${API_BASE}/analytics/stats`);
-    if (!res.ok) throw new Error("Failed to fetch analytics");
+    await this._throwIfError(res, "Failed to fetch analytics");
     return res.json();
   },
   async checkHealth(): Promise<{ status: string }> {
     const res = await fetch(`${API_BASE}/health`);
-    if (!res.ok) throw new Error("Backend not healthy");
+    await this._throwIfError(res, "Backend not healthy");
     return res.json();
   },
   async uploadPdfAndGetToc(file: File, bookTitle: string, totalPages: number): Promise<UploadResponse> {
@@ -297,7 +307,7 @@ export const client = {
       method: "POST",
       body: formData,
     });
-    if (!res.ok) throw new Error("Failed to upload book");
+    if (!res.ok) throw await parseApiError(res);
     return res.json();
   },
   
@@ -308,7 +318,7 @@ export const client = {
       body: JSON.stringify({ provider_override: activeProvider })
     });
     
-    if (!res.ok) throw new Error("Failed to start processing");
+    if (!res.ok) throw await parseApiError(res);
     if (!res.body) throw new Error("No response body");
     
     const reader = res.body.getReader();
@@ -335,6 +345,11 @@ export const client = {
               onEvent(data);
               if (data.status === 'complete' || data.status === 'error' || data.stage === 'complete' || data.stage === 'error') {
                 finishedCleanly = true;
+                // Parse structured error events
+                if (data.status === 'error' && data.error_code) {
+                  const apiErr = parseSSEError(data);
+                  data._apiError = apiErr;
+                }
               }
             } catch (e) {
               console.error("Failed to parse SSE event", e);
@@ -363,7 +378,7 @@ export const client = {
       }),
     });
     
-    if (!res.ok) throw new Error("Failed to start processing");
+    if (!res.ok) throw await parseApiError(res);
     
     if (!res.body) throw new Error("No response body");
     
@@ -391,6 +406,10 @@ export const client = {
               onProgress(data);
               if (data.status === 'complete' || data.status === 'error') {
                 finishedCleanly = true;
+                if (data.status === 'error' && data.error_code) {
+                  const apiErr = parseSSEError(data);
+                  data._apiError = apiErr;
+                }
               }
             } catch (e) {
               console.error("Failed to parse SSE event", e);
@@ -409,7 +428,7 @@ export const client = {
   
   async getNote(topicId: number): Promise<{ topic_id: number; note: string }> {
     const res = await fetch(`${API_BASE}/topics/${topicId}/notes`);
-    if (!res.ok) throw new Error("Failed to fetch note");
+    await this._throwIfError(res, "Failed to fetch note");
     return res.json();
   },
   
@@ -419,20 +438,20 @@ export const client = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ note }),
     });
-    if (!res.ok) throw new Error("Failed to update note");
+    await this._throwIfError(res, "Failed to update note");
     return res.json();
   },
   
   async getTopicFlashcards(topicId?: number): Promise<Flashcard[]> {
     const url = topicId ? `${API_BASE}/flashcards?topic_id=${topicId}` : `${API_BASE}/flashcards`;
     const res = await fetch(url);
-    if (!res.ok) throw new Error("Failed to fetch flashcards");
+    await this._throwIfError(res, "Failed to fetch flashcards");
     return res.json();
   },
   
   async getRelatedTopics(topicId: number, limit: number = 5): Promise<RelatedTopic[]> {
     const res = await fetch(`${API_BASE}/topics/${topicId}/related?limit=${limit}`);
-    if (!res.ok) throw new Error("Failed to fetch related topics");
+    await this._throwIfError(res, "Failed to fetch related topics");
     return res.json();
   },
   
@@ -443,8 +462,7 @@ export const client = {
       body: JSON.stringify(options),
     });
     if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: "Unknown error" }));
-      throw new Error(err.error || err.detail || "Failed to generate flashcards");
+      throw await parseApiError(res);
     }
     return res.json();
   },
@@ -456,7 +474,7 @@ export const client = {
       ? `${API_BASE}/books/${bookId}/annotations?page=${pageNumber}`
       : `${API_BASE}/books/${bookId}/annotations`;
     const res = await fetch(url);
-    if (!res.ok) throw new Error("Failed to fetch annotations");
+    await this._throwIfError(res, "Failed to fetch annotations");
     return res.json();
   },
 
@@ -473,7 +491,7 @@ export const client = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
     });
-    if (!res.ok) throw new Error("Failed to create annotation");
+    await this._throwIfError(res, "Failed to create annotation");
     return res.json();
   },
 
@@ -491,8 +509,7 @@ export const client = {
       body: JSON.stringify(data),
     });
     if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: "Unknown error" }));
-      throw new Error(err.error || err.detail || "AI explanation failed");
+      throw await parseApiError(res);
     }
     return res.json();
   },
@@ -512,8 +529,7 @@ export const client = {
       body: JSON.stringify(data),
     });
     if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: "Unknown error" }));
-      throw new Error(err.error || err.detail || "Flashcard generation from selection failed");
+      throw await parseApiError(res);
     }
     return res.json();
   },
@@ -524,14 +540,14 @@ export const client = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ content }),
     });
-    if (!res.ok) throw new Error("Failed to update annotation");
+    await this._throwIfError(res, "Failed to update annotation");
   },
 
   async deleteAnnotation(annotationId: number): Promise<void> {
     const res = await fetch(`${API_BASE}/annotations/${annotationId}`, {
       method: "DELETE",
     });
-    if (!res.ok) throw new Error("Failed to delete annotation");
+    await this._throwIfError(res, "Failed to delete annotation");
   },
 
   // ── Socratic Drill Methods ─────────────────────────────────────────
@@ -543,8 +559,7 @@ export const client = {
       body: JSON.stringify({ provider_override: providerOverride || null }),
     });
     if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: "Unknown error" }));
-      throw new Error(err.error || "Failed to generate drill questions");
+      throw await parseApiError(res);
     }
     return res.json();
   },
@@ -569,8 +584,7 @@ export const client = {
       }),
     });
     if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: "Unknown error" }));
-      throw new Error(err.error || "Failed to evaluate answer");
+      throw await parseApiError(res);
     }
     return res.json();
   },
@@ -581,7 +595,7 @@ export const client = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ flashcards }),
     });
-    if (!res.ok) throw new Error("Failed to save drill flashcards");
+    await this._throwIfError(res, "Failed to save drill flashcards");
     return res.json();
   },
 };

@@ -2,9 +2,14 @@ import sys
 import os
 import traceback
 import multiprocessing
+import tempfile
+
+log_dir = tempfile.gettempdir()
+startup_log = os.path.join(log_dir, "recall_backend_startup.log")
+crash_log = os.path.join(log_dir, "recall_backend_crash.log")
 
 try:
-    with open("backend_startup.log", "w") as f:
+    with open(startup_log, "w") as f:
         f.write("Backend imports starting...\n")
 
     import argparse
@@ -17,7 +22,7 @@ try:
         parser.add_argument("--port", type=int, default=8000, help="Port number")
         args = parser.parse_args()
 
-        with open("backend_startup.log", "a") as f:
+        with open(startup_log, "a") as f:
             f.write(f"Starting uvicorn on {args.host}:{args.port}\n")
             
         # Watchdog thread to ensure the backend exits when its parent (Tauri/Bootloader) dies
@@ -46,6 +51,6 @@ try:
         main()
 
 except Exception as e:
-    with open("backend_crash.log", "w") as f:
+    with open(crash_log, "w") as f:
         f.write(traceback.format_exc())
     sys.exit(1)

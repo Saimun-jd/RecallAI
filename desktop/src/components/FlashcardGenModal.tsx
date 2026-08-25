@@ -5,6 +5,8 @@ import type { RootState } from '../store';
 import { setIsCardGenModalOpen, setActiveTopicCards } from '../store/readerSlice';
 import { X, Loader2, Zap } from 'lucide-react';
 import clsx from 'clsx';
+import { useToast } from '../hooks/useToast';
+import type { ApiError } from '../api/errors';
 
 export function FlashcardGenModal() {
   const dispatch = useDispatch();
@@ -17,13 +19,12 @@ export function FlashcardGenModal() {
   const [additionalPrompt, setAdditionalPrompt] = useState('');
   const [providerOverride, setProviderOverride] = useState<string>('');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { showToast } = useToast();
 
   if (!isCardGenModalOpen || activeTopicId === null) return null;
 
   const handleGenerate = async () => {
     setLoading(true);
-    setError(null);
     try {
       let customPrompt = `Generate flashcards of type: ${cardType}. Difficulty level: ${difficulty}.`;
       if (additionalPrompt.trim()) {
@@ -39,8 +40,9 @@ export function FlashcardGenModal() {
       const newCards = await client.getTopicFlashcards(activeTopicId);
       dispatch(setActiveTopicCards(newCards));
       dispatch(setIsCardGenModalOpen(false));
+      showToast('success', `Generated ${newCards.length} new flashcards.`);
     } catch (err: any) {
-      setError(err.message || "Failed to generate flashcards");
+      showToast('error', err?.userMessage || "Failed to generate flashcards", err?.debugDetail);
     } finally {
       setLoading(false);
     }
@@ -64,11 +66,6 @@ export function FlashcardGenModal() {
         </div>
         
         <div className="p-5 overflow-y-auto space-y-4">
-          {error && (
-            <div className="text-sm text-on-error bg-error p-3 border-2 border-on-surface rounded-lg font-bold">
-              {error}
-            </div>
-          )}
           
           {/* Number of Cards Slider */}
           <div className="space-y-2">

@@ -7,6 +7,8 @@ import { getApiKey, saveApiKey, removeApiKey, saveKeychain } from '../api/keycha
 import { client } from '../api/client';
 import { Loader2, ChevronDown, Keyboard, LifeBuoy, ExternalLink, MessageSquare, Users, Megaphone, ArrowRight, RefreshCcw } from 'lucide-react';
 import clsx from 'clsx';
+import { useToast } from '../hooks/useToast';
+import type { ApiError } from '../api/errors';
 
 export function SettingsView() {
   const dispatch = useDispatch();
@@ -14,7 +16,7 @@ export function SettingsView() {
   
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState<{ text: string, type: 'success' | 'error' } | null>(null);
+  const { showToast } = useToast();
   const [loadingStep, setLoadingStep] = useState('Starting initialization...');
 
   // Local state for keys input
@@ -68,8 +70,9 @@ export function SettingsView() {
         };
         
         loadKeysBackground();
-      } catch (err) {
+      } catch (err: any) {
         console.error("Failed to load settings view", err);
+        showToast('error', err?.userMessage || 'Failed to load settings.', err?.debugDetail);
       } finally {
         setLoading(false);
       }
@@ -93,7 +96,6 @@ export function SettingsView() {
 
   const handleSave = async () => {
     setSaving(true);
-    setMessage(null);
     try {
       console.log('Save: starting in-memory settings updates');
       await Promise.all([
@@ -148,14 +150,13 @@ export function SettingsView() {
         console.warn('[Settings] Non-critical backend provider sync error:', err)
       );
 
-      setMessage({ text: 'Settings saved successfully', type: 'success' });
+      showToast('success', 'Settings saved successfully.');
     } catch (err: any) {
       console.error('[SettingsView] Save failed at step:', err);
-      setMessage({ text: `Save failed: ${err?.message || err || 'Unknown error'}`, type: 'error' });
+      showToast('error', err?.userMessage || `Save failed: ${err?.message || err || 'Unknown error'}`, err?.debugDetail);
     } finally {
       console.log('Save: finally block reached');
       setSaving(false);
-      setTimeout(() => setMessage(null), 3000);
     }
   };
 
@@ -215,15 +216,6 @@ export function SettingsView() {
             <h2 className="text-3xl font-black uppercase text-primary mb-2 tracking-tight">AI Preferences</h2>
             <p className="text-base text-on-surface font-bold">Customize how the Recall AI assistant interacts with your research materials.</p>
           </header>
-
-          {message && (
-            <div className={clsx(
-              "mb-8 p-4 neo-border font-bold text-sm uppercase flex items-center gap-2",
-              message.type === 'success' ? "bg-green-300 text-black" : "bg-red-300 text-black"
-            )}>
-              {message.text}
-            </div>
-          )}
 
           <div className="space-y-12">
             

@@ -80,10 +80,9 @@ pnpm tauri dev
 > **Note on Port Conflicts:** If the frontend crashes or fails to boot, ensure there are no orphaned Python processes holding port `8000` open (`WinError 10013`). You can kill the process manually if needed.
 
 ### 3. Build the Backend Sidecar for Production
-If you make changes to the Python backend and want to compile a production Tauri build, you must rebuild the sidecar binary using PyInstaller:
+Building the app is straightforward just run the batch file and the exe/msi will be available in /release folder, if some error occurs analyze the error message and fix it and try again(use gpt/claude).
 
 ```bash
-# From the /app directory
-pyinstaller --onefile --clean --name recall-backend --collect-all pymupdf --collect-all pymupdf4llm --collect-all markdown_it --hidden-import python_multipart --hidden-import multipart __main__.py
+.\build.bat
 ```
-After building the sidecar, you can build the Tauri app normally via `pnpm tauri build` by navigating to `/desktop` directory.
+

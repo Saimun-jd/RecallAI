@@ -3,6 +3,8 @@ import { client, type Flashcard } from '../api/client';
 import { Loader2, Brain, Check, Undo2, TrendingUp } from 'lucide-react';
 import clsx from 'clsx';
 import { MarkdownRenderer } from '../components/MarkdownRenderer';
+import { useToast } from '../hooks/useToast';
+import type { ApiError } from '../api/errors';
 
 type ReviewState = 'loading' | 'question' | 'answer' | 'done';
 
@@ -10,6 +12,7 @@ export function ReviewView() {
   const [cards, setCards] = useState<Flashcard[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [state, setState] = useState<ReviewState>('loading');
+  const { showToast } = useToast();
   
   const [sessionCount, setSessionCount] = useState(0);
   const [lastReviewedCardId, setLastReviewedCardId] = useState<number | null>(null);
@@ -26,8 +29,9 @@ export function ReviewView() {
       } else {
         setState('done');
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
+      showToast('error', err?.userMessage || 'Failed to fetch due cards.', err?.debugDetail);
       setState('done');
     }
   };
@@ -58,8 +62,9 @@ export function ReviewView() {
       } else {
         fetchDueCards();
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to submit review", err);
+      showToast('error', err?.userMessage || 'Failed to submit review.', err?.debugDetail);
     }
   };
 
@@ -71,8 +76,9 @@ export function ReviewView() {
       setLastReviewedCardId(null);
       setSessionCount(prev => Math.max(0, prev - 1));
       await fetchDueCards(); // Refetch to get the undone card back
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to undo review", err);
+      showToast('error', err?.userMessage || 'Failed to undo review.', err?.debugDetail);
     } finally {
       setUndoLoading(false);
     }

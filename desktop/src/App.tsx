@@ -14,13 +14,24 @@ import { getApiKey } from './api/keychain';
 import { Sidebar } from './components/Sidebar';
 import { StatusBar } from './components/StatusBar';
 import { getCurrentWindow } from '@tauri-apps/api/window';
+import { WelcomeScreen } from './components/WelcomeScreen';
+
+import { setSidecarStatus } from './store';
 
 export default function App() {
   const [bootTime] = useState(Date.now());
-  const [sidecarStatus, setSidecarStatus] = useState<'connected' | 'error' | 'booting'>('booting');
+  const sidecarStatus = useSelector((state: RootState) => state.system.sidecarStatus);
   const [contrastLevel, setContrastLevel] = useState(() => {
     return parseInt(localStorage.getItem('app-contrast-level') || '0', 10);
   });
+  const [hasSeenWelcome, setHasSeenWelcome] = useState(() => {
+    return localStorage.getItem('has-seen-welcome') === 'true';
+  });
+
+  const handleWelcomeComplete = () => {
+    localStorage.setItem('has-seen-welcome', 'true');
+    setHasSeenWelcome(true);
+  };
 
   useEffect(() => {
     const root = document.documentElement;
@@ -103,9 +114,9 @@ export default function App() {
     const checkHealth = async () => {
       try {
         await client.checkHealth();
-        setSidecarStatus('connected');
+        dispatch(setSidecarStatus('connected'));
       } catch (err) {
-        setSidecarStatus('error');
+        dispatch(setSidecarStatus('error'));
       }
     };
 
@@ -168,6 +179,7 @@ export default function App() {
   return (
     <div className="flex flex-col h-screen bg-background text-on-surface font-sans antialiased overflow-hidden">
       <CommandPalette />
+      {!hasSeenWelcome && <WelcomeScreen onComplete={handleWelcomeComplete} />}
       
       {/* Global Header */}
       <header className="fixed top-0 inset-x-0 z-50 bg-surface-container-low border-b-2 border-on-surface pt-[env(safe-area-inset-top,0px)]">

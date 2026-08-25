@@ -4,6 +4,7 @@ import readerReducer from './readerSlice';
 import commandReducer from './commandSlice';
 import reviewReducer from './reviewSlice';
 import providersReducer from './providersSlice';
+import systemReducer from './systemSlice';
 
 export const store = configureStore({
   reducer: {
@@ -12,6 +13,7 @@ export const store = configureStore({
     command: commandReducer,
     review: reviewReducer,
     providers: providersReducer,
+    system: systemReducer,
   },
 });
 
@@ -23,3 +25,4 @@ export * from './readerSlice';
 export * from './commandSlice';
 export * from './reviewSlice';
 export * from './providersSlice';
+export * from './systemSlice';

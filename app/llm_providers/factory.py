@@ -39,7 +39,10 @@ def get_llm_provider(config: Settings, provider_override: str = None) -> BaseLLM
 
     def log_usage(msg):
         print(msg)
-        with open("provider_usage.log", "a") as f:
+        import tempfile
+        import os
+        log_file = os.path.join(tempfile.gettempdir(), "recall_provider_usage.log")
+        with open(log_file, "a") as f:
             f.write(msg + "\n")
 
     if target_provider == "openai":

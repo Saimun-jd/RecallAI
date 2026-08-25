@@ -3,6 +3,7 @@ import json
 from typing import Any, Dict
 from langfuse import get_client
 from app.llm_providers.base import BaseLLMProvider
+from app.errors import RecallError, ErrorCode, classify_error
 
 class GeminiProvider(BaseLLMProvider):
     def __init__(self, api_key: str, model: str = "gemini-3.6-flash"):
@@ -22,6 +23,9 @@ class GeminiProvider(BaseLLMProvider):
         temperature: float = 0.1,
         max_tokens: int = 8192,
     ) -> str:
+        if not self.api_key or not self.api_key.strip():
+            raise RecallError(ErrorCode.API_KEY_MISSING, "No API key configured for Gemini.")
+
         url = f"{self.base_url}/models/{self.model}:generateContent?key={self.api_key}"
         headers = {
             "Content-Type": "application/json"
@@ -59,15 +63,20 @@ class GeminiProvider(BaseLLMProvider):
                     r = await client.post(url, headers=headers, json=payload)
             except Exception as e:
                 generation.update(level="ERROR", status_message=str(e))
-                raise
+                raise classify_error(e, provider_hint="gemini")
                 
             generation.update(metadata={"status_code": r.status_code})
             
             try:
                 r.raise_for_status()
             except httpx.HTTPStatusError as e:
-                generation.update(level="ERROR", status_message=f"HTTP {r.status_code}: {r.text}")
-                raise
+                body = r.text[:2000] if r.text else ""
+                # Gemini-specific: detect RESOURCE_EXHAUSTED quota errors
+                if "RESOURCE_EXHAUSTED" in body or r.status_code == 429:
+                    generation.update(level="ERROR", status_message=f"Quota exceeded: {body}")
+                    raise RecallError(ErrorCode.LLM_QUOTA_EXCEEDED, f"Gemini quota exceeded: {body}", e)
+                generation.update(level="ERROR", status_message=f"HTTP {r.status_code}: {body}")
+                raise classify_error(e, provider_hint="gemini")
             
             resp_data = r.json()
             try:
@@ -90,4 +99,4 @@ class GeminiProvider(BaseLLMProvider):
             except (KeyError, IndexError):
                 err_msg = f"Unexpected response format from Gemini: {resp_data}"
                 generation.update(level="ERROR", status_message=err_msg)
-                raise ValueError(err_msg)
+                raise RecallError(ErrorCode.LLM_INVALID_RESPONSE, err_msg)

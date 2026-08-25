@@ -3,7 +3,7 @@ import logging
 import os
 import tempfile
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Form, UploadFile
+from fastapi import FastAPI, Form, Request, UploadFile
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -31,6 +31,8 @@ from app.pdf_extract import extract_raw_text
 from app.prefilter import is_valid_section
 from app.schemas import Chunk
 from app.markdown_ast import parse_markdown_assets
+from app.errors import RecallError, ErrorCode, classify_error, error_response, error_event, get_user_message
+from app.config import settings as app_settings
 
 
 @asynccontextmanager
@@ -84,6 +86,21 @@ app.mount("/static", StaticFiles(directory=PARSED_DOCS_DIR), name="static")
 from app.config import get_provider_concurrency
 
 logger = logging.getLogger(__name__)
+
+def _is_debug() -> bool:
+    """Check if debug mode is enabled (shows full error details in responses)."""
+    return app_settings.debug_mode
+
+
+# ── Global Exception Handlers ────────────────────────────────────────────
+
+@app.exception_handler(RecallError)
+async def recall_error_handler(request: Request, exc: RecallError):
+    return error_response(exc, include_debug=_is_debug())
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    return error_response(exc, include_debug=_is_debug())
 
 async def process_section(
     sec: dict, 
@@ -158,9 +175,11 @@ async def process_section(
                 chunk.breadcrumb = breadcrumb
             
         return chunks
+    except RecallError:
+        raise
     except httpx.HTTPError as e:
         # Bubble up critical provider failures
-        raise e
+        raise classify_error(e)
     except Exception as e:
         logger.error(f"Failed to process section '{heading}': {e}")
         return []
@@ -225,7 +244,7 @@ async def upload_and_parse_toc(
     except Exception as e:
         import traceback
         logger.error(f"Failed to upload or parse PDF: {e}\n{traceback.format_exc()}")
-        return JSONResponse(status_code=500, content={"error": str(e)})
+        return error_response(e, include_debug=_is_debug())
 
 
 from fastapi.responses import FileResponse
@@ -371,7 +390,7 @@ async def process_book_stream(book_id: int, req: ProcessRequest):
                 if not t.done():
                     t.cancel()
 
-            yield f"data: {json.dumps({'status': 'error', 'error': str(e)})}\n\n"
+            yield f"data: {json.dumps(error_event(e, include_debug=_is_debug()))}\n\n"
 
             
     return StreamingResponse(event_generator(), media_type="text/event-stream")
@@ -568,7 +587,7 @@ async def process_topic_stream(topic_id: int, req: ProcessTopicRequest):
             import traceback
             logger.error(f"Error processing topic {topic_id}: {e}\n{traceback.format_exc()}")
             update_topic_status(topic_id, "unprocessed")
-            yield f"data: {json.dumps({'status': 'error', 'error': str(e)})}\n\n"
+            yield f"data: {json.dumps(error_event(e, include_debug=_is_debug()))}\n\n"
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
@@ -616,9 +635,11 @@ async def drill_generate_questions(topic_id: int, req: DrillGenerateRequest):
             provider_override=req.provider_override,
         )
         return result.model_dump()
+    except RecallError:
+        raise
     except Exception as e:
         logger.error(f"Drill question generation failed: {e}")
-        return JSONResponse(status_code=500, content={"error": str(e)})
+        return error_response(e, include_debug=_is_debug())
 
 
 class DrillEvaluateRequest(BaseModel):
@@ -667,9 +688,11 @@ async def drill_evaluate_answer(topic_id: int, req: DrillEvaluateRequest):
         # Persist mastery score
         update_topic_mastery(topic_id, result.mastery_score, result.status)
         return result.model_dump()
+    except RecallError:
+        raise
     except Exception as e:
         logger.error(f"Drill evaluation failed: {e}")
-        return JSONResponse(status_code=500, content={"error": str(e)})
+        return error_response(e, include_debug=_is_debug())
 
 
 class DrillSaveCardsRequest(BaseModel):
@@ -1184,9 +1207,11 @@ async def explain_annotation(book_id: int, body: ExplainRequest):
             "page_number": body.page_number,
             "rect_json": body.rect_json,
         }
+    except RecallError:
+        raise
     except Exception as e:
         logger.error(f"AI explanation failed: {e}")
-        return JSONResponse(status_code=500, content={"error": str(e)})
+        return error_response(e, include_debug=_is_debug())
 
 
 @app.post("/books/{book_id}/annotations/generate-flashcards")
@@ -1232,9 +1257,11 @@ async def generate_flashcards_annotation(book_id: int, body: FlashcardSelectionR
             "page_number": body.page_number,
             "rect_json": body.rect_json,
         }
+    except RecallError:
+        raise
     except Exception as e:
         logger.error(f"Flashcard generation from selection failed: {e}")
-        return JSONResponse(status_code=500, content={"error": str(e)})
+        return error_response(e, include_debug=_is_debug())
 
 
 @app.get("/books/{book_id}/export-annotated")
@@ -1269,9 +1296,11 @@ async def search(query: str, limit: int = 20):
     try:
         results = search_all(query.strip(), limit=limit)
         return results
+    except RecallError:
+        raise
     except Exception as e:
         logger.error(f"Search failed: {e}")
-        return JSONResponse(status_code=500, content={"error": str(e)})
+        return error_response(e, include_debug=_is_debug())
 
 @app.post("/chunk/stream")
 async def chunk_stream_endpoint(
@@ -1326,6 +1355,6 @@ async def chunk_stream_endpoint(
             yield f"data: {json.dumps({'stage': 'done', 'chunks': chunks_json})}\n\n"
         except Exception as e:
             logger.error(f"Chunk stream failed: {e}")
-            yield f"data: {json.dumps({'stage': 'error', 'error': str(e)})}\n\n"
+            yield f"data: {json.dumps(error_event(e, include_debug=_is_debug()))}\n\n"
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")

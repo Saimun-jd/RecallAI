@@ -5,6 +5,7 @@ import unicodedata
 from app.config import settings
 from app.schemas import SectionExtraction, AtomicTopic
 from app.llm_providers.factory import get_llm_provider
+from app.errors import RecallError, ErrorCode, classify_error
 from langfuse import observe
 
 logger = logging.getLogger(__name__)
@@ -212,9 +213,19 @@ async def extract_atomic_concepts(heading: str, text: str, code_blocks: dict = N
                     topic["related_image_id"] = None
                     
         return SectionExtraction(**parsed)
+    except RecallError:
+        # Let structured errors propagate to the endpoint
+        raise
     except httpx.HTTPError as e:
         # DO NOT SWALLOW connection/LLM provider errors
-        raise e
+        raise classify_error(e)
+    except json.JSONDecodeError as e:
+        logger.error(f"Failed to parse LLM JSON response. Error: {e}")
+        try:
+            logger.error(f"Raw response: {sanitized_raw}")
+        except:
+            pass
+        raise RecallError(ErrorCode.LLM_INVALID_RESPONSE, f"LLM returned invalid JSON: {e}", e)
     except Exception as e:
         logger.error(f"Failed to process with LLM. Error: {e}")
         try:
@@ -257,10 +268,11 @@ async def generate_flashcards_for_topic(
         
         parsed = json.loads(clean_json_str)
         return FlashcardList.model_validate(parsed)
+    except RecallError:
+        raise
     except Exception as e:
         logger.error(f"Failed to generate flashcards: {e}")
-        from fastapi import HTTPException
-        raise HTTPException(status_code=500, detail=f"Failed to generate flashcards: {e}")
+        raise classify_error(e)
 
 from pydantic import BaseModel
 class TopicSummary(BaseModel):

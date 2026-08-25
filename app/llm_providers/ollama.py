@@ -2,6 +2,7 @@ import httpx
 from typing import Any, Dict
 from langfuse import get_client
 from app.llm_providers.base import BaseLLMProvider
+from app.errors import RecallError, ErrorCode, classify_error
 
 class OllamaProvider(BaseLLMProvider):
     def __init__(self, host: str, model: str):
@@ -34,17 +35,25 @@ class OllamaProvider(BaseLLMProvider):
                             "options": {"temperature": temperature, "num_predict": max_tokens, "num_ctx": 8192},
                         },
                     )
+            except httpx.ConnectError as e:
+                generation.update(level="ERROR", status_message=str(e))
+                raise RecallError(ErrorCode.OLLAMA_UNAVAILABLE, f"Cannot connect to Ollama at {self.host}. Is it running?", e)
             except Exception as e:
                 generation.update(level="ERROR", status_message=str(e))
-                raise
+                raise classify_error(e, provider_hint="ollama")
                 
             generation.update(metadata={"status_code": r.status_code})
             
             try:
                 r.raise_for_status()
             except httpx.HTTPStatusError as e:
-                generation.update(level="ERROR", status_message=f"HTTP {r.status_code}: {r.text}")
-                raise
+                body = r.text[:1000] if r.text else ""
+                # Detect model-not-found errors from Ollama
+                if "not found" in body.lower() or r.status_code == 404:
+                    generation.update(level="ERROR", status_message=f"Model '{self.model}' not found in Ollama")
+                    raise RecallError(ErrorCode.LLM_INVALID_RESPONSE, f"Model '{self.model}' not found in Ollama. Pull it first with: ollama pull {self.model}", e)
+                generation.update(level="ERROR", status_message=f"HTTP {r.status_code}: {body}")
+                raise classify_error(e, provider_hint="ollama")
                 
             resp_data = r.json()
             content = resp_data.get("response", "")

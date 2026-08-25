@@ -32,6 +32,10 @@ class Settings(BaseSettings):
     prefilter_threshold: float = 0.55
     min_chunk_tokens: int = 40
 
+    # Error system: debug_mode=True shows full tracebacks in API responses.
+    # Set RECALL_DEBUG=0 in production builds to hide internal details.
+    debug_mode: bool = True
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
 settings = Settings()

@@ -27,6 +27,8 @@ import { PdfCommandPalette, type PdfCommandType } from '../components/PdfCommand
 import { preprocessMarkdown } from '../utils/markdown';
 import { SocraticDrillWidget } from '../components/SocraticDrillWidget';
 import { loadSettings, saveSetting, saveSettingsStore } from '../api/settingsStore';
+import { useToast } from '../hooks/useToast';
+import type { ApiError } from '../api/errors';
 
 export function BookDetailView() {
   const { id } = useParams<{ id: string }>();
@@ -65,10 +67,12 @@ export function BookDetailView() {
   const [currentCardIndex, setCurrentCardIndex] = useState(0);
 
   // PDF Annotation state
-  const [viewMode, setViewMode] = useState<'topics' | 'pdf'>('topics');
+  const [activeCardTab, setActiveCardTab] = useState<'cards' | 'notes'>('cards');
+  const { showToast } = useToast();
   const [annotations, setAnnotations] = useState<PdfAnnotation[]>([]);
   const [isAnnotationLoading, setIsAnnotationLoading] = useState(false);
   const [pdfScrollCommand, setPdfScrollCommand] = useState<{ page: number, ts: number } | undefined>();
+  const [viewMode, setViewMode] = useState<'topics' | 'pdf'>('topics');
   // pdfTheme is now globally managed by Redux and initialized in App.tsx
 
   const togglePdfTheme = async () => {
@@ -116,9 +120,12 @@ export function BookDetailView() {
           setTopics(topicsData);
           setAnnotations(annotationsData);
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error(err);
-        if (active) setError("Failed to load book details.");
+        if (active) {
+          setError(err?.userMessage || "Failed to load book details.");
+          showToast('error', err?.userMessage || 'Failed to load book details.', err?.debugDetail);
+        }
       } finally {
         if (active) setLoading(false);
       }
@@ -131,7 +138,10 @@ export function BookDetailView() {
     if (activeTopicId) {
       client.getTopicFlashcards(activeTopicId)
         .then(cards => dispatch(setActiveTopicCards(cards)))
-        .catch(console.error);
+        .catch((err: any) => {
+          console.error(err);
+          showToast('error', err?.userMessage || 'Failed to load flashcards.', err?.debugDetail);
+        });
     } else {
       dispatch(setActiveTopicCards([]));
     }
@@ -154,9 +164,9 @@ export function BookDetailView() {
       const updatedCards = await client.getTopicFlashcards(activeTopicId!);
       dispatch(setActiveTopicCards(updatedCards));
       setEditingCardId(null);
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
-      alert("Failed to update flashcard");
+      showToast('error', e?.userMessage || 'Failed to update flashcard.', e?.debugDetail);
     } finally {
       setIsSavingCard(false);
     }
@@ -195,9 +205,9 @@ export function BookDetailView() {
       const cards = await client.getTopicFlashcards(activeTopicId);
       dispatch(setActiveTopicCards(cards));
 
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      alert("Failed to process topic: " + (err instanceof Error ? err.message : JSON.stringify(err)));
+      showToast('error', err?.userMessage || 'Failed to process topic.', err?.debugDetail);
       setProcessingProgress(null);
       // Revert status
       setTopics(prev => prev.map(t => t.id === activeTopicId ? { ...t, status: 'unprocessed' } : t));
@@ -280,8 +290,9 @@ export function BookDetailView() {
     try {
       await client.deleteFlashcard(cardId);
       dispatch(setActiveTopicCards(activeTopicCards.filter(c => c.id !== cardId)));
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
+      showToast('error', e?.userMessage || 'Failed to delete flashcard.', e?.debugDetail);
       alert("Failed to delete card");
     }
   };
@@ -623,8 +634,9 @@ export function BookDetailView() {
                               const updated = await client.getAnnotations(bookId);
                               setAnnotations(updated);
                             }
-                          } catch (err) {
+                          } catch (err: any) {
                             console.error(`Annotation command '${type}' failed:`, err);
+                            showToast('error', err?.userMessage || `Annotation command failed.`, err?.debugDetail);
                           } finally {
                             setIsAnnotationLoading(false);
                           }
@@ -636,8 +648,9 @@ export function BookDetailView() {
                         await client.deleteAnnotation(id);
                         const updated = await client.getAnnotations(bookId);
                         setAnnotations(updated);
-                      } catch (e) {
+                      } catch (e: any) {
                         console.error("Failed to delete annotation:", e);
+                        showToast('error', e?.userMessage || 'Failed to delete annotation.', e?.debugDetail);
                       }
                     }}
                     onUpdateAnnotation={async (id, content) => {
@@ -645,8 +658,9 @@ export function BookDetailView() {
                         await client.updateAnnotation(id, content);
                         const updated = await client.getAnnotations(bookId);
                         setAnnotations(updated);
-                      } catch (e) {
+                      } catch (e: any) {
                         console.error("Failed to update annotation:", e);
+                        showToast('error', e?.userMessage || 'Failed to update annotation.', e?.debugDetail);
                       }
                     }}
                   />
@@ -688,7 +702,10 @@ export function BookDetailView() {
                   topicTitle={activeTopic.title}
                   onMasteryUpdate={(score, status) => {
                     // Refresh topics to update TOC mastery indicators
-                    client.getTopics(bookId).then(setTopics).catch(console.error);
+                    client.getTopics(bookId).then(setTopics).catch((err: any) => {
+                      console.error(err);
+                      showToast('error', err?.userMessage || 'Failed to refresh topics.', err?.debugDetail);
+                    });
                   }}
                 />
               </div>
