@@ -10,6 +10,7 @@ Uses the configured LLM provider to:
 
 import json
 import logging
+import re
 import unicodedata
 from copy import copy
 from typing import Optional
@@ -64,7 +65,7 @@ Topic Breadcrumb: {breadcrumb}
 Start Page: {start_page}
 
 Topic Content:
-<<<
+<
 {topic_content}
 >>>
 """
@@ -125,28 +126,270 @@ Key Invariants the student should have addressed:
 {key_invariants}
 
 Source Material (Ground Truth):
-<<<
+<
 {topic_content}
 >>>
 
 --- STUDENT'S ANSWER ---
-<<<
+<
 {student_answer}
 >>>
 """
+
+# ─── JSON Repair Pipeline ────────────────────────────────────────────────
+#
+# LLM providers are asked for "STRICT JSON" but nothing actually guarantees
+# it. The failure modes we defend against here:
+#   1. Response wrapped in a ```json ... ``` markdown fence.
+#   2. Leading/trailing commentary around the JSON object.
+#   3. Smart quotes / unicode punctuation instead of ASCII.
+#   4. Invalid backslash escapes — most commonly raw LaTeX in math content
+#      (\ne, \frac{}{}, \begin{cases}, etc.) that isn't a legal JSON escape.
+#   5. Literal (unescaped) newlines/tabs inside a string value.
+#   6. Trailing commas before a closing } or ].
+#   7. Truncated JSON from hitting max_tokens mid-generation.
+#
+# All string-aware repairs track quote/escape state themselves rather than
+# using naive regexes, so they don't corrupt legitimate content.
+
+_VALID_JSON_ESCAPES = set('"\\/bfnrtu')
+
+_SMART_QUOTE_MAP = {
+    "\u2018": "'", "\u2019": "'",
+    "\u201c": '"', "\u201d": '"',
+    "\u2013": "-", "\u2014": "-",
+}
 
 
 def _sanitize_llm_response(text: str) -> str:
     """Normalize Unicode and replace smart quotes/dashes."""
     text = unicodedata.normalize("NFKC", text)
-    replacements = {
-        "\u2018": "'", "\u2019": "'",
-        "\u201c": '"', "\u201d": '"',
-        "\u2013": "-", "\u2014": "-",
-    }
-    for old, new in replacements.items():
+    for old, new in _SMART_QUOTE_MAP.items():
         text = text.replace(old, new)
     return text
+
+
+def _extract_json_block(text: str) -> str:
+    """
+    Pull the JSON object out of a response that may be wrapped in a
+    markdown code fence and/or have leading/trailing commentary.
+
+    Strips a ```json ... ``` fence if present, then finds the first '{'
+    and walks forward tracking string state and brace depth (so braces
+    inside string values don't throw off the count) to locate the
+    matching closing '}'.
+    """
+    text = text.strip()
+
+    fence_match = re.search(r"```(?:json)?\s*\n?(.*?)\n?```", text, re.DOTALL)
+    if fence_match:
+        text = fence_match.group(1).strip()
+
+    start = text.find("{")
+    if start == -1:
+        return text  # nothing that looks like JSON — let json.loads raise a clear error
+
+    depth = 0
+    in_string = False
+    escape = False
+    for i in range(start, len(text)):
+        ch = text[i]
+        if escape:
+            escape = False
+            continue
+        if ch == "\\":
+            escape = True
+            continue
+        if ch == '"':
+            in_string = not in_string
+            continue
+        if in_string:
+            continue
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                return text[start:i + 1]
+
+    # Unbalanced (likely truncated) — return what we have and let the
+    # truncation-repair pass in _parse_llm_json attempt to close it.
+    return text[start:]
+
+
+def _repair_json_escapes(text: str) -> str:
+    """
+    Walk the text and, only inside string literals:
+      - escape any backslash that isn't starting a legal JSON escape
+        sequence (fixes raw LaTeX like \\ne, \\frac, \\begin{cases})
+      - escape any raw control character (newline/tab/CR) the LLM
+        emitted literally instead of as \\n / \\t / \\r
+
+    Everything outside string literals (structural braces, commas, etc.)
+    is left untouched.
+    """
+    out = []
+    in_string = False
+    i = 0
+    n = len(text)
+    while i < n:
+        ch = text[i]
+
+        if not in_string:
+            out.append(ch)
+            if ch == '"':
+                in_string = True
+            i += 1
+            continue
+
+        if ch == '"':
+            out.append(ch)
+            in_string = False
+            i += 1
+        elif ch == "\\":
+            nxt = text[i + 1] if i + 1 < n else ""
+            if nxt in _VALID_JSON_ESCAPES:
+                out.append(ch)
+                out.append(nxt)
+                i += 2
+            else:
+                # Not a legal JSON escape — treat the backslash as literal.
+                out.append("\\\\")
+                i += 1
+        elif ch == "\n":
+            out.append("\\n")
+            i += 1
+        elif ch == "\t":
+            out.append("\\t")
+            i += 1
+        elif ch == "\r":
+            out.append("\\r")
+            i += 1
+        else:
+            out.append(ch)
+            i += 1
+
+    return "".join(out)
+
+
+def _remove_trailing_commas(text: str) -> str:
+    return re.sub(r",(\s*[}\]])", r"\1", text)
+
+
+def _attempt_close_truncated_json(text: str) -> str:
+    """
+    Best-effort recovery for JSON truncated mid-generation (e.g. the
+    response hit max_tokens). Closes any unterminated string, then
+    appends closing brackets to match whatever { / [ were left open, in
+    reverse order. Not guaranteed to yield complete or fully correct
+    data — just gives json.loads a chance to return something parseable
+    instead of failing outright.
+    """
+    in_string = False
+    escape = False
+    stack = []
+    for ch in text:
+        if escape:
+            escape = False
+            continue
+        if ch == "\\":
+            escape = True
+            continue
+        if ch == '"':
+            in_string = not in_string
+            continue
+        if in_string:
+            continue
+        if ch in "{[":
+            stack.append(ch)
+        elif ch in "}]":
+            if stack:
+                stack.pop()
+
+    repaired = text
+    if in_string:
+        repaired += '"'
+    for opener in reversed(stack):
+        repaired += "}" if opener == "{" else "]"
+    return repaired
+
+
+def _parse_llm_json(raw: str, context: str) -> dict:
+    """
+    Best-effort robust parse of an LLM's JSON response. Applies the
+    repair pipeline, tries a straight parse, and if that fails, tries
+    once more after attempting to close truncated brackets. Raises
+    ValueError with the original raw text logged if everything fails.
+    """
+    text = _sanitize_llm_response(raw)
+    text = _extract_json_block(text)
+    text = _repair_json_escapes(text)
+    text = _remove_trailing_commas(text)
+
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError as e:
+        logger.warning(f"{context}: JSON parse failed ({e}); attempting truncation repair")
+        try:
+            closed = _attempt_close_truncated_json(text)
+            closed = _remove_trailing_commas(closed)
+            return json.loads(closed)
+        except json.JSONDecodeError as e2:
+            logger.error(f"{context}: failed to parse LLM JSON after repairs: {e2}")
+            logger.error(f"Raw response (first 1000 chars): {raw[:1000]}")
+            raise ValueError(f"LLM returned invalid JSON: {e2}") from e2
+
+
+async def _generate_and_parse(
+    provider,
+    prompt: str,
+    schema: dict,
+    temperature: float,
+    max_tokens: int,
+    context: str,
+    max_attempts: int = 2,
+) -> dict:
+    """
+    Calls the LLM provider and parses its response as JSON. Retries once
+    (by default) with a stricter follow-up prompt if a response comes
+    back unparseable, and separately handles the provider call itself
+    failing (network/timeout/API error). Raises ValueError with a clear,
+    logged message if every attempt is exhausted.
+    """
+    last_error: Optional[Exception] = None
+    current_prompt = prompt
+
+    for attempt in range(1, max_attempts + 1):
+        try:
+            raw = await provider.generate(
+                prompt=current_prompt,
+                json_schema=schema,
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
+        except Exception as e:
+            logger.error(f"{context}: LLM provider call failed on attempt {attempt}/{max_attempts}: {e}")
+            last_error = e
+            continue
+
+        try:
+            return _parse_llm_json(raw, context=context)
+        except ValueError as e:
+            logger.warning(f"{context}: attempt {attempt}/{max_attempts} produced unparseable JSON: {e}")
+            last_error = e
+            current_prompt = (
+                prompt
+                + "\n\nIMPORTANT: Your previous response was not valid JSON "
+                  f"({e}). Respond ONLY with a single valid JSON object — "
+                  "no markdown fences, no commentary. Escape every backslash "
+                  "(including in LaTeX/math notation) and every newline "
+                  "inside string values."
+            )
+            continue
+
+    raise ValueError(
+        f"{context}: LLM did not return valid JSON after {max_attempts} attempt(s): {last_error}"
+    )
 
 
 @observe(name="generate_diagnostic_questions", as_type="span")
@@ -158,31 +401,37 @@ async def generate_diagnostic_questions(
     provider_override: Optional[str] = None,
 ) -> DiagnosticQuestionSet:
     """Generate 2 tiered probing questions for a topic."""
+    import re
+    # Strip image URLs and tags from topic content so we don't spam the LLM
+    clean_topic_content = re.sub(r'!\[.*?\]\(.*?\)', '', topic_content)
+    clean_topic_content = re.sub(r'<img.*?>', '', clean_topic_content)
+    
     prompt = QUESTION_GEN_PROMPT.format(
         topic_title=topic_title,
         breadcrumb=breadcrumb or "N/A",
         start_page=start_page,
-        topic_content=topic_content[:8000],  # cap to avoid token limits
+        topic_content=clean_topic_content[:8000],  # cap to avoid token limits
     )
 
     schema = DiagnosticQuestionSet.model_json_schema()
     local_settings = copy(settings)
     provider = get_llm_provider(local_settings, provider_override=provider_override)
 
-    raw = await provider.generate(
-        prompt=prompt,
-        json_schema=schema,
-        temperature=0.3,
-        max_tokens=2048,
-    )
-    sanitized = _sanitize_llm_response(raw)
+    try:
+        parsed = await _generate_and_parse(
+            provider, prompt, schema,
+            temperature=0.3, max_tokens=2048,
+            context="generate_diagnostic_questions",
+        )
+    except ValueError as e:
+        logger.error(f"Failed to parse drill questions: {e}")
+        raise ValueError(f"LLM returned invalid question format: {e}")
 
     try:
-        parsed = json.loads(sanitized)
         return DiagnosticQuestionSet(**parsed)
     except Exception as e:
-        logger.error(f"Failed to parse drill questions: {e}")
-        logger.error(f"Raw response: {sanitized[:500]}")
+        logger.error(f"generate_diagnostic_questions: JSON parsed but failed schema validation: {e}")
+        logger.error(f"Parsed JSON (first 1000 chars): {json.dumps(parsed)[:1000]}")
         raise ValueError(f"LLM returned invalid question format: {e}")
 
 
@@ -195,10 +444,14 @@ async def evaluate_student_answer(
     provider_override: Optional[str] = None,
 ) -> DiagnosticEvaluation:
     """Evaluate a student's free-form answer using ASAG."""
+    import re
+    clean_topic_content = re.sub(r'!\[.*?\]\(.*?\)', '', topic_content)
+    clean_topic_content = re.sub(r'<img.*?>', '', clean_topic_content)
+    
     prompt = EVALUATION_PROMPT.format(
         question_text=question_text,
         key_invariants=json.dumps(key_invariants),
-        topic_content=topic_content[:8000],
+        topic_content=clean_topic_content[:8000],
         student_answer=student_answer,
     )
 
@@ -206,18 +459,19 @@ async def evaluate_student_answer(
     local_settings = copy(settings)
     provider = get_llm_provider(local_settings, provider_override=provider_override)
 
-    raw = await provider.generate(
-        prompt=prompt,
-        json_schema=schema,
-        temperature=0.1,
-        max_tokens=2048,
-    )
-    sanitized = _sanitize_llm_response(raw)
+    try:
+        parsed = await _generate_and_parse(
+            provider, prompt, schema,
+            temperature=0.1, max_tokens=2048,
+            context="evaluate_student_answer",
+        )
+    except ValueError as e:
+        logger.error(f"Failed to parse drill evaluation: {e}")
+        raise ValueError(f"LLM returned invalid evaluation format: {e}")
 
     try:
-        parsed = json.loads(sanitized)
         return DiagnosticEvaluation(**parsed)
     except Exception as e:
-        logger.error(f"Failed to parse drill evaluation: {e}")
-        logger.error(f"Raw response: {sanitized[:500]}")
+        logger.error(f"evaluate_student_answer: JSON parsed but failed schema validation: {e}")
+        logger.error(f"Parsed JSON (first 1000 chars): {json.dumps(parsed)[:1000]}")
         raise ValueError(f"LLM returned invalid evaluation format: {e}")

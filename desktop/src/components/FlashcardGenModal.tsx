@@ -3,15 +3,19 @@ import { useDispatch, useSelector } from 'react-redux';
 import { client } from '../api/client';
 import type { RootState } from '../store';
 import { setIsCardGenModalOpen, setActiveTopicCards } from '../store/readerSlice';
-import { X, Loader2, Zap } from 'lucide-react';
+import { X, Loader2, Zap, CheckCircle2 } from 'lucide-react';
 import clsx from 'clsx';
 import { useToast } from '../hooks/useToast';
 import type { ApiError } from '../api/errors';
 
-export function FlashcardGenModal() {
+interface FlashcardGenModalProps {
+  hasCachedMarkdown?: boolean;
+}
+
+export function FlashcardGenModal({ hasCachedMarkdown }: FlashcardGenModalProps) {
   const dispatch = useDispatch();
   const { activeTopicId, isCardGenModalOpen } = useSelector((state: RootState) => state.reader);
-  const { activeProvider } = useSelector((state: RootState) => state.providers);
+  const { activeProvider, pdfExtractor } = useSelector((state: RootState) => state.providers);
   
   const [count, setCount] = useState(3);
   const [cardType, setCardType] = useState('Conceptual');
@@ -142,20 +146,35 @@ export function FlashcardGenModal() {
         </div>
         
         {/* Footer Actions */}
-        <div className="px-5 py-4 border-t-2 border-on-surface bg-surface-container-low shrink-0 flex justify-end gap-3 rounded-b-xl">
-          <button 
-            onClick={() => dispatch(setIsCardGenModalOpen(false))}
-            className="px-4 py-2 text-sm font-bold text-on-surface bg-surface-container-lowest border-2 border-on-surface rounded-lg hover:bg-surface-container shadow-[2px_2px_0px_0px_#191b23] active:shadow-none active:translate-x-[1px] active:translate-y-[1px] transition-all"
-          >
-            Cancel
-          </button>
-          <button 
-            onClick={handleGenerate}
-            disabled={loading}
-            className="px-4 py-2 text-sm font-bold bg-primary text-on-primary border-2 border-on-surface rounded-lg flex items-center gap-2 shadow-[2px_2px_0px_0px_#191b23] active:shadow-none active:translate-x-[1px] active:translate-y-[1px] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {loading ? <Loader2 size={16} className="animate-spin" /> : <><Zap size={16} fill="currentColor" /> Generate</>}
-          </button>
+        <div className="px-5 py-4 border-t-2 border-on-surface bg-surface-container-low shrink-0 flex items-center justify-between gap-3 rounded-b-xl">
+          <div className="flex-1">
+            {hasCachedMarkdown ? (
+              <p className="text-xs font-bold text-emerald-600 flex items-center gap-1 italic">
+                <CheckCircle2 size={12} /> Using cached markdown to generate
+              </p>
+            ) : (
+              pdfExtractor === 'marker' && (
+                <p className="text-xs font-medium text-amber-600 italic">
+                  Marker (ML) is currently extracting text for this section. This may take a few minutes if models are downloading.
+                </p>
+              )
+            )}
+          </div>
+          <div className="flex justify-end gap-3 shrink-0">
+            <button 
+              onClick={() => dispatch(setIsCardGenModalOpen(false))}
+              className="px-4 py-2 text-sm font-bold text-on-surface bg-surface-container-lowest border-2 border-on-surface rounded-lg hover:bg-surface-container shadow-[2px_2px_0px_0px_#191b23] active:shadow-none active:translate-x-[1px] active:translate-y-[1px] transition-all"
+            >
+              Cancel
+            </button>
+            <button 
+              onClick={handleGenerate}
+              disabled={loading}
+              className="px-4 py-2 text-sm font-bold bg-primary text-on-primary border-2 border-on-surface rounded-lg flex items-center gap-2 shadow-[2px_2px_0px_0px_#191b23] active:shadow-none active:translate-x-[1px] active:translate-y-[1px] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loading ? <Loader2 size={16} className="animate-spin" /> : <><Zap size={16} fill="currentColor" /> Generate</>}
+            </button>
+          </div>
         </div>
 
       </div>

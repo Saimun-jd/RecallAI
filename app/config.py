@@ -11,6 +11,7 @@ else:
 
 class Settings(BaseSettings):
     llm_provider: str = "openai"  # "ollama" or "openai"
+    pdf_extractor: str = "pymupdf4llm"  # "pymupdf4llm", "marker", etc.
     
     # Ollama settings
     ollama_host: str = "http://localhost:11434"
@@ -22,6 +23,9 @@ class Settings(BaseSettings):
     openai_model: str = "gpt-4o-mini"
     openai_base_url: str = "https://api.openai.com/v1"
     openai_embedding_model: str = "text-embedding-3-small"
+    
+    # Datalab API (Marker)
+    datalab_api_key: str = ""
     
     # Gemini
     gemini_api_key: str = ""

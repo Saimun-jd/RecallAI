@@ -273,10 +273,31 @@ def init_db():
                 END;
             """)
 
+            cursor.execute(f"""
+                CREATE TRIGGER IF NOT EXISTS {table}_record_tombstone
+                BEFORE DELETE ON {table}
+                FOR EACH ROW
+                WHEN OLD.uuid IS NOT NULL
+                BEGIN
+                    INSERT INTO sync_tombstones (table_name, uuid) VALUES ('{table}', OLD.uuid);
+                END;
+            """)
+
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_topics_book_id ON topics(book_id)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_flashcards_topic_id ON flashcards(topic_id)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_flashcards_due ON flashcards(due)")
 
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS sync_tombstones (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                table_name TEXT NOT NULL,
+                uuid TEXT NOT NULL,
+                deleted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        # Clean up old tombstones (> 30 days) to prevent infinite growth
+        cursor.execute("DELETE FROM sync_tombstones WHERE deleted_at < datetime('now', '-30 days')")
         
         # Seed default settings if empty
         cursor.execute("SELECT COUNT(*) as count FROM settings")
@@ -577,6 +598,19 @@ def update_topic_enrichment(
             WHERE id = ?
             """,
             (summary, concept_type, key_terms, code_snippet, image_url, content_md, status, topic_id)
+        )
+
+def update_topic_content_md(topic_id: int, content_md: str):
+    """Saves just the extracted raw markdown to the topic without marking it as fully processed."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            UPDATE topics SET
+                content_md = ?
+            WHERE id = ?
+            """,
+            (content_md, topic_id)
         )
 
 def update_topic_mastery(topic_id: int, score: int, status: str):

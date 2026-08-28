@@ -1,6 +1,7 @@
 import React from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
+import remarkGfm from 'remark-gfm';
 import rehypeKatex from 'rehype-katex';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
@@ -26,7 +27,7 @@ interface MarkdownRendererProps {
 export const MarkdownRendererImpl: React.FC<MarkdownRendererProps> = ({ content }) => {
   return (
     <ReactMarkdown 
-      remarkPlugins={[remarkMath]} 
+      remarkPlugins={[remarkMath, remarkGfm]} 
       rehypePlugins={[rehypeKatex]}
       components={{
         span: ({ node, style, ...props }: any) => {

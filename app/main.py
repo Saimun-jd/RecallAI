@@ -329,7 +329,7 @@ async def upload_and_parse_toc(
         
         def extract_toc():
             doc = fitz.open(file_path)
-            toc = get_toc_entries(doc)
+            toc = get_toc_entries(doc, pdf_path=file_path)
             total = doc.page_count
             granular_toc = build_granular_toc(toc, total)
             doc.close()
@@ -421,8 +421,12 @@ async def process_book_stream(book_id: int, req: ProcessRequest):
             from fastapi.concurrency import run_in_threadpool
             discovered_sections = []
             
+            from app.extractors import get_extractor
+            is_marker = get_extractor().name == "marker"
+            extra_msg = " (Marker may take a few minutes...)" if is_marker else ""
+            
             for i, chunk_item in enumerate(chunk_queue, 1):
-                yield f"data: {json.dumps({'status': 'processing', 'chunk': i, 'total_chunks': total_chunks, 'current_topic': chunk_item['title']})}\n\n"
+                yield f"data: {json.dumps({'status': 'processing', 'chunk': i, 'total_chunks': total_chunks, 'current_topic': chunk_item['title'] + extra_msg})}\n\n"
                 
                 start_idx = max(0, chunk_item['start'] - 1)
                 end_idx = min(doc.page_count - 1, chunk_item['end'] - 1)
@@ -431,7 +435,7 @@ async def process_book_stream(book_id: int, req: ProcessRequest):
                 pdf_bytes = new_doc.write()
                 new_doc.close()
                 
-                md_text, cache_key, start_page_num = await run_in_threadpool(extract_raw_text, pdf_bytes, chunk_item['start'])
+                md_text, cache_key, start_page_num = await extract_raw_text(pdf_bytes, chunk_item['start'])
                 modified_md_text, code_blocks, images = parse_markdown_assets(md_text, cache_key)
                 sections = detect_headings(modified_md_text, start_page_num)
                 
@@ -537,6 +541,7 @@ class APIKeys(BaseModel):
     gemini_api_key: str | None = None
     groq_api_key: str | None = None
     openai_api_key: str | None = None
+    datalab_api_key: str | None = None
     langfuse_secret_key: str | None = None
     langfuse_public_key: str | None = None
     langfuse_host: str | None = None
@@ -554,6 +559,9 @@ def save_api_keys(keys: APIKeys):
     if keys.openai_api_key is not None:
         set_setting("openai_api_key", keys.openai_api_key)
         os.environ["OPENAI_API_KEY"] = keys.openai_api_key
+    if keys.datalab_api_key is not None:
+        set_setting("datalab_api_key", keys.datalab_api_key)
+        os.environ["DATALAB_API_KEY"] = keys.datalab_api_key
     if keys.langfuse_secret_key is not None:
         set_setting("langfuse_secret_key", keys.langfuse_secret_key)
         os.environ["LANGFUSE_SECRET_KEY"] = keys.langfuse_secret_key
@@ -586,6 +594,7 @@ def get_api_keys():
         "gemini_api_key": get_setting("gemini_api_key") or "",
         "groq_api_key": get_setting("groq_api_key") or "",
         "openai_api_key": get_setting("openai_api_key") or "",
+        "datalab_api_key": get_setting("datalab_api_key") or "",
         "langfuse_secret_key": get_setting("langfuse_secret_key") or "",
         "langfuse_public_key": get_setting("langfuse_public_key") or "",
         "langfuse_host": get_setting("langfuse_host") or "https://cloud.langfuse.com",
@@ -643,12 +652,16 @@ async def process_topic_stream(topic_id: int, req: ProcessTopicRequest):
             code_blocks = {}
             images = {}
             
+            from app.extractors import get_extractor
+            is_marker = get_extractor().name == "marker"
+            extra_msg = " (Marker may take a few minutes to download models on first run)" if is_marker else ""
+            
             if content_md and len(content_md.strip()) > 20:
-                yield f"data: {json.dumps({'stage': 'reading_pdf'})}\n\n"
+                yield f"data: {json.dumps({'stage': f'reading_pdf{extra_msg}'})}\n\n"
                 modified_md_text, code_blocks, images = parse_markdown_assets(content_md, topic.get("topic_hash", "cache_key"))
                 sections = detect_headings(modified_md_text, topic.get("start_page", 1))
             else:
-                yield f"data: {json.dumps({'stage': 'reading_pdf'})}\n\n"
+                yield f"data: {json.dumps({'stage': f'reading_pdf{extra_msg}'})}\n\n"
                 doc = fitz.open(file_path)
                 start_idx = max(0, topic['start_page'] - 1)
                 end_idx = min(doc.page_count - 1, topic['end_page'] - 1)
@@ -659,7 +672,7 @@ async def process_topic_stream(topic_id: int, req: ProcessTopicRequest):
                 doc.close()
                 
                 from fastapi.concurrency import run_in_threadpool
-                md_text, cache_key, start_page_num = await run_in_threadpool(extract_raw_text, pdf_bytes, topic['start_page'])
+                md_text, cache_key, start_page_num = await extract_raw_text(pdf_bytes, topic['start_page'])
                 modified_md_text, code_blocks, images = parse_markdown_assets(md_text, cache_key)
                 sections = detect_headings(modified_md_text, start_page_num)
                 content_md = modified_md_text
@@ -748,14 +761,23 @@ async def drill_generate_questions(topic_id: int, req: DrillGenerateRequest):
         file_path = book["file_path"]
         if not os.path.exists(file_path):
             return JSONResponse(status_code=404, content={"error": "PDF file not found"})
+        from fastapi.concurrency import run_in_threadpool
+        from app.pdf_extract import extract_raw_text
         doc = fitz.open(file_path)
         start_idx = max(0, topic["start_page"] - 1)
         end_idx = min(doc.page_count - 1, topic["end_page"] - 1)
-        pages_text = []
-        for i in range(start_idx, end_idx + 1):
-            pages_text.append(doc[i].get_text())
+        
+        new_doc = fitz.open()
+        new_doc.insert_pdf(doc, from_page=start_idx, to_page=end_idx)
+        pdf_bytes = new_doc.write()
+        new_doc.close()
         doc.close()
-        content = "\n".join(pages_text)
+        
+        content, _, _ = await extract_raw_text(pdf_bytes, topic["start_page"])
+        
+        if content:
+            from app.database import update_topic_content_md
+            update_topic_content_md(topic_id, content)
 
     try:
         result = await generate_diagnostic_questions(
@@ -906,14 +928,23 @@ async def generate_topic_flashcards(topic_id: int, req: FlashcardGenerationReque
         if book:
             file_path = book["file_path"]
             if os.path.exists(file_path):
+                from fastapi.concurrency import run_in_threadpool
+                from app.pdf_extract import extract_raw_text
                 doc = fitz.open(file_path)
                 start_idx = max(0, topic.get("start_page", 1) - 1)
                 end_idx = min(doc.page_count - 1, topic.get("end_page", doc.page_count) - 1)
-                pages_text = []
-                for i in range(start_idx, end_idx + 1):
-                    pages_text.append(doc[i].get_text())
+                
+                new_doc = fitz.open()
+                new_doc.insert_pdf(doc, from_page=start_idx, to_page=end_idx)
+                pdf_bytes = new_doc.write()
+                new_doc.close()
                 doc.close()
-                topic_text = "\n".join(pages_text)
+                
+                topic_text, _, _ = await extract_raw_text(pdf_bytes, topic.get("start_page", 1))
+                
+                if topic_text:
+                    from app.database import update_topic_content_md
+                    update_topic_content_md(topic_id, topic_text)
             
     flashcard_list = await generate_flashcards_for_topic(
         topic_name=topic.get("title", ""),
@@ -1450,7 +1481,7 @@ async def chunk_stream_endpoint(
             yield f"data: {json.dumps({'stage': 'Reading PDF'})}\n\n"
             
             from fastapi.concurrency import run_in_threadpool
-            md_text, cache_key, start_page_num = await run_in_threadpool(extract_raw_text, pdf_bytes, start_page)
+            md_text, cache_key, start_page_num = await extract_raw_text(pdf_bytes, start_page)
             yield f"data: {json.dumps({'stage': 'Extracting markdown assets'})}\n\n"
             
             modified_md_text, code_blocks, images = parse_markdown_assets(md_text, cache_key)

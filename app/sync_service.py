@@ -150,7 +150,18 @@ def pull_changes(supabase: Client, last_sync: str):
         
         for table in SYNC_TABLES:
             try:
-                # Fetch records from Supabase
+                # 1. Pull and apply tombstones for this table
+                tombstones_resp = supabase.table("sync_tombstones").select("uuid").eq("table_name", table).gt("deleted_at", last_sync).execute()
+                if tombstones_resp.data:
+                    deleted_uuids = [t["uuid"] for t in tombstones_resp.data]
+                    if deleted_uuids:
+                        placeholders = ",".join(["?"] * len(deleted_uuids))
+                        # Execute local hard delete; SQLite ON DELETE CASCADE will handle children,
+                        # and our BEFORE DELETE triggers will put these into the local sync_tombstones.
+                        # This ensures our local database stays perfectly consistent.
+                        cursor.execute(f"DELETE FROM {table} WHERE uuid IN ({placeholders})", deleted_uuids)
+
+                # 2. Fetch updated records from Supabase
                 response = supabase.table(table).select("*").gt("updated_at", last_sync).order("updated_at").execute()
                 records = response.data
                 
@@ -218,23 +229,36 @@ def push_changes(supabase: Client, last_sync: str):
                 cursor.execute(f"SELECT * FROM {table} WHERE updated_at > ?", (last_sync,))
                 rows = cursor.fetchall()
                 
-                if not rows:
-                    continue
+                if rows:
+                    records = [dict(row) for row in rows]
+                    for r in records:
+                        r["user_id"] = user_id
+                        translate_fks_for_push(table, r, mappings)
                     
-                records = [dict(row) for row in rows]
-                
-                for r in records:
-                    r["user_id"] = user_id
-                    translate_fks_for_push(table, r, mappings)
-                
-                res = supabase.table(table).upsert(records, on_conflict="uuid").execute()
-                
+                    res = supabase.table(table).upsert(records, on_conflict="uuid").execute()
+                    
             except Exception as e:
                 logger.error(f"Error pushing table {table} to Supabase: {e}")
                 import traceback
                 with open(r"C:\Users\user\.gemini\antigravity-ide\brain\39d21ad3-51f9-4c1c-955c-aaaf3b917b83\scratch\sync_error.txt", "a", encoding="utf-8") as f:
                     f.write(f"Error pushing table {table}:\n{traceback.format_exc()}\n")
                     f.write(f"First record: {records[0] if records else 'None'}\n\n")
+
+        # Process local tombstones in reverse dependency order (children first) to avoid FK constraint errors on Supabase
+        for table in reversed(SYNC_TABLES):
+            try:
+                cursor.execute("SELECT uuid, deleted_at FROM sync_tombstones WHERE table_name = ? AND deleted_at > ?", (table, last_sync))
+                tombstone_rows = cursor.fetchall()
+                if tombstone_rows:
+                    uuids_to_delete = [r["uuid"] for r in tombstone_rows]
+                    # Send delete requests to Supabase
+                    supabase.table(table).delete().in_("uuid", uuids_to_delete).execute()
+                    
+                    # Push tombstones to Supabase so other clients know to delete
+                    tombstones_payload = [{"uuid": r["uuid"], "table_name": table, "deleted_at": r["deleted_at"]} for r in tombstone_rows]
+                    supabase.table("sync_tombstones").upsert(tombstones_payload, on_conflict="uuid").execute()
+            except Exception as e:
+                logger.error(f"Error pushing tombstones for {table}: {e}")
 
 def sync_with_remote(token: str):
     """Coordinates the two-way sync process."""

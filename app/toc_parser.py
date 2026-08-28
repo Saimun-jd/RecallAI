@@ -106,8 +106,19 @@ def extract_fallback_toc(doc):
     return synthetic_toc
 
 
-def get_toc_entries(doc):
+from pathlib import Path
+
+def get_toc_entries(doc, pdf_path: str | None = None):
     """Returns table of contents from PDF metadata or fallback heading scan."""
+    from app.extractors import get_extractor
+    extractor = get_extractor()
+    
+    # Let the plugin try first (e.g. Marker with its layout model)
+    if pdf_path:
+        plugin_toc = extractor.extract_toc(Path(pdf_path), doc.page_count)
+        if plugin_toc:
+            return [[e.level, e.title, e.page] for e in plugin_toc]
+
     native_toc = doc.get_toc()
     
     logger.info("Scanning document text for fallback headings to supplement embedded TOC...")
@@ -146,6 +157,14 @@ def build_granular_toc(toc, total_pages):
     granular_toc = []
     
     filtered_toc = [entry for entry in toc if not is_noise_heading(entry[1])]
+    
+    if not filtered_toc:
+        return [{
+            "level": 1,
+            "title": "Full Document",
+            "start_page": 1,
+            "end_page": total_pages,
+        }]
     
     for i, entry in enumerate(filtered_toc):
         level = entry[0]

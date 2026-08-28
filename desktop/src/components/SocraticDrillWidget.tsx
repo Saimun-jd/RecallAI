@@ -23,13 +23,14 @@ const STATUS_CONFIG: Record<string, { icon: typeof CheckCircle2; color: string; 
 interface SocraticDrillWidgetProps {
   topicId: number;
   topicTitle: string;
+  hasCachedMarkdown?: boolean;
   onMasteryUpdate?: (score: number, status: string) => void;
 }
 
 type DrillPhase = 'idle' | 'generating' | 'answering' | 'evaluating' | 'feedback';
 
-export function SocraticDrillWidget({ topicId, topicTitle, onMasteryUpdate }: SocraticDrillWidgetProps) {
-  const { activeProvider } = useSelector((state: RootState) => state.providers);
+export function SocraticDrillWidget({ topicId, topicTitle, hasCachedMarkdown, onMasteryUpdate }: SocraticDrillWidgetProps) {
+  const { activeProvider, pdfExtractor } = useSelector((state: RootState) => state.providers);
 
   const [phase, setPhase] = useState<DrillPhase>('idle');
   const [questions, setQuestions] = useState<DiagnosticQuestion[]>([]);
@@ -172,7 +173,19 @@ export function SocraticDrillWidget({ topicId, topicTitle, onMasteryUpdate }: So
     return (
       <div className="bg-surface-container-lowest border-[3px] border-on-background neo-shadow-lg p-8 flex flex-col items-center gap-4">
         <Loader2 size={32} className="animate-spin text-primary" />
-        <p className="font-label-md text-label-md font-bold text-on-surface-variant uppercase tracking-wider">Analyzing topic and generating diagnostic questions…</p>
+        <p className="font-label-md text-label-md font-bold text-on-surface-variant uppercase tracking-wider text-center">Analyzing topic and generating diagnostic questions…</p>
+        
+        {hasCachedMarkdown ? (
+          <p className="font-body-sm text-body-sm text-emerald-600 font-bold italic mt-2 text-center max-w-sm flex items-center justify-center gap-1">
+            <CheckCircle2 size={14} /> Using cached markdown to generate
+          </p>
+        ) : (
+          pdfExtractor === 'marker' && (
+            <p className="font-body-sm text-body-sm text-amber-600 font-medium italic mt-2 text-center max-w-sm">
+              Marker (ML) is currently extracting text for this section. This may take a few minutes if models are downloading.
+            </p>
+          )
+        )}
       </div>
     );
   }

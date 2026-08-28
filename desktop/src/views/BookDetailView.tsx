@@ -72,7 +72,7 @@ export function BookDetailView() {
   const [annotations, setAnnotations] = useState<PdfAnnotation[]>([]);
   const [isAnnotationLoading, setIsAnnotationLoading] = useState(false);
   const [pdfScrollCommand, setPdfScrollCommand] = useState<{ page: number, ts: number } | undefined>();
-  const [viewMode, setViewMode] = useState<'topics' | 'pdf'>('topics');
+  const [viewMode, setViewMode] = useState<'topics' | 'pdf' | 'markdown'>('topics');
   const hasInitializedScrollRef = useRef(false);
   // pdfTheme is now globally managed by Redux and initialized in App.tsx
 
@@ -680,6 +680,44 @@ export function BookDetailView() {
                 </ErrorBoundary>
               </div>
             </div>
+            {/* Markdown Viewer */}
+            <div 
+              className={clsx(
+                "flex flex-col bg-surface",
+                viewMode === 'markdown' 
+                  ? "flex-1 relative h-full" 
+                  : "absolute inset-0 opacity-0 pointer-events-none z-[-1]"
+              )}
+              inert={viewMode !== 'markdown' ? true : undefined}
+            >
+              <div className="h-16 border-b-[3px] border-primary flex items-center justify-between px-4 bg-surface-container-lowest shrink-0 z-10 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] relative">
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => setViewMode('topics')}
+                    className="flex items-center gap-2 px-2 py-1.5 text-on-surface hover:text-zinc-100 hover:bg-surface-container rounded-md transition-colors"
+                  >
+                    <ArrowLeft size={16} />
+                    <span className="text-sm font-medium">Back to Topics</span>
+                  </button>
+                  <div className="w-px h-4 bg-surface-container-high mx-1"></div>
+                  <div className="text-sm font-medium text-primary flex items-center gap-2">
+                    <FileText size={16} className="text-accent-blue shrink-0" />
+                    <span className="truncate max-w-[200px]">Extracted Markdown</span>
+                  </div>
+                </div>
+              </div>
+                <div className="flex-1 min-h-0 overflow-y-auto p-4 md:p-8 bg-surface-container custom-scrollbar">
+                  <div className="max-w-4xl mx-auto bg-surface-container-lowest p-8 md:p-12 rounded-xl shadow-sm border-2 border-primary prose prose-slate dark:prose-invert prose-p:text-on-surface prose-headings:text-on-surface prose-strong:text-on-surface prose-li:text-on-surface prose-pre:bg-surface prose-table:border-collapse prose-table:w-full prose-th:bg-surface-container-low prose-th:p-3 prose-th:border-2 prose-th:border-primary prose-th:text-on-surface prose-td:p-3 prose-td:border-2 prose-td:border-primary prose-td:text-on-surface">
+                  {activeTopic?.content_md ? (
+                    <MarkdownRenderer content={activeTopic.content_md} />
+                  ) : (
+                    <div className="flex flex-col items-center justify-center h-full text-on-surface-variant">
+                      <p>No markdown extracted for this topic.</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
             <div className={clsx("flex-1 flex justify-center h-full overflow-y-auto custom-scrollbar", viewMode !== 'topics' && "hidden")}>
               <div className="w-full max-w-5xl flex flex-col min-h-full">
               {/* Header */}
@@ -702,16 +740,32 @@ export function BookDetailView() {
                   <span className="px-3 py-1 bg-surface-container rounded-full border border-outline-variant font-bold text-on-surface">
                     Target: p. {activeTopic.start_page}
                   </span>
-                  <button className="w-8 h-8 flex items-center justify-center rounded-full bg-surface-container hover:bg-surface-variant transition-colors border border-outline-variant">
+                  {/* <button className="w-8 h-8 flex items-center justify-center rounded-full bg-surface-container hover:bg-surface-variant transition-colors border border-outline-variant">
                     <MoreHorizontal size={18} className="text-on-surface" />
-                  </button>
+                  </button> */}
                 </div>
               </div>
+
+              {processingProgress && (
+                <div className="px-5 mt-2 mb-2">
+                  <div className="bg-amber-500/10 border-2 border-amber-500 text-amber-700 px-4 py-3 rounded-xl shadow-[4px_4px_0px_0px_var(--color-amber-500)] flex items-center gap-3">
+                    <Loader2 className="animate-spin shrink-0" size={20} />
+                    <div>
+                      <h4 className="font-bold text-sm">Processing Topic...</h4>
+                      <p className="text-xs font-medium opacity-80 mt-0.5 capitalize">
+                        {processingProgress.stage.replace(/_/g, ' ')}
+                        {processingProgress.progress ? ` (${processingProgress.progress}%)` : ''}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div className="px-5 mt-2">
                 <SocraticDrillWidget
                   topicId={activeTopic.id}
                   topicTitle={activeTopic.title}
+                  hasCachedMarkdown={!!activeTopic.content_md}
                   onMasteryUpdate={(score, status) => {
                     // Refresh topics to update TOC mastery indicators
                     client.getTopics(bookId).then(setTopics).catch((err: any) => {
@@ -734,6 +788,15 @@ export function BookDetailView() {
                   <FileText size={16} />
                   <span className="font-bold text-xs">View PDF</span>
                 </button>
+                {activeTopic.content_md && (
+                  <button
+                    onClick={() => setViewMode('markdown')}
+                    className="snap-start shrink-0 bg-surface-container-lowest border-2 border-on-surface rounded-lg px-3 py-1.5 flex items-center gap-2 hover:bg-surface-container shadow-[2px_2px_0px_0px_#191b23] active:shadow-none active:translate-x-[1px] active:translate-y-[1px] transition-all h-9 text-on-surface"
+                  >
+                    <FileText size={16} />
+                    <span className="font-bold text-xs">View Markdown</span>
+                  </button>
+                )}
                 <button
                   onClick={() => dispatch(setIsCardGenModalOpen(true))}
                   className="snap-start shrink-0 bg-surface-container-lowest border-2 border-on-surface rounded-lg px-3 py-1.5 flex items-center gap-2 hover:bg-surface-container shadow-[2px_2px_0px_0px_#191b23] active:shadow-none active:translate-x-[1px] active:translate-y-[1px] transition-all h-9 text-on-surface"
@@ -938,7 +1001,7 @@ export function BookDetailView() {
 
       </div>
 
-      <FlashcardGenModal />
+      <FlashcardGenModal hasCachedMarkdown={!!activeTopic?.content_md} />
       <RelatedTopicsModal isOpen={isRelatedModalOpen} onClose={() => setIsRelatedModalOpen(false)} />
       {activeTopic && (
         <TopicPracticeModal

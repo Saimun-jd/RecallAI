@@ -26,6 +26,7 @@ export interface AppSettings {
   fallbackToCloudEnabled: boolean;
   showAttributionTags: boolean;
   pdfTheme: 'dark' | 'light';
+  pdfExtractor: 'pymupdf4llm' | 'marker';
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -33,6 +34,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   fallbackToCloudEnabled: false,
   showAttributionTags: true,
   pdfTheme: 'dark',
+  pdfExtractor: 'pymupdf4llm',
 };
 
 export const loadSettings = async (): Promise<AppSettings> => {
@@ -46,7 +48,8 @@ export const loadSettings = async (): Promise<AppSettings> => {
     const fallbackToCloudEnabled = await store.get<boolean>('fallbackToCloudEnabled') ?? DEFAULT_SETTINGS.fallbackToCloudEnabled;
     const showAttributionTags = await store.get<boolean>('showAttributionTags') ?? DEFAULT_SETTINGS.showAttributionTags;
     const pdfTheme = await store.get<'dark' | 'light'>('pdfTheme') ?? DEFAULT_SETTINGS.pdfTheme;
-    return { activeProvider, fallbackToCloudEnabled, showAttributionTags, pdfTheme };
+    const pdfExtractor = await store.get<'pymupdf4llm' | 'marker'>('pdfExtractor') ?? DEFAULT_SETTINGS.pdfExtractor;
+    return { activeProvider, fallbackToCloudEnabled, showAttributionTags, pdfTheme, pdfExtractor };
   } catch (error) {
     console.error('Failed to load settings:', error);
     return DEFAULT_SETTINGS;

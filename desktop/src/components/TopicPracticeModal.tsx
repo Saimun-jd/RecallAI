@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { client, type Flashcard } from '../api/client';
 import { Brain, Check, X, TrendingUp, HelpCircle } from 'lucide-react';
 import { MarkdownRenderer } from '../components/MarkdownRenderer';
+import clsx from 'clsx';
 
 
 interface TopicPracticeModalProps {
@@ -42,7 +43,11 @@ export function TopicPracticeModal({ isOpen, onClose, topicId, topicName, cards:
   if (!isOpen) return null;
 
   const handleShowAnswer = () => {
-    setState('answer');
+    if (state === 'question') {
+      setState('answer');
+    } else if (state === 'answer') {
+      setState('question');
+    }
   };
 
   const handleRate = async (rating: number) => {
@@ -106,6 +111,8 @@ export function TopicPracticeModal({ isOpen, onClose, topicId, topicName, cards:
 
   if (!currentCard) return null;
 
+  const isFlipped = state === 'answer';
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
       <div className="bg-surface-container-lowest border-2 border-on-surface shadow-[8px_8px_0px_0px_#191b23] w-full max-w-3xl h-[85vh] rounded-xl flex flex-col relative overflow-hidden">
@@ -139,78 +146,102 @@ export function TopicPracticeModal({ isOpen, onClose, topicId, topicName, cards:
         </div>
 
         {/* Content Area */}
-        <div className="flex-1 flex flex-col p-6 overflow-y-auto bg-surface relative min-h-0">
+        <div className="flex-1 flex flex-col p-6 overflow-y-auto bg-surface relative min-h-0 items-center justify-center">
           
-          <div className="bg-surface-container-lowest border-2 border-on-surface rounded-xl shadow-[4px_4px_0px_0px_#191b23] overflow-hidden flex flex-col relative transition-all duration-300">
-            {/* Context Breadcrumb */}
-            <div className="bg-surface border-b-2 border-on-surface px-4 py-2 flex items-center justify-between">
-              <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-on-surface">
-                <Brain size={14} strokeWidth={2} className="text-primary" />
-                <span className="truncate max-w-[150px]">{currentCard.topic_name}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="text-[10px] text-on-surface font-black uppercase tracking-widest bg-surface-container px-2 py-1 border-2 border-on-surface rounded shadow-[2px_2px_0px_0px_#191b23]">
-                  {currentCard.concept_type}
+          {/* 3D Flashcard Container */}
+          <div className="relative w-full max-w-2xl min-h-[320px] h-[45vh] max-h-[450px] group shrink-0">
+            <div className={clsx(
+              "flashcard-inner w-full h-full relative cursor-pointer",
+              isFlipped && "flashcard-flipped"
+            )} onClick={handleShowAnswer}>
+              
+              {/* Front of Card */}
+              <div className="flashcard-face absolute inset-0 bg-surface-container-lowest border-2 border-on-surface shadow-[8px_8px_0px_0px_#191b23] rounded-xl flex flex-col overflow-hidden">
+                <div className="px-6 py-4 flex justify-between items-center border-b-2 border-on-surface bg-secondary text-white">
+                  <span className="text-xs font-bold uppercase tracking-widest flex items-center gap-2">
+                    <Brain size={16} strokeWidth={2.5} />
+                    <span className="truncate max-w-[200px]">{currentCard.topic_name}</span>
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-black uppercase tracking-widest bg-surface-container text-on-surface px-2 py-1 border-2 border-on-surface rounded shadow-[2px_2px_0px_0px_#191b23]">
+                      {currentCard.concept_type}
+                    </span>
+                    <span className="text-[10px] font-black uppercase tracking-widest bg-emerald-100 text-emerald-800 px-2 py-1 border-2 border-on-surface rounded shadow-[2px_2px_0px_0px_#191b23]">
+                      {['New', 'Learning', 'Review', 'Relearning'][currentCard.state] || 'Unknown'}
+                    </span>
+                  </div>
                 </div>
-                <div className="text-[10px] text-white font-black uppercase tracking-widest bg-secondary px-2 py-1 border-2 border-on-surface rounded shadow-[2px_2px_0px_0px_#191b23]">
-                  {['New', 'Learning', 'Review', 'Relearning'][currentCard.state] || 'Unknown'}
+                <div className="flex-1 flex flex-col justify-center items-center text-center p-8 overflow-y-auto custom-scrollbar">
+                  <div className="prose prose-slate max-w-none prose-p:font-sans prose-p:font-bold prose-p:text-xl prose-p:leading-snug prose-p:text-on-surface prose-headings:font-bold prose-headings:text-on-surface">
+                    <MarkdownRenderer content={currentCard.question} />
+                  </div>
+                  <div className="mt-8 flex items-center gap-2 text-on-surface-variant animate-pulse opacity-70">
+                    <span className="text-[10px] font-bold uppercase tracking-widest bg-surface px-2 py-1 border-2 border-on-surface rounded shadow-[2px_2px_0px_0px_#191b23]">SPACE</span>
+                    <span className="text-[10px] font-bold uppercase tracking-widest">or TAP TO REVEAL</span>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            {/* Question */}
-            <div className="p-6">
-              <div className="inline-block px-3 py-1 bg-secondary text-white text-xs font-bold uppercase tracking-wider rounded-md border-2 border-on-surface mb-4 shadow-[2px_2px_0px_0px_#191b23]">
-                Question
+              {/* Back of Card */}
+              <div className="flashcard-face flashcard-back absolute inset-0 bg-surface-container-lowest border-2 border-on-surface shadow-[8px_8px_0px_0px_#191b23] rounded-xl flex flex-col overflow-hidden">
+                <div className="px-6 py-4 flex justify-between items-center border-b-2 border-on-surface bg-primary text-white">
+                  <span className="text-xs font-bold uppercase tracking-widest flex items-center gap-2">
+                    ANSWER REVEALED
+                  </span>
+                  <span className="text-[10px] font-bold opacity-80 uppercase tracking-widest">
+                    RATE YOUR MEMORY BELOW
+                  </span>
+                </div>
+                <div className="flex-1 flex flex-col justify-center items-center text-center p-8 overflow-y-auto custom-scrollbar bg-primary/5">
+                  <div className="prose prose-slate max-w-none prose-p:font-sans prose-p:font-bold prose-p:text-xl prose-p:leading-snug prose-p:text-on-surface prose-headings:font-bold prose-headings:text-on-surface">
+                    <MarkdownRenderer content={currentCard.answer} />
+                  </div>
+                </div>
               </div>
-              <div className="prose prose-slate max-w-none text-on-surface text-lg font-bold leading-relaxed">
-                <MarkdownRenderer content={currentCard.question} />
-              </div>
-            </div>
 
-            {/* Answer Section */}
-            {state === 'answer' && (
-              <div ref={answerRef} className="p-6 bg-primary/5 border-t-2 border-on-surface animate-in fade-in duration-300">
-                <div className="inline-block px-3 py-1 bg-surface-container-lowest text-on-surface text-xs font-bold uppercase tracking-wider rounded-md border-2 border-on-surface mb-4 shadow-[2px_2px_0px_0px_#191b23]">
-                  Answer
-                </div>
-                <div className="prose prose-slate max-w-none text-on-surface text-base font-medium leading-relaxed">
-                  <MarkdownRenderer content={currentCard.answer} />
-                </div>
-              </div>
-            )}
+            </div>
           </div>
         </div>
 
         {/* Controls */}
-        <div className="p-6 pt-4 border-t-2 border-on-surface bg-surface-container-lowest shrink-0">
-          {state === 'question' ? (
+        <div className="p-6 pt-4 border-t-2 border-on-surface bg-surface-container-lowest shrink-0 flex justify-center">
+          <div className={clsx(
+            "w-full max-w-2xl grid grid-cols-4 gap-4 transition-all duration-300",
+            !isFlipped && "opacity-20 pointer-events-none grayscale"
+          )}>
             <button 
-              onClick={handleShowAnswer}
-              className="w-full bg-primary text-white text-lg uppercase tracking-wider font-bold py-4 rounded-xl border-2 border-on-surface shadow-[4px_4px_0px_0px_#191b23] active:shadow-none active:translate-x-[2px] active:translate-y-[2px] transition-all"
+              onClick={() => handleRate(1)} 
+              disabled={!isFlipped}
+              className="bg-surface hover:bg-error/10 border-2 border-on-surface text-error font-bold py-3 rounded-xl shadow-[4px_4px_0px_0px_#191b23] active:shadow-none active:translate-x-[2px] active:translate-y-[2px] transition-all flex flex-col items-center justify-center group"
             >
-              Show Answer
+              <span className="text-lg uppercase pointer-events-none">Again</span>
+              <span className="text-xs text-on-surface-variant font-bold mt-1 uppercase tracking-wider opacity-70 group-hover:opacity-100 pointer-events-none">&lt; 1m</span>
             </button>
-          ) : (
-            <div className="grid grid-cols-4 gap-4">
-              <button onClick={() => handleRate(1)} className="bg-surface hover:bg-error/10 border-2 border-on-surface text-error font-bold py-3 rounded-xl shadow-[4px_4px_0px_0px_#191b23] active:shadow-none active:translate-x-[2px] active:translate-y-[2px] transition-all flex flex-col items-center justify-center group">
-                <span className="text-lg uppercase pointer-events-none">Again</span>
-                <span className="text-xs text-on-surface-variant font-bold mt-1 uppercase tracking-wider opacity-70 group-hover:opacity-100 pointer-events-none">&lt; 1m</span>
-              </button>
-              <button onClick={() => handleRate(2)} className="bg-surface hover:bg-orange-500/10 border-2 border-on-surface text-orange-600 font-bold py-3 rounded-xl shadow-[4px_4px_0px_0px_#191b23] active:shadow-none active:translate-x-[2px] active:translate-y-[2px] transition-all flex flex-col items-center justify-center group">
-                <span className="text-lg uppercase pointer-events-none">Hard</span>
-                <span className="text-xs text-on-surface-variant font-bold mt-1 uppercase tracking-wider opacity-70 group-hover:opacity-100 pointer-events-none">~ 5m</span>
-              </button>
-              <button onClick={() => handleRate(3)} className="bg-surface hover:bg-primary/10 border-2 border-on-surface text-primary font-bold py-3 rounded-xl shadow-[4px_4px_0px_0px_#191b23] active:shadow-none active:translate-x-[2px] active:translate-y-[2px] transition-all flex flex-col items-center justify-center group">
-                <span className="text-lg uppercase pointer-events-none">Good</span>
-                <span className="text-xs text-on-surface-variant font-bold mt-1 uppercase tracking-wider opacity-70 group-hover:opacity-100 pointer-events-none">~ 10m</span>
-              </button>
-              <button onClick={() => handleRate(4)} className="bg-surface hover:bg-green-600/10 border-2 border-on-surface text-green-700 font-bold py-3 rounded-xl shadow-[4px_4px_0px_0px_#191b23] active:shadow-none active:translate-x-[2px] active:translate-y-[2px] transition-all flex flex-col items-center justify-center group">
-                <span className="text-lg uppercase pointer-events-none">Easy</span>
-                <span className="text-xs text-on-surface-variant font-bold mt-1 uppercase tracking-wider opacity-70 group-hover:opacity-100 pointer-events-none">~ 4d</span>
-              </button>
-            </div>
-          )}
+            <button 
+              onClick={() => handleRate(2)} 
+              disabled={!isFlipped}
+              className="bg-surface hover:bg-orange-500/10 border-2 border-on-surface text-orange-600 font-bold py-3 rounded-xl shadow-[4px_4px_0px_0px_#191b23] active:shadow-none active:translate-x-[2px] active:translate-y-[2px] transition-all flex flex-col items-center justify-center group"
+            >
+              <span className="text-lg uppercase pointer-events-none">Hard</span>
+              <span className="text-xs text-on-surface-variant font-bold mt-1 uppercase tracking-wider opacity-70 group-hover:opacity-100 pointer-events-none">~ 5m</span>
+            </button>
+            <button 
+              onClick={() => handleRate(3)} 
+              disabled={!isFlipped}
+              className="bg-surface hover:bg-primary/10 border-2 border-on-surface text-primary font-bold py-3 rounded-xl shadow-[4px_4px_0px_0px_#191b23] active:shadow-none active:translate-x-[2px] active:translate-y-[2px] transition-all flex flex-col items-center justify-center group"
+            >
+              <span className="text-lg uppercase pointer-events-none">Good</span>
+              <span className="text-xs text-on-surface-variant font-bold mt-1 uppercase tracking-wider opacity-70 group-hover:opacity-100 pointer-events-none">~ 10m</span>
+            </button>
+            <button 
+              onClick={() => handleRate(4)} 
+              disabled={!isFlipped}
+              className="bg-surface hover:bg-green-600/10 border-2 border-on-surface text-green-700 font-bold py-3 rounded-xl shadow-[4px_4px_0px_0px_#191b23] active:shadow-none active:translate-x-[2px] active:translate-y-[2px] transition-all flex flex-col items-center justify-center group"
+            >
+              <span className="text-lg uppercase pointer-events-none">Easy</span>
+              <span className="text-xs text-on-surface-variant font-bold mt-1 uppercase tracking-wider opacity-70 group-hover:opacity-100 pointer-events-none">~ 4d</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>

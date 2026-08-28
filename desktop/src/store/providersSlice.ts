@@ -10,6 +10,7 @@ export interface ProvidersState {
   fallbackToCloudEnabled: boolean;
   showAttributionTags: boolean;
   localModel: { name: string; sizeGB: number; loaded: boolean } | null;
+  pdfExtractor: 'pymupdf4llm' | 'marker' | 'marker_api';
 }
 
 const initialState: ProvidersState = {
@@ -29,6 +30,7 @@ const initialState: ProvidersState = {
   fallbackToCloudEnabled: false,
   showAttributionTags: true,
   localModel: null,
+  pdfExtractor: 'pymupdf4llm',
 };
 
 const providersSlice = createSlice({
@@ -53,6 +55,9 @@ const providersSlice = createSlice({
     setLocalModelStatus: (state, action: PayloadAction<ProvidersState['localModel']>) => {
       state.localModel = action.payload;
     },
+    setPdfExtractor: (state, action: PayloadAction<'pymupdf4llm' | 'marker' | 'marker_api'>) => {
+      state.pdfExtractor = action.payload;
+    },
   },
 });
 
@@ -62,7 +67,8 @@ export const {
   setConfiguredProvider, 
   setFallbackToCloud,
   setShowAttributionTags,
-  setLocalModelStatus
+  setLocalModelStatus,
+  setPdfExtractor
 } = providersSlice.actions;
 
 export default providersSlice.reducer;

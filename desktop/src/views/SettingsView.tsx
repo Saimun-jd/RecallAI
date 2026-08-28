@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import type { RootState, AIProviderId } from '../store';
-import { setActiveProvider, setFallbackToCloud, setShowAttributionTags, setConfiguredProvider } from '../store';
+import { setActiveProvider, setFallbackToCloud, setShowAttributionTags, setConfiguredProvider, setPdfExtractor } from '../store';
 import { loadSettings, saveSetting, saveSettingsStore } from '../api/settingsStore';
 import { getApiKey, saveApiKey, removeApiKey, saveKeychain } from '../api/keychain';
 import { client } from '../api/client';
@@ -13,7 +13,7 @@ import type { ApiError } from '../api/errors';
 
 export function SettingsView() {
   const dispatch = useDispatch();
-  const { activeProvider, fallbackToCloudEnabled, showAttributionTags } = useSelector((state: RootState) => state.providers);
+  const { activeProvider, fallbackToCloudEnabled, showAttributionTags, pdfExtractor } = useSelector((state: RootState) => state.providers);
   
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -79,11 +79,12 @@ export function SettingsView() {
         dispatch(setActiveProvider(settings.activeProvider));
         dispatch(setFallbackToCloud(settings.fallbackToCloudEnabled));
         dispatch(setShowAttributionTags(settings.showAttributionTags));
+        dispatch(setPdfExtractor(settings.pdfExtractor || 'pymupdf4llm'));
 
         // Load keys from stronghold securely in the background
         const loadKeysBackground = async () => {
           try {
-            for (const provider of ['openai', 'gemini', 'groq', 'langfuse_secret_key', 'langfuse_public_key', 'langfuse_host', 'ollama_host']) {
+            for (const provider of ['openai', 'gemini', 'groq', 'datalab_api_key', 'langfuse_secret_key', 'langfuse_public_key', 'langfuse_host', 'ollama_host']) {
               const key = await getApiKey(provider);
               if (key) {
                 setKeys(prev => ({...prev, [provider]: key}));
@@ -129,13 +130,14 @@ export function SettingsView() {
       await Promise.all([
         saveSetting('activeProvider', activeProvider),
         saveSetting('fallbackToCloudEnabled', fallbackToCloudEnabled),
-        saveSetting('showAttributionTags', showAttributionTags)
+        saveSetting('showAttributionTags', showAttributionTags),
+        saveSetting('pdfExtractor', pdfExtractor)
       ]);
 
       const backendKeys: any = {};
       const vaultPromises: Promise<void>[] = [];
 
-      for (const provider of ['openai', 'gemini', 'groq', 'langfuse_secret_key', 'langfuse_public_key', 'langfuse_host', 'ollama_host']) {
+      for (const provider of ['openai', 'gemini', 'groq', 'datalab_api_key', 'langfuse_secret_key', 'langfuse_public_key', 'langfuse_host', 'ollama_host']) {
         const val = keys[provider];
         if (val && val.trim().length > 0) {
           vaultPromises.push(saveApiKey(provider, val.trim()));
@@ -176,6 +178,11 @@ export function SettingsView() {
       // Push active provider to backend
       client.updateSetting('llm_provider', JSON.stringify({ type: activeProvider })).catch((err) =>
         console.warn('[Settings] Non-critical backend provider sync error:', err)
+      );
+      
+      // Push extractor to backend
+      client.updateSetting('pdf_extractor', pdfExtractor).catch((err) =>
+        console.warn('[Settings] Non-critical backend extractor sync error:', err)
       );
 
       showToast('success', 'Settings saved successfully.');
@@ -334,6 +341,25 @@ export function SettingsView() {
                   </div>
                 </label>
               </div>
+
+              <div className="flex items-center justify-between group">
+                <div>
+                  <p className="text-sm font-black text-black uppercase">PDF Extractor</p>
+                  <p className="text-sm text-on-surface-variant font-bold">Select the backend pipeline used to parse documents.</p>
+                </div>
+                <div className="relative w-48">
+                  <select 
+                    value={pdfExtractor}
+                    onChange={(e) => dispatch(setPdfExtractor(e.target.value as any))}
+                    className="w-full appearance-none bg-white neo-border px-3 py-2 text-sm focus:bg-surface-container font-bold cursor-pointer uppercase"
+                  >
+                    <option value="pymupdf4llm">PyMuPDF4LLM</option>
+                    <option value="marker">Marker (Offline)</option>
+                    <option value="marker_api">Marker (API Key)</option>
+                  </select>
+                  <ChevronDown size={16} className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-black font-bold" strokeWidth={3} />
+                </div>
+              </div>
             </section>
 
             {/* Secure API Keys */}
@@ -343,7 +369,7 @@ export function SettingsView() {
                 <p className="text-sm text-on-surface-variant font-bold">Keys never leave your machine (Tauri Stronghold Encrypted).</p>
               </div>
               <div className="space-y-4 max-w-sm">
-                {['openai', 'gemini', 'groq'].map((p) => (
+                {['openai', 'gemini', 'groq', 'datalab_api_key'].map((p) => (
                   <div key={p} className="flex flex-col gap-2">
                     <label className="text-xs font-black text-black uppercase">{p} Key</label>
                     <input 
