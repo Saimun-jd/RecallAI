@@ -83,3 +83,22 @@ class DiagnosticEvaluation(BaseModel):
     suggested_flashcards: List[SuggestedFlashcard] = Field(
         default_factory=list, description="0-2 targeted flashcards for diagnosed gaps"
     )
+
+class ChatMessage(BaseModel):
+    role: Literal["user", "ai", "system", "assistant"]
+    content: str
+
+class ChatMessageDB(BaseModel):
+    id: int
+    topic_id: int
+    role: str
+    content: str
+    created_at: str
+
+class ChatRequest(BaseModel):
+    topic_id: int
+    topic_name: Optional[str] = None
+    context_markdown: str
+    question: str
+    history: List[ChatMessage] = Field(default_factory=list)
+    provider_override: Optional[str] = None

@@ -44,8 +44,29 @@ class GeminiProvider(BaseLLMProvider):
             ],
             "generationConfig": {
                 "temperature": temperature,
-                "maxOutputTokens": max_tokens
-            }
+                "maxOutputTokens": max_tokens,
+                "thinkingConfig": {
+                    "thinkingLevel": "low"
+                }
+            },
+            "safetySettings": [
+                {
+                    "category": "HARM_CATEGORY_HARASSMENT",
+                    "threshold": "BLOCK_NONE"
+                },
+                {
+                    "category": "HARM_CATEGORY_HATE_SPEECH",
+                    "threshold": "BLOCK_NONE"
+                },
+                {
+                    "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+                    "threshold": "BLOCK_NONE"
+                },
+                {
+                    "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
+                    "threshold": "BLOCK_NONE"
+                }
+            ]
         }
         
         if json_schema is not None:
@@ -80,7 +101,8 @@ class GeminiProvider(BaseLLMProvider):
             
             resp_data = r.json()
             try:
-                content = resp_data["candidates"][0]["content"]["parts"][0]["text"]
+                parts = resp_data["candidates"][0]["content"]["parts"]
+                content = "".join(p["text"] for p in parts if "text" in p)
                 
                 usage = resp_data.get("usageMetadata")
                 if usage:

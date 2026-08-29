@@ -175,6 +175,20 @@ export interface DiagnosticEvaluation {
   suggested_flashcards: SuggestedFlashcard[];
 }
 
+export interface ChatMessage {
+  role: 'user' | 'ai' | 'system' | 'assistant';
+  content: string;
+}
+
+export interface ChatRequest {
+  topic_id: number;
+  topic_name?: string;
+  context_markdown: string;
+  question: string;
+  history?: ChatMessage[];
+  provider_override?: string | null;
+}
+
 export const client = {
   /** Parse structured API errors and throw as ApiError */
   async _throwIfError(res: Response, fallbackMsg: string): Promise<void> {
@@ -606,6 +620,24 @@ export const client = {
       body: JSON.stringify({ flashcards }),
     });
     await this._throwIfError(res, "Failed to save drill flashcards");
+    return res.json();
+  },
+
+  async getChatHistory(topicId: number): Promise<ChatMessage[]> {
+    const res = await fetch(`${API_BASE}/api/topics/${topicId}/chat?t=${Date.now()}`, { cache: 'no-store' });
+    await this._throwIfError(res, "Failed to fetch chat history");
+    return res.json();
+  },
+
+  async chatWithTopic(request: ChatRequest): Promise<{ answer: string }> {
+    const res = await fetch(`${API_BASE}/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request),
+    });
+    if (!res.ok) {
+      throw await parseApiError(res);
+    }
     return res.json();
   },
 };

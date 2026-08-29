@@ -202,6 +202,17 @@ def init_db():
         """)
         
         cursor.execute("""
+            CREATE TABLE IF NOT EXISTS chat_messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                topic_id INTEGER NOT NULL,
+                role TEXT NOT NULL,
+                content TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (topic_id) REFERENCES topics (id) ON DELETE CASCADE
+            )
+        """)
+
+        cursor.execute("""
             CREATE TABLE IF NOT EXISTS undo_log (
                 id INTEGER PRIMARY KEY CHECK (id = 1),
                 flashcard_id INTEGER NOT NULL,
@@ -228,7 +239,7 @@ def init_db():
         
         # Generic migration for sync columns
         import uuid
-        sync_tables = ["books", "topics", "flashcards", "notes", "review_log", "pdf_annotations"]
+        sync_tables = ["books", "topics", "flashcards", "notes", "review_log", "pdf_annotations", "chat_messages"]
         sync_columns = [
             ("uuid", "TEXT"),
             ("user_id", "TEXT"),

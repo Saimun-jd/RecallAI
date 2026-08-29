@@ -26,10 +26,10 @@ from app.database import (
 )
 from langfuse import observe
 from app.heading_detect import detect_headings
-from app.llm_segment import extract_atomic_concepts, explain_selected_text, generate_flashcards_from_selection
+from app.llm_segment import extract_atomic_concepts, explain_selected_text, generate_flashcards_from_selection, chat_with_topic
 from app.pdf_extract import extract_raw_text
 from app.prefilter import is_valid_section
-from app.schemas import Chunk
+from app.schemas import Chunk, ChatRequest, ChatMessageDB
 from app.markdown_ast import parse_markdown_assets
 from app.errors import RecallError, ErrorCode, classify_error, error_response, error_event, get_user_message
 from app.config import settings as app_settings
@@ -186,6 +186,46 @@ async def process_section(
 
 
 from fastapi import Header, HTTPException
+
+@app.get("/api/topics/{topic_id}/chat", response_model=list[ChatMessageDB])
+async def get_topic_chat_history(topic_id: int):
+    print(f"Backend received GET /api/topics/{topic_id}/chat")
+    try:
+        from app.database import get_connection
+        with get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id, topic_id, role, content, created_at FROM chat_messages WHERE topic_id = ? ORDER BY id ASC", (topic_id,))
+            rows = cursor.fetchall()
+            print(f"Backend returning {len(rows)} messages for topic {topic_id}")
+            return [dict(row) for row in rows]
+    except Exception as e:
+        logger.error(f"Failed to fetch chat history: {e}")
+        from fastapi import HTTPException
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/chat")
+async def chat_endpoint(request: ChatRequest):
+    try:
+        from app.database import get_connection
+        # 1. Save user's question to DB
+        with get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("INSERT INTO chat_messages (topic_id, role, content) VALUES (?, ?, ?)", 
+                           (request.topic_id, "user", request.question))
+        
+        # 2. Get answer from LLM
+        answer = await chat_with_topic(request)
+        
+        # 3. Save AI's answer to DB
+        with get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("INSERT INTO chat_messages (topic_id, role, content) VALUES (?, ?, ?)", 
+                           (request.topic_id, "ai", answer))
+                           
+        return {"answer": answer}
+    except Exception as e:
+        logger.error(f"Chat endpoint error: {e}")
+        return {"answer": "Sorry, an internal error occurred while processing your request."}
 
 @app.post("/api/sync")
 async def sync_data(authorization: str = Header(None)):

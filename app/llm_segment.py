@@ -429,3 +429,63 @@ async def generate_flashcards_from_selection(selected_text: str, count: int = 5,
     except Exception as e:
         logger.error(f"Failed to parse flashcards from selection. Error: {e}")
         return []
+
+CHAT_PROMPT = """You are Onizuka sensei, an expert AI tutor. 
+
+Task: Answer the user's question based strictly and ONLY on the provided Context Markdown below.
+
+Rules:
+1. Do not use outside knowledge. 
+2. If the question is unrelated to the context or cannot be answered using the context, you MUST ignore it and politely reply with a variation of: "I can only answer questions related to the topic context provided."
+3. FORMATTING & MATHEMATICS (CRITICAL):
+   - ALL text MUST be strictly formatted in Markdown.
+   - EVERY SINGLE math variable, equation, matrix, or vector MUST be wrapped in LaTeX `$` delimiters. Example: `$A = \\begin{{bmatrix}} 1 & 0 \\\\ 0 & -1 \\end{{bmatrix}}$`. NEVER write math plain-text like `A = [[1, 0], [0, -1]]`.
+   - Use `$` for inline math and `$$` for block math.
+   - For code blocks, use fenced code blocks (```language). NEVER output a code block on a single line.
+   - DO NOT quote the Context Markdown verbatim. Always paraphrase, explain, and synthesize the information in your own words to avoid recitation filters.
+   - Use bold text for emphasis when appropriate.
+
+Context Markdown:
+<<<
+{context_markdown}
+>>>
+
+User Question: {question}
+
+Respond ONLY with valid Markdown text. Do NOT wrap your answer in a JSON object.
+"""
+
+@observe(name="chat_with_topic")
+async def chat_with_topic(request) -> str:
+    from app.config import settings
+    from copy import copy
+    import json
+    
+    # Format chat history
+    history_str = ""
+    for msg in request.history:
+        role = "User" if msg.role == "user" else "Onizuka sensei"
+        history_str += f"{role}: {msg.content}\n"
+        
+    prompt = CHAT_PROMPT.format(
+        context_markdown=request.context_markdown,
+        chat_history=history_str or "No previous history.",
+        question=request.question
+    )
+    
+    local_settings = copy(settings)
+    provider = get_llm_provider(local_settings, provider_override=request.provider_override)
+    
+    try:
+        raw = await provider.generate(
+            prompt=prompt,
+            json_schema=None,
+            temperature=0.7,
+            max_tokens=8192,
+        )
+        # The AI is now instructed to return raw markdown, so we can just return it.
+        # We strip to remove any leading/trailing whitespace or accidental backticks.
+        return raw.strip("` \n")
+    except Exception as e:
+        logger.error(f"Failed to generate chat response. Error: {e}")
+        return "Sorry, I encountered an error generating my response."

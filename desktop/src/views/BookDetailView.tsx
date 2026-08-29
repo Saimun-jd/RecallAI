@@ -14,11 +14,12 @@ import {
   setPdfTheme
 } from '../store/readerSlice';
 import { client, type Book, type Topic, type Flashcard, type PdfAnnotation } from '../api/client';
-import { Loader2, Zap, PenTool, Link2, BrainCircuit, Play, FileText, ChevronRight, ChevronLeft, CheckCircle2, Circle, Clock, Check, X, Edit2, Trash2, BookOpen, ArrowLeft, LayoutList, ChevronDown, Search, Save, Sun, Moon, MoreHorizontal } from 'lucide-react';
+import { Loader2, Zap, PenTool, Link2, BrainCircuit, Play, FileText, ChevronRight, ChevronLeft, CheckCircle2, Circle, Clock, Check, X, Edit2, Trash2, BookOpen, ArrowLeft, LayoutList, ChevronDown, Search, Save, Sun, Moon, MoreHorizontal, Bot } from 'lucide-react';
 import { MarkdownRenderer } from '../components/MarkdownRenderer';
 import clsx from 'clsx';
 import { FlashcardGenModal } from '../components/FlashcardGenModal';
 import { RelatedTopicsModal } from '../components/RelatedTopicsModal';
+import { AIChatSidebar } from '../components/AIChatSidebar';
 const NotionNotesEditor = lazy(() => import('../components/NotionNotesEditor').then(m => ({ default: m.NotionNotesEditor })));
 import { TopicPracticeModal } from '../components/TopicPracticeModal';
 const PdfViewer = lazy(() => import('../components/PdfViewer').then(m => ({ default: m.PdfViewer })));
@@ -51,6 +52,8 @@ export function BookDetailView() {
   const MIN_TOC_WIDTH = 240; // min 240px (60 * 4)
   const MAX_TOC_WIDTH = 480; // max 480px (120 * 4)
 
+  const [isChatOpen, setIsChatOpen] = useState(false);
+
   const [book, setBook] = useState<Book | null>(null);
   const [topics, setTopics] = useState<Topic[]>([]);
   const [loading, setLoading] = useState(true);
@@ -65,6 +68,7 @@ export function BookDetailView() {
   const [editAnswer, setEditAnswer] = useState("");
   const [isSavingCard, setIsSavingCard] = useState(false);
   const [currentCardIndex, setCurrentCardIndex] = useState(0);
+  const [isSummaryCollapsed, setIsSummaryCollapsed] = useState(false);
 
   // PDF Annotation state
   const [activeCardTab, setActiveCardTab] = useState<'cards' | 'notes'>('cards');
@@ -440,6 +444,7 @@ export function BookDetailView() {
                   key={virtualRow.key}
                   onClick={() => {
                     dispatch(setActiveTopicId(topic.id));
+                    setIsChatOpen(false);
                     setPdfScrollCommand({ page: topic.start_page, ts: Date.now() });
                     setViewMode('topics');
                   }}
@@ -821,36 +826,52 @@ export function BookDetailView() {
                 {/* Generated Topic Data (if processed) */}
                 {activeTopic.status === 'processed' && (activeTopic.summary || activeTopic.concept_type) && (
                   <div className="bg-surface-container-lowest border-[3px] border-on-background neo-shadow-lg p-6">
-                    <div className="flex items-center gap-3 mb-4">
-                      <div className="w-10 h-10 border-[3px] border-on-background bg-surface-container-lowest flex items-center justify-center neo-shadow-sm text-primary">
-                        <BrainCircuit size={20} />
+                    <div 
+                      className="flex items-center justify-between mb-4 cursor-pointer group select-none"
+                      onClick={() => setIsSummaryCollapsed(!isSummaryCollapsed)}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 border-[3px] border-on-background bg-surface-container-lowest flex items-center justify-center neo-shadow-sm text-primary group-hover:bg-primary/5 transition-colors">
+                          <BrainCircuit size={20} />
+                        </div>
+                        <div>
+                          <h3 className="font-headline-md text-headline-md font-bold text-primary">AI Topic Summary</h3>
+                          {activeTopic.concept_type && (
+                            <p className="text-label-sm font-label-sm font-bold uppercase tracking-wider text-secondary">{activeTopic.concept_type}</p>
+                          )}
+                        </div>
                       </div>
-                      <div>
-                        <h3 className="font-headline-md text-headline-md font-bold text-primary">AI Topic Summary</h3>
-                        {activeTopic.concept_type && (
-                          <p className="text-label-sm font-label-sm font-bold uppercase tracking-wider text-secondary">{activeTopic.concept_type}</p>
-                        )}
-                      </div>
+                      <button className="p-2 text-on-surface-variant group-hover:text-primary group-hover:bg-surface-container rounded-full transition-colors">
+                        <ChevronDown 
+                          size={24} 
+                          className={clsx("transition-transform duration-200", !isSummaryCollapsed && "rotate-180")} 
+                        />
+                      </button>
                     </div>
-                    {activeTopic.summary && (
-                      <div className="text-sm text-primary leading-relaxed mb-4 font-serif prose prose-slate max-w-none">
-                        <MarkdownRenderer content={activeTopic.summary} />
-                      </div>
-                    )}
-                    {activeTopic.key_terms && activeTopic.key_terms !== "[]" && (
-                      <div className="flex flex-wrap gap-2">
-                        {(() => {
-                          try {
-                            const terms = JSON.parse(activeTopic.key_terms);
-                            return terms.map((term: string, idx: number) => (
-                              <span key={idx} className="px-3 py-1 bg-surface-container text-primary font-bold text-label-sm uppercase border-[3px] border-primary neo-shadow-sm">
-                                {term}
-                              </span>
-                            ));
-                          } catch (e) {
-                            return null;
-                          }
-                        })()}
+                    
+                    {!isSummaryCollapsed && (
+                      <div className="animate-in fade-in slide-in-from-top-2 duration-200">
+                        {activeTopic.summary && (
+                          <div className="text-sm text-primary leading-relaxed mb-4 font-serif prose prose-slate max-w-none">
+                            <MarkdownRenderer content={activeTopic.summary} />
+                          </div>
+                        )}
+                        {activeTopic.key_terms && activeTopic.key_terms !== "[]" && (
+                          <div className="flex flex-wrap gap-2">
+                            {(() => {
+                              try {
+                                const terms = JSON.parse(activeTopic.key_terms);
+                                return terms.map((term: string, idx: number) => (
+                                  <span key={idx} className="px-3 py-1 bg-surface-container text-primary font-bold text-label-sm uppercase border-[3px] border-primary neo-shadow-sm">
+                                    {term}
+                                  </span>
+                                ));
+                              } catch (e) {
+                                return null;
+                              }
+                            })()}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -998,6 +1019,33 @@ export function BookDetailView() {
           </>
         )}
 
+
+              
+              <div className={clsx(
+                "fixed top-[152px] bottom-6 right-6 z-50 transition-all duration-300 transform",
+                isChatOpen ? "translate-x-0 opacity-100" : "translate-x-full opacity-0 pointer-events-none"
+              )}>
+                <AIChatSidebar 
+                  key={activeTopic?.id || 'empty'}
+                  isOpen={isChatOpen} 
+                  onClose={() => setIsChatOpen(false)} 
+                  topicId={activeTopic?.id}
+                  topicName={activeTopic?.title} 
+                  contextMarkdown={activeTopic?.content_md || ''} 
+                  isProcessing={activeTopic?.status === 'processing'}
+                  onProcessTopic={handleProcessTopic}
+                />
+              </div>
+
+              {/* Floating Chat Button */}
+              {!isChatOpen && (
+                <button
+                  onClick={() => setIsChatOpen(true)}
+                  className="fixed bottom-6 right-6 z-40 w-16 h-16 bg-primary text-white rounded-full flex items-center justify-center shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] border-2 border-on-surface hover:bg-accent-blue transition-colors animate-bounce hover:animate-none"
+                >
+                  <Bot size={32} />
+                </button>
+              )}
 
       </div>
 
