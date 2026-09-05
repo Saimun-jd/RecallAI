@@ -18,7 +18,9 @@ pub fn run() {
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_shell::init())
-        .plugin(tauri_plugin_http::init());
+        .plugin(tauri_plugin_http::init())
+        .plugin(tauri_plugin_keyring::init())
+        .plugin(tauri_plugin_fs::init());
 
     let app = builder
         .setup(|app| {
@@ -30,13 +32,38 @@ pub fn run() {
             // Generate or load a random salt for Stronghold
             let data_dir = app.path().app_local_data_dir().expect("Failed to get local data dir");
             std::fs::create_dir_all(&data_dir).expect("Failed to create data dir");
+
+            // One-time migration: clear old vault encrypted with default Argon2 params
+            let migration_marker = data_dir.join(".vault-v2");
+            if !migration_marker.exists() {
+                let _ = std::fs::remove_file(data_dir.join("salt.bin"));
+                let _ = std::fs::remove_file(data_dir.join(".recall-keys.app"));
+                let _ = std::fs::write(&migration_marker, b"migrated");
+                println!("[Stronghold] Migrated to v2 Argon2 params — old vault cleared.");
+            }
+
             let salt_path = data_dir.join("salt.bin");
 
             let salt: [u8; 16] = if salt_path.exists() {
                 let mut buf = [0u8; 16];
                 let data = std::fs::read(&salt_path).expect("Failed to read salt");
-                buf.copy_from_slice(&data[..16]);
-                buf
+                if data.len() >= 16 {
+                    buf.copy_from_slice(&data[..16]);
+                    buf
+                } else {
+                    // salt.bin is corrupt (partial write — e.g. disk full during first run).
+                    // The vault was encrypted with an unknown key, so it is already unrecoverable.
+                    // Delete both and regenerate so the app can launch cleanly.
+                    log::warn!(
+                        "[Stronghold] salt.bin is corrupt ({} bytes, need 16). Clearing vault and regenerating salt.",
+                        data.len()
+                    );
+                    let _ = std::fs::remove_file(&salt_path);
+                    let _ = std::fs::remove_file(data_dir.join(".recall-keys.app"));
+                    let s: [u8; 16] = rand::random();
+                    std::fs::write(&salt_path, &s).expect("Failed to write regenerated salt");
+                    s
+                }
             } else {
                 let s: [u8; 16] = rand::random();
                 std::fs::write(&salt_path, s).expect("Failed to write salt");
@@ -45,7 +72,16 @@ pub fn run() {
 
             app.handle().plugin(
                 tauri_plugin_stronghold::Builder::new(move |password| {
-                    let argon2 = argon2::Argon2::default();
+                    let params = if cfg!(debug_assertions) {
+                        argon2::Params::new(16 * 1024, 2, 1, Some(32)).expect("valid argon2 params")
+                    } else {
+                        argon2::Params::new(65536, 3, 4, Some(32)).expect("valid argon2 params")
+                    };
+                    let argon2 = argon2::Argon2::new(
+                        argon2::Algorithm::Argon2id,
+                        argon2::Version::V0x13,
+                        params,
+                    );
                     let mut key = vec![0u8; 32];
                     argon2
                         .hash_password_into(password.as_bytes(), &salt, &mut key)
@@ -76,19 +112,19 @@ pub fn run() {
                         tauri::async_runtime::spawn(async move {
                             while let Some(event) = rx.recv().await {
                                 if let CommandEvent::Stdout(line) = event {
-                                    println!("[BACKEND STDOUT] {}", String::from_utf8_lossy(&line));
+                                    log::debug!("[BACKEND STDOUT] {}", String::from_utf8_lossy(&line));
                                 } else if let CommandEvent::Stderr(line) = event {
-                                    println!("[BACKEND STDERR] {}", String::from_utf8_lossy(&line));
+                                    log::warn!("[BACKEND STDERR] {}", String::from_utf8_lossy(&line));
                                 }
                             }
                         });
                     }
                     Err(e) => {
-                        println!("Warning: Failed to spawn sidecar binary (dev mode). Ensure uvicorn is running manually. Error: {}", e);
+                        log::warn!("Failed to spawn sidecar binary (dev mode). Ensure uvicorn is running manually. Error: {}", e);
                     }
                 }
             } else {
-                println!("Warning: recall-backend sidecar config not found.");
+                log::warn!("recall-backend sidecar config not found.");
             }
 
             Ok(())

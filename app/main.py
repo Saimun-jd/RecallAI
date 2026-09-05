@@ -26,13 +26,15 @@ from app.database import (
 )
 from langfuse import observe
 from app.heading_detect import detect_headings
-from app.llm_segment import extract_atomic_concepts, explain_selected_text, generate_flashcards_from_selection, chat_with_topic
+from app.llm_segment import extract_atomic_concepts, explain_selected_text, generate_flashcards_from_selection, chat_with_topic, chat_with_topic_stream
 from app.pdf_extract import extract_raw_text
 from app.prefilter import is_valid_section
 from app.schemas import Chunk, ChatRequest, ChatMessageDB
 from app.markdown_ast import parse_markdown_assets
 from app.errors import RecallError, ErrorCode, classify_error, error_response, error_event, get_user_message
 from app.config import settings as app_settings
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -84,8 +86,6 @@ app.add_middleware(
 app.mount("/static", StaticFiles(directory=PARSED_DOCS_DIR), name="static")
 
 from app.config import get_provider_concurrency
-
-logger = logging.getLogger(__name__)
 
 def _is_debug() -> bool:
     """Check if debug mode is enabled (shows full error details in responses)."""
@@ -189,14 +189,14 @@ from fastapi import Header, HTTPException
 
 @app.get("/api/topics/{topic_id}/chat", response_model=list[ChatMessageDB])
 async def get_topic_chat_history(topic_id: int):
-    print(f"Backend received GET /api/topics/{topic_id}/chat")
+    logger.debug(f"Backend received GET /api/topics/{topic_id}/chat")
     try:
         from app.database import get_connection
         with get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT id, topic_id, role, content, created_at FROM chat_messages WHERE topic_id = ? ORDER BY id ASC", (topic_id,))
             rows = cursor.fetchall()
-            print(f"Backend returning {len(rows)} messages for topic {topic_id}")
+            logger.debug(f"Backend returning {len(rows)} messages for topic {topic_id}")
             return [dict(row) for row in rows]
     except Exception as e:
         logger.error(f"Failed to fetch chat history: {e}")
@@ -214,6 +214,8 @@ async def chat_endpoint(request: ChatRequest):
                            (request.topic_id, "user", request.question))
         
         # 2. Get answer from LLM
+        # Ensure we have the latest markdown context, regardless of what the frontend sent
+        request.context_markdown = await ensure_topic_markdown(request.topic_id)
         answer = await chat_with_topic(request)
         
         # 3. Save AI's answer to DB
@@ -226,6 +228,41 @@ async def chat_endpoint(request: ChatRequest):
     except Exception as e:
         logger.error(f"Chat endpoint error: {e}")
         return {"answer": "Sorry, an internal error occurred while processing your request."}
+
+@app.post("/chat/stream")
+async def chat_endpoint_stream(request: ChatRequest):
+    from fastapi.responses import StreamingResponse
+    import json
+    
+    try:
+        from app.database import get_connection
+        with get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("INSERT INTO chat_messages (topic_id, role, content) VALUES (?, ?, ?)", 
+                           (request.topic_id, "user", request.question))
+                           
+        request.context_markdown = await ensure_topic_markdown(request.topic_id)
+        
+        async def event_generator():
+            full_answer = ""
+            try:
+                async for chunk in chat_with_topic_stream(request):
+                    full_answer += chunk
+                    yield f"data: {json.dumps({'chunk': chunk})}\n\n"
+                    
+                with get_connection() as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("INSERT INTO chat_messages (topic_id, role, content) VALUES (?, ?, ?)", 
+                                   (request.topic_id, "ai", full_answer))
+            except Exception as e:
+                logger.error(f"Chat stream error: {e}")
+                yield f"data: {json.dumps({'error': str(e)})}\n\n"
+                
+        return StreamingResponse(event_generator(), media_type="text/event-stream")
+    except Exception as e:
+        logger.error(f"Chat stream setup error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.post("/api/sync")
 async def sync_data(authorization: str = Header(None)):
@@ -274,6 +311,7 @@ async def set_active_user(req: SetUserRequest):
             if has_data:
                 if not os.path.exists(new_db_path):
                     # First login: rename the offline db to claim it
+                    set_active_db_path(new_db_path)
                     os.rename(default_db_path, new_db_path)
                 else:
                     # Merge offline data to cloud via push
@@ -283,12 +321,21 @@ async def set_active_user(req: SetUserRequest):
                             supabase = get_supabase_client(req.token)
                             set_active_db_path(default_db_path)
                             push_changes(supabase, "1970-01-01 00:00:00")
-                            os.remove(default_db_path)
                         except Exception as e:
                             logger.error(f"Failed to push offline data during login: {e}")
                         
-        set_active_db_path(new_db_path)
-        init_db()
+                        set_active_db_path(new_db_path)
+                        if os.path.exists(default_db_path):
+                            os.remove(default_db_path)
+                    else:
+                        set_active_db_path(new_db_path)
+                        
+            else:
+                set_active_db_path(new_db_path)
+                if os.path.exists(default_db_path):
+                    os.remove(default_db_path)
+                    
+            init_db()
     else:
         set_active_db_path(default_db_path)
         init_db()
@@ -305,6 +352,11 @@ async def delete_all_data(authorization: str = Header(None)):
         with get_connection() as conn:
             for table in reversed(SYNC_TABLES):
                 conn.execute(f"DELETE FROM {table}")
+            for table in ["sync_tombstones", "undo_log", "chat_messages", "settings"]:
+                try:
+                    conn.execute(f"DELETE FROM {table}")
+                except Exception:
+                    pass
         update_last_sync_time("1970-01-01 00:00:00")
     except Exception as e:
         logger.error(f"Failed to clear local data: {e}")
@@ -316,11 +368,17 @@ async def delete_all_data(authorization: str = Header(None)):
         if token.strip():
             try:
                 supabase = get_supabase_client(token)
-                user_response = supabase.auth.get_user()
-                if user_response and user_response.user:
-                    user_id = user_response.user.id
-                    for table in reversed(SYNC_TABLES):
-                        supabase.table(table).delete().eq("user_id", user_id).execute()
+                for table in reversed(SYNC_TABLES):
+                    # We can't delete without a filter, so we filter by a known condition (all user records)
+                    # For RLS, user_id = auth.uid() is implicit. We just need a truthy condition.
+                    supabase.table(table).delete().neq("id", -1).execute()
+                
+                try:
+                    supabase.table("sync_tombstones").delete().neq("id", -1).execute()
+                except Exception as e:
+                    logger.error(f"Failed to delete sync_tombstones on Supabase: {e}")
+                    
+                update_last_sync_time("1970-01-01 00:00:00")
             except Exception as e:
                 logger.error(f"Failed to delete cloud data: {e}")
                 raise HTTPException(status_code=500, detail="Local data cleared, but failed to clear cloud data")
@@ -433,6 +491,7 @@ async def process_book_stream(book_id: int, req: ProcessRequest):
         
     async def event_generator():
         all_tasks = []
+        doc = None
         try:
             doc = fitz.open(file_path)
             
@@ -470,10 +529,9 @@ async def process_book_stream(book_id: int, req: ProcessRequest):
                 
                 start_idx = max(0, chunk_item['start'] - 1)
                 end_idx = min(doc.page_count - 1, chunk_item['end'] - 1)
-                new_doc = fitz.open()
-                new_doc.insert_pdf(doc, from_page=start_idx, to_page=end_idx)
-                pdf_bytes = new_doc.write()
-                new_doc.close()
+                with fitz.open() as new_doc:
+                    new_doc.insert_pdf(doc, from_page=start_idx, to_page=end_idx)
+                    pdf_bytes = new_doc.write()
                 
                 md_text, cache_key, start_page_num = await extract_raw_text(pdf_bytes, chunk_item['start'])
                 modified_md_text, code_blocks, images = parse_markdown_assets(md_text, cache_key)
@@ -491,7 +549,6 @@ async def process_book_stream(book_id: int, req: ProcessRequest):
                         "chunk_title": chunk_item['title']
                     })
                     
-            doc.close()
             
             total_sections = len(discovered_sections)
             if total_sections == 0:
@@ -536,6 +593,9 @@ async def process_book_stream(book_id: int, req: ProcessRequest):
                     t.cancel()
 
             yield f"data: {json.dumps(error_event(e, include_debug=_is_debug()))}\n\n"
+        finally:
+            if doc:
+                doc.close()
 
             
     return StreamingResponse(event_generator(), media_type="text/event-stream")
@@ -653,6 +713,49 @@ async def verify_ollama(url: str):
             return {"active": True, "error": None}
     except Exception as e:
         return {"active": False, "error": str(e)}
+async def ensure_topic_markdown(topic_id: int) -> str:
+    """Ensures the topic has extracted markdown content. If missing, runs the extraction pipeline and saves it."""
+    from app.database import get_topic_by_id, get_book_by_id, update_topic_content_md
+    import fitz
+    import os
+    
+    topic = get_topic_by_id(topic_id)
+    if not topic:
+        return ""
+        
+    content = topic.get("content_md") or ""
+    # We pass the parent's content_md as context if it exists, or the topic's own content_md
+    if not content and topic.get("parent_id"):
+        parent = get_topic_by_id(topic.get("parent_id"))
+        if parent:
+            content = parent.get("content_md") or ""
+            
+    if content and len(content.strip()) >= 30:
+        return content
+        
+    book = get_book_by_id(topic["book_id"])
+    if not book:
+        return ""
+        
+    file_path = book["file_path"]
+    if not os.path.exists(file_path):
+        return ""
+        
+    with fitz.open(file_path) as doc:
+        start_idx = max(0, topic.get("start_page", 1) - 1)
+        end_idx = min(doc.page_count - 1, topic.get("end_page", doc.page_count) - 1)
+        
+        with fitz.open() as new_doc:
+            new_doc.insert_pdf(doc, from_page=start_idx, to_page=end_idx)
+            pdf_bytes = new_doc.write()
+    
+    from app.pdf_extract import extract_raw_text
+    extracted_text, _, _ = await extract_raw_text(pdf_bytes, topic.get("start_page", 1))
+    
+    if extracted_text:
+        update_topic_content_md(topic_id, extracted_text)
+        
+    return extracted_text or ""
 
 
 from pydantic import BaseModel
@@ -793,31 +896,7 @@ async def drill_generate_questions(topic_id: int, req: DrillGenerateRequest):
         return JSONResponse(status_code=404, content={"error": "Topic not found"})
 
     # Resolve topic content: prefer stored content_md, fallback to PDF extraction
-    content = topic.get("content_md") or ""
-    if not content or len(content.strip()) < 30:
-        book = get_book_by_id(topic["book_id"])
-        if not book:
-            return JSONResponse(status_code=404, content={"error": "Book not found"})
-        file_path = book["file_path"]
-        if not os.path.exists(file_path):
-            return JSONResponse(status_code=404, content={"error": "PDF file not found"})
-        from fastapi.concurrency import run_in_threadpool
-        from app.pdf_extract import extract_raw_text
-        doc = fitz.open(file_path)
-        start_idx = max(0, topic["start_page"] - 1)
-        end_idx = min(doc.page_count - 1, topic["end_page"] - 1)
-        
-        new_doc = fitz.open()
-        new_doc.insert_pdf(doc, from_page=start_idx, to_page=end_idx)
-        pdf_bytes = new_doc.write()
-        new_doc.close()
-        doc.close()
-        
-        content, _, _ = await extract_raw_text(pdf_bytes, topic["start_page"])
-        
-        if content:
-            from app.database import update_topic_content_md
-            update_topic_content_md(topic_id, content)
+    content = await ensure_topic_markdown(topic_id)
 
     try:
         result = await generate_diagnostic_questions(
@@ -853,22 +932,7 @@ async def drill_evaluate_answer(topic_id: int, req: DrillEvaluateRequest):
     if not topic:
         return JSONResponse(status_code=404, content={"error": "Topic not found"})
 
-    content = topic.get("content_md") or ""
-    if not content or len(content.strip()) < 30:
-        book = get_book_by_id(topic["book_id"])
-        if not book:
-            return JSONResponse(status_code=404, content={"error": "Book not found"})
-        file_path = book["file_path"]
-        if not os.path.exists(file_path):
-            return JSONResponse(status_code=404, content={"error": "PDF file not found"})
-        doc = fitz.open(file_path)
-        start_idx = max(0, topic["start_page"] - 1)
-        end_idx = min(doc.page_count - 1, topic["end_page"] - 1)
-        pages_text = []
-        for i in range(start_idx, end_idx + 1):
-            pages_text.append(doc[i].get_text())
-        doc.close()
-        content = "\n".join(pages_text)
+    content = await ensure_topic_markdown(topic_id)
 
     try:
         result = await evaluate_student_answer(
@@ -952,39 +1016,8 @@ async def generate_topic_flashcards(topic_id: int, req: FlashcardGenerationReque
         return JSONResponse(status_code=404, content={"error": "Topic not found"})
         
     summary = req.summary_override or topic.get("summary") or ""
-    # We pass the parent's content_md as context if it exists, or the topic's own content_md
-    topic_text = topic.get("content_md") or ""
     
-    if not topic_text and topic.get("parent_id"):
-        parent = get_topic_by_id(topic.get("parent_id"))
-        if parent:
-            topic_text = parent.get("content_md") or ""
-
-    # Fallback to PDF extraction if content is still empty
-    if not topic_text or len(topic_text.strip()) < 30:
-        from app.database import get_book_by_id
-        import fitz
-        book = get_book_by_id(topic["book_id"])
-        if book:
-            file_path = book["file_path"]
-            if os.path.exists(file_path):
-                from fastapi.concurrency import run_in_threadpool
-                from app.pdf_extract import extract_raw_text
-                doc = fitz.open(file_path)
-                start_idx = max(0, topic.get("start_page", 1) - 1)
-                end_idx = min(doc.page_count - 1, topic.get("end_page", doc.page_count) - 1)
-                
-                new_doc = fitz.open()
-                new_doc.insert_pdf(doc, from_page=start_idx, to_page=end_idx)
-                pdf_bytes = new_doc.write()
-                new_doc.close()
-                doc.close()
-                
-                topic_text, _, _ = await extract_raw_text(pdf_bytes, topic.get("start_page", 1))
-                
-                if topic_text:
-                    from app.database import update_topic_content_md
-                    update_topic_content_md(topic_id, topic_text)
+    topic_text = await ensure_topic_markdown(topic_id)
             
     flashcard_list = await generate_flashcards_for_topic(
         topic_name=topic.get("title", ""),
@@ -1228,6 +1261,19 @@ def update_topic_notes_api(topic_id: int, req: NoteUpdate):
     save_note_for_topic(topic_id, req.note)
     return {"status": "success"}
 
+@app.get("/flashcards/export")
+def export_flashcards_api():
+    from app.database import get_connection
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT f.id, f.question, f.answer, t.title as topic_title, b.title as book_title
+            FROM flashcards f
+            LEFT JOIN topics t ON f.topic_id = t.id
+            LEFT JOIN books b ON t.book_id = b.id
+        """)
+        return [dict(row) for row in cursor.fetchall()]
+
 @app.get("/flashcards/{card_id}")
 def get_flashcard_by_id_api(card_id: int):
     from app.database import get_flashcard_by_id
@@ -1264,36 +1310,7 @@ def reset_flashcard_api(card_id: int):
         return JSONResponse(status_code=404, content={"error": "Flashcard not found"})
     return {"status": "success"}
 
-@app.get("/flashcards/export")
-def export_flashcards_api():
-    from app.database import get_connection
-    with get_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute("""
-            SELECT f.id, f.question, f.answer, t.title as topic_title, b.title as book_title
-            FROM flashcards f
-            LEFT JOIN topics t ON f.topic_id = t.id
-            LEFT JOIN books b ON t.book_id = b.id
-        """)
-        return [dict(row) for row in cursor.fetchall()]
 
-@app.get("/search")
-def search_api(query: str):
-    from app.database import get_connection
-    if not query:
-        return []
-        
-    with get_connection() as conn:
-        cursor = conn.cursor()
-        q = f"%{query}%"
-        
-        cursor.execute("SELECT id, title as text, 'topic' as type FROM topics WHERE title LIKE ? LIMIT 10", (q,))
-        topics = [dict(row) for row in cursor.fetchall()]
-        
-        cursor.execute("SELECT id, question as text, 'flashcard' as type FROM flashcards WHERE question LIKE ? LIMIT 10", (q,))
-        cards = [dict(row) for row in cursor.fetchall()]
-        
-        return topics + cards
 
 
 # ─── PDF Annotation Endpoints ───
@@ -1532,18 +1549,20 @@ async def chunk_stream_endpoint(
             import asyncio
             semaphore = asyncio.Semaphore(get_provider_concurrency(provider))
             
-            tasks = [process_section(
-                sec["heading"], 
-                sec["text"], 
-                code_blocks, 
-                images, 
-                chapter_title or sec["heading"], 
-                start_page_num,
-                None,
-                file_hash,
-                provider,
-                semaphore
-            ) for sec in sections]
+            tasks = [
+                asyncio.create_task(process_section(
+                    sec=sec,
+                    chapter_title=chapter_title or sec["heading"],
+                    skip_chapter_filter=False,
+                    code_blocks=code_blocks,
+                    images=images,
+                    provider_override=provider,
+                    book_id=None,
+                    book_hash=file_hash,
+                    semaphore=semaphore,
+                ))
+                for sec in sections
+            ]
             
             results = await asyncio.gather(*tasks, return_exceptions=True)
             all_chunks = []

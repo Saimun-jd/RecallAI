@@ -70,3 +70,56 @@ class OllamaProvider(BaseLLMProvider):
                 generation.update(output=content)
                 
             return content
+
+    async def generate_stream(
+        self,
+        prompt: str,
+        temperature: float = 0.7,
+        max_tokens: int = 8192,
+    ):
+        langfuse = get_client()
+        with langfuse.start_as_current_observation(
+            as_type="generation",
+            name="ollama_generation_stream",
+            model=self.model,
+            input=prompt,
+        ) as generation:
+            try:
+                import json
+                async with httpx.AsyncClient(timeout=120.0) as client:
+                    async with client.stream(
+                        "POST",
+                        f"{self.host}/api/generate",
+                        json={
+                            "model": self.model,
+                            "prompt": prompt,
+                            "stream": True,
+                            "options": {"temperature": temperature, "num_predict": max_tokens, "num_ctx": 8192},
+                        }
+                    ) as response:
+                        if response.status_code >= 400:
+                            await response.aread()
+                            generation.update(level="ERROR", status_message=f"HTTP {response.status_code}: {response.text}")
+                            try:
+                                response.raise_for_status()
+                            except httpx.HTTPStatusError as e:
+                                raise classify_error(e, provider_hint="ollama")
+                                
+                        full_content = ""
+                        async for line in response.aiter_lines():
+                            if line:
+                                try:
+                                    data = json.loads(line)
+                                    chunk = data.get("response")
+                                    if chunk:
+                                        full_content += chunk
+                                        yield chunk
+                                except json.JSONDecodeError:
+                                    pass
+                        generation.update(output=full_content)
+            except httpx.ConnectError as e:
+                generation.update(level="ERROR", status_message=str(e))
+                raise RecallError(ErrorCode.OLLAMA_UNAVAILABLE, f"Cannot connect to Ollama at {self.host}. Is it running?", e)
+            except Exception as e:
+                generation.update(level="ERROR", status_message=str(e))
+                raise classify_error(e, provider_hint="ollama")

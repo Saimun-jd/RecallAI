@@ -10,9 +10,10 @@ import type { ApiError } from '../api/errors';
 
 interface FlashcardGenModalProps {
   hasCachedMarkdown?: boolean;
+  onSuccess?: () => void;
 }
 
-export function FlashcardGenModal({ hasCachedMarkdown }: FlashcardGenModalProps) {
+export function FlashcardGenModal({ hasCachedMarkdown, onSuccess }: FlashcardGenModalProps) {
   const dispatch = useDispatch();
   const { activeTopicId, isCardGenModalOpen } = useSelector((state: RootState) => state.reader);
   const { activeProvider, pdfExtractor } = useSelector((state: RootState) => state.providers);
@@ -45,6 +46,9 @@ export function FlashcardGenModal({ hasCachedMarkdown }: FlashcardGenModalProps)
       dispatch(setActiveTopicCards(newCards));
       dispatch(setIsCardGenModalOpen(false));
       showToast('success', `Generated ${newCards.length} new flashcards.`);
+      if (onSuccess) {
+        onSuccess();
+      }
     } catch (err: any) {
       showToast('error', err?.userMessage || "Failed to generate flashcards", err?.debugDetail);
     } finally {

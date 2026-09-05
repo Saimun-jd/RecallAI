@@ -489,3 +489,33 @@ async def chat_with_topic(request) -> str:
     except Exception as e:
         logger.error(f"Failed to generate chat response. Error: {e}")
         return "Sorry, I encountered an error generating my response."
+
+@observe(name="chat_with_topic_stream")
+async def chat_with_topic_stream(request):
+    from app.config import settings
+    from copy import copy
+    
+    history_str = ""
+    for msg in request.history:
+        role = "User" if msg.role == "user" else "Onizuka sensei"
+        history_str += f"{role}: {msg.content}\n"
+        
+    prompt = CHAT_PROMPT.format(
+        context_markdown=request.context_markdown,
+        chat_history=history_str or "No previous history.",
+        question=request.question
+    )
+    
+    local_settings = copy(settings)
+    provider = get_llm_provider(local_settings, provider_override=request.provider_override)
+    
+    try:
+        async for chunk in provider.generate_stream(
+            prompt=prompt,
+            temperature=0.7,
+            max_tokens=8192,
+        ):
+            yield chunk
+    except Exception as e:
+        logger.error(f"Failed to generate streamed chat response. Error: {e}")
+        raise

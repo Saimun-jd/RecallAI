@@ -1,5 +1,6 @@
 import os
 import logging
+import traceback
 from typing import Dict, Any, List
 from supabase import create_client, Client
 from app.database import get_connection
@@ -168,11 +169,11 @@ def pull_changes(supabase: Client, last_sync: str):
                 if not records:
                     continue
                     
+                deferred_records = []
                 for record in records:
-                    # Translate foreign keys (UUID -> int)
                     success = translate_fks_for_pull(table, record, reverse_mappings)
                     if not success:
-                        logger.warning(f"Skipping remote record {record.get('uuid')} in {table} due to missing parent.")
+                        deferred_records.append(record)
                         continue
                         
                     for k, v in record.items():
@@ -199,6 +200,43 @@ def pull_changes(supabase: Client, last_sync: str):
                                 
                     except Exception as e:
                         logger.error(f"Failed to upsert record into {table}: {e}")
+
+                while deferred_records:
+                    resolved_in_this_pass = 0
+                    still_deferred = []
+                    for record in deferred_records:
+                        success = translate_fks_for_pull(table, record, reverse_mappings)
+                        if success:
+                            resolved_in_this_pass += 1
+                            for k, v in record.items():
+                                if isinstance(v, bool):
+                                    record[k] = 1 if v else 0
+                            
+                            columns = ", ".join(record.keys())
+                            placeholders = ", ".join(["?" for _ in record.values()])
+                            update_clause = ", ".join([f"{k}=excluded.{k}" for k in record.keys() if k != "uuid"])
+                            
+                            query = f"""
+                                INSERT INTO {table} ({columns})
+                                VALUES ({placeholders})
+                                ON CONFLICT(uuid) DO UPDATE SET {update_clause}
+                            """
+                            try:
+                                cursor.execute(query, tuple(record.values()))
+                                if record["uuid"] not in reverse_mappings[table]:
+                                    cursor.execute(f"SELECT id FROM {table} WHERE uuid = ?", (record["uuid"],))
+                                    new_row = cursor.fetchone()
+                                    if new_row:
+                                        reverse_mappings[table][record["uuid"]] = new_row["id"]
+                            except Exception as e:
+                                logger.error(f"Failed to upsert deferred record into {table}: {e}")
+                        else:
+                            still_deferred.append(record)
+                    
+                    deferred_records = still_deferred
+                    if resolved_in_this_pass == 0:
+                        logger.warning(f"Dropping {len(deferred_records)} records in {table} due to unresolvable FKs.")
+                        break
             except Exception as e:
                 logger.error(f"Error pulling table {table} from Supabase: {e}")
 
@@ -219,7 +257,6 @@ def push_changes(supabase: Client, last_sync: str):
             missing = cursor.fetchall()
             for r in missing:
                 cursor.execute(f"UPDATE {table} SET uuid = ? WHERE id = ?", (str(uuid.uuid4()), r['id']))
-        conn.commit()
             
         mappings = {t: get_mapping_id_to_uuid(t) for t in SYNC_TABLES}
             
@@ -239,10 +276,7 @@ def push_changes(supabase: Client, last_sync: str):
                     
             except Exception as e:
                 logger.error(f"Error pushing table {table} to Supabase: {e}")
-                import traceback
-                with open(r"C:\Users\user\.gemini\antigravity-ide\brain\39d21ad3-51f9-4c1c-955c-aaaf3b917b83\scratch\sync_error.txt", "a", encoding="utf-8") as f:
-                    f.write(f"Error pushing table {table}:\n{traceback.format_exc()}\n")
-                    f.write(f"First record: {records[0] if records else 'None'}\n\n")
+                logger.error(traceback.format_exc())
 
         # Process local tombstones in reverse dependency order (children first) to avoid FK constraint errors on Supabase
         for table in reversed(SYNC_TABLES):

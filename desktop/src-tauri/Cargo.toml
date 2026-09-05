@@ -30,6 +30,8 @@ argon2 = "0.5"
 rand = "0.8"
 tauri-plugin-http = "2.5.9"
 tauri-plugin-deep-link = "2"
+tauri-plugin-keyring = "0.1.0"
+tauri-plugin-fs = "2.5.2"
 
 [profile.release]
 codegen-units = 1

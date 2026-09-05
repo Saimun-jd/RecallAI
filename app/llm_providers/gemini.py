@@ -122,3 +122,67 @@ class GeminiProvider(BaseLLMProvider):
                 err_msg = f"Unexpected response format from Gemini: {resp_data}"
                 generation.update(level="ERROR", status_message=err_msg)
                 raise RecallError(ErrorCode.LLM_INVALID_RESPONSE, err_msg)
+
+    async def generate_stream(
+        self,
+        prompt: str,
+        temperature: float = 0.7,
+        max_tokens: int = 8192,
+    ):
+        if not self.api_key or not self.api_key.strip():
+            raise RecallError(ErrorCode.API_KEY_MISSING, "No API key configured for Gemini.")
+
+        url = f"{self.base_url}/models/{self.model}:streamGenerateContent?alt=sse&key={self.api_key}"
+        headers = {"Content-Type": "application/json"}
+        
+        payload = {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {
+                "temperature": temperature,
+                "maxOutputTokens": max_tokens,
+            },
+            "safetySettings": [
+                {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+                {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+                {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
+                {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"}
+            ]
+        }
+        
+        langfuse = get_client()
+        with langfuse.start_as_current_observation(
+            as_type="generation",
+            name="gemini_generation_stream",
+            model=self.model,
+            input=prompt,
+        ) as generation:
+            try:
+                async with httpx.AsyncClient(timeout=120.0) as client:
+                    async with client.stream("POST", url, headers=headers, json=payload) as response:
+                        if response.status_code >= 400:
+                            await response.aread()
+                            generation.update(level="ERROR", status_message=f"HTTP {response.status_code}: {response.text}")
+                            try:
+                                response.raise_for_status()
+                            except httpx.HTTPStatusError as e:
+                                raise classify_error(e, provider_hint="gemini")
+                                
+                        full_content = ""
+                        async for line in response.aiter_lines():
+                            if line.startswith("data: "):
+                                data_str = line[6:]
+                                if data_str == "[DONE]":
+                                    break
+                                try:
+                                    data_json = json.loads(data_str)
+                                    parts = data_json["candidates"][0]["content"]["parts"]
+                                    content = "".join(p["text"] for p in parts if "text" in p)
+                                    if content:
+                                        full_content += content
+                                        yield content
+                                except (KeyError, IndexError, json.JSONDecodeError):
+                                    pass
+                        generation.update(output=full_content)
+            except Exception as e:
+                generation.update(level="ERROR", status_message=str(e))
+                raise classify_error(e, provider_hint="gemini")

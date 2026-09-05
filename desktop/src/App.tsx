@@ -14,6 +14,9 @@ import { getApiKey } from './api/keychain';
 import { Sidebar } from './components/Sidebar';
 import { StatusBar } from './components/StatusBar';
 import { getCurrentWindow } from '@tauri-apps/api/window';
+import { getActiveKeychainSave, isTauriEnvironment } from './api/keychain';
+import { getActiveSettingsSave } from './api/settingsStore';
+import { getActiveSaveOperation } from './api/saveCoordinator';
 import { WelcomeScreen } from './components/WelcomeScreen';
 import { supabase } from './lib/supabase';
 import { useAutoSync } from './hooks/useAutoSync';
@@ -181,7 +184,15 @@ export default function App() {
         }
         
         // Hydrate API keys
-        console.log('[Keychain] Hydrating keys on startup...');
+        console.log('[Keychain] Migrating and hydrating keys on startup...');
+        
+        try {
+          const { migrateLegacyKeys } = await import('./api/legacy-keyring-migration');
+          await migrateLegacyKeys();
+        } catch (err) {
+          console.error("Migration check failed", err);
+        }
+
         for (const provider of ['openai', 'gemini', 'groq']) {
           const key = await getApiKey(provider);
           if (key) {
@@ -227,6 +238,51 @@ export default function App() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  // Window close handler to prevent data loss during saves
+  useEffect(() => {
+    if (!isTauriEnvironment()) return;
+    
+    let unlisten: (() => void) | undefined;
+    
+    const setupCloseHandler = async () => {
+      try {
+        const appWindow = getCurrentWindow();
+        unlisten = await appWindow.onCloseRequested(async (event) => {
+          const saveOp = getActiveSaveOperation();
+          const keychainSave = getActiveKeychainSave();
+          const settingsSave = getActiveSettingsSave();
+          
+          if (saveOp || keychainSave || settingsSave) {
+            event.preventDefault(); // Stop immediate close
+            
+            try {
+              await Promise.all([
+                saveOp || Promise.resolve(),
+                keychainSave || Promise.resolve(),
+                settingsSave || Promise.resolve()
+              ]);
+              // Saves succeeded, now actually close
+              await appWindow.close();
+            } catch (err) {
+              const confirmClose = window.confirm("Save failed — close anyway?");
+              if (confirmClose) {
+                await appWindow.close();
+              }
+            }
+          }
+        });
+      } catch (err) {
+        console.error("Failed to setup close handler:", err);
+      }
+    };
+    
+    setupCloseHandler();
+    
+    return () => {
+      if (unlisten) unlisten();
+    };
   }, []);
 
   return (

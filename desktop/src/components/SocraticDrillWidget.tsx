@@ -25,11 +25,12 @@ interface SocraticDrillWidgetProps {
   topicTitle: string;
   hasCachedMarkdown?: boolean;
   onMasteryUpdate?: (score: number, status: string) => void;
+  onSuccess?: () => void;
 }
 
 type DrillPhase = 'idle' | 'generating' | 'answering' | 'evaluating' | 'feedback';
 
-export function SocraticDrillWidget({ topicId, topicTitle, hasCachedMarkdown, onMasteryUpdate }: SocraticDrillWidgetProps) {
+export function SocraticDrillWidget({ topicId, topicTitle, hasCachedMarkdown, onMasteryUpdate, onSuccess }: SocraticDrillWidgetProps) {
   const { activeProvider, pdfExtractor } = useSelector((state: RootState) => state.providers);
 
   const [phase, setPhase] = useState<DrillPhase>('idle');
@@ -72,6 +73,9 @@ export function SocraticDrillWidget({ topicId, topicTitle, hasCachedMarkdown, on
       }
       setQuestions(result.questions);
       setPhase('answering');
+      if (onSuccess) {
+        onSuccess();
+      }
     } catch (e: any) {
       showToast('error', e?.userMessage || "Failed to generate questions", e?.debugDetail);
       setPhase('idle');

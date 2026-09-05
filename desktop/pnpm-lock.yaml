@@ -35,6 +35,9 @@ importers:
       '@tauri-apps/plugin-deep-link':
         specifier: ~2.4.9
         version: 2.4.9
+      '@tauri-apps/plugin-fs':
+        specifier: ^2.5.2
+        version: 2.5.2
       '@tauri-apps/plugin-http':
         specifier: ^2.5.9
         version: 2.5.9
@@ -46,7 +49,7 @@ importers:
         version: 2.4.4
       '@tauri-apps/plugin-stronghold':
         specifier: ^2.3.1
-        version: 2.3.1
+        version: 2.3.2
       '@types/react-syntax-highlighter':
         specifier: ^15.5.13
         version: 15.5.13
@@ -116,6 +119,9 @@ importers:
       tailwindcss:
         specifier: ^4.3.3
         version: 4.3.3
+      tauri-plugin-keyring-api:
+        specifier: ^0.1.1
+        version: 0.1.1
     devDependencies:
       '@tauri-apps/api':
         specifier: ^2.11.1
@@ -1011,6 +1017,9 @@ packages:
   '@tauri-apps/plugin-deep-link@2.4.9':
     resolution: {integrity: sha512-u0SKOUHnJ1wqeqXsDFq2+kASCBj9xxbG0g9XZWPy9SOmU4wXtp6b/wiYpm6oH6/5fBTQsLqnLhIvqLBRpgHJlA==}
 
+  '@tauri-apps/plugin-fs@2.5.2':
+    resolution: {integrity: sha512-XXvMSnFiob+G1H+YHCDf+bzWVumseQuEIhzpbOJzevUfL4k0U+sTApZWJHpoLiamggnVPJm5dJ5sDsniRyWxlg==}
+
   '@tauri-apps/plugin-http@2.5.9':
     resolution: {integrity: sha512-lCiY0+vs4HvIUSvZrBs8TC3TiCB0MOPRmiUjTq4prW7SlcJE2jdLeT6KBsJrT9Tlplufl7W1pY6SFAO3gCWxDA==}
 
@@ -1020,8 +1029,8 @@ packages:
   '@tauri-apps/plugin-store@2.4.4':
     resolution: {integrity: sha512-oxSMaj/QpVfJcBMYX5aOQV94fWvga0MwQMfD6TLlbK2dh+ShPWAzefd8HWXhvOKjPRJdGVAkW7ZGO76JzzjaDA==}
 
-  '@tauri-apps/plugin-stronghold@2.3.1':
-    resolution: {integrity: sha512-zFbD1Apk/VFdWaoGaoKcouRrZnzLFiNY9b1KDeBaN47sMaMHRYIa+ZDhvbzMOyH314+OHCQBXfe8I/ph59Lp9g==}
+  '@tauri-apps/plugin-stronghold@2.3.2':
+    resolution: {integrity: sha512-tl+dJCvwlY/MyO9yvu9jldrMLa03UeE087Bjmi8LKD+JmXVRX2rWMEvyekDGBRWGhvyjsOr1gUfhvfc+dXtRRQ==}
 
   '@tiptap/core@3.28.0':
     resolution: {integrity: sha512-gUuD5WAYfbDxNSSJya/emh2KSzXZXLUYKW4fEnc1AQ5FE2twzh4LJ9UlKFIawigrUCAksWI5Fy1hRbv+5m4ZdQ==}
@@ -2457,6 +2466,9 @@ packages:
     resolution: {integrity: sha512-DUCttfhsnLCjwoDoFcI+B2iJgYa93vBnDUATYEeRx6sntCTdN01VnqsIuTlALXla/LWooNg0yEGeB+Y8WdFxGA==}
     engines: {node: '>= 10'}
 
+  tauri-plugin-keyring-api@0.1.1:
+    resolution: {integrity: sha512-vs1ztf6REJPfvUDBY3VgNHiW+xBHvBtMf3ZQIJKB8UCWdb2bLFoDS+BjUHe58deCPGTInCh+SEtd69pZvV/b4w==}
+
   tiny-invariant@1.3.3:
     resolution: {integrity: sha512-+FbBPE1o9QAYvviau/qC5SE3caw21q3xkvWKBtja5vgqOWIHHJ3ioaq1VPfn/Szqctz2bU/oYeKd9/z5BL+PVg==}
 
@@ -3386,6 +3398,10 @@ snapshots:
     dependencies:
       '@tauri-apps/api': 2.11.1
 
+  '@tauri-apps/plugin-fs@2.5.2':
+    dependencies:
+      '@tauri-apps/api': 2.11.1
+
   '@tauri-apps/plugin-http@2.5.9':
     dependencies:
       '@tauri-apps/api': 2.11.1
@@ -3398,7 +3414,7 @@ snapshots:
     dependencies:
       '@tauri-apps/api': 2.11.1
 
-  '@tauri-apps/plugin-stronghold@2.3.1':
+  '@tauri-apps/plugin-stronghold@2.3.2':
     dependencies:
       '@tauri-apps/api': 2.11.1
 
@@ -5145,6 +5161,10 @@ snapshots:
       mkdirp: 1.0.4
       yallist: 4.0.0
     optional: true
+
+  tauri-plugin-keyring-api@0.1.1:
+    dependencies:
+      '@tauri-apps/api': 2.11.1
 
   tiny-invariant@1.3.3: {}
 

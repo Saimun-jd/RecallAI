@@ -1,11 +1,6 @@
 import { useEffect, useRef, useState, useMemo } from 'react';
 import type { PdfAnnotation } from '../api/client';
 import { PdfAnnotationLayer } from './PdfAnnotationLayer';
-import * as pdfjsLib from 'pdfjs-dist';
-
-if (typeof globalThis !== 'undefined' && !(globalThis as any).pdfjsLib) {
-  (globalThis as any).pdfjsLib = pdfjsLib;
-}
 
 import {
   PdfLoader,
@@ -126,7 +121,7 @@ export function PdfViewer({
             pageNumber: parsed.pageNumber || a.page_number
           };
         }
-      } catch (e) {}
+      } catch (e) { }
       return {
         id: a.id.toString(),
         content: { text: a.selected_text },
@@ -261,9 +256,9 @@ export function PdfViewer({
         url={url}
         workerSrc={workerUrl}
         beforeLoad={<div className="p-4 text-zinc-400 flex items-center justify-center h-full w-full">Loading PDF...</div>}
+        errorMessage={<div className="p-4 text-red-400 flex items-center justify-center h-full w-full">Failed to load PDF. Check that the backend is running.</div>}
         onError={(error) => {
           console.error("[PdfViewer] PdfLoader error:", error);
-          return <div className="p-4 text-red-400 flex items-center justify-center h-full w-full">Error Loading PDF: {error.message}</div>;
         }}
       >
         {(pdfDocument) => {
@@ -277,7 +272,7 @@ export function PdfViewer({
             <PdfHighlighter
               pdfDocument={pdfDocument}
               enableAreaSelection={(event) => event.altKey}
-              onScrollChange={() => {}}
+              onScrollChange={() => { }}
               scrollRef={(scrollTo) => {
                 console.log('[PdfViewer] scrollRef callback fired — viewer is ready.');
                 scrollViewerTo.current = scrollTo;

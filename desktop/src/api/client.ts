@@ -640,4 +640,56 @@ export const client = {
     }
     return res.json();
   },
+
+  async chatWithTopicStream(
+    request: ChatRequest,
+    onChunk: (chunk: string) => void
+  ): Promise<void> {
+    const res = await fetch(`${API_BASE}/chat/stream`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request),
+    });
+
+    if (!res.ok) {
+      throw await parseApiError(res);
+    }
+
+    if (!res.body) throw new Error("Stream not supported by browser.");
+    
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder("utf-8");
+    let buffer = "";
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        
+        buffer += decoder.decode(value, { stream: true });
+        
+        let newlineIdx;
+        while ((newlineIdx = buffer.indexOf('\n\n')) !== -1) {
+          const message = buffer.slice(0, newlineIdx).trim();
+          buffer = buffer.slice(newlineIdx + 2);
+          
+          if (message.startsWith("data: ")) {
+            const dataStr = message.slice(6);
+            if (dataStr === "[DONE]") continue;
+            try {
+              const data = JSON.parse(dataStr);
+              if (data.error) throw new Error(data.error);
+              if (data.chunk) onChunk(data.chunk);
+            } catch (e) {
+              if (e instanceof Error && e.message !== "Unexpected end of JSON input") {
+                if (dataStr.includes('"error":')) throw e;
+              }
+            }
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
+  },
 };

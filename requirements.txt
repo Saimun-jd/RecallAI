@@ -17,3 +17,5 @@ pyinstaller
 langfuse
 json-repair==0.63.3
 supabase
+psutil
+requests

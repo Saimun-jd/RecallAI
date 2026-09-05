@@ -28,7 +28,7 @@ export const MarkdownRendererImpl: React.FC<MarkdownRendererProps> = ({ content 
   return (
     <ReactMarkdown 
       remarkPlugins={[remarkMath, remarkGfm]} 
-      rehypePlugins={[rehypeKatex]}
+      rehypePlugins={[[rehypeKatex, { strict: false, throwOnError: false }]]}
       components={{
         span: ({ node, style, ...props }: any) => {
           const nodeStyle = node?.properties?.style;

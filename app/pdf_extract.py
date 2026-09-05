@@ -79,15 +79,64 @@ async def extract_raw_text(pdf_bytes: bytes, start_page: int | None = None) -> t
     
     if is_new:
         from app.markdown_cleanup import clean_markdown_with_llm
+        from app.latex_fixer import fix_latex_delimiters
         import logging
         import asyncio
+        import re
+        
+        logger = logging.getLogger(__name__)
+        
+        # 1. Deterministic LaTeX fix
         try:
-            # Added a 60-second timeout so it doesn't hang forever if offline and unable to reach Gemini/OpenAI
-            md_text = await asyncio.wait_for(clean_markdown_with_llm(md_text), timeout=60.0)
-        except asyncio.TimeoutError:
-            logging.getLogger(__name__).warning("LLM cleanup timed out after 15 seconds. Proceeding with raw markdown (offline mode?)")
+            md_text = fix_latex_delimiters(md_text)
         except Exception as e:
-            logging.getLogger(__name__).error(f"Failed to clean markdown with LLM: {e}")
+            logger.error(f"Error during latex_fixer: {e}")
+            
+        # 2. LLM Cleanup
+        try:
+            # Added a 120-second timeout (increased for chunking) so it doesn't hang forever
+            cleaned_text = await asyncio.wait_for(clean_markdown_with_llm(md_text), timeout=120.0)
+            
+            # 3. Output Validation
+            is_valid = True
+            
+            # Length check
+            if len(cleaned_text) < 0.4 * len(md_text):
+                logger.warning("LLM cleanup validation failed: Output is < 40% of input length (truncation).")
+                is_valid = False
+                
+            # Delimiter balance
+            if is_valid:
+                dollar_count = cleaned_text.count('$')
+                if dollar_count % 2 != 0:
+                    logger.warning("LLM cleanup validation failed: Odd number of $ delimiters.")
+                    is_valid = False
+                    
+            if is_valid:
+                begin_count = cleaned_text.count('\\begin{')
+                end_count = cleaned_text.count('\\end{')
+                if begin_count != end_count:
+                    logger.warning("LLM cleanup validation failed: \\begin and \\end count mismatch.")
+                    is_valid = False
+                    
+            # LaTeX plaintext detection
+            if is_valid:
+                stripped = re.sub(r'\$\$.*?\$\$', '', cleaned_text, flags=re.DOTALL)
+                stripped = re.sub(r'\$[^$\n]+?\$', '', stripped)
+                bare_begin = stripped.count('\\begin{')
+                if bare_begin > 3:
+                    logger.warning(f"LLM cleanup validation failed: Found {bare_begin} bare \\begin{{...}} (LaTeX plaintext).")
+                    is_valid = False
+                    
+            if is_valid:
+                md_text = cleaned_text
+            else:
+                logger.warning("Falling back to pre-LLM markdown due to validation failure.")
+                
+        except asyncio.TimeoutError:
+            logger.warning("LLM cleanup timed out. Proceeding with raw markdown (offline mode?)")
+        except Exception as e:
+            logger.error(f"Failed to clean markdown with LLM: {e}")
             
         # Save after cleaning
         await run_in_threadpool(lambda: md_file.write_text(md_text, encoding="utf-8"))

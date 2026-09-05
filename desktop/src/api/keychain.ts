@@ -1,22 +1,11 @@
-import { Stronghold, Store as StrongholdStore } from '@tauri-apps/plugin-stronghold';
-import { load, Store as PluginStore } from '@tauri-apps/plugin-store';
-import { appDataDir, join } from '@tauri-apps/api/path';
+import { getPassword, setPassword, deletePassword } from 'tauri-plugin-keyring-api';
 
 export const isTauriEnvironment = (): boolean => {
   return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 };
 
-const VAULT_NAME = '.recall-keys.app';
-const FALLBACK_STORE_NAME = 'keys.json';
-const DEFAULT_PASSWORD = 'recall-local-secure-vault-v1';
-const CLIENT_NAME = 'recall-client';
+const SERVICE_NAME = 'com.recall.app';
 
-let strongholdInstance: Stronghold | null = null;
-let strongholdStoreInstance: StrongholdStore | null = null;
-let pluginStoreInstance: PluginStore | null = null;
-let usingFallback = false;
-
-let initPromise: Promise<void> | null = null;
 
 // Timeout wrapper for IPC commands that might deadlock
 export const withTimeout = <T>(promise: Promise<T>, ms: number, errorMessage: string): Promise<T> => {
@@ -34,101 +23,51 @@ export const withTimeout = <T>(promise: Promise<T>, ms: number, errorMessage: st
   });
 };
 
-const getStore = async (): Promise<void> => {
-  if (strongholdStoreInstance || pluginStoreInstance) {
-    return;
-  }
-  
-  if (!initPromise) {
-    initPromise = (async () => {
-      try {
-        console.log('Stronghold: Resolving vault path');
-        const appData = await appDataDir();
-        const vaultPath = await join(appData, VAULT_NAME);
-        
-        const stronghold = await withTimeout(
-          Stronghold.load(vaultPath, DEFAULT_PASSWORD),
-          5000,
-          "Stronghold.load timed out."
-        );
-        
-        let client;
-        try {
-          client = await stronghold.loadClient(CLIENT_NAME);
-        } catch (e) {
-          client = await stronghold.createClient(CLIENT_NAME);
-        }
-        
-        strongholdStoreInstance = client.getStore();
-        strongholdInstance = stronghold;
-        usingFallback = false;
-        console.log('Stronghold: Successfully initialized');
-      } catch (error) {
-        console.warn('[Keychain] Stronghold failed or timed out. Falling back to plugin-store.', error);
-        usingFallback = true;
-        pluginStoreInstance = await load(FALLBACK_STORE_NAME, { autoSave: false });
-      }
-    })();
-  }
-  
-  return initPromise;
-};
-
 export const saveApiKey = async (provider: string, key: string): Promise<void> => {
   if (!isTauriEnvironment()) return;
-  await getStore();
-  
-  if (usingFallback && pluginStoreInstance) {
-    await pluginStoreInstance.set(provider, key);
-  } else if (strongholdStoreInstance) {
-    const encoder = new TextEncoder();
-    await strongholdStoreInstance.insert(provider, Array.from(encoder.encode(key)));
-  }
+  await withTimeout(
+    setPassword(SERVICE_NAME, provider, key),
+    15000,
+    "Native Keyring save timed out"
+  );
 };
 
 export const getApiKey = async (provider: string): Promise<string> => {
   if (!isTauriEnvironment()) return "";
-  await getStore();
-  
-  if (usingFallback && pluginStoreInstance) {
-    const data = await pluginStoreInstance.get<string>(provider);
+  try {
+    const data = await withTimeout(
+      getPassword(SERVICE_NAME, provider),
+      5000,
+      "Native Keyring get timed out"
+    );
     return data || "";
-  } else if (strongholdStoreInstance) {
-    try {
-      const data = await strongholdStoreInstance.get(provider);
-      if (!data) return "";
-      return new TextDecoder().decode(new Uint8Array(data as unknown as ArrayBuffer));
-    } catch {
-      return "";
-    }
+  } catch (err) {
+    console.info(`[Keychain] Key not found or error for ${provider}`, err);
+    return "";
   }
-  return "";
 };
 
 export const removeApiKey = async (provider: string): Promise<void> => {
   if (!isTauriEnvironment()) return;
-  await getStore();
-  
-  if (usingFallback && pluginStoreInstance) {
-    await pluginStoreInstance.delete(provider);
-  } else if (strongholdStoreInstance) {
-    try {
-      await strongholdStoreInstance.remove(provider);
-    } catch {}
+  try {
+    await withTimeout(
+      deletePassword(SERVICE_NAME, provider),
+      15000,
+      "Native Keyring delete timed out"
+    );
+  } catch (err) {
+    console.error(`Failed to remove key for ${provider}:`, err);
+    throw err;
   }
 };
 
-export const saveKeychain = async (): Promise<void> => {
-  if (!isTauriEnvironment()) return;
-  await getStore();
-  
-  try {
-    if (usingFallback && pluginStoreInstance) {
-      await withTimeout(pluginStoreInstance.save(), 5000, "PluginStore save timed out");
-    } else if (strongholdInstance) {
-      await withTimeout(strongholdInstance.save(), 5000, "Stronghold save timed out");
-    }
-  } catch (err) {
-    console.error("Failed to flush keychain to disk:", err);
-  }
+let saveInProgress: Promise<void> | null = null;
+export const getActiveKeychainSave = () => saveInProgress;
+
+export const saveKeychain = (): Promise<void> => {
+  if (!isTauriEnvironment()) return Promise.resolve();
+
+  // OS Keyring is persistent on write, no separate flush step is required.
+  // We keep this function so we don't break existing call sites.
+  return Promise.resolve();
 };

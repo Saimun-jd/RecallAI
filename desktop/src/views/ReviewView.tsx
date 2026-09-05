@@ -50,6 +50,7 @@ export function ReviewView() {
 
   const handleRate = async (rating: number) => {
     const currentCard = cards[currentIndex];
+    if (!currentCard) return;
     setLastReviewedCardId(currentCard.id);
     
     try {

@@ -13,6 +13,7 @@ If you want to test your deep understanding, Recall's **Socratic Diagnostic Dril
 
 ## Core Features
 
+- **Chat with AI:** Engage in direct, context-aware conversations with your documents using an interactive AI assistant to clarify concepts, summarize chapters, or ask specific questions about the text.
 - **FSRS Algorithm:** Employs the Free Spaced Repetition Scheduler for highly optimized review intervals, drastically reducing review burden compared to legacy algorithms.
 - **Socratic Diagnostic Drills:** Evaluates your free-form answers against ground truth using Automated Short Answer Grading (ASAG), providing hints and "Socratic Nudges" for edge cases.
 - **Local-First & Privacy Centric:** Built to run on local LLMs (like Ollama) to ensure your proprietary PDFs and notes never leave your machine unless you explicitly opt-in to cloud providers.
@@ -80,7 +81,7 @@ pnpm tauri dev
 > **Note on Port Conflicts:** If the frontend crashes or fails to boot, ensure there are no orphaned Python processes holding port `8000` open (`WinError 10013`). You can kill the process manually if needed.
 
 ### 3. Build the Backend Sidecar for Production
-Building the app is straightforward just run the batch file and the exe/msi will be available in /release folder, if some error occurs analyze the error message and fix it and try again(use gpt/claude).
+Building the app is straightforward just run the batch file and the exe/msi will be available in /release folder, if some error occurs analyze the error message and fix it and try again(use chatgpt/claude).
 
 ```bash
 .\build.bat

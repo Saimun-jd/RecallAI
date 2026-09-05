@@ -18,6 +18,12 @@
     },
     "stronghold:default",
     "store:default",
+    "keyring:default",
+    {
+      "identifier": "fs:allow-remove",
+      "allow": [{ "path": "$APPLOCALDATA/**" }]
+    },
+    "core:window:allow-destroy",
     "http:default",
     "shell:allow-open",
     {

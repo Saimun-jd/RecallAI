@@ -42,6 +42,9 @@
     ],
     "android": {
       "debugApplicationIdSuffix": ".debug"
-    }
+    },
+    "externalBin": [
+      "binaries/recall-backend"
+    ]
   }
 }

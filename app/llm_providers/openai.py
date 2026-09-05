@@ -191,3 +191,68 @@ class OpenAIProvider(BaseLLMProvider):
                 generation.update(output=content)
                 
             return content
+
+    async def generate_stream(
+        self,
+        prompt: str,
+        temperature: float = 0.7,
+        max_tokens: int = 8192,
+    ):
+        if not self.api_key or not self.api_key.strip():
+            raise RecallError(ErrorCode.API_KEY_MISSING, f"No API key configured for {self.base_url}")
+
+        url = f"{self.base_url}/chat/completions"
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self.api_key}"
+        }
+        
+        payload = {
+            "model": self.model,
+            "messages": [
+                {"role": "user", "content": prompt}
+            ],
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            "stream": True
+        }
+        
+        langfuse = get_client()
+        with langfuse.start_as_current_observation(
+            as_type="generation",
+            name=f"openai_generation_stream_{self.model}",
+            model=self.model,
+            input=prompt,
+        ) as generation:
+            try:
+                async with httpx.AsyncClient(timeout=120.0) as client:
+                    async with client.stream("POST", url, headers=headers, json=payload) as response:
+                        if response.status_code >= 400:
+                            await response.aread()
+                            generation.update(level="ERROR", status_message=f"HTTP {response.status_code}: {response.text}")
+                            try:
+                                response.raise_for_status()
+                            except httpx.HTTPStatusError as e:
+                                raise classify_error(e, provider_hint="openai")
+                                
+                        full_content = ""
+                        async for line in response.aiter_lines():
+                            if line.startswith("data: "):
+                                data_str = line[6:]
+                                if data_str == "[DONE]":
+                                    break
+                                try:
+                                    data_json = json.loads(data_str)
+                                    choices = data_json.get("choices", [])
+                                    if choices:
+                                        delta = choices[0].get("delta", {})
+                                        content = delta.get("content")
+                                        if content:
+                                            full_content += content
+                                            yield content
+                                except (KeyError, IndexError, json.JSONDecodeError):
+                                    pass
+                        generation.update(output=full_content)
+            except Exception as e:
+                generation.update(level="ERROR", status_message=str(e))
+                raise classify_error(e, provider_hint="openai")

@@ -12,7 +12,7 @@ class MarkerApiExtractor(BaseExtractor):
     @classmethod
     def is_available(cls) -> bool:
         try:
-            import datalab_sdk
+            import requests
             return True
         except ImportError:
             return False

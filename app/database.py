@@ -247,6 +247,18 @@ def init_db():
             ("deleted_at", "TIMESTAMP")
         ]
         
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS sync_tombstones (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                table_name TEXT NOT NULL,
+                uuid TEXT NOT NULL,
+                deleted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        # Clean up old tombstones (> 30 days) to prevent infinite growth
+        cursor.execute("DELETE FROM sync_tombstones WHERE deleted_at < datetime('now', '-30 days')")
+        
         for table in sync_tables:
             cursor.execute(f"PRAGMA table_info({table})")
             existing_cols = [row['name'] for row in cursor.fetchall()]
@@ -298,18 +310,7 @@ def init_db():
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_flashcards_topic_id ON flashcards(topic_id)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_flashcards_due ON flashcards(due)")
 
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS sync_tombstones (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                table_name TEXT NOT NULL,
-                uuid TEXT NOT NULL,
-                deleted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
-        
-        # Clean up old tombstones (> 30 days) to prevent infinite growth
-        cursor.execute("DELETE FROM sync_tombstones WHERE deleted_at < datetime('now', '-30 days')")
-        
+
         # Seed default settings if empty
         cursor.execute("SELECT COUNT(*) as count FROM settings")
         if cursor.fetchone()['count'] == 0:
@@ -428,6 +429,32 @@ async def resolve_and_save_topic(
     
     with get_connection() as conn:
         cursor = conn.cursor()
+        
+        # Double-check exact topic_hash match in case of concurrent insert
+        cursor.execute("SELECT id, content_md FROM topics WHERE topic_hash = ?", (topic_hash,))
+        row = cursor.fetchone()
+        
+        if row:
+            new_content = row['content_md']
+            if content_md:
+                new_content = (row['content_md'] or "") + "\n\n" + content_md
+                
+            cursor.execute(
+                """
+                UPDATE topics SET 
+                    summary = COALESCE(?, summary),
+                    concept_type = COALESCE(?, concept_type),
+                    key_terms = COALESCE(?, key_terms),
+                    code_snippet = COALESCE(?, code_snippet),
+                    image_url = COALESCE(?, image_url),
+                    content_md = ?,
+                    status = ?
+                WHERE id = ?
+                """,
+                (summary, concept_type, key_terms, code_snippet, image_url, new_content, status, row['id'])
+            )
+            return row['id']
+
         # Enforce book_id scoping
         cursor.execute(
             "SELECT id, embedding, content_md, key_terms, summary, title FROM topics WHERE book_id = ? AND embedding IS NOT NULL", 

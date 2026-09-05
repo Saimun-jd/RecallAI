@@ -1,15 +1,15 @@
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useRef } from 'react';
 import { useToast } from './useToast';
-
-let isSyncingGlobally = false;
+import { fetch } from '@tauri-apps/plugin-http';
 
 export function useAutoSync(token: string | null) {
   const { showToast } = useToast();
+  const isSyncing = useRef(false);
 
   const triggerSync = useCallback(async (silent = true) => {
-    if (!token || isSyncingGlobally) return;
+    if (!token || isSyncing.current) return;
     
-    isSyncingGlobally = true;
+    isSyncing.current = true;
     try {
       const response = await fetch('http://localhost:8000/api/sync', {
         method: 'POST',
@@ -32,7 +32,7 @@ export function useAutoSync(token: string | null) {
         console.error("Background sync failed:", err);
       }
     } finally {
-      isSyncingGlobally = false;
+      isSyncing.current = false;
     }
   }, [token, showToast]);
 

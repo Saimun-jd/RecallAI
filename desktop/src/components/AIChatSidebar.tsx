@@ -24,7 +24,6 @@ export function AIChatSidebar({ isOpen, onClose, topicId, contextMarkdown, topic
   });
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const [pendingQuestion, setPendingQuestion] = useState<{question: string, history: ChatMessage[]} | null>(null);
   const prevTopicRef = useRef(topicId);
 
   // Persist provider
@@ -40,16 +39,15 @@ export function AIChatSidebar({ isOpen, onClose, topicId, contextMarkdown, topic
   // Load chat history if topic changes
   useEffect(() => {
     let isMounted = true;
-    
+
     // We only want to trigger this when the topicId genuinely changes
     // But we also want to run it once on initial mount if topicId exists
     // The dependency array [topicId] handles both.
-    
+
     // However, since we want to avoid double-loading, we check prevTopicRef
     if (prevTopicRef.current !== topicId || messages.length === 1) { // messages.length === 1 means only the default greeting is there
       prevTopicRef.current = topicId;
-      setPendingQuestion(null);
-      
+
       const loadHistory = async () => {
         if (topicId) {
           try {
@@ -58,7 +56,7 @@ export function AIChatSidebar({ isOpen, onClose, topicId, contextMarkdown, topic
               setMessages(history);
               return;
             }
-          } catch(e) {
+          } catch (e) {
             console.error('Failed to load chat history from DB', e);
           }
         }
@@ -68,34 +66,49 @@ export function AIChatSidebar({ isOpen, onClose, topicId, contextMarkdown, topic
           ]);
         }
       };
-      
+
       loadHistory();
     }
-    
+
     return () => { isMounted = false; };
   }, [topicId]);
 
   const askQuestion = async (userMsg: string, currentMessages: ChatMessage[], markdown: string) => {
     if (!topicId) return;
     setIsLoading(true);
+
+    // Add empty placeholder for the AI response
+    setMessages(prev => {
+      const filtered = prev.filter(m => m.content !== 'please wait i am processing the topic...');
+      return [...filtered, { role: 'ai', content: '' }];
+    });
+
     try {
-      const res = await client.chatWithTopic({
+      await client.chatWithTopicStream({
         topic_id: topicId,
         topic_name: topicName,
         context_markdown: markdown,
         question: userMsg,
         history: currentMessages,
         provider_override: provider || null,
-      });
-
-      setMessages(prev => {
-        const filtered = prev.filter(m => m.content !== 'please wait i am processing the topic...');
-        return [...filtered, { role: 'ai', content: res.answer }];
+      }, (chunk) => {
+        setMessages(prev => {
+          const updated = [...prev];
+          const lastIndex = updated.length - 1;
+          if (updated[lastIndex].role === 'ai') {
+            updated[lastIndex] = {
+              ...updated[lastIndex],
+              content: updated[lastIndex].content + chunk
+            };
+          }
+          return updated;
+        });
       });
     } catch (err: any) {
       console.error(err);
       setMessages(prev => {
-        const filtered = prev.filter(m => m.content !== 'please wait i am processing the topic...');
+        // Remove the empty or partial AI message on error
+        const filtered = prev.filter((m, i) => !(m.role === 'ai' && i === prev.length - 1 && m.content === ''));
         return [...filtered, { role: 'system', content: `**Error:** ${err?.userMessage || err?.message || 'Failed to get response'}` }];
       });
     } finally {
@@ -103,13 +116,7 @@ export function AIChatSidebar({ isOpen, onClose, topicId, contextMarkdown, topic
     }
   };
 
-  useEffect(() => {
-    if (contextMarkdown && !isProcessing && pendingQuestion) {
-      const { question, history } = pendingQuestion;
-      setPendingQuestion(null);
-      askQuestion(question, history, contextMarkdown);
-    }
-  }, [contextMarkdown, isProcessing, pendingQuestion]);
+  // We no longer need pendingQuestion since askQuestion is called directly.
 
   if (!isOpen) return null;
 
@@ -121,16 +128,15 @@ export function AIChatSidebar({ isOpen, onClose, topicId, contextMarkdown, topic
     setMessages(newMessages);
     setInput('');
 
-    if (!contextMarkdown) {
-      setMessages([...newMessages, { role: 'ai', content: 'please wait i am processing the topic...' }]);
-      setPendingQuestion({ question: userMsg, history: newMessages });
-      if (onProcessTopic) {
-        onProcessTopic();
-      }
-      return;
-    }
+    await askQuestion(userMsg, newMessages, contextMarkdown || '');
 
-    await askQuestion(userMsg, newMessages, contextMarkdown);
+    // If contextMarkdown was missing, the backend extracted it during chat.
+    // We can call onProcessTopic to refresh the parent's topics state if needed.
+    if (!contextMarkdown && onProcessTopic) {
+      // Just call this to trigger a refresh of the topics list in the parent
+      // since the backend just generated the markdown for this topic.
+      onProcessTopic();
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -142,7 +148,7 @@ export function AIChatSidebar({ isOpen, onClose, topicId, contextMarkdown, topic
 
   return (
     <div className="absolute top-4 right-4 bottom-4 w-[450px] bg-surface-container-lowest border-2 border-primary shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] rounded-xl flex flex-col z-50 overflow-hidden animate-in slide-in-from-right-8 duration-300">
-      
+
       {/* Header */}
       <div className="px-4 py-3 border-b-2 border-primary bg-primary text-white flex items-center justify-between shrink-0">
         <div className="flex items-center gap-2">
@@ -150,8 +156,8 @@ export function AIChatSidebar({ isOpen, onClose, topicId, contextMarkdown, topic
           <h2 className="font-black uppercase tracking-wider text-sm">Onizuka Sensei</h2>
         </div>
         <div className="flex items-center gap-2">
-          <select 
-            value={provider} 
+          <select
+            value={provider}
             onChange={(e) => setProvider(e.target.value)}
             className="bg-black/20 text-xs text-white border-2 border-white/20 rounded p-1 focus:outline-none focus:border-white shadow-[2px_2px_0px_0px_rgba(0,0,0,0.5)] cursor-pointer"
             title="Select AI Provider"
@@ -162,7 +168,7 @@ export function AIChatSidebar({ isOpen, onClose, topicId, contextMarkdown, topic
             <option value="ollama">Ollama</option>
             <option value="groq">Groq</option>
           </select>
-          <button 
+          <button
             onClick={onClose}
             className="text-white hover:bg-black/20 rounded p-1 transition-colors"
           >
@@ -186,9 +192,9 @@ export function AIChatSidebar({ isOpen, onClose, topicId, contextMarkdown, topic
                     <User size={16} strokeWidth={2.5} />
                   </div>
                 ) : (
-                  <img 
-                    src="/onizuka.jpeg" 
-                    alt="Onizuka" 
+                  <img
+                    src="/onizuka.jpeg"
+                    alt="Onizuka"
                     className="w-8 h-8 rounded border-2 border-on-surface shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] bg-white object-cover"
                   />
                 )}
@@ -197,13 +203,23 @@ export function AIChatSidebar({ isOpen, onClose, topicId, contextMarkdown, topic
                 {msg.role === 'user' ? 'You' : 'Onizuka'}
               </div>
             </div>
-            
+
             {/* Content */}
             <div className="text-sm prose prose-sm prose-p:leading-relaxed max-w-full overflow-x-auto text-on-surface prose-pre:my-3 prose-pre:border-2 prose-pre:border-on-surface prose-pre:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
               {msg.role === 'user' ? (
                 <p className="whitespace-pre-wrap">{msg.content}</p>
+              ) : isLoading && idx === messages.length - 1 && !msg.content ? (
+                <div className="flex items-center gap-2 text-primary italic py-2 font-medium">
+                  <Loader2 size={16} className="animate-spin" />
+                  Thinking...
+                </div>
               ) : (
-                <MarkdownRenderer content={msg.content} />
+                <div className="relative">
+                  <MarkdownRenderer content={msg.content} />
+                  {isLoading && idx === messages.length - 1 && (
+                    <span className="inline-block w-2 h-4 bg-primary animate-pulse ml-1 align-middle mt-1" />
+                  )}
+                </div>
               )}
             </div>
           </div>

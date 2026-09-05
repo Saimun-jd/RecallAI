@@ -12,3 +12,13 @@ class BaseLLMProvider(ABC):
     ) -> str:
         """Sends prompt and json schema, returning a raw JSON string response."""
         pass
+
+    @abstractmethod
+    async def generate_stream(
+        self,
+        prompt: str,
+        temperature: float = 0.7,
+        max_tokens: int = 8192,
+    ):
+        """Yields chunks of string."""
+        pass

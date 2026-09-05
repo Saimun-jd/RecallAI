@@ -67,22 +67,36 @@ export const saveSetting = async <K extends keyof AppSettings>(key: K, value: Ap
     // Manual save must be called separately
   } catch (error) {
     console.error(`Failed to save setting ${key}:`, error);
+    throw error;
   }
 };
 
-export const saveSettingsStore = async () => {
+let saveInProgress: Promise<void> | null = null;
+export const getActiveSettingsSave = () => saveInProgress;
+
+export const saveSettingsStore = (): Promise<void> => {
   if (!isTauriEnvironment()) {
     console.warn('[SettingsStore] Non-Tauri environment detected. Skipping Settings Store sync.');
-    return;
+    return Promise.resolve();
   }
-  try {
-    const store = await getStore();
-    await withTimeout(
-      store.save(),
-      10000,
-      "store.save() timed out. The file might be locked."
-    );
-  } catch (error) {
-    console.error('Failed to save settings store:', error);
+  
+  if (!saveInProgress) {
+    saveInProgress = (async () => {
+      try {
+        const store = await getStore();
+        await withTimeout(
+          store.save(),
+          10000,
+          "store.save() timed out. The file might be locked."
+        );
+      } catch (error) {
+        console.error('Failed to save settings store:', error);
+        throw error;
+      } finally {
+        saveInProgress = null;
+      }
+    })();
   }
+  
+  return saveInProgress;
 };

@@ -14,7 +14,7 @@ import {
   setPdfTheme
 } from '../store/readerSlice';
 import { client, type Book, type Topic, type Flashcard, type PdfAnnotation } from '../api/client';
-import { Loader2, Zap, PenTool, Link2, BrainCircuit, Play, FileText, ChevronRight, ChevronLeft, CheckCircle2, Circle, Clock, Check, X, Edit2, Trash2, BookOpen, ArrowLeft, LayoutList, ChevronDown, Search, Save, Sun, Moon, MoreHorizontal, Bot } from 'lucide-react';
+import { Loader2, Zap, PenTool, Link2, BrainCircuit, Play, FileText, ChevronRight, ChevronLeft, CheckCircle2, Circle, Clock, Check, X, Edit2, Trash2, BookOpen, ArrowLeft, LayoutList, ChevronDown, Search, Save, Sun, Moon, MoreHorizontal, Bot, Copy } from 'lucide-react';
 import { MarkdownRenderer } from '../components/MarkdownRenderer';
 import clsx from 'clsx';
 import { FlashcardGenModal } from '../components/FlashcardGenModal';
@@ -62,7 +62,7 @@ export function BookDetailView() {
   const [isRelatedModalOpen, setIsRelatedModalOpen] = useState(false);
   const [isPracticeModalOpen, setIsPracticeModalOpen] = useState(false);
   const [pdfNumPages, setPdfNumPages] = useState<number>(1);
-  const [processingProgress, setProcessingProgress] = useState<{ stage: string, progress?: number, section_count?: number } | null>(null);
+  const [processingProgress, setProcessingProgress] = useState<{ stage?: string, status?: string, progress?: number, section_count?: number } | null>(null);
   const [editingCardId, setEditingCardId] = useState<number | null>(null);
   const [editQuestion, setEditQuestion] = useState("");
   const [editAnswer, setEditAnswer] = useState("");
@@ -77,14 +77,20 @@ export function BookDetailView() {
   const [isAnnotationLoading, setIsAnnotationLoading] = useState(false);
   const [pdfScrollCommand, setPdfScrollCommand] = useState<{ page: number, ts: number } | undefined>();
   const [viewMode, setViewMode] = useState<'topics' | 'pdf' | 'markdown'>('topics');
+  const [isMdCopied, setIsMdCopied] = useState(false);
   const hasInitializedScrollRef = useRef(false);
   // pdfTheme is now globally managed by Redux and initialized in App.tsx
 
   const togglePdfTheme = async () => {
     const newTheme = pdfTheme === 'dark' ? 'light' : 'dark';
     dispatch(setPdfTheme(newTheme));
-    await saveSetting('pdfTheme', newTheme);
-    await saveSettingsStore();
+    await saveSetting('pdfTheme', newTheme).catch((err) =>
+      console.warn('[BookDetail] Failed to save setting:', err)
+    );
+    // Flush to disk in background — don't block the UI toggle
+    saveSettingsStore().catch((err) =>
+      console.warn('[BookDetail] Background settings flush error:', err)
+    );
   };
 
   // Ref to track if activeTopicId change was triggered by scrolling
@@ -138,6 +144,16 @@ export function BookDetailView() {
     fetchData();
     return () => { active = false; };
   }, [bookId]);
+
+  const reloadTopics = async () => {
+    if (!bookId) return;
+    try {
+      const data = await client.getTopics(bookId);
+      setTopics(data);
+    } catch (err) {
+      console.error("Failed to reload topics", err);
+    }
+  };
 
   useEffect(() => {
     if (activeTopicId) {
@@ -710,6 +726,22 @@ export function BookDetailView() {
                     <span className="truncate max-w-[200px]">Extracted Markdown</span>
                   </div>
                 </div>
+                {activeTopic?.content_md && (
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(activeTopic.content_md || '');
+                      setIsMdCopied(true);
+                      setTimeout(() => setIsMdCopied(false), 2000);
+                    }}
+                    className="flex items-center gap-2 px-3 py-1.5 text-on-surface hover:text-primary hover:bg-surface-container rounded-md transition-colors border-2 border-transparent hover:border-primary/20"
+                    title="Copy markdown to clipboard"
+                  >
+                    {isMdCopied ? <Check size={16} className="text-green-500" /> : <Copy size={16} />}
+                    <span className={clsx("text-sm font-medium", isMdCopied && "text-green-500")}>
+                      {isMdCopied ? "Copied!" : "Copy"}
+                    </span>
+                  </button>
+                )}
               </div>
                 <div className="flex-1 min-h-0 overflow-y-auto p-4 md:p-8 bg-surface-container custom-scrollbar">
                   <div className="max-w-4xl mx-auto bg-surface-container-lowest p-8 md:p-12 rounded-xl shadow-sm border-2 border-primary prose prose-slate dark:prose-invert prose-p:text-on-surface prose-headings:text-on-surface prose-strong:text-on-surface prose-li:text-on-surface prose-pre:bg-surface prose-table:border-collapse prose-table:w-full prose-th:bg-surface-container-low prose-th:p-3 prose-th:border-2 prose-th:border-primary prose-th:text-on-surface prose-td:p-3 prose-td:border-2 prose-td:border-primary prose-td:text-on-surface">
@@ -758,7 +790,7 @@ export function BookDetailView() {
                     <div>
                       <h4 className="font-bold text-sm">Processing Topic...</h4>
                       <p className="text-xs font-medium opacity-80 mt-0.5 capitalize">
-                        {processingProgress.stage.replace(/_/g, ' ')}
+                        {(processingProgress.stage || processingProgress.status || 'processing').replace(/_/g, ' ')}
                         {processingProgress.progress ? ` (${processingProgress.progress}%)` : ''}
                       </p>
                     </div>
@@ -1049,7 +1081,7 @@ export function BookDetailView() {
 
       </div>
 
-      <FlashcardGenModal hasCachedMarkdown={!!activeTopic?.content_md} />
+      <FlashcardGenModal hasCachedMarkdown={!!activeTopic?.content_md} onSuccess={() => reloadTopics()} />
       <RelatedTopicsModal isOpen={isRelatedModalOpen} onClose={() => setIsRelatedModalOpen(false)} />
       {activeTopic && (
         <TopicPracticeModal

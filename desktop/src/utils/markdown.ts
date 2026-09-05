@@ -82,6 +82,7 @@ function convertPlainMathToLatex(text: string): string {
  */
 export function preprocessMarkdown(text: string | undefined | null): string {
   if (!text) return '';
+  if (typeof text !== 'string') return String(text);
   let processed = text;
 
   // 1. Convert escaped newlines to real newlines (common in JSON-serialized LLM output)
