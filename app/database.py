@@ -78,25 +78,36 @@ def init_db():
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS topics (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                uuid TEXT NOT NULL UNIQUE DEFAULT (
+                    lower(hex(randomblob(4))) || '-' ||
+                    lower(hex(randomblob(2))) || '-4' ||
+                    substr(lower(hex(randomblob(2))), 2) || '-a' ||
+                    substr(lower(hex(randomblob(2))), 2) || '-' ||
+                    lower(hex(randomblob(6)))
+                ),
                 book_id INTEGER NOT NULL,
                 parent_id INTEGER,
                 title TEXT NOT NULL,
                 level INTEGER NOT NULL,
                 start_page INTEGER NOT NULL,
                 end_page INTEGER NOT NULL,
+                sort_order INTEGER NOT NULL,
                 content_md TEXT,
-                summary TEXT,
                 concept_type TEXT,
                 key_terms TEXT,
-                code_snippet TEXT,
-                image_url TEXT,
+                atomic_concepts TEXT,
                 status TEXT DEFAULT 'unprocessed',
-                is_processed BOOLEAN DEFAULT 0,
-                sort_order INTEGER NOT NULL,
                 flashcard_count INTEGER DEFAULT 0,
                 breadcrumb TEXT,
                 topic_hash TEXT UNIQUE NOT NULL,
                 embedding TEXT,
+                mastery_score INTEGER,
+                mastery_status TEXT DEFAULT 'untested' CHECK (mastery_status IN ('untested', 'mastered', 'developing', 'fragile', 'misconception')),
+                last_drilled_at TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP,
+                user_id TEXT,
+                deleted_at TIMESTAMP,
                 FOREIGN KEY (book_id) REFERENCES books (id) ON DELETE CASCADE,
                 FOREIGN KEY (parent_id) REFERENCES topics (id) ON DELETE CASCADE
             )
@@ -109,17 +120,16 @@ def init_db():
         migrations = [
             ("status", "TEXT DEFAULT 'unprocessed'"),
             ("flashcard_count", "INTEGER DEFAULT 0"),
-            ("summary", "TEXT"),
             ("concept_type", "TEXT"),
             ("key_terms", "TEXT"),
-            ("code_snippet", "TEXT"),
-            ("image_url", "TEXT"),
+            ("atomic_concepts", "TEXT"),
             ("breadcrumb", "TEXT"),
             ("topic_hash", "TEXT"),
             ("embedding", "TEXT"),
             ("mastery_score", "INTEGER"),
             ("mastery_status", "TEXT DEFAULT 'untested'"),
             ("last_drilled_at", "TIMESTAMP"),
+            ("created_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
         ]
         
         for col_name, col_type in migrations:
@@ -160,7 +170,9 @@ def init_db():
             ("reps", "INTEGER DEFAULT 0"),
             ("lapses", "INTEGER DEFAULT 0"),
             ("last_review", "TEXT"),
-            ("due", "TEXT")
+            ("due", "TEXT"),
+            ("source", "TEXT DEFAULT 'extraction'"),
+            ("origin_attempt_id", "INTEGER"),
         ]
         
         for col_name, col_type in fc_migrations:
@@ -236,10 +248,84 @@ def init_db():
                 FOREIGN KEY (book_id) REFERENCES books (id) ON DELETE CASCADE
             )
         """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS drill_sessions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                uuid TEXT NOT NULL UNIQUE DEFAULT (
+                    lower(hex(randomblob(4))) || '-' ||
+                    lower(hex(randomblob(2))) || '-4' ||
+                    substr(lower(hex(randomblob(2))), 2) || '-a' ||
+                    substr(lower(hex(randomblob(2))), 2) || '-' ||
+                    lower(hex(randomblob(6)))
+                ),
+                topic_id INTEGER NOT NULL REFERENCES topics(id) ON DELETE CASCADE,
+                provider TEXT,
+                started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                completed_at TIMESTAMP,
+                total_questions INTEGER DEFAULT 0,
+                final_mastery_score INTEGER,
+                final_mastery_status TEXT,
+                user_id TEXT,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                deleted_at TIMESTAMP
+            )
+        """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS drill_attempts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                uuid TEXT NOT NULL UNIQUE DEFAULT (
+                    lower(hex(randomblob(4))) || '-' ||
+                    lower(hex(randomblob(2))) || '-4' ||
+                    substr(lower(hex(randomblob(2))), 2) || '-a' ||
+                    substr(lower(hex(randomblob(2))), 2) || '-' ||
+                    lower(hex(randomblob(6)))
+                ),
+                session_id INTEGER NOT NULL REFERENCES drill_sessions(id) ON DELETE CASCADE,
+                topic_id INTEGER NOT NULL REFERENCES topics(id) ON DELETE CASCADE,
+                question_id TEXT NOT NULL,
+                question_text TEXT NOT NULL,
+                tier TEXT NOT NULL,
+                socratic_hint TEXT,
+                student_answer TEXT NOT NULL,
+                mastery_score INTEGER NOT NULL,
+                status TEXT NOT NULL,
+                strengths_json TEXT,
+                diagnosed_gaps_json TEXT,
+                misconceptions_json TEXT,
+                socratic_nudge TEXT,
+                concept_name TEXT,
+                evaluated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                user_id TEXT,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                deleted_at TIMESTAMP
+            )
+        """)
+
+        cursor.execute("PRAGMA table_info(drill_attempts)")
+        da_cols = [row['name'] for row in cursor.fetchall()]
+        da_migrations = [
+            ("question_id", "TEXT"),
+            ("tier", "TEXT"),
+            ("socratic_hint", "TEXT"),
+            ("student_answer", "TEXT"),
+            ("mastery_score", "INTEGER"),
+            ("status", "TEXT"),
+            ("strengths_json", "TEXT"),
+            ("diagnosed_gaps_json", "TEXT"),
+            ("misconceptions_json", "TEXT"),
+            ("socratic_nudge", "TEXT"),
+            ("concept_name", "TEXT"),
+            ("evaluated_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
+        ]
+        for col_name, col_type in da_migrations:
+            if col_name not in da_cols:
+                cursor.execute(f"ALTER TABLE drill_attempts ADD COLUMN {col_name} {col_type}")
         
         # Generic migration for sync columns
         import uuid
-        sync_tables = ["books", "topics", "flashcards", "notes", "review_log", "pdf_annotations", "chat_messages"]
+        sync_tables = ["books", "topics", "flashcards", "notes", "review_log", "pdf_annotations", "chat_messages", "drill_sessions", "drill_attempts"]
         sync_columns = [
             ("uuid", "TEXT"),
             ("user_id", "TEXT"),
@@ -307,8 +393,46 @@ def init_db():
             """)
 
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_topics_book_id ON topics(book_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_topics_parent_id ON topics(parent_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_topics_book_sort ON topics(book_id, sort_order)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_topics_mastery_status ON topics(mastery_status)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_flashcards_topic_id ON flashcards(topic_id)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_flashcards_due ON flashcards(due)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_notes_topic_id ON notes(topic_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_chat_messages_topic_id ON chat_messages(topic_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_drill_sessions_topic_id ON drill_sessions(topic_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_drill_attempts_session ON drill_attempts(session_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_drill_attempts_topic ON drill_attempts(topic_id)")
+
+        cursor.execute("""
+            CREATE TRIGGER IF NOT EXISTS flashcards_count_after_insert
+            AFTER INSERT ON flashcards
+            BEGIN
+                UPDATE topics
+                SET flashcard_count = (SELECT COUNT(*) FROM flashcards WHERE topic_id = NEW.topic_id)
+                WHERE id = NEW.topic_id;
+            END;
+        """)
+        cursor.execute("""
+            CREATE TRIGGER IF NOT EXISTS flashcards_count_after_delete
+            AFTER DELETE ON flashcards
+            BEGIN
+                UPDATE topics
+                SET flashcard_count = (SELECT COUNT(*) FROM flashcards WHERE topic_id = OLD.topic_id)
+                WHERE id = OLD.topic_id;
+            END;
+        """)
+        cursor.execute("""
+            CREATE TRIGGER IF NOT EXISTS topics_apply_drill_result
+            AFTER INSERT ON drill_attempts
+            BEGIN
+                UPDATE topics
+                SET mastery_score = NEW.mastery_score,
+                    mastery_status = NEW.status,
+                    last_drilled_at = NEW.evaluated_at
+                WHERE id = NEW.topic_id;
+            END;
+        """)
 
 
         # Seed default settings if empty
@@ -383,16 +507,13 @@ async def resolve_and_save_topic(
             cursor.execute(
                 """
                 UPDATE topics SET 
-                    summary = COALESCE(?, summary),
                     concept_type = COALESCE(?, concept_type),
                     key_terms = COALESCE(?, key_terms),
-                    code_snippet = COALESCE(?, code_snippet),
-                    image_url = COALESCE(?, image_url),
                     content_md = ?,
                     status = ?
                 WHERE id = ?
                 """,
-                (summary, concept_type, key_terms, code_snippet, image_url, new_content, status, row['id'])
+                (concept_type, key_terms, new_content, status, row['id'])
             )
             return row['id']
             
@@ -442,22 +563,19 @@ async def resolve_and_save_topic(
             cursor.execute(
                 """
                 UPDATE topics SET 
-                    summary = COALESCE(?, summary),
                     concept_type = COALESCE(?, concept_type),
                     key_terms = COALESCE(?, key_terms),
-                    code_snippet = COALESCE(?, code_snippet),
-                    image_url = COALESCE(?, image_url),
                     content_md = ?,
                     status = ?
                 WHERE id = ?
                 """,
-                (summary, concept_type, key_terms, code_snippet, image_url, new_content, status, row['id'])
+                (concept_type, key_terms, new_content, status, row['id'])
             )
             return row['id']
 
         # Enforce book_id scoping
         cursor.execute(
-            "SELECT id, embedding, content_md, key_terms, summary, title FROM topics WHERE book_id = ? AND embedding IS NOT NULL", 
+            "SELECT id, embedding, content_md, key_terms, title FROM topics WHERE book_id = ? AND embedding IS NOT NULL", 
             (book_id,)
         )
         rows = cursor.fetchall()
@@ -481,7 +599,6 @@ async def resolve_and_save_topic(
             best_id = best_row['id']
             best_content = best_row['content_md']
             best_key_terms = best_row['key_terms']
-            best_summary = best_row['summary']
             best_title = best_row['title']
             
             new_content = best_content
@@ -503,28 +620,22 @@ async def resolve_and_save_topic(
             
             merged_kt_json = json.dumps(list(merged_kt_set)) if merged_kt_set else None
             
-            # Determine new merged summary for embedding
-            merged_summary = best_summary if best_summary else summary
-            
             # Recompute embedding for the merged concept
-            merged_text_to_embed = f"Title: {best_title}\nKey Terms: {', '.join(list(merged_kt_set))}\nSummary: {merged_summary or ''}"
+            merged_text_to_embed = f"Title: {best_title}\nKey Terms: {', '.join(list(merged_kt_set))}\nSummary: {summary or ''}"
             merged_embedding = await get_embedding(merged_text_to_embed, provider=provider)
             merged_emb_json = json.dumps(merged_embedding)
                 
             cursor.execute(
                 """
                 UPDATE topics SET 
-                    summary = COALESCE(?, summary),
                     concept_type = COALESCE(?, concept_type),
                     key_terms = ?,
-                    code_snippet = COALESCE(?, code_snippet),
-                    image_url = COALESCE(?, image_url),
                     content_md = ?,
                     embedding = ?,
                     status = ?
                 WHERE id = ?
                 """,
-                (summary, concept_type, merged_kt_json, code_snippet, image_url, new_content, merged_emb_json, status, best_id)
+                (concept_type, merged_kt_json, new_content, merged_emb_json, status, best_id)
             )
             return best_id
             
@@ -534,14 +645,14 @@ async def resolve_and_save_topic(
             INSERT INTO topics (
                 book_id, parent_id, title, level, 
                 start_page, end_page, content_md, sort_order,
-                summary, concept_type, key_terms, code_snippet, image_url,
+                concept_type, key_terms,
                 breadcrumb, topic_hash, embedding, status
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 book_id, parent_id, title, level, 
                 start_page or 0, end_page or 0, content_md, sort_order,
-                summary, concept_type, key_terms, code_snippet, image_url,
+                concept_type, key_terms,
                 breadcrumb, topic_hash, new_emb_json, status
             )
         )
@@ -611,31 +722,27 @@ def get_topic_by_id(topic_id: int) -> Optional[Dict[str, Any]]:
 
 def update_topic_enrichment(
     topic_id: int,
-    summary: str | None = None,
+    atomic_concepts: str | None = None,
     concept_type: str | None = None,
     key_terms: str | None = None,
-    code_snippet: str | None = None,
-    image_url: str | None = None,
     content_md: str | None = None,
-    status: str = "processed"
+    status: str = "processed",
+    **kwargs
 ):
-    """Enriches a topic in-place with AI summary, key terms, concept type, and content without creating new child rows."""
+    """Enriches a topic in-place with structured atomic concepts and content."""
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute(
             """
             UPDATE topics SET
-                summary = COALESCE(?, summary),
+                atomic_concepts = COALESCE(?, atomic_concepts),
                 concept_type = COALESCE(?, concept_type),
                 key_terms = COALESCE(?, key_terms),
-                code_snippet = COALESCE(?, code_snippet),
-                image_url = COALESCE(?, image_url),
                 content_md = COALESCE(?, content_md),
-                is_processed = 1,
                 status = ?
             WHERE id = ?
             """,
-            (summary, concept_type, key_terms, code_snippet, image_url, content_md, status, topic_id)
+            (atomic_concepts, concept_type, key_terms, content_md, status, topic_id)
         )
 
 def update_topic_content_md(topic_id: int, content_md: str):
@@ -665,6 +772,141 @@ def update_topic_mastery(topic_id: int, score: int, status: str):
             """,
             (score, status, topic_id)
         )
+
+def update_concept_mastery(topic_id: int, concept_name: str, score: int, status: str) -> dict:
+    """
+    Updates the mastery score, status, and last_drilled_at of a specific concept in topics.atomic_concepts.
+    Also recomputes the aggregate mastery score & status for the overall topic.
+    Returns a dict with updated concept info and topic aggregate mastery.
+    """
+    from datetime import datetime, timezone
+    now_iso = datetime.now(timezone.utc).isoformat()
+
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT atomic_concepts, mastery_score, mastery_status FROM topics WHERE id = ?", (topic_id,))
+        row = cursor.fetchone()
+        if not row:
+            raise ValueError(f"Topic {topic_id} not found")
+
+        raw_concepts = row["atomic_concepts"]
+        concepts = []
+        if raw_concepts:
+            try:
+                concepts = json.loads(raw_concepts)
+            except Exception:
+                concepts = []
+
+        updated_concept = None
+        # Match concept by name (case-insensitive) or id
+        for c in concepts:
+            c_name = c.get("name", "")
+            c_id = c.get("id", "")
+            if c_name.strip().lower() == concept_name.strip().lower() or c_id == concept_name:
+                c["mastery_score"] = score
+                c["mastery_status"] = status
+                c["last_drilled_at"] = now_iso
+                updated_concept = c
+                break
+
+        if not updated_concept:
+            # If concept not found in list, append it as a new concept record
+            updated_concept = {
+                "id": f"c_{len(concepts) + 1}",
+                "name": concept_name,
+                "concept_type": "Definition",
+                "summary": "",
+                "key_terms": [concept_name],
+                "mastery_score": score,
+                "mastery_status": status,
+                "last_drilled_at": now_iso
+            }
+            concepts.append(updated_concept)
+
+        # Recompute aggregate topic mastery across all drilled concepts
+        drilled_scores = [c["mastery_score"] for c in concepts if c.get("mastery_score") is not None]
+        if drilled_scores:
+            topic_score = round(sum(drilled_scores) / len(drilled_scores))
+            if any(c.get("mastery_status") == "misconception" for c in concepts):
+                topic_status = "misconception"
+            elif topic_score >= 85:
+                topic_status = "mastered"
+            elif topic_score >= 60:
+                topic_status = "developing"
+            elif topic_score >= 35:
+                topic_status = "fragile"
+            else:
+                topic_status = "misconception"
+        else:
+            topic_score = score
+            topic_status = status
+
+        cursor.execute(
+            """
+            UPDATE topics SET
+                atomic_concepts = ?,
+                mastery_score = ?,
+                mastery_status = ?,
+                last_drilled_at = ?
+            WHERE id = ?
+            """,
+            (json.dumps(concepts), topic_score, topic_status, now_iso, topic_id)
+        )
+
+        return {
+            "concept": updated_concept,
+            "topic_score": topic_score,
+            "topic_status": topic_status,
+            "concepts": concepts
+        }
+
+def record_drill_attempt(
+    topic_id: int,
+    question_id: str,
+    question_text: str,
+    tier: str,
+    socratic_hint: str | None,
+    student_answer: str,
+    mastery_score: int,
+    status: str,
+    strengths: list[str] | None = None,
+    diagnosed_gaps: list[str] | None = None,
+    misconceptions: list[str] | None = None,
+    socratic_nudge: str | None = None,
+    concept_name: str | None = None,
+    session_id: int | None = None,
+    user_id: str | None = None
+) -> int:
+    """Records a single drill question attempt into drill_attempts and ensures a drill_session exists."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        if session_id is None:
+            cursor.execute(
+                "INSERT INTO drill_sessions (topic_id, question_count, user_id) VALUES (?, 1, ?)",
+                (topic_id, user_id)
+            )
+            session_id = cursor.lastrowid
+
+        cursor.execute(
+            """
+            INSERT INTO drill_attempts (
+                session_id, topic_id, question_id, question_text, tier,
+                socratic_hint, student_answer, mastery_score, status,
+                strengths_json, diagnosed_gaps_json, misconceptions_json,
+                socratic_nudge, concept_name, user_id
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                session_id, topic_id, question_id, question_text, tier,
+                socratic_hint, student_answer, mastery_score, status,
+                json.dumps(strengths or []),
+                json.dumps(diagnosed_gaps or []),
+                json.dumps(misconceptions or []),
+                socratic_nudge, concept_name, user_id
+            )
+        )
+        return cursor.lastrowid
 
 def prune_artificial_subtopics(book_id: Optional[int] = None) -> int:
     """
@@ -708,22 +950,19 @@ def prune_artificial_subtopics(book_id: Optional[int] = None) -> int:
 
 
 def get_topic_content_with_fallback(topic_id: int) -> tuple[str, str]:
-    """Retrieves the topic's content_md and summary, falling back to parent topic content if needed."""
+    """Retrieves the topic's content_md, falling back to parent topic content if needed."""
     topic = get_topic_by_id(topic_id)
     if not topic:
         return "", ""
         
     content_md = topic.get("content_md") or ""
-    summary = topic.get("summary") or ""
     
     if not content_md and topic.get("parent_id"):
         parent = get_topic_by_id(topic.get("parent_id"))
         if parent:
             content_md = parent.get("content_md") or ""
-            if not summary:
-                summary = parent.get("summary") or ""
                 
-    return content_md, summary
+    return content_md, ""
 
 
 def get_setting(key: str) -> Optional[str]:
@@ -889,7 +1128,7 @@ def get_books(skip: int = 0, limit: int = 100) -> List[Dict[str, Any]]:
         cursor.execute("""
             SELECT b.*,
                 (SELECT COUNT(*) FROM topics t WHERE t.book_id = b.id) as total_topics,
-                (SELECT COUNT(*) FROM topics t WHERE t.book_id = b.id AND (t.is_processed = 1 OR t.status = 'processed' OR (SELECT COUNT(*) FROM flashcards f WHERE f.topic_id = t.id) > 0)) as topics_processed
+                (SELECT COUNT(*) FROM topics t WHERE t.book_id = b.id AND (t.status = 'processed' OR (SELECT COUNT(*) FROM flashcards f WHERE f.topic_id = t.id) > 0)) as topics_processed
             FROM books b
             ORDER BY b.created_at DESC 
             LIMIT ? OFFSET ?
@@ -1029,7 +1268,7 @@ def insert_topics_bulk(book_id: int, toc_entries: list) -> int:
         cursor = conn.cursor()
         
         inserted_count = 0
-        parent_stack = [] # list of (level, id)
+        parent_stack = [] # list of (level, id, title)
         
         for index, entry in enumerate(toc_entries):
             level = entry["level"]
@@ -1041,15 +1280,17 @@ def insert_topics_bulk(book_id: int, toc_entries: list) -> int:
                 parent_stack.pop()
                 
             parent_id = parent_stack[-1][1] if parent_stack else None
+            breadcrumb_parts = [p[2] for p in parent_stack] + [title]
+            breadcrumb = " > ".join(breadcrumb_parts)
             topic_hash = hashlib.sha256(f"{book_id}_{title}_{start_page}_{index}".encode()).hexdigest()
             
             cursor.execute("""
-                INSERT INTO topics (book_id, parent_id, title, level, start_page, end_page, sort_order, topic_hash, status)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'unprocessed')
-            """, (book_id, parent_id, title, level, start_page, end_page, index, topic_hash))
+                INSERT INTO topics (book_id, parent_id, title, level, start_page, end_page, sort_order, topic_hash, status, breadcrumb)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'unprocessed', ?)
+            """, (book_id, parent_id, title, level, start_page, end_page, index, topic_hash, breadcrumb))
             
             topic_id = cursor.lastrowid
-            parent_stack.append((level, topic_id))
+            parent_stack.append((level, topic_id, title))
             inserted_count += 1
             
         return inserted_count
@@ -1062,7 +1303,7 @@ def update_topic_status(topic_id: int, status: str):
 def update_topic_summary(topic_id: int, summary: str, content_md: str):
     with get_connection() as conn:
         cursor = conn.cursor()
-        cursor.execute("UPDATE topics SET summary = ?, content_md = ? WHERE id = ?", (summary, content_md, topic_id))
+        cursor.execute("UPDATE topics SET content_md = ? WHERE id = ?", (content_md, topic_id))
 
 # ─── PDF Annotation CRUD ───
 
@@ -1125,22 +1366,23 @@ def search_all(query: str, limit: int = 20) -> List[Dict[str, Any]]:
         
         # Search topics
         cursor.execute("""
-            SELECT 'topic' as type, id, title as title, summary as subtitle
+            SELECT 'topic' as type, id, title as title, COALESCE(key_terms, breadcrumb) as subtitle, book_id
             FROM topics
-            WHERE title LIKE ? OR summary LIKE ?
+            WHERE title LIKE ? OR key_terms LIKE ?
             LIMIT ?
         """, (search_term, search_term, limit))
         topic_results = [dict(r) for r in cursor.fetchall()]
         
         # Search flashcards
         cursor.execute("""
-            SELECT 'flashcard' as type, id, question as title, answer as subtitle
-            FROM flashcards
-            WHERE question LIKE ? OR answer LIKE ?
+            SELECT 'flashcard' as type, f.id, f.question as title, f.answer as subtitle, t.book_id
+            FROM flashcards f
+            LEFT JOIN topics t ON f.topic_id = t.id
+            WHERE f.question LIKE ? OR f.answer LIKE ?
             LIMIT ?
         """, (search_term, search_term, limit))
         card_results = [dict(r) for r in cursor.fetchall()]
         
-        # Combine and sort, maybe prioritizing topics
+        # Combine and sort, prioritizing topics
         results = topic_results + card_results
         return results[:limit]

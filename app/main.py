@@ -401,16 +401,14 @@ async def upload_and_parse_toc(
         with open(file_path, "wb") as f:
             f.write(pdf_bytes)
             
-        # Dynamically calculate total_pages if not provided
-        if total_pages <= 0:
-            import fitz
-            doc = fitz.open(stream=pdf_bytes, filetype="pdf")
-            total_pages = doc.page_count
-            doc.close()
+        # Always determine exact total_pages directly from the PDF file
+        import fitz
+        with fitz.open(stream=pdf_bytes, filetype="pdf") as doc_check:
+            actual_total_pages = doc_check.page_count
 
         # Check if book exists
         from app.database import save_book, get_connection
-        book_id = save_book(title=book_title, file_path=file_path, file_hash=file_hash, total_pages=total_pages)
+        book_id = save_book(title=book_title, file_path=file_path, file_hash=file_hash, total_pages=actual_total_pages)
         
         # Check if topics are already inserted for this book
         with get_connection() as conn:
@@ -424,7 +422,39 @@ async def upload_and_parse_toc(
         from fastapi.concurrency import run_in_threadpool
         import fitz
         from app.toc_parser import get_toc_entries, build_granular_toc
-        
+        from app.topic_subdivider import is_scanned_pdf, subdivide_topic_from_markdown
+
+        # Check if this is a scanned/handwritten document
+        doc_check = fitz.open(file_path)
+        is_scanned = is_scanned_pdf(doc_check)
+        doc_total = doc_check.page_count
+        doc_check.close()
+
+        # If scanned and small (<= 25 pages), try Marker extraction right away
+        if is_scanned and doc_total <= 25:
+            from app.database import get_setting
+            has_marker = bool(get_setting("datalab_api_key"))
+            if not has_marker:
+                from app.extractors import get_extractor
+                has_marker = get_extractor().name == "marker"
+            
+            if has_marker:
+                logger.info(f"Scanned/handwritten PDF detected ({doc_total} pages). Running Marker extraction for outline...")
+                try:
+                    from app.pdf_extract import extract_raw_text
+                    md_text, _, _ = await extract_raw_text(pdf_bytes, 1)
+                    subdivided = subdivide_topic_from_markdown(
+                        book_id=book_id,
+                        placeholder_topic_id=None,
+                        md_text=md_text,
+                        default_start_page=1,
+                        default_end_page=doc_total
+                    )
+                    if subdivided:
+                        return {"book_id": book_id, "status": "scanned_parsed", "topic_count": len(subdivided)}
+                except Exception as e:
+                    logger.warning(f"Direct Marker upload extraction failed: {e}. Falling back to default TOC.")
+
         def extract_toc():
             doc = fitz.open(file_path)
             toc = get_toc_entries(doc, pdf_path=file_path)
@@ -461,6 +491,45 @@ async def get_book_pdf(book_id: int):
         
     # FileResponse natively supports Range headers if stat_result is obtained (which it does internally)
     return FileResponse(path=file_path, media_type="application/pdf", filename=os.path.basename(file_path))
+
+
+@app.get("/images/{image_name:path}")
+async def get_extracted_image(image_name: str):
+    from pathlib import Path
+    clean_subpath = os.path.normpath(image_name).lstrip("/\\")
+    target_path = Path(PARSED_DOCS_DIR)
+    
+    # 1. Direct path check
+    direct_file = target_path / clean_subpath
+    if direct_file.is_file():
+        ext = direct_file.suffix.lower()
+        media_type = (
+            "image/jpeg" if ext in (".jpg", ".jpeg")
+            else "image/png" if ext == ".png"
+            else "image/webp" if ext == ".webp"
+            else "image/svg+xml" if ext == ".svg"
+            else "image/gif" if ext == ".gif"
+            else "application/octet-stream"
+        )
+        return FileResponse(path=str(direct_file), media_type=media_type, filename=direct_file.name)
+        
+    # 2. Search by basename across extracted cache directories
+    file_basename = os.path.basename(clean_subpath)
+    if file_basename:
+        for p in target_path.rglob(file_basename):
+            if p.is_file():
+                ext = p.suffix.lower()
+                media_type = (
+                    "image/jpeg" if ext in (".jpg", ".jpeg")
+                    else "image/png" if ext == ".png"
+                    else "image/webp" if ext == ".webp"
+                    else "image/svg+xml" if ext == ".svg"
+                    else "image/gif" if ext == ".gif"
+                    else "application/octet-stream"
+                )
+                return FileResponse(path=str(p), media_type=media_type, filename=file_basename)
+                
+    return JSONResponse(status_code=404, content={"error": f"Image {image_name} not found"})
 
 
 from pydantic import BaseModel
@@ -754,6 +823,16 @@ async def ensure_topic_markdown(topic_id: int) -> str:
     
     if extracted_text:
         update_topic_content_md(topic_id, extracted_text)
+        # If this is a monolithic placeholder topic, subdivide it into real topics
+        if topic.get("title") in ("Full Document", "Untitled"):
+            from app.topic_subdivider import subdivide_topic_from_markdown
+            subdivide_topic_from_markdown(
+                book_id=topic["book_id"],
+                placeholder_topic_id=topic_id,
+                md_text=extracted_text,
+                default_start_page=topic.get("start_page", 1),
+                default_end_page=topic.get("end_page", 1)
+            )
         
     return extracted_text or ""
 
@@ -820,6 +899,18 @@ async def process_topic_stream(topic_id: int, req: ProcessTopicRequest):
                 sections = detect_headings(modified_md_text, start_page_num)
                 content_md = modified_md_text
             
+            if topic.get("title") in ("Full Document", "Untitled") and len(sections) >= 2:
+                from app.topic_subdivider import subdivide_topic_from_markdown
+                subdivided = subdivide_topic_from_markdown(
+                    book_id=topic["book_id"],
+                    placeholder_topic_id=topic_id,
+                    md_text=content_md,
+                    default_start_page=topic.get("start_page", 1),
+                    default_end_page=topic.get("end_page", 1)
+                )
+                if subdivided:
+                    yield f"data: {json.dumps({'stage': 'subdivided', 'topic_count': len(subdivided), 'message': f'Auto-subdivided into {len(subdivided)} topics'})}\n\n"
+
             yield f"data: {json.dumps({'stage': 'extracting_topics', 'section_count': len(sections)})}\n\n"
             
             # Extract concepts from section text to enrich topic in-place
@@ -832,37 +923,33 @@ async def process_topic_stream(topic_id: int, req: ProcessTopicRequest):
                 heading, text_content, code_blocks, images, req.provider_override
             )
             
-            # Consolidate extracted AI concept data
-            all_summaries = []
-            all_key_terms = set()
-            primary_concept_type = "Definition"
-            primary_code_snippet = None
-            primary_image_url = None
-            
+            from app.markdown_slicer import match_concept_to_section_heading
+
+            # Build clean structured atomic concepts list
+            atomic_concepts = []
             if hasattr(section_extraction, 'atomic_topics') and section_extraction.atomic_topics:
-                for t in section_extraction.atomic_topics:
-                    if t.summary:
-                        all_summaries.append(t.summary)
-                    if t.key_terms:
-                        all_key_terms.update(t.key_terms)
-                    if t.concept_type and primary_concept_type == "Definition":
-                        primary_concept_type = t.concept_type
-                    if t.related_code_id and not primary_code_snippet:
-                        primary_code_snippet = str(t.related_code_id)
-                    if t.related_image_id and not primary_image_url:
-                        primary_image_url = str(t.related_image_id)
-                        
-            merged_summary = " ".join(all_summaries) if all_summaries else (topic.get("summary") or text_content[:200])
-            merged_key_terms = json.dumps(list(all_key_terms)) if all_key_terms else (topic.get("key_terms") or "[]")
-            
-            # Enrich topic in-place without creating new child rows in topics table
+                for idx, t in enumerate(section_extraction.atomic_topics):
+                    sec_heading = match_concept_to_section_heading(
+                        sections, t.topic_name, t.summary, t.key_terms
+                    )
+                    atomic_concepts.append({
+                        "id": f"c_{idx + 1}",
+                        "name": t.topic_name,
+                        "concept_type": t.concept_type or "Definition",
+                        "summary": t.summary or "",
+                        "key_terms": t.key_terms or [],
+                        "section_heading": sec_heading,
+                        "related_code_id": t.related_code_id,
+                        "related_image_id": t.related_image_id,
+                        "mastery_score": None,
+                        "mastery_status": "untested",
+                        "last_drilled_at": None,
+                    })
+
+            # Enrich topic with structured atomic concepts
             update_topic_enrichment(
                 topic_id=topic_id,
-                summary=merged_summary,
-                concept_type=primary_concept_type,
-                key_terms=merged_key_terms,
-                code_snippet=primary_code_snippet,
-                image_url=primary_image_url,
+                atomic_concepts=json.dumps(atomic_concepts),
                 content_md=content_md,
                 status="processed"
             )
@@ -883,13 +970,16 @@ async def process_topic_stream(topic_id: int, req: ProcessTopicRequest):
 
 class DrillGenerateRequest(BaseModel):
     provider_override: str | None = None
+    concept_name: str | None = None
+    concept_type: str | None = None
+    concept_summary: str | None = None
+    key_terms: list[str] | None = None
 
 @app.post("/topics/{topic_id}/drill/generate")
 async def drill_generate_questions(topic_id: int, req: DrillGenerateRequest):
-    """Generate 2 tiered diagnostic questions for a topic."""
-    from app.database import get_topic_by_id, get_book_by_id
+    """Generate 2 tiered diagnostic questions for a topic or targeted atomic concept."""
+    from app.database import get_topic_by_id
     from app.socratic_drill import generate_diagnostic_questions
-    import fitz
 
     topic = get_topic_by_id(topic_id)
     if not topic:
@@ -898,12 +988,32 @@ async def drill_generate_questions(topic_id: int, req: DrillGenerateRequest):
     # Resolve topic content: prefer stored content_md, fallback to PDF extraction
     content = await ensure_topic_markdown(topic_id)
 
+    concept_summary = req.concept_summary
+    key_terms = req.key_terms
+    concept_type = req.concept_type
+    if req.concept_name:
+        try:
+            stored_concepts = json.loads(topic.get("atomic_concepts") or "[]")
+            for c in stored_concepts:
+                c_name = c.get("name") or c.get("topic_name")
+                if c_name and c_name.strip().lower() == req.concept_name.strip().lower():
+                    concept_summary = concept_summary or c.get("summary")
+                    key_terms = key_terms or c.get("key_terms")
+                    concept_type = concept_type or c.get("concept_type")
+                    break
+        except Exception:
+            pass
+
     try:
         result = await generate_diagnostic_questions(
             topic_title=topic["title"],
             breadcrumb=topic.get("breadcrumb") or "",
             start_page=topic["start_page"],
             topic_content=content,
+            concept_name=req.concept_name,
+            concept_type=concept_type,
+            concept_summary=concept_summary,
+            key_terms=key_terms,
             provider_override=req.provider_override,
         )
         return result.model_dump()
@@ -919,14 +1029,16 @@ class DrillEvaluateRequest(BaseModel):
     question_text: str
     key_invariants: list[str]
     student_answer: str
+    tier: str | None = "causal_mechanism"
+    socratic_hint: str | None = None
+    concept_name: str | None = None
     provider_override: str | None = None
 
 @app.post("/topics/{topic_id}/drill/evaluate")
 async def drill_evaluate_answer(topic_id: int, req: DrillEvaluateRequest):
     """Evaluate a student's answer and return diagnostic feedback."""
-    from app.database import get_topic_by_id, get_book_by_id, update_topic_mastery
+    from app.database import get_topic_by_id, update_topic_mastery, update_concept_mastery, record_drill_attempt
     from app.socratic_drill import evaluate_student_answer
-    import fitz
 
     topic = get_topic_by_id(topic_id)
     if not topic:
@@ -934,16 +1046,56 @@ async def drill_evaluate_answer(topic_id: int, req: DrillEvaluateRequest):
 
     content = await ensure_topic_markdown(topic_id)
 
+    concept_summary = None
+    key_terms = None
+    if req.concept_name:
+        try:
+            stored_concepts = json.loads(topic.get("atomic_concepts") or "[]")
+            for c in stored_concepts:
+                c_name = c.get("name") or c.get("topic_name")
+                if c_name and c_name.strip().lower() == req.concept_name.strip().lower():
+                    concept_summary = c.get("summary")
+                    key_terms = c.get("key_terms")
+                    break
+        except Exception:
+            pass
+
     try:
         result = await evaluate_student_answer(
             question_text=req.question_text,
             key_invariants=req.key_invariants,
             topic_content=content,
             student_answer=req.student_answer,
+            concept_name=req.concept_name,
             provider_override=req.provider_override,
         )
-        # Persist mastery score
-        update_topic_mastery(topic_id, result.mastery_score, result.status)
+
+        # Record attempt in drill_attempts
+        try:
+            record_drill_attempt(
+                topic_id=topic_id,
+                question_id=req.question_id,
+                question_text=req.question_text,
+                tier=req.tier or "causal_mechanism",
+                socratic_hint=req.socratic_hint,
+                student_answer=req.student_answer,
+                mastery_score=result.mastery_score,
+                status=result.status,
+                strengths=result.strengths,
+                diagnosed_gaps=result.diagnosed_gaps,
+                misconceptions=result.misconceptions,
+                socratic_nudge=result.socratic_nudge,
+                concept_name=req.concept_name,
+            )
+        except Exception as e:
+            logger.warning(f"Failed to record drill attempt: {e}")
+
+        # Persist mastery score: concept-scoped or whole-topic
+        if req.concept_name:
+            update_concept_mastery(topic_id, req.concept_name, result.mastery_score, result.status)
+        else:
+            update_topic_mastery(topic_id, result.mastery_score, result.status)
+
         return result.model_dump()
     except RecallError:
         raise
@@ -1234,7 +1386,7 @@ def delete_book_api(book_id: int):
     return {"status": "success"}
 
 @app.get("/topics")
-def get_topics_api(book_id: int | None = None, skip: int = 0, limit: int = 100):
+def get_topics_api(book_id: int | None = None, skip: int = 0, limit: int = 10000):
     from app.database import get_topics
     return get_topics(book_id, skip, limit)
 
@@ -1260,6 +1412,107 @@ def update_topic_notes_api(topic_id: int, req: NoteUpdate):
     from app.database import save_note_for_topic
     save_note_for_topic(topic_id, req.note)
     return {"status": "success"}
+
+
+class NoteScaffoldRequest(BaseModel):
+    provider_override: str | None = None
+
+@app.post("/topics/{topic_id}/notes/scaffold")
+async def generate_note_scaffold_api(topic_id: int, req: NoteScaffoldRequest):
+    """Generate a structured Cornell Study Guide for a topic using its atomic concepts and text."""
+    from app.database import get_topic_by_id
+    from app.llm_providers.factory import get_llm_provider
+    from app.config import settings
+    import json
+    
+    topic = get_topic_by_id(topic_id)
+    if not topic:
+        return JSONResponse(status_code=404, content={"error": "Topic not found"})
+        
+    content = ""
+    try:
+        content = await ensure_topic_markdown(topic_id)
+    except Exception as e:
+        logger.warning(f"Could not extract markdown for topic {topic_id}: {e}")
+        content = topic.get("summary") or ""
+    
+    # Extract concepts context if available
+    concepts_summary = ""
+    if topic.get("atomic_concepts"):
+        try:
+            concepts = json.loads(topic["atomic_concepts"])
+            if concepts:
+                concepts_summary = "Key Atomic Concepts:\n" + "\n".join(
+                    f"- {c.get('name')} ({c.get('concept_type', 'Concept')}): {c.get('summary', '')}"
+                    for c in concepts[:12]
+                )
+        except Exception:
+            pass
+
+    scaffold_prompt = f"""You are an elite academic tutor creating a high-yield Cornell study note for a university student.
+Topic: {topic.get('title', 'Study Topic')}
+Breadcrumb: {topic.get('breadcrumb', '')}
+
+{concepts_summary}
+
+Content Reference:
+{content[:7000]}
+
+Generate a comprehensive, beautifully structured study note in Markdown adhering strictly to this Cornell & Active Recall structure:
+
+# 📝 {topic.get('title', 'Study Guide')}
+
+## 🎯 Core Invariants & Definitions
+- List the 3-5 fundamental, non-negotiable principles or definitions.
+- Bold key terms. Format EVERY math equation, variable, or matrix using LaTeX notation ($...$ for inline, $$...$$ for blocks).
+
+## 🧠 Step-by-Step Mechanisms & Derivations
+- Clear, causal explanations of how procedures, algorithms, or derivations function.
+- Include concrete examples or edge-case conditions.
+
+## ⚠️ Common Exam Pitfalls & Misconceptions
+- Highlight 2-3 mistakes students frequently make on tests regarding this topic and why they are wrong.
+
+## 📌 Self-Testing Cue Questions (Active Recall)
+- Provide 3-4 probing questions the student can use to quiz themselves on this topic without looking at the notes.
+
+Format strictly in clean, readable Markdown. Do not include introductory conversational filler.
+"""
+
+    try:
+        from copy import copy
+        local_settings = copy(settings)
+        provider = get_llm_provider(local_settings, provider_override=req.provider_override)
+        scaffold_markdown = await provider.generate(scaffold_prompt, json_schema=None, temperature=0.2, max_tokens=3000)
+        if not scaffold_markdown or not scaffold_markdown.strip():
+            raise RuntimeError("LLM provider returned empty response for study notes.")
+        result_text = scaffold_markdown.strip()
+        return {"topic_id": topic_id, "scaffold": result_text, "note": result_text}
+    except Exception as e:
+        logger.error(f"Failed to generate note scaffold: {e}")
+        return error_response(e, include_debug=_is_debug())
+
+
+class NoteAppendRequest(BaseModel):
+    content: str
+    section_title: str | None = None
+
+@app.post("/topics/{topic_id}/notes/append")
+def append_topic_notes_api(topic_id: int, req: NoteAppendRequest):
+    """Appends Markdown content to a topic's study notes."""
+    from app.database import get_note_by_topic, save_note_for_topic
+    existing = get_note_by_topic(topic_id) or ""
+    
+    append_block = req.content.strip()
+    if req.section_title:
+        append_block = f"\n\n### {req.section_title}\n{append_block}"
+    else:
+        append_block = f"\n\n{append_block}"
+        
+    updated = (existing.rstrip() + append_block).strip()
+    save_note_for_topic(topic_id, updated)
+    return {"status": "success", "note": updated}
+
 
 @app.get("/flashcards/export")
 def export_flashcards_api():
@@ -1579,3 +1832,23 @@ async def chunk_stream_endpoint(
             yield f"data: {json.dumps(error_event(e, include_debug=_is_debug()))}\n\n"
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
+@app.get("/api/sync/pdfs")
+async def sync_pdfs_endpoint(authorization: str = Header(None)):
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing or invalid Authorization header")
+    token = authorization.split("Bearer ")[1]
+    
+    from app.sync_service import download_missing_pdfs_stream
+    return StreamingResponse(download_missing_pdfs_stream(token), media_type="text/event-stream")
+
+
+@app.post("/books/{book_id}/reparse-handwriting")
+async def reparse_handwriting_endpoint(book_id: int):
+    """Extracts handwritten notes with Marker and updates the topic hierarchy."""
+    from app.topic_subdivider import reparse_book_with_marker
+    try:
+        result = await reparse_book_with_marker(book_id)
+        return result
+    except Exception as e:
+        logger.error(f"Error reparsing book {book_id} with marker: {e}")
+        return JSONResponse(status_code=500, content={"error": str(e)})

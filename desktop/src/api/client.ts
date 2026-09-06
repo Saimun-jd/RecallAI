@@ -56,6 +56,20 @@ export interface Book {
   topics_processed?: number;
 }
 
+export interface AtomicConcept {
+  id: string;
+  name: string;
+  concept_type: 'Definition' | 'Key Feature' | 'Formula' | 'Comparison' | 'Process Step' | 'Code Example' | 'Diagram' | string;
+  summary: string;
+  key_terms: string[];
+  mastery_score?: number | null;
+  mastery_status?: 'untested' | 'mastered' | 'developing' | 'fragile' | 'misconception';
+  last_drilled_at?: string | null;
+  section_heading?: string | null;
+  related_code_id?: string | null;
+  related_image_id?: string | null;
+}
+
 export interface Topic {
   id: number;
   book_id: number;
@@ -72,10 +86,16 @@ export interface Topic {
   summary?: string;
   concept_type?: string;
   key_terms?: string;
+  atomic_concepts?: string;
   content_md?: string;
+  code_snippet?: string;
+  image_url?: string;
+  is_processed?: boolean | number;
   mastery_score?: number | null;
   mastery_status?: 'untested' | 'mastered' | 'developing' | 'fragile' | 'misconception';
   last_drilled_at?: string | null;
+  created_at?: string;
+  uuid?: string;
 }
 
 export interface Flashcard {
@@ -156,6 +176,7 @@ export interface DiagnosticQuestion {
 
 export interface DiagnosticQuestionSet {
   topic_title: string;
+  concept_name?: string | null;
   questions: DiagnosticQuestion[];
 }
 
@@ -166,6 +187,7 @@ export interface SuggestedFlashcard {
 }
 
 export interface DiagnosticEvaluation {
+  concept_name?: string | null;
   mastery_score: number;
   status: 'mastered' | 'developing' | 'fragile' | 'misconception';
   strengths: string[];
@@ -216,6 +238,13 @@ export const client = {
     const url = bookId ? `${API_BASE}/topics?book_id=${bookId}` : `${API_BASE}/topics`;
     const res = await fetch(url);
     await this._throwIfError(res, "Failed to fetch topics");
+    return res.json();
+  },
+  async reparseHandwriting(bookId: number): Promise<{ book_id: number; topic_count: number; topics: any[] }> {
+    const res = await fetch(`${API_BASE}/books/${bookId}/reparse-handwriting`, {
+      method: "POST",
+    });
+    await this._throwIfError(res, "Failed to analyze handwritten notes");
     return res.json();
   },
   async getTopic(id: number): Promise<Topic> {
@@ -302,7 +331,7 @@ export const client = {
     await this._throwIfError(res, "Failed to undo review");
     return res.json();
   },
-  async searchAll(query: string, limit: number = 20): Promise<Array<{ type: string; id: number; title: string; subtitle: string }>> {
+  async searchAll(query: string, limit: number = 20): Promise<Array<{ type: string; id: number; title: string; subtitle: string; book_id?: number }>> {
     const res = await fetch(`${API_BASE}/search?query=${encodeURIComponent(query)}&limit=${limit}`);
     await this._throwIfError(res, "Search failed");
     return res.json();
@@ -367,15 +396,15 @@ export const client = {
             try {
               const data = JSON.parse(dataStr);
               onEvent(data);
-              if (data.status === 'complete' || data.status === 'error' || data.stage === 'complete' || data.stage === 'error') {
+              if (data.status === 'error') {
+                const apiErr = parseSSEError(data);
+                throw apiErr;
+              }
+              if (data.status === 'complete' || data.stage === 'complete') {
                 finishedCleanly = true;
-                // Parse structured error events
-                if (data.status === 'error' && data.error_code) {
-                  const apiErr = parseSSEError(data);
-                  data._apiError = apiErr;
-                }
               }
             } catch (e) {
+              if ((e as any)?.errorCode || (e as any)?.userMessage) throw e;
               console.error("Failed to parse SSE event", e);
             }
           }
@@ -428,14 +457,15 @@ export const client = {
             try {
               const data = JSON.parse(dataStr) as ProgressEvent;
               onProgress(data);
-              if (data.status === 'complete' || data.status === 'error') {
+              if (data.status === 'error') {
+                const apiErr = parseSSEError(data);
+                throw apiErr;
+              }
+              if (data.status === 'complete') {
                 finishedCleanly = true;
-                if (data.status === 'error' && data.error_code) {
-                  const apiErr = parseSSEError(data);
-                  data._apiError = apiErr;
-                }
               }
             } catch (e) {
+              if ((e as any)?.errorCode || (e as any)?.userMessage) throw e;
               console.error("Failed to parse SSE event", e);
             }
           }
@@ -463,6 +493,26 @@ export const client = {
       body: JSON.stringify({ note }),
     });
     await this._throwIfError(res, "Failed to update note");
+    return res.json();
+  },
+
+  async generateNoteScaffold(topicId: number, providerOverride?: string | null): Promise<{ topic_id: number; scaffold: string; note: string }> {
+    const res = await fetch(`${API_BASE}/topics/${topicId}/notes/scaffold`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ provider_override: providerOverride || null }),
+    });
+    await this._throwIfError(res, "Failed to generate note scaffold");
+    return res.json();
+  },
+
+  async appendNote(topicId: number, content: string, sectionTitle?: string): Promise<{ status: string; note: string }> {
+    const res = await fetch(`${API_BASE}/topics/${topicId}/notes/append`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content, section_title: sectionTitle || null }),
+    });
+    await this._throwIfError(res, "Failed to append to note");
     return res.json();
   },
   
@@ -576,11 +626,21 @@ export const client = {
 
   // ── Socratic Drill Methods ─────────────────────────────────────────
 
-  async generateDrillQuestions(topicId: number, providerOverride?: string | null): Promise<DiagnosticQuestionSet> {
+  async generateDrillQuestions(
+    topicId: number,
+    providerOverride?: string | null,
+    concept?: { name: string; concept_type?: string; summary?: string; key_terms?: string[] } | null
+  ): Promise<DiagnosticQuestionSet> {
     const res = await fetch(`${API_BASE}/topics/${topicId}/drill/generate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ provider_override: providerOverride || null }),
+      body: JSON.stringify({
+        provider_override: providerOverride || null,
+        concept_name: concept?.name || null,
+        concept_type: concept?.concept_type || null,
+        concept_summary: concept?.summary || null,
+        key_terms: concept?.key_terms || null,
+      }),
     });
     if (!res.ok) {
       throw await parseApiError(res);
@@ -595,6 +655,9 @@ export const client = {
     keyInvariants: string[],
     studentAnswer: string,
     providerOverride?: string | null,
+    conceptName?: string | null,
+    tier?: string | null,
+    socraticHint?: string | null,
   ): Promise<DiagnosticEvaluation> {
     const res = await fetch(`${API_BASE}/topics/${topicId}/drill/evaluate`, {
       method: "POST",
@@ -604,6 +667,9 @@ export const client = {
         question_text: questionText,
         key_invariants: keyInvariants,
         student_answer: studentAnswer,
+        concept_name: conceptName || null,
+        tier: tier || null,
+        socratic_hint: socraticHint || null,
         provider_override: providerOverride || null,
       }),
     });

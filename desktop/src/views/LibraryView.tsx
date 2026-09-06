@@ -5,10 +5,11 @@ import { Book as BookIcon, Upload, Trash2, Loader2, Plus, FileText, ChevronRight
 import { IngestionProgressModal } from './IngestionProgressModal';
 import { useNavigate, Link } from 'react-router-dom';
 import type { RootState } from '../store';
-import { setBooks, setTocTree, setIsUploading, setIngestionProgress } from '../store';
+import { setBooks, setTocTree, setIsUploading, setIngestionProgress, setCloudUploadState } from '../store';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import clsx from 'clsx';
 import { useToast } from '../hooks/useToast';
+import { supabase } from '../lib/supabase';
 import type { ApiError } from '../api/errors';
 
 const BookCover = ({ bookId, className }: { bookId: number, className?: string }) => {
@@ -71,9 +72,70 @@ export function LibraryView() {
   const processFile = async (file: File) => {
     dispatch(setIsUploading(true));
     try {
-      const res = await client.uploadPdfAndGetToc(file, file.name.replace('.pdf', ''), 100);
+      const session = (await supabase.auth.getSession()).data.session;
+      if (session && books.length >= 5) {
+        showToast('error', 'Upload limit reached. You can only upload a maximum of 5 PDFs.');
+        dispatch(setIsUploading(false));
+        return;
+      }
+
+      const MAX_CLOUD_SIZE = 200 * 1024 * 1024; // 200MB limit
+      const isOversized = file.size > MAX_CLOUD_SIZE;
+
+      if (isOversized) {
+        showToast('warning', 'File is too large for cloud backup. It will only be saved locally.');
+      }
+
+      // 1. Compute hash
+      const fileHash = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", await file.arrayBuffer())))
+        .map(b => b.toString(16).padStart(2, "0")).join("");
+
+      // 2. Upload locally first (passing 0 tells backend to determine exact page count from PDF)
+      const res = await client.uploadPdfAndGetToc(file, file.name.replace('.pdf', ''), 0);
       await fetchData();
       navigate(`/books/${res.book_id}`);
+
+      // 3. Start cloud upload in the background if not oversized and session exists
+      if (!isOversized && session) {
+        const uploadUrl = `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/user_pdfs/${session.user.id}/${fileHash}.pdf`;
+        
+        dispatch(setCloudUploadState({ isUploading: true, progress: 0, fileName: file.name }));
+        
+        const xhr = new XMLHttpRequest();
+        xhr.open("POST", uploadUrl, true);
+        xhr.setRequestHeader("Authorization", `Bearer ${session.access_token}`);
+        xhr.setRequestHeader("x-upsert", "true");
+        
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable) {
+            const percentComplete = Math.round((e.loaded / e.total) * 100);
+            dispatch(setCloudUploadState({ isUploading: true, progress: percentComplete, fileName: file.name }));
+          }
+        };
+        
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            // Success
+          } else {
+            if (xhr.responseText.includes('Upload limit reached')) {
+               showToast('error', 'Cloud upload limit reached.');
+            } else {
+               console.error("Supabase XHR upload error:", xhr.responseText);
+               showToast('warning', 'Cloud backup failed, but saved locally.');
+            }
+          }
+          dispatch(setCloudUploadState(null));
+        };
+        
+        xhr.onerror = () => {
+          console.error("Supabase XHR upload network error");
+          showToast('warning', 'Cloud backup failed, but saved locally.');
+          dispatch(setCloudUploadState(null));
+        };
+        
+        xhr.send(file);
+      }
+
     } catch (err: any) {
       console.error(err);
       showToast('error', err?.userMessage || 'Failed to upload book or extract TOC.', err?.debugDetail);
@@ -118,9 +180,17 @@ export function LibraryView() {
     e.stopPropagation();
     if (!confirm("Are you sure you want to delete this document?")) return;
     try {
+      const book = books.find(b => b.id === id);
       await client.deleteBook(id);
       dispatch(setBooks(books.filter(b => b.id !== id)));
       showToast('success', 'Document deleted.');
+
+      if (book) {
+        const session = (await supabase.auth.getSession()).data.session;
+        if (session) {
+          await supabase.storage.from('user_pdfs').remove([`${session.user.id}/${book.file_hash}.pdf`]);
+        }
+      }
     } catch (err: any) {
       showToast('error', err?.userMessage || 'Failed to delete document.', err?.debugDetail);
     }
@@ -175,14 +245,17 @@ export function LibraryView() {
               ref={fileInputRef}
               onChange={handleFileChange}
             />
-            <button 
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isUploading}
-              className="px-6 py-3 bg-[#E5E7EB] text-on-surface border-4 border-on-background neo-shadow neo-shadow-button font-bold uppercase transition-transform flex items-center gap-2 disabled:opacity-70"
-            >
-              {isUploading ? <Loader2 size={20} className="animate-spin" strokeWidth={2.5} /> : <Plus size={20} strokeWidth={2.5} />}
-              Upload PDF
-            </button>
+            <div className="flex flex-col items-center justify-center">
+              <button 
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isUploading || books.length >= 5}
+                className="px-6 py-3 bg-[#E5E7EB] text-on-surface border-4 border-on-background neo-shadow neo-shadow-button font-bold uppercase transition-transform flex items-center gap-2 disabled:opacity-70"
+              >
+                {isUploading ? <Loader2 size={20} className="animate-spin" strokeWidth={2.5} /> : <Plus size={20} strokeWidth={2.5} />}
+                Upload PDF
+              </button>
+              <span className="text-xs font-bold text-on-surface-variant mt-2 uppercase tracking-wide">Limit: {books.length} / 5</span>
+            </div>
           </div>
         </section>
 

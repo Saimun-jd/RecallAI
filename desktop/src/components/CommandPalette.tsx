@@ -11,7 +11,7 @@ export function CommandPalette() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { isOpen, query } = useSelector((state: RootState) => state.command);
-  const [results, setResults] = useState<Array<{ type: string; id: number; title: string; subtitle: string }>>([]);
+  const [results, setResults] = useState<Array<{ type: string; id: number; title: string; subtitle: string; book_id?: number }>>([]);
 
   // Toggle with Cmd/Ctrl + K
   useEffect(() => {
@@ -84,8 +84,10 @@ export function CommandPalette() {
               <Command.Item
                 key={`${res.type}-${res.id}`}
                 onSelect={() => {
-                  if (res.type === 'topic') {
-                    navigate(`/topics/${res.id}`);
+                  if (res.type === 'topic' && res.book_id) {
+                    navigate(`/books/${res.book_id}?topic=${res.id}`);
+                  } else if (res.type === 'flashcard' && res.book_id) {
+                    navigate(`/books/${res.book_id}`);
                   }
                   dispatch(setCommandOpen(false));
                 }}

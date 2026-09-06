@@ -2,11 +2,26 @@ import re
 
 import uuid
 
+def clean_heading_title(raw_title: str) -> str:
+    """Cleans OCR artifacts, arrows, bullet markers, and trailing colons from heading titles."""
+    if not raw_title:
+        return ""
+    # Strip leading markdown hashes if any were passed
+    cleaned = re.sub(r'^#{1,6}\s*', '', raw_title).strip()
+    # Remove leading decorative symbols commonly produced by OCR on handwritten notes
+    cleaned = re.sub(r'^[→★□•\-\*\>\►\s]+', '', cleaned).strip()
+    # Remove trailing colons, slashes, punctuation
+    cleaned = re.sub(r'[\/:\s]+$', '', cleaned).strip()
+    return cleaned or raw_title
+
+
 def detect_headings(md_text: str, start_page_num: int) -> list[dict]:
     sections = []
     current_heading = "Introduction"
-    current_text = []
+    current_level = 1
     current_page = start_page_num
+    heading_page = start_page_num
+    current_text = []
     
     # Temporarily replace LaTeX blocks with placeholders to prevent splitting them
     placeholders = {}
@@ -34,30 +49,56 @@ def detect_headings(md_text: str, start_page_num: int) -> list[dict]:
         if not block:
             continue
             
+        # Check for Marker page delimiters: {0}------------------------------------------------
+        marker_page_m = re.match(r'^\{(\d+)\}-+$', block)
+        if marker_page_m:
+            page_idx = int(marker_page_m.group(1))
+            current_page = start_page_num + page_idx
+            continue
+
+        # Also check if block starts with Marker page delimiter followed by content
+        if re.match(r'^\{(\d+)\}-+\n', block):
+            m_prefix = re.match(r'^\{(\d+)\}-+\n+(.*)', block, flags=re.DOTALL)
+            if m_prefix:
+                page_idx = int(m_prefix.group(1))
+                current_page = start_page_num + page_idx
+                block = m_prefix.group(2).strip()
+                if not block:
+                    continue
+
         # pymupdf4llm usually separates pages with -----
         if block == '-----':
             current_page += 1
             continue
             
-        # Check if block is a markdown heading
-        if re.match(r'^#{1,6}\s+', block):
+        lines = block.split('\n')
+        first_line = lines[0].strip()
+        # Check if first line of block is a markdown heading
+        m = re.match(r'^(#{1,6})\s+(.*)', first_line)
+        if m:
             if current_text:
                 sections.append({
                     "heading": current_heading, 
+                    "clean_title": clean_heading_title(current_heading),
+                    "level": current_level,
                     "text": "\n\n".join(current_text),
-                    "page_num": current_page
+                    "page_num": heading_page
                 })
-            # Remove the '#'s for the title
-            current_heading = re.sub(r'^#{1,6}\s+', '', block)
-            current_text = []
+            current_level = len(m.group(1))
+            current_heading = m.group(2).strip()
+            heading_page = current_page
+            rest = "\n".join(lines[1:]).strip()
+            current_text = [rest] if rest else []
         else:
             current_text.append(block)
                 
     if current_text:
         sections.append({
             "heading": current_heading, 
+            "clean_title": clean_heading_title(current_heading),
+            "level": current_level,
             "text": "\n\n".join(current_text),
-            "page_num": current_page
+            "page_num": heading_page
         })
         
     return sections

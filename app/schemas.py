@@ -60,6 +60,7 @@ class DiagnosticQuestion(BaseModel):
 class DiagnosticQuestionSet(BaseModel):
     """The full set of questions generated for a topic drill."""
     topic_title: str
+    concept_name: Optional[str] = Field(None, description="The specific atomic concept targeted by this drill, if any")
     questions: List[DiagnosticQuestion]
 
 class SuggestedFlashcard(BaseModel):
@@ -70,6 +71,7 @@ class SuggestedFlashcard(BaseModel):
 
 class DiagnosticEvaluation(BaseModel):
     """Result of evaluating a student's free-form answer against ground truth."""
+    concept_name: Optional[str] = Field(None, description="The specific atomic concept evaluated, if any")
     mastery_score: int = Field(ge=0, le=100, description="Overall mastery score 0-100")
     status: Literal["mastered", "developing", "fragile", "misconception"] = Field(
         description="Calibrated mastery status"

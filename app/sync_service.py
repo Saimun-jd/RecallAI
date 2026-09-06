@@ -169,8 +169,12 @@ def pull_changes(supabase: Client, last_sync: str):
                 if not records:
                     continue
                     
+                cursor.execute(f"PRAGMA table_info({table})")
+                table_cols = {row['name'] for row in cursor.fetchall()}
+
                 deferred_records = []
-                for record in records:
+                for raw_record in records:
+                    record = {k: v for k, v in raw_record.items() if k in table_cols}
                     success = translate_fks_for_pull(table, record, reverse_mappings)
                     if not success:
                         deferred_records.append(record)
@@ -313,3 +317,55 @@ def sync_with_remote(token: str):
     except Exception as e:
         logger.exception("Sync failed")
         raise e
+import httpx
+import json
+
+async def download_missing_pdfs_stream(token: str):
+    supabase = get_supabase_client(token)
+    user_response = supabase.auth.get_user()
+    user_id = user_response.user.id if user_response and user_response.user else None
+    
+    if not user_id:
+        yield f"data: {json.dumps({'status': 'error', 'message': 'Not logged in'})}\n\n"
+        return
+
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, title, file_hash, file_path FROM books")
+        books = cursor.fetchall()
+        
+    from app.main import PARSED_DOCS_DIR
+    import os
+    
+    missing_books = []
+    for b in books:
+        expected_path = os.path.join(PARSED_DOCS_DIR, f"{b['file_hash']}.pdf")
+        if not os.path.exists(expected_path):
+            missing_books.append((b, expected_path))
+            
+    if not missing_books:
+        yield f"data: {json.dumps({'status': 'complete'})}\n\n"
+        return
+        
+    total_books = len(missing_books)
+    for i, (b, expected_path) in enumerate(missing_books):
+        book_title = b['title']
+        yield f"data: {json.dumps({'status': 'downloading', 'current': i + 1, 'total': total_books, 'title': book_title, 'percentage': 0})}\n\n"
+        
+        # Download from Supabase Storage
+        remote_path = f"{user_id}/{b['file_hash']}.pdf"
+        try:
+            # We must use raw HTTP since supabase-py storage doesn't support streaming easily, 
+            # or we can just download it. supabase-py download() returns bytes. 
+            # If it's a large PDF, it might take a moment.
+            res = supabase.storage.from_("user_pdfs").download(remote_path)
+            
+            with open(expected_path, "wb") as f:
+                f.write(res)
+                
+            yield f"data: {json.dumps({'status': 'downloading', 'current': i + 1, 'total': total_books, 'title': book_title, 'percentage': 100})}\n\n"
+        except Exception as e:
+            logger.error(f"Failed to download PDF {book_title}: {e}")
+            yield f"data: {json.dumps({'status': 'error', 'message': f'Failed to download {book_title}'})}\n\n"
+            
+    yield f"data: {json.dumps({'status': 'complete'})}\n\n"

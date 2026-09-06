@@ -29,6 +29,7 @@ export default function App() {
   const [activeUserId, setActiveUserId] = useState<string | null>(null);
   const [isSwitchingDb, setIsSwitchingDb] = useState(true);
   const sidecarStatus = useSelector((state: RootState) => state.system.sidecarStatus);
+  const cloudUploadState = useSelector((state: RootState) => state.system.cloudUploadState);
   const [contrastLevel, setContrastLevel] = useState(() => {
     return parseInt(localStorage.getItem('app-contrast-level') || '0', 10);
   });
@@ -343,6 +344,22 @@ export default function App() {
         </main>
       </div>
       
+      {/* Cloud Upload Progress Indicator */}
+      {cloudUploadState?.isUploading && (
+        <div className="fixed bottom-6 right-6 z-[100] w-80 bg-surface border-2 border-on-surface shadow-[4px_4px_0px_0px_#191b23] rounded-lg p-4 flex flex-col gap-2">
+          <div className="flex justify-between items-center">
+            <span className="font-bold text-sm text-on-surface truncate pr-2">Uploading {cloudUploadState.fileName}...</span>
+            <span className="text-xs font-bold text-on-surface-variant bg-surface-container px-2 py-0.5 rounded-full">{cloudUploadState.progress}%</span>
+          </div>
+          <div className="w-full h-2 bg-surface-container-high rounded-full overflow-hidden border border-outline-variant">
+            <div 
+              className="h-full bg-primary transition-all duration-300 ease-out"
+              style={{ width: `${cloudUploadState.progress}%` }}
+            />
+          </div>
+          <span className="text-[10px] text-on-surface-variant text-center uppercase tracking-wider">Do not close app</span>
+        </div>
+      )}
 
     </div>
   );

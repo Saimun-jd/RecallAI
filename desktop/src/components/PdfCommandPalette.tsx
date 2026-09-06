@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef, useLayoutEffect } from 'react';
-import { Sparkles, NotebookPen, CreditCard, X, Loader2 } from 'lucide-react';
+import { Sparkles, NotebookPen, CreditCard, X, Loader2, PenTool } from 'lucide-react';
 import type { PdfSelection } from './PdfViewer';
 
 import { MarkdownRenderer } from './MarkdownRenderer';
 
-export type PdfCommandType = 'generate_flashcards' | 'explain_ai' | 'add_sidenote';
+export type PdfCommandType = 'generate_flashcards' | 'explain_ai' | 'add_sidenote' | 'send_to_notes';
 
 interface PdfCommandPaletteProps {
   selection: PdfSelection;
@@ -39,6 +39,14 @@ const COMMANDS = [
     description: 'Attach a personal note to this section',
     color: 'text-amber-400',
     bgColor: 'bg-amber-500/10',
+  },
+  {
+    type: 'send_to_notes' as PdfCommandType,
+    icon: PenTool,
+    label: 'Add to Study Notes',
+    description: 'Send quotation with page anchor to notes',
+    color: 'text-purple-400',
+    bgColor: 'bg-purple-500/10',
   },
 ];
 
@@ -126,6 +134,7 @@ export function PdfCommandPalette({ selection, position, onCommand, onDismiss, i
   const handleSubmit = async () => {
     if (!activeCommand) return;
     const isSidenote = activeCommand === 'add_sidenote';
+    const isSendToNotes = activeCommand === 'send_to_notes';
     if (isSidenote && !sidenoteText.trim()) return;
 
     setIsProcessing(true);
@@ -134,9 +143,9 @@ export function PdfCommandPalette({ selection, position, onCommand, onDismiss, i
         prompt: customPrompt || undefined, 
         count: flashcardCount, 
         note: sidenoteText.trim(),
-        preview: !isSidenote
+        preview: !isSidenote && !isSendToNotes
       });
-      if (res && !isSidenote) {
+      if (res && !isSidenote && !isSendToNotes) {
         setPreviewData(res);
       }
     } catch (e) {
@@ -377,6 +386,42 @@ export function PdfCommandPalette({ selection, position, onCommand, onDismiss, i
                 className="px-4 py-1.5 text-xs font-semibold bg-amber-500 text-zinc-950 rounded-lg hover:bg-amber-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 Save Note
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeCommand === 'send_to_notes' && !previewData && (
+        <div className="p-3 space-y-3">
+          <div>
+            <label className="text-xs text-zinc-500 font-medium mb-1 block">Comment / Annotation (optional)</label>
+            <textarea
+              ref={inputRef as React.RefObject<HTMLTextAreaElement>}
+              value={sidenoteText}
+              onChange={(e) => setSidenoteText(e.target.value)}
+              placeholder="e.g. Why this formula or concept is important..."
+              rows={3}
+              className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-purple-500/50 focus:border-purple-500/50 resize-y min-h-[60px]"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleSubmit();
+              }}
+            />
+          </div>
+          <div className="flex items-center justify-between pt-1">
+            <span className="text-[10px] text-zinc-600">Ctrl+Enter to send</span>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setActiveCommand(null)}
+                className="px-3 py-1.5 text-xs font-medium text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded-lg transition-colors"
+              >
+                Back
+              </button>
+              <button
+                onClick={handleSubmit}
+                className="px-4 py-1.5 text-xs font-semibold bg-purple-500 text-white rounded-lg hover:bg-purple-400 transition-colors"
+              >
+                Add to Notes
               </button>
             </div>
           </div>

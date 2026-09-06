@@ -37,7 +37,8 @@ class MarkerApiExtractor(BaseExtractor):
         
         with open(pdf_path, "rb") as f:
             files = {"file": (pdf_path.name, f, "application/pdf")}
-            response = requests.post(url, headers=headers, files=files)
+            data = {"paginate": "true"}
+            response = requests.post(url, headers=headers, files=files, data=data)
             
         if response.status_code != 200:
             raise RuntimeError(f"Datalab API failed to start job: {response.status_code} {response.text}")
@@ -60,7 +61,23 @@ class MarkerApiExtractor(BaseExtractor):
             
             if status == "complete":
                 md_text = res_data.get("markdown") or ""
-                return ExtractionResult(markdown=md_text)
+                images_dict = res_data.get("images") or {}
+                images_dir = output_dir / "images"
+                images_dir.mkdir(parents=True, exist_ok=True)
+                
+                import base64
+                saved_count = 0
+                for img_name, img_b64 in images_dict.items():
+                    try:
+                        clean_name = Path(img_name).name
+                        img_bytes = base64.b64decode(img_b64)
+                        (images_dir / clean_name).write_bytes(img_bytes)
+                        saved_count += 1
+                    except Exception as err:
+                        logger.error(f"Failed to decode/save image {img_name}: {err}")
+                
+                logger.info(f"Datalab API extraction complete: saved {saved_count} images to {images_dir}")
+                return ExtractionResult(markdown=md_text, images_dir=images_dir)
             elif status == "error":
                 error_msg = res_data.get("error", "Unknown API error")
                 raise RuntimeError(f"Datalab API extraction failed: {error_msg}")

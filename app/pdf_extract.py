@@ -9,7 +9,7 @@ DATA_DIR = user_data_dir("Recall", "Recall")
 CACHE_DIR = Path(os.path.join(DATA_DIR, "parsed_docs"))
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
-async def extract_raw_text(pdf_bytes: bytes, start_page: int | None = None) -> tuple[str, str, int]:
+async def extract_raw_text(pdf_bytes: bytes, start_page: int | None = None, force_refresh: bool = False) -> tuple[str, str, int]:
     from fastapi.concurrency import run_in_threadpool
     
     def _do_fitz_and_extract():
@@ -30,7 +30,7 @@ async def extract_raw_text(pdf_bytes: bytes, start_page: int | None = None) -> t
             extractor = get_extractor()
             md_file = doc_cache_dir / f"temp_slice_{extractor.name}.md"
             
-            if md_file.exists():
+            if md_file.exists() and not force_refresh:
                 return md_file.read_text(encoding="utf-8"), cache_key, start_page_num, False, md_file
                 
             # The extractor handles creating image directories internally if needed

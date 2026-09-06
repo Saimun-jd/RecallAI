@@ -63,7 +63,7 @@ STRICT JSON: Respond ONLY with a valid JSON object matching this schema:
 Topic Title: {topic_title}
 Topic Breadcrumb: {breadcrumb}
 Start Page: {start_page}
-
+{concept_focus_block}
 Topic Content:
 <
 {topic_content}
@@ -117,6 +117,7 @@ STRICT JSON: Respond ONLY with a valid JSON object matching this schema:
   ]
 }}
 
+{concept_focus_block}
 --- CONTEXT ---
 
 Question Asked:
@@ -398,19 +399,52 @@ async def generate_diagnostic_questions(
     breadcrumb: str,
     start_page: int,
     topic_content: str,
+    concept_name: Optional[str] = None,
+    concept_type: Optional[str] = None,
+    concept_summary: Optional[str] = None,
+    key_terms: Optional[list[str]] = None,
     provider_override: Optional[str] = None,
 ) -> DiagnosticQuestionSet:
-    """Generate 2 tiered probing questions for a topic."""
+    """Generate 2 tiered probing questions for a topic or a specific atomic concept."""
     import re
     # Strip image URLs and tags from topic content so we don't spam the LLM
     clean_topic_content = re.sub(r'!\[.*?\]\(.*?\)', '', topic_content)
     clean_topic_content = re.sub(r'<img.*?>', '', clean_topic_content)
     
+    from app.markdown_slicer import extract_concept_ground_truth
+    
+    if concept_name:
+        terms_str = ", ".join(key_terms) if key_terms else concept_name
+        concept_focus_block = f"""
+--- TARGET ATOMIC CONCEPT (MANDATORY DRILL FOCUS) ---
+Target Concept Name: {concept_name}
+Target Concept Type: {concept_type or 'General Concept'}
+Concept Summary: {concept_summary or 'N/A'}
+Key Terms: {terms_str}
+
+CRITICAL CONCEPT FOCUS RULES:
+1. Both generated questions MUST focus specifically on testing the student's mastery of "{concept_name}".
+2. Question 1 ("causal_mechanism") MUST test WHY and HOW the mechanism of "{concept_name}" functions.
+3. Question 2 ("counterfactual" or "applied_scenario") MUST test edge cases, broken assumptions, or applied trade-offs of "{concept_name}".
+4. Do NOT ask general questions about unrelated parts of the chapter. Use the broader Topic Content below only as reference context.
+"""
+        ground_truth_content = extract_concept_ground_truth(
+            clean_topic_content,
+            concept_name=concept_name,
+            concept_summary=concept_summary,
+            key_terms=key_terms,
+            max_chars=7000,
+        )
+    else:
+        concept_focus_block = ""
+        ground_truth_content = clean_topic_content[:8000]
+
     prompt = QUESTION_GEN_PROMPT.format(
         topic_title=topic_title,
         breadcrumb=breadcrumb or "N/A",
         start_page=start_page,
-        topic_content=clean_topic_content[:8000],  # cap to avoid token limits
+        concept_focus_block=concept_focus_block,
+        topic_content=ground_truth_content,
     )
 
     schema = DiagnosticQuestionSet.model_json_schema()
@@ -428,6 +462,8 @@ async def generate_diagnostic_questions(
         raise ValueError(f"LLM returned invalid question format: {e}")
 
     try:
+        if concept_name and "concept_name" not in parsed:
+            parsed["concept_name"] = concept_name
         return DiagnosticQuestionSet(**parsed)
     except Exception as e:
         logger.error(f"generate_diagnostic_questions: JSON parsed but failed schema validation: {e}")
@@ -441,17 +477,40 @@ async def evaluate_student_answer(
     key_invariants: list[str],
     topic_content: str,
     student_answer: str,
+    concept_name: Optional[str] = None,
+    concept_summary: Optional[str] = None,
+    key_terms: Optional[list[str]] = None,
     provider_override: Optional[str] = None,
 ) -> DiagnosticEvaluation:
     """Evaluate a student's free-form answer using ASAG."""
     import re
+    from app.markdown_slicer import extract_concept_ground_truth
+
     clean_topic_content = re.sub(r'!\[.*?\]\(.*?\)', '', topic_content)
     clean_topic_content = re.sub(r'<img.*?>', '', clean_topic_content)
-    
+
+    if concept_name:
+        concept_focus_block = f"""
+--- TARGET ATOMIC CONCEPT ---
+Target Concept Evaluated: {concept_name}
+Grade the student's explanation against this specific concept's core principles and invariants.
+"""
+        ground_truth_content = extract_concept_ground_truth(
+            clean_topic_content,
+            concept_name=concept_name,
+            concept_summary=concept_summary,
+            key_terms=key_terms,
+            max_chars=7000,
+        )
+    else:
+        concept_focus_block = ""
+        ground_truth_content = clean_topic_content[:8000]
+
     prompt = EVALUATION_PROMPT.format(
         question_text=question_text,
         key_invariants=json.dumps(key_invariants),
-        topic_content=clean_topic_content[:8000],
+        concept_focus_block=concept_focus_block,
+        topic_content=ground_truth_content,
         student_answer=student_answer,
     )
 
@@ -470,6 +529,8 @@ async def evaluate_student_answer(
         raise ValueError(f"LLM returned invalid evaluation format: {e}")
 
     try:
+        if concept_name and "concept_name" not in parsed:
+            parsed["concept_name"] = concept_name
         return DiagnosticEvaluation(**parsed)
     except Exception as e:
         logger.error(f"evaluate_student_answer: JSON parsed but failed schema validation: {e}")

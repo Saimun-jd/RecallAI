@@ -1,10 +1,14 @@
 import { useEffect, useCallback, useRef } from 'react';
 import { useToast } from './useToast';
 import { fetch } from '@tauri-apps/plugin-http';
+import { useDispatch } from 'react-redux';
+import { setIngestionProgress } from '../store';
+import { client } from '../api/client';
 
 export function useAutoSync(token: string | null) {
   const { showToast } = useToast();
   const isSyncing = useRef(false);
+  const dispatch = useDispatch();
 
   const triggerSync = useCallback(async (silent = true) => {
     if (!token || isSyncing.current) return;
@@ -25,6 +29,24 @@ export function useAutoSync(token: string | null) {
           showToast("error", "Sync failed");
         }
       }
+
+      // Auto-fetch PDFs with progress
+      await client.syncPdfsStream(token, (event: any) => {
+        if (event.status === 'downloading') {
+          dispatch(setIngestionProgress({
+             current: event.current,
+             total: event.total,
+             topic: `Downloading ${event.title}`,
+             percentage: event.percentage,
+             status: 'processing'
+          }));
+        } else if (event.status === 'complete' || event.status === 'error') {
+          setTimeout(() => {
+             dispatch(setIngestionProgress(null));
+          }, 1000);
+        }
+      });
+      
     } catch (err: any) {
       if (!silent) {
         showToast("error", "Sync failed: " + err.message);

@@ -411,3 +411,365 @@ body .pdf-highlighter-container.theme-dark .Highlight {
     transform: translateX(0);
   }
 }
+
+/* ─── Authentic Student Handwritten Notebook Aesthetic ─── */
+
+:root {
+  --font-handwriting: 'Kalam', 'Patrick Hand', cursive, sans-serif;
+  --font-handwriting-heading: 'Caveat', cursive, sans-serif;
+}
+
+.font-handwriting {
+  font-family: var(--font-handwriting);
+}
+
+.font-handwriting-heading {
+  font-family: var(--font-handwriting-heading);
+}
+
+/* Notebook Sheet Container */
+.notebook-sheet {
+  position: relative;
+  border-radius: 14px;
+  box-shadow: 
+    0 1px 3px rgba(0, 0, 0, 0.05),
+    0 10px 30px -5px rgba(0, 0, 0, 0.1),
+    0 0 0 1px rgba(0, 0, 0, 0.06);
+  font-family: var(--font-handwriting);
+  font-size: 1.06rem;
+  line-height: 2rem;
+  color: #1e293b;
+  transition: background 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* Dark Mode Notebook Sheet */
+.dark .notebook-sheet,
+:root[class~="dark"] .notebook-sheet {
+  box-shadow: 
+    0 1px 3px rgba(0, 0, 0, 0.3),
+    0 12px 35px -5px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(255, 255, 255, 0.08);
+  color: #e2e8f0;
+}
+
+/* ── Paper Pattern 1: College Ruled ── */
+.notebook-paper-ruled {
+  background-color: #fdfbf7;
+  /* Red margin line at 42px + horizontal ruled lines spaced at 32px (matching 2rem line-height) */
+  background-image: 
+    linear-gradient(to right, transparent 41px, rgba(239, 68, 68, 0.35) 41px, rgba(239, 68, 68, 0.35) 43px, transparent 43px),
+    repeating-linear-gradient(to bottom, transparent, transparent 31px, rgba(147, 197, 253, 0.45) 31px, rgba(147, 197, 253, 0.45) 32px);
+  background-size: 100% 100%, 100% 32px;
+  background-attachment: local;
+}
+
+.dark .notebook-paper-ruled,
+:root[class~="dark"] .notebook-paper-ruled {
+  background-color: #151821;
+  background-image: 
+    linear-gradient(to right, transparent 41px, rgba(248, 113, 113, 0.32) 41px, rgba(248, 113, 113, 0.32) 43px, transparent 43px),
+    repeating-linear-gradient(to bottom, transparent, transparent 31px, rgba(59, 130, 246, 0.18) 31px, rgba(59, 130, 246, 0.18) 32px);
+  background-size: 100% 100%, 100% 32px;
+  background-attachment: local;
+}
+
+/* ── Paper Pattern 2: Engineering Dot Grid (Clean Grid, No Margin Line) ── */
+.notebook-paper-grid {
+  background-color: #fdfbf7;
+  background-image: radial-gradient(rgba(148, 163, 184, 0.38) 1.5px, transparent 1.5px);
+  background-size: 24px 24px;
+  background-position: 0 0;
+  background-attachment: local;
+}
+
+.dark .notebook-paper-grid,
+:root[class~="dark"] .notebook-paper-grid {
+  background-color: #151821;
+  background-image: radial-gradient(rgba(148, 163, 184, 0.22) 1.5px, transparent 1.5px);
+  background-size: 24px 24px;
+  background-position: 0 0;
+  background-attachment: local;
+}
+
+/* ── Paper Pattern 3: Clean Blank Warm Paper (Clean Sheet, No Margin Line) ── */
+.notebook-paper-plain {
+  background-color: #fcf9f2;
+  background-image: none;
+}
+
+.dark .notebook-paper-plain,
+:root[class~="dark"] .notebook-paper-plain {
+  background-color: #171922;
+  background-image: none;
+}
+
+/* ── Notebook Binder Margin Edge (Only for Ruled Paper) ── */
+.notebook-binder-edge {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 40px;
+  pointer-events: none;
+  user-select: none;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-around;
+  align-items: center;
+  padding: 60px 0;
+}
+
+.notebook-hole-punch {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.08);
+  box-shadow: inset 1px 1px 2px rgba(0, 0, 0, 0.22), 0 0 0 1px rgba(255, 255, 255, 0.35);
+}
+
+.dark .notebook-hole-punch,
+:root[class~="dark"] .notebook-hole-punch {
+  background: rgba(0, 0, 0, 0.5);
+  box-shadow: inset 1px 1px 2px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+/* ── Handwritten Typography Hierarchy ── */
+.notebook-sheet h1,
+.notebook-sheet h2,
+.notebook-sheet h3,
+.notebook-sheet h4 {
+  font-family: var(--font-handwriting-heading);
+  letter-spacing: 0.01em;
+  margin-top: 1.5rem;
+  margin-bottom: 0.75rem;
+  line-height: 1.25;
+}
+
+.notebook-sheet h1 {
+  font-size: 2.2rem;
+  font-weight: 700;
+  color: #0f2c59;
+  border-bottom: 2px dashed rgba(30, 58, 138, 0.25);
+  padding-bottom: 0.4rem;
+}
+
+.dark .notebook-sheet h1,
+:root[class~="dark"] .notebook-sheet h1 {
+  color: #93c5fd;
+  border-bottom-color: rgba(147, 197, 253, 0.25);
+}
+
+.notebook-sheet h2 {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #1e3a8a;
+}
+
+.dark .notebook-sheet h2,
+:root[class~="dark"] .notebook-sheet h2 {
+  color: #60a5fa;
+}
+
+.notebook-sheet h3 {
+  font-size: 1.45rem;
+  font-weight: 700;
+  color: #1d4ed8;
+}
+
+.dark .notebook-sheet h3,
+:root[class~="dark"] .notebook-sheet h3 {
+  color: #93c5fd;
+}
+
+/* ── Authentic Student Highlighter for Bold / Key Terms ── */
+.notebook-sheet strong,
+.notebook-sheet b {
+  font-weight: 700;
+  color: #0f172a;
+  background: linear-gradient(104deg, rgba(254, 240, 138, 0.65) 0%, rgba(253, 224, 71, 0.75) 100%);
+  padding: 0.1em 0.35em;
+  margin: 0 0.1em;
+  border-radius: 4px 6px 3px 5px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+.dark .notebook-sheet strong,
+.dark .notebook-sheet b,
+:root[class~="dark"] .notebook-sheet strong,
+:root[class~="dark"] .notebook-sheet b {
+  color: #fef08a;
+  background: rgba(234, 179, 8, 0.22);
+  border-bottom: 1px solid rgba(234, 179, 8, 0.4);
+}
+
+/* ── KaTeX Math Formula Gel Pen Ink (Fixes Faded Math Issue) ── */
+.notebook-sheet .katex,
+.notebook-sheet .katex-display,
+.notebook-sheet .katex * {
+  color: #1e3a8a !important;
+  font-size: 1.05em;
+}
+
+.dark .notebook-sheet .katex,
+.dark .notebook-sheet .katex-display,
+.dark .notebook-sheet .katex * {
+  color: #93c5fd !important;
+}
+
+.notebook-sheet .katex-display {
+  padding: 0.6rem 1rem;
+  margin: 0.75rem 0;
+  background: rgba(224, 231, 255, 0.25);
+  border-left: 3px solid #3b82f6;
+  border-radius: 6px;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.dark .notebook-sheet .katex-display {
+  background: rgba(30, 58, 138, 0.2);
+  border-left-color: #60a5fa;
+}
+
+/* ── Sticky Note Callout for Exam Pitfalls & Warnings ── */
+.notebook-sheet blockquote,
+.notebook-sheet .sticky-note {
+  position: relative;
+  background: #fef9c3;
+  color: #713f12;
+  border-left: none;
+  padding: 1rem 1.25rem;
+  margin: 1.25rem 0;
+  border-radius: 4px 12px 6px 14px;
+  box-shadow: 2px 4px 12px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(234, 179, 8, 0.2);
+  transform: rotate(-0.4deg);
+  font-family: var(--font-handwriting);
+}
+
+.dark .notebook-sheet blockquote,
+.dark .notebook-sheet .sticky-note {
+  background: #292524;
+  color: #fef08a;
+  box-shadow: 2px 4px 12px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(234, 179, 8, 0.25);
+}
+
+/* Sticky Note Tape Visual */
+.notebook-sheet blockquote::before,
+.notebook-sheet .sticky-note::before {
+  content: '';
+  position: absolute;
+  top: -8px;
+  left: 35%;
+  width: 65px;
+  height: 18px;
+  background: rgba(254, 240, 138, 0.7);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transform: rotate(1deg);
+  opacity: 0.85;
+}
+
+.dark .notebook-sheet blockquote::before,
+.dark .notebook-sheet .sticky-note::before {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+/* ── Handwritten Ruled Tables ── */
+.notebook-sheet table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.25rem 0;
+  font-family: var(--font-handwriting);
+  font-size: 0.98rem;
+}
+
+.notebook-sheet th {
+  background: rgba(219, 234, 254, 0.4);
+  color: #1e3a8a;
+  font-family: var(--font-handwriting-heading);
+  font-size: 1.25rem;
+  font-weight: 700;
+  padding: 0.6rem 0.8rem;
+  border-bottom: 2px solid #2563eb;
+  text-align: left;
+}
+
+.dark .notebook-sheet th {
+  background: rgba(30, 58, 138, 0.3);
+  color: #93c5fd;
+  border-bottom-color: #60a5fa;
+}
+
+.notebook-sheet td {
+  padding: 0.6rem 0.8rem;
+  border-bottom: 1px dashed rgba(148, 163, 184, 0.4);
+}
+
+.notebook-sheet tr:hover td {
+  background: rgba(254, 249, 195, 0.25);
+}
+
+/* ── Paragraphs sitting on notebook lines ── */
+.notebook-sheet p {
+  margin-top: 0.5rem;
+  margin-bottom: 0.75rem;
+  line-height: 2rem;
+  color: #1e293b;
+}
+
+.dark .notebook-sheet p {
+  color: #e2e8f0;
+}
+
+/* ── Lists sitting on notebook lines ── */
+.notebook-sheet ul {
+  list-style-type: disc;
+  padding-left: 1.5rem;
+  margin: 0.75rem 0;
+}
+
+.notebook-sheet ol {
+  list-style-type: decimal;
+  padding-left: 1.5rem;
+  margin: 0.75rem 0;
+}
+
+.notebook-sheet li {
+  margin-bottom: 0.35rem;
+  line-height: 2rem;
+  color: #1e293b;
+}
+
+.dark .notebook-sheet li {
+  color: #e2e8f0;
+}
+
+.notebook-sheet ul > li::marker {
+  color: #2563eb;
+  font-size: 1.1em;
+}
+
+.dark .notebook-sheet ul > li::marker {
+  color: #60a5fa;
+}
+
+.notebook-sheet ol > li::marker {
+  color: #2563eb;
+  font-weight: 700;
+  font-family: var(--font-handwriting-heading);
+}
+
+.dark .notebook-sheet ol > li::marker {
+  color: #60a5fa;
+}
+
+.notebook-sheet .katex-error {
+  color: #dc2626 !important;
+  background: rgba(254, 202, 202, 0.4);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 0.9em;
+}
+
+

@@ -13,8 +13,8 @@ import {
   setSearchQuery,
   setPdfTheme
 } from '../store/readerSlice';
-import { client, type Book, type Topic, type Flashcard, type PdfAnnotation } from '../api/client';
-import { Loader2, Zap, PenTool, Link2, BrainCircuit, Play, FileText, ChevronRight, ChevronLeft, CheckCircle2, Circle, Clock, Check, X, Edit2, Trash2, BookOpen, ArrowLeft, LayoutList, ChevronDown, Search, Save, Sun, Moon, MoreHorizontal, Bot, Copy } from 'lucide-react';
+import { client, type Book, type Topic, type Flashcard, type PdfAnnotation, type AtomicConcept } from '../api/client';
+import { Loader2, Zap, PenTool, Link2, BrainCircuit, Play, FileText, ChevronRight, ChevronLeft, CheckCircle2, Circle, Clock, Check, X, Edit2, Trash2, BookOpen, ArrowLeft, LayoutList, ChevronDown, Search, Save, Sun, Moon, MoreHorizontal, Bot, Copy, Target, Sparkles, Layers } from 'lucide-react';
 import { MarkdownRenderer } from '../components/MarkdownRenderer';
 import clsx from 'clsx';
 import { FlashcardGenModal } from '../components/FlashcardGenModal';
@@ -69,6 +69,9 @@ export function BookDetailView() {
   const [isSavingCard, setIsSavingCard] = useState(false);
   const [currentCardIndex, setCurrentCardIndex] = useState(0);
   const [isSummaryCollapsed, setIsSummaryCollapsed] = useState(false);
+  const [selectedDrillConcept, setSelectedDrillConcept] = useState<AtomicConcept | null>(null);
+  const [isNotesExpanded, setIsNotesExpanded] = useState(false);
+  const drillWidgetRef = useRef<HTMLDivElement>(null);
 
   // PDF Annotation state
   const [activeCardTab, setActiveCardTab] = useState<'cards' | 'notes'>('cards');
@@ -169,6 +172,7 @@ export function BookDetailView() {
     // Reset edit state when topic changes
     setEditingCardId(null);
     setCurrentCardIndex(0);
+    setSelectedDrillConcept(null);
   }, [activeTopicId, dispatch]);
 
   // Restore PDF scroll position on mount if we already have an active topic
@@ -271,12 +275,13 @@ export function BookDetailView() {
     const flattened: Topic[] = [];
     const dfs = (node: TreeNode) => {
       flattened.push(node);
-      // Sort children by id to maintain insertion order (or sort_order if available)
-      node.children.sort((a, b) => a.id - b.id);
+      // Sort children by sort_order (or id fallback) to maintain book outline order
+      node.children.sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.id - b.id);
       for (const child of node.children) {
         dfs(child);
       }
     };
+    roots.sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.id - b.id);
     for (const root of roots) {
       dfs(root);
     }
@@ -563,7 +568,18 @@ export function BookDetailView() {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => dispatch(setIsNotesOpen(!isNotesOpen))}
+                    className={clsx(
+                      "flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold border-2 border-on-surface rounded-md transition-all shadow-[2px_2px_0px_0px_#191b23] active:shadow-none active:translate-x-[1px] active:translate-y-[1px]",
+                      isNotesOpen ? "bg-amber-500 text-black border-amber-600" : "bg-surface-container-lowest text-on-surface hover:bg-surface-container"
+                    )}
+                    title="Toggle Study Notes split screen"
+                  >
+                    <PenTool size={14} />
+                    <span>Notes</span>
+                  </button>
                   <button
                     onClick={togglePdfTheme}
                     className="p-1.5 text-on-surface hover:text-primary hover:bg-surface-container rounded-md transition-colors"
@@ -659,6 +675,17 @@ export function BookDetailView() {
                                 });
                                 if (options?.preview) return res;
                               }
+                            } else if (type === 'send_to_notes') {
+                              if (activeTopic) {
+                                const quoteContent = options?.note
+                                  ? `> "${sel.text}"\n\n*Source: Page ${sel.pageNumber}*\n\n**Note:** ${options.note}`
+                                  : `> "${sel.text}"\n\n*Source: Page ${sel.pageNumber}*`;
+                                await client.appendNote(activeTopic.id, quoteContent, `Page ${sel.pageNumber} Excerpt`);
+                                showToast('success', `Quotation added to Study Notes for "${activeTopic.title}"`);
+                                dispatch(setIsNotesOpen(true));
+                              } else {
+                                showToast('info', 'Please select a topic from outline to attach notes to.');
+                              }
                             }
 
                             // Refresh annotations if we actually saved
@@ -726,22 +753,35 @@ export function BookDetailView() {
                     <span className="truncate max-w-[200px]">Extracted Markdown</span>
                   </div>
                 </div>
-                {activeTopic?.content_md && (
+                <div className="flex items-center gap-3">
                   <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(activeTopic.content_md || '');
-                      setIsMdCopied(true);
-                      setTimeout(() => setIsMdCopied(false), 2000);
-                    }}
-                    className="flex items-center gap-2 px-3 py-1.5 text-on-surface hover:text-primary hover:bg-surface-container rounded-md transition-colors border-2 border-transparent hover:border-primary/20"
-                    title="Copy markdown to clipboard"
+                    onClick={() => dispatch(setIsNotesOpen(!isNotesOpen))}
+                    className={clsx(
+                      "flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold border-2 border-on-surface rounded-md transition-all shadow-[2px_2px_0px_0px_#191b23] active:shadow-none active:translate-x-[1px] active:translate-y-[1px]",
+                      isNotesOpen ? "bg-amber-500 text-black border-amber-600" : "bg-surface-container-lowest text-on-surface hover:bg-surface-container"
+                    )}
+                    title="Toggle Study Notes split screen"
                   >
-                    {isMdCopied ? <Check size={16} className="text-green-500" /> : <Copy size={16} />}
-                    <span className={clsx("text-sm font-medium", isMdCopied && "text-green-500")}>
-                      {isMdCopied ? "Copied!" : "Copy"}
-                    </span>
+                    <PenTool size={14} />
+                    <span>Notes</span>
                   </button>
-                )}
+                  {activeTopic?.content_md && (
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(activeTopic.content_md || '');
+                        setIsMdCopied(true);
+                        setTimeout(() => setIsMdCopied(false), 2000);
+                      }}
+                      className="flex items-center gap-2 px-3 py-1.5 text-on-surface hover:text-primary hover:bg-surface-container rounded-md transition-colors border-2 border-transparent hover:border-primary/20"
+                      title="Copy markdown to clipboard"
+                    >
+                      {isMdCopied ? <Check size={16} className="text-green-500" /> : <Copy size={16} />}
+                      <span className={clsx("text-sm font-medium", isMdCopied && "text-green-500")}>
+                        {isMdCopied ? "Copied!" : "Copy"}
+                      </span>
+                    </button>
+                  )}
+                </div>
               </div>
                 <div className="flex-1 min-h-0 overflow-y-auto p-4 md:p-8 bg-surface-container custom-scrollbar">
                   <div className="max-w-4xl mx-auto bg-surface-container-lowest p-8 md:p-12 rounded-xl shadow-sm border-2 border-primary prose prose-slate dark:prose-invert prose-p:text-on-surface prose-headings:text-on-surface prose-strong:text-on-surface prose-li:text-on-surface prose-pre:bg-surface prose-table:border-collapse prose-table:w-full prose-th:bg-surface-container-low prose-th:p-3 prose-th:border-2 prose-th:border-primary prose-th:text-on-surface prose-td:p-3 prose-td:border-2 prose-td:border-primary prose-td:text-on-surface">
@@ -798,13 +838,15 @@ export function BookDetailView() {
                 </div>
               )}
 
-              <div className="px-5 mt-2">
+              <div ref={drillWidgetRef} className="px-5 mt-2">
                 <SocraticDrillWidget
                   topicId={activeTopic.id}
                   topicTitle={activeTopic.title}
+                  targetConcept={selectedDrillConcept}
+                  onClearTargetConcept={() => setSelectedDrillConcept(null)}
                   hasCachedMarkdown={!!activeTopic.content_md}
-                  onMasteryUpdate={(score, status) => {
-                    // Refresh topics to update TOC mastery indicators
+                  onMasteryUpdate={(score, status, conceptName) => {
+                    // Refresh topics to update TOC and concept deck mastery indicators
                     client.getTopics(bookId).then(setTopics).catch((err: any) => {
                       console.error(err);
                       showToast('error', err?.userMessage || 'Failed to refresh topics.', err?.debugDetail);
@@ -815,6 +857,29 @@ export function BookDetailView() {
 
               {/* Quick Actions Bar */}
               <div className="px-5 mt-2 flex overflow-x-auto gap-3 pb-1 hide-scrollbar snap-x snap-mandatory items-center">
+                {(topics.length <= 1 || activeTopic.title === 'Full Document') && (
+                  <button
+                    onClick={async () => {
+                      try {
+                        showToast('info', 'Analyzing handwritten outline with Marker...');
+                        const res = await client.reparseHandwriting(bookId);
+                        const updated = await client.getTopics(bookId);
+                        setTopics(updated);
+                        if (updated.length > 0) {
+                          dispatch(setActiveTopicId(updated[0].id));
+                        }
+                        showToast('success', `Generated ${res.topic_count} topics from handwriting!`);
+                      } catch (e: any) {
+                        showToast('error', e?.userMessage || 'Failed to analyze handwriting.');
+                      }
+                    }}
+                    className="snap-start shrink-0 bg-amber-500/10 border-2 border-amber-600 text-amber-700 dark:text-amber-300 rounded-lg px-3 py-1.5 flex items-center gap-2 hover:bg-amber-500/20 shadow-[2px_2px_0px_0px_#d97706] active:shadow-none active:translate-x-[1px] active:translate-y-[1px] transition-all h-9 font-bold text-xs"
+                    title="Extract structured chapters and topics from handwritten notes using Marker"
+                  >
+                    <Sparkles size={16} className="text-amber-600 dark:text-amber-400" />
+                    <span>Analyze Handwriting Outline</span>
+                  </button>
+                )}
                 <button
                   onClick={() => {
                     setViewMode('pdf');
@@ -834,6 +899,15 @@ export function BookDetailView() {
                     <span className="font-bold text-xs">View Markdown</span>
                   </button>
                 )}
+                <button
+                  onClick={handleProcessTopic}
+                  disabled={activeTopic.status === 'processing'}
+                  className="snap-start shrink-0 bg-primary/10 border-2 border-primary text-primary rounded-lg px-3 py-1.5 flex items-center gap-2 hover:bg-primary/20 shadow-[2px_2px_0px_0px_#191b23] active:shadow-none active:translate-x-[1px] active:translate-y-[1px] transition-all h-9 font-bold text-xs disabled:opacity-50 cursor-pointer"
+                  title="Extract atomic concepts to enable per-concept Socratic drills and mastery tracking"
+                >
+                  {activeTopic.status === 'processing' ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
+                  <span>{activeTopic.status === 'processed' ? 'Re-extract Concepts' : 'Extract Concepts'}</span>
+                </button>
                 <button
                   onClick={() => dispatch(setIsCardGenModalOpen(true))}
                   className="snap-start shrink-0 bg-surface-container-lowest border-2 border-on-surface rounded-lg px-3 py-1.5 flex items-center gap-2 hover:bg-surface-container shadow-[2px_2px_0px_0px_#191b23] active:shadow-none active:translate-x-[1px] active:translate-y-[1px] transition-all h-9 text-on-surface"
@@ -855,59 +929,198 @@ export function BookDetailView() {
 
               <div className="px-5 pb-4 flex flex-col gap-2 flex-1 min-h-0 mt-1">
 
-                {/* Generated Topic Data (if processed) */}
-                {activeTopic.status === 'processed' && (activeTopic.summary || activeTopic.concept_type) && (
-                  <div className="bg-surface-container-lowest border-[3px] border-on-background neo-shadow-lg p-6">
-                    <div 
-                      className="flex items-center justify-between mb-4 cursor-pointer group select-none"
-                      onClick={() => setIsSummaryCollapsed(!isSummaryCollapsed)}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 border-[3px] border-on-background bg-surface-container-lowest flex items-center justify-center neo-shadow-sm text-primary group-hover:bg-primary/5 transition-colors">
-                          <BrainCircuit size={20} />
+                {/* Atomic Concepts Deck */}
+                {(() => {
+                  let concepts: AtomicConcept[] = [];
+                  if (activeTopic.atomic_concepts) {
+                    try {
+                      concepts = JSON.parse(activeTopic.atomic_concepts);
+                    } catch {
+                      concepts = [];
+                    }
+                  }
+
+                  const masteredCount = concepts.filter(c => c.mastery_status === 'mastered').length;
+
+                  return (
+                    <div className="bg-surface-container-lowest border-[3px] border-on-background neo-shadow-lg p-6">
+                      <div 
+                        className="flex items-center justify-between mb-4 cursor-pointer group select-none"
+                        onClick={() => setIsSummaryCollapsed(!isSummaryCollapsed)}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 border-[3px] border-on-background bg-surface-container-lowest flex items-center justify-center neo-shadow-sm text-primary group-hover:bg-primary/5 transition-colors">
+                            <Layers size={20} />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2.5">
+                              <h3 className="font-headline-md text-headline-md font-bold text-primary">
+                                Atomic Concepts ({concepts.length})
+                              </h3>
+                              {concepts.length > 0 && (
+                                <span className={clsx(
+                                  "text-xs font-bold px-2 py-0.5 rounded border uppercase tracking-wider",
+                                  masteredCount === concepts.length && concepts.length > 0
+                                    ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/30"
+                                    : "bg-surface-container text-on-surface-variant border-outline-variant"
+                                )}>
+                                  {masteredCount}/{concepts.length} Mastered
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-label-sm font-label-sm font-bold uppercase tracking-wider text-secondary">
+                              Targeted Concept Mastery & Socratic Drills
+                            </p>
+                          </div>
                         </div>
-                        <div>
-                          <h3 className="font-headline-md text-headline-md font-bold text-primary">AI Topic Summary</h3>
-                          {activeTopic.concept_type && (
-                            <p className="text-label-sm font-label-sm font-bold uppercase tracking-wider text-secondary">{activeTopic.concept_type}</p>
+                        <button className="p-2 text-on-surface-variant group-hover:text-primary group-hover:bg-surface-container rounded-full transition-colors">
+                          <ChevronDown 
+                            size={24} 
+                            className={clsx("transition-transform duration-200", !isSummaryCollapsed && "rotate-180")} 
+                          />
+                        </button>
+                      </div>
+                      
+                      {!isSummaryCollapsed && (
+                        <div className="animate-in fade-in slide-in-from-top-2 duration-200 space-y-4">
+                          {concepts.length > 0 ? (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              {concepts.map((concept) => {
+                                const isTargeted = selectedDrillConcept?.name === concept.name;
+                                const score = concept.mastery_score;
+
+                                return (
+                                  <div
+                                    key={concept.id || concept.name}
+                                    className={clsx(
+                                      "border-[2.5px] rounded-xl p-4 flex flex-col justify-between gap-3 transition-all duration-200 shadow-[2px_2px_0px_0px_#191b23] hover:shadow-[4px_4px_0px_0px_#191b23] hover:-translate-y-[1px]",
+                                      isTargeted
+                                        ? "border-secondary bg-secondary/5 ring-2 ring-secondary/30"
+                                        : "border-on-background bg-surface-container-lowest"
+                                    )}
+                                  >
+                                    <div>
+                                      {/* Header: Title & Type Pill */}
+                                      <div className="flex items-start justify-between gap-2 mb-2">
+                                        <h4 className="font-bold text-base text-primary leading-snug">
+                                          {concept.name}
+                                        </h4>
+                                        <span className={clsx(
+                                          "text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded border shrink-0",
+                                          concept.concept_type === 'Formula' ? "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/30" :
+                                          concept.concept_type === 'Definition' ? "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30" :
+                                          concept.concept_type === 'Process Step' ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30" :
+                                          concept.concept_type === 'Comparison' ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30" :
+                                          "bg-slate-500/10 text-slate-600 dark:text-slate-300 border-slate-500/30"
+                                        )}>
+                                          {concept.concept_type}
+                                        </span>
+                                      </div>
+
+                                      {/* Summary */}
+                                      {concept.summary && (
+                                        <p className="text-xs text-on-surface-variant leading-relaxed line-clamp-3 mb-3">
+                                          {concept.summary}
+                                        </p>
+                                      )}
+
+                                      {/* Key Terms */}
+                                      {concept.key_terms && concept.key_terms.length > 0 && (
+                                        <div className="flex flex-wrap gap-1 mb-2">
+                                          {concept.key_terms.slice(0, 4).map((term, tIdx) => (
+                                            <span
+                                              key={tIdx}
+                                              className="text-[10px] font-bold px-1.5 py-0.5 bg-surface-container text-on-surface-variant rounded border border-outline-variant/60 uppercase"
+                                            >
+                                              {term}
+                                            </span>
+                                          ))}
+                                          {concept.key_terms.length > 4 && (
+                                            <span className="text-[10px] font-bold px-1 py-0.5 text-on-surface-variant/70">
+                                              +{concept.key_terms.length - 4} more
+                                            </span>
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
+
+                                    {/* Bottom: Mastery Progress & Drill Action */}
+                                    <div className="pt-2 border-t border-outline-variant/40 flex items-center justify-between gap-2 mt-auto">
+                                      {/* Mastery indicator */}
+                                      <div className="flex items-center gap-2">
+                                        <span className={clsx(
+                                          "text-xs font-bold px-2 py-0.5 rounded border uppercase tracking-wider",
+                                          concept.mastery_status === 'mastered' ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/40" :
+                                          concept.mastery_status === 'developing' ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/40" :
+                                          concept.mastery_status === 'fragile' ? "bg-orange-500/15 text-orange-600 dark:text-orange-400 border-orange-500/40" :
+                                          concept.mastery_status === 'misconception' ? "bg-red-500/15 text-red-600 dark:text-red-400 border-red-500/40" :
+                                          "bg-surface-container text-on-surface-variant border-outline-variant"
+                                        )}>
+                                          {score !== null && score !== undefined
+                                            ? `${score}% ${concept.mastery_status}`
+                                            : "Untested"}
+                                        </span>
+                                      </div>
+
+                                      {/* Drill Button */}
+                                      <button
+                                        onClick={() => {
+                                          setSelectedDrillConcept(concept);
+                                          drillWidgetRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                          showToast('info', `Focused Socratic Drill on "${concept.name}"`);
+                                        }}
+                                        className={clsx(
+                                          "text-xs font-bold px-3 py-1.5 rounded-lg border-2 border-on-surface shadow-[1.5px_1.5px_0px_0px_#191b23] flex items-center gap-1.5 transition-all active:shadow-none active:translate-x-[1px] active:translate-y-[1px]",
+                                          isTargeted
+                                            ? "bg-secondary text-on-secondary ring-1 ring-secondary"
+                                            : "bg-primary text-on-primary hover:bg-academic-blue"
+                                        )}
+                                      >
+                                        <Target size={13} />
+                                        <span>{isTargeted ? "Active Drill" : "Drill Concept"}</span>
+                                      </button>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <div className="flex flex-col items-center justify-center p-8 border-2 border-dashed border-outline-variant rounded-xl text-center gap-3 bg-surface-container-low/40">
+                              <div className="w-12 h-12 rounded-full bg-primary/10 border-2 border-primary flex items-center justify-center text-primary">
+                                <Layers size={22} />
+                              </div>
+                              <div className="max-w-md">
+                                <h4 className="font-bold text-sm text-on-surface mb-1">
+                                  No atomic concepts extracted yet
+                                </h4>
+                                <p className="text-xs text-on-surface-variant leading-relaxed">
+                                  Extracting atomic concepts breaks this topic down into core invariants, formulas, and definitions — enabling targeted per-concept Socratic drills with diagnostic grading.
+                                </p>
+                              </div>
+                              <button
+                                onClick={handleProcessTopic}
+                                disabled={activeTopic.status === 'processing'}
+                                className="bg-primary text-on-primary font-bold text-xs px-5 py-2.5 rounded-lg border-2 border-on-surface shadow-[2px_2px_0px_0px_#191b23] flex items-center gap-2 hover:bg-academic-blue active:shadow-none active:translate-x-[1px] active:translate-y-[1px] transition-all disabled:opacity-50 cursor-pointer mt-1"
+                              >
+                                {activeTopic.status === 'processing' ? (
+                                  <>
+                                    <Loader2 size={15} className="animate-spin" />
+                                    <span>Extracting Atomic Concepts...</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Zap size={15} />
+                                    <span>Extract Atomic Concepts</span>
+                                  </>
+                                )}
+                              </button>
+                            </div>
                           )}
                         </div>
-                      </div>
-                      <button className="p-2 text-on-surface-variant group-hover:text-primary group-hover:bg-surface-container rounded-full transition-colors">
-                        <ChevronDown 
-                          size={24} 
-                          className={clsx("transition-transform duration-200", !isSummaryCollapsed && "rotate-180")} 
-                        />
-                      </button>
+                      )}
                     </div>
-                    
-                    {!isSummaryCollapsed && (
-                      <div className="animate-in fade-in slide-in-from-top-2 duration-200">
-                        {activeTopic.summary && (
-                          <div className="text-sm text-primary leading-relaxed mb-4 font-serif prose prose-slate max-w-none">
-                            <MarkdownRenderer content={activeTopic.summary} />
-                          </div>
-                        )}
-                        {activeTopic.key_terms && activeTopic.key_terms !== "[]" && (
-                          <div className="flex flex-wrap gap-2">
-                            {(() => {
-                              try {
-                                const terms = JSON.parse(activeTopic.key_terms);
-                                return terms.map((term: string, idx: number) => (
-                                  <span key={idx} className="px-3 py-1 bg-surface-container text-primary font-bold text-label-sm uppercase border-[3px] border-primary neo-shadow-sm">
-                                    {term}
-                                  </span>
-                                ));
-                              } catch (e) {
-                                return null;
-                              }
-                            })()}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
+                  );
+                })()}
 
 
                 {/* Flashcards List */}
@@ -1069,14 +1282,47 @@ export function BookDetailView() {
                 />
               </div>
 
-              {/* Floating Chat Button */}
-              {!isChatOpen && (
+              {/* Floating Chat Button (hidden when Notes panel is open to avoid obscuring note content) */}
+              {!isChatOpen && !isNotesOpen && (
                 <button
                   onClick={() => setIsChatOpen(true)}
                   className="fixed bottom-6 right-6 z-40 w-16 h-16 bg-primary text-white rounded-full flex items-center justify-center shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] border-2 border-on-surface hover:bg-accent-blue transition-colors animate-bounce hover:animate-none"
                 >
                   <Bot size={32} />
                 </button>
+              )}
+
+              {/* Dockable Notes Split Panel */}
+              {isNotesOpen && activeTopic && (
+                <div
+                  className={clsx(
+                    "border-l-[3px] border-on-background bg-surface-container-lowest flex flex-col transition-all duration-200 shadow-[-4px_0px_0px_0px_rgba(0,0,0,0.1)]",
+                    isNotesExpanded 
+                      ? "absolute inset-0 z-50" 
+                      : "w-[480px] lg:w-[560px] xl:w-[620px] shrink-0 h-full relative z-30"
+                  )}
+                >
+                  <ErrorBoundary>
+                    <Suspense
+                      fallback={
+                        <div className="flex flex-col items-center justify-center h-full">
+                          <Loader2 className="animate-spin text-accent-blue w-8 h-8 mb-4" />
+                          <p className="text-sm font-medium text-on-surface-variant">Loading Study Notes...</p>
+                        </div>
+                      }
+                    >
+                      <NotionNotesEditor
+                        key={activeTopic.id}
+                        topicId={activeTopic.id}
+                        topicTitle={activeTopic.title}
+                        isExpanded={isNotesExpanded}
+                        onToggleExpand={() => setIsNotesExpanded(!isNotesExpanded)}
+                        onClose={() => dispatch(setIsNotesOpen(false))}
+                        onGenerateFlashcards={() => dispatch(setIsCardGenModalOpen(true))}
+                      />
+                    </Suspense>
+                  </ErrorBoundary>
+                </div>
               )}
 
       </div>
@@ -1091,30 +1337,6 @@ export function BookDetailView() {
           topicName={activeTopic.title}
           cards={activeTopicCards}
         />
-      )}
-
-      {/* Notes Modal */}
-      {isNotesOpen && activeTopic && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 md:p-8">
-          <div className="bg-surface-container-lowest border border-outline-variant rounded-xl shadow-2xl w-full max-w-4xl h-full max-h-[80vh] flex flex-col overflow-hidden">
-            <div className="flex items-center justify-between p-4 border-b border-outline-variant shrink-0 bg-surface/50">
-              <h2 className="text-lg font-semibold flex items-center gap-2 text-zinc-100">
-                <PenTool size={18} className="text-amber-500" /> Study Notes: {activeTopic.title}
-              </h2>
-              <button
-                onClick={() => dispatch(setIsNotesOpen(false))}
-                className="text-on-surface hover:text-white p-1.5 rounded-md hover:bg-surface-container transition-colors"
-              >
-                <X size={18} />
-              </button>
-            </div>
-            <div className="flex-1 overflow-hidden p-4 bg-surface">
-              <Suspense fallback={<div className="flex flex-col items-center justify-center h-full"><Loader2 className="animate-spin text-accent-blue w-8 h-8 mb-4" /><p className="text-sm font-medium text-on-surface-variant">Loading Editor...</p></div>}>
-                <NotionNotesEditor key={activeTopic.id} topicId={activeTopic.id} />
-              </Suspense>
-            </div>
-          </div>
-        </div>
       )}
     </div>
   );
