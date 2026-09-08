@@ -101,4 +101,13 @@ def detect_headings(md_text: str, start_page_num: int) -> list[dict]:
             "page_num": heading_page
         })
         
-    return sections
+    try:
+        from app.toc_parser import is_cover_title, is_noise_heading
+        valid_sections = [
+            s for s in sections 
+            if not is_cover_title(s["clean_title"], page_num=s.get("page_num", 1))
+            and not is_noise_heading(s["clean_title"], page_num=s.get("page_num", 1))
+        ]
+        return valid_sections if valid_sections else sections
+    except Exception:
+        return sections

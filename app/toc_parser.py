@@ -9,8 +9,100 @@ FRONT_MATTER_NOISE = {
     "manning", "francois chollet", "françois chollet", "second edition",
     "first edition", "third edition", "preface", "acknowledgments",
     "acknowledgements", "dedication", "title page", "copyright",
-    "about this book", "about the author"
+    "about this book", "about the author", "cover", "front cover", "back cover",
+    "book cover", "cover page", "front cover page", "back cover page",
+    "inside cover", "inside front cover", "inside back cover",
+    "half title", "half-title", "half title page", "half-title page",
+    "cover image", "cover art", "jacket", "dust jacket", "book jacket",
+    "table of contents", "contents", "brief contents", "detailed contents",
+    "toc", "colophon", "imprint"
 }
+
+COVER_PATTERNS = [
+    r'^(?:front\s+|back\s+|inside\s+(?:front\s+|back\s+)?|book\s+)?cover(?:\s+(?:page|image|art|photo|sheet))?$',
+    r'^(?:half[\s-]*title(?:\s*page)?|title[\s-]*page)$',
+    r'^(?:dust\s*jacket|book\s*jacket|jacket)$',
+]
+COVER_REGEX = re.compile('|'.join(COVER_PATTERNS), re.IGNORECASE)
+
+
+def is_cover_title(title: str, page_num: int = 1, total_pages: int = 1) -> bool:
+    """
+    Intelligently detects if a heading/bookmark title represents a book/document cover.
+    """
+    if not title:
+        return True
+
+    clean = title.strip().lower()
+    # Strip wrapping brackets, quotes, punctuation, dashes
+    clean = re.sub(r'^[\[\(\{\<"\'\s\-_.:]+|[\]\)\}\>"\':\s\-_.]+$', '', clean).strip()
+
+    if not clean:
+        return True
+
+    if clean in {
+        "cover", "front cover", "back cover", "book cover", "cover page",
+        "front cover page", "back cover page", "inside cover",
+        "inside front cover", "inside back cover", "cover image", "cover art",
+        "half title", "half-title", "half title page", "title page",
+        "dust jacket", "book jacket", "jacket"
+    }:
+        return True
+
+    if COVER_REGEX.match(clean):
+        return True
+
+    # Prefix variants: "Cover: Book Title", "Cover - Edition 3"
+    if re.match(r'^(?:front\s+|book\s+)?cover\s*[:\-–—|]\s*', clean):
+        return True
+
+    # Positional heuristics:
+    # On early pages (p <= 3), any title that starts with or explicitly specifies "cover"
+    if page_num <= 3 and re.match(r'^(?:book\s+)?cover\b', clean):
+        return True
+
+    # On trailing pages, back cover
+    if total_pages > 1 and page_num >= total_pages - 1 and re.match(r'^(?:back\s+cover|rear\s+cover)\b', clean):
+        return True
+
+    return False
+
+
+def is_cover_page(doc, page_index: int = 0) -> bool:
+    """
+    Intelligently detects if a PDF page is a visual cover page.
+    Heuristics:
+    1. Page has minimal digital text (< 30 words or empty)
+    2. Page contains an embedded image covering substantial page area (>= 35%)
+       or has zero text words.
+    """
+    if not doc or page_index >= len(doc) or page_index < 0:
+        return False
+    try:
+        page = doc[page_index]
+        text = page.get_text().strip()
+        words = text.split()
+        if len(words) > 30:
+            return False
+
+        if len(words) == 0:
+            return True
+
+        images = page.get_images()
+        if images:
+            page_rect = page.rect
+            page_area = page_rect.width * page_rect.height
+            if page_area > 0:
+                for img_info in images:
+                    xref = img_info[0]
+                    for img_rect in page.get_image_rects(xref):
+                        if (img_rect.width * img_rect.height / page_area) >= 0.35:
+                            return True
+            return True
+    except Exception as e:
+        logger.debug(f"is_cover_page check error: {e}")
+    return False
+
 
 MATH_SYMBOLS = re.compile(r'[=+\-×÷∫∬∮∝∆Δ√∑πθΦφελε]|\\frac|\\vec|d[A-Z]/dt|d\w+/d\w+')
 SENTENCE_STARTERS = re.compile(
@@ -23,11 +115,14 @@ EXERCISE_NOISE = re.compile(
 )
 
 
-def is_noise_heading(title: str) -> bool:
+def is_noise_heading(title: str, page_num: int = 1, total_pages: int = 1) -> bool:
     clean_title = title.lower().strip()
     clean_no_spaces = clean_title.replace(" ", "")
     
     if clean_no_spaces.isdigit() or len(clean_no_spaces) <= 1:
+        return True
+
+    if is_cover_title(title, page_num=page_num, total_pages=total_pages):
         return True
         
     for term in FRONT_MATTER_NOISE:
@@ -58,6 +153,10 @@ def is_valid_heading_candidate(text: str) -> bool:
 
     # Reject outline/TOC banners themselves
     if re.match(r'^(?:OUTLINE|TABLE OF CONTENTS|CONTENTS|INDEX)\b', clean, re.IGNORECASE):
+        return False
+
+    # Reject cover titles
+    if is_cover_title(clean):
         return False
 
     # Reject sentence starters or continuations
@@ -134,6 +233,10 @@ def extract_fallback_toc(doc) -> List[List[Any]]:
 
     # 2. Iterate through each page
     for page_num in range(len(doc)):
+        # Skip page if it is detected as a cover page
+        if page_num == 0 and is_cover_page(doc, 0):
+            continue
+
         blocks = doc[page_num].get_text("dict")["blocks"]
 
         for b in blocks:
@@ -215,51 +318,53 @@ def get_toc_entries(doc, pdf_path: str | None = None) -> List[List[Any]]:
         if plugin_toc:
             return [[e.level, e.title, e.page] for e in plugin_toc]
 
-    native_toc = doc.get_toc()
+    raw_native_toc = doc.get_toc()
+    total_pages = doc.page_count
 
-    logger.info("Scanning document text for fallback headings to supplement embedded TOC...")
+    # Filter out covers and noise from native TOC
+    clean_native_toc = [
+        entry for entry in raw_native_toc
+        if not is_cover_title(entry[1], page_num=int(entry[2]), total_pages=total_pages)
+        and not is_noise_heading(entry[1], page_num=int(entry[2]), total_pages=total_pages)
+    ]
+
+    # If native TOC is already rich and well-structured (>= 3 items), use it directly!
+    # This prevents scanning 600+ pages, saving 8-10s and avoiding 1,000+ noisy body fragments.
+    if len(clean_native_toc) >= 3:
+        logger.info("Found clean native TOC (%d items). Using native outline.", len(clean_native_toc))
+        return clean_native_toc
+
+    logger.info("Native TOC is sparse (%d items); scanning document text for fallback headings...", len(clean_native_toc))
     fallback_toc = extract_fallback_toc(doc)
 
-    # If native TOC is empty or has only 1-2 entries while fallback found a rich outline,
-    # prefer the rich fallback TOC!
-    if not native_toc:
-        return fallback_toc
+    clean_fallback_toc = [
+        entry for entry in fallback_toc
+        if not is_cover_title(entry[1], page_num=int(entry[2]), total_pages=total_pages)
+        and not is_noise_heading(entry[1], page_num=int(entry[2]), total_pages=total_pages)
+    ]
 
-    if len(native_toc) <= 2 and len(fallback_toc) >= 3:
+    # If native TOC is completely empty, use fallback
+    if not clean_native_toc:
+        return clean_fallback_toc
+
+    # If native TOC is very sparse (<= 2 items) while fallback found a richer outline, prefer fallback
+    if len(clean_native_toc) <= 2 and len(clean_fallback_toc) >= 3:
         logger.info("Native TOC is sparse (%d items); using rich fallback TOC (%d items)...",
-                    len(native_toc), len(fallback_toc))
-        return fallback_toc
+                    len(clean_native_toc), len(clean_fallback_toc))
+        return clean_fallback_toc
 
-    # Hybrid merge strategy: supplement native TOC with missing deep headings
-    max_native_level = max([entry[0] for entry in native_toc]) if native_toc else 0
-    native_pages = set([entry[2] for entry in native_toc])
-    native_titles = set([re.sub(r'[^a-zA-Z0-9]', '', entry[1].lower()) for entry in native_toc])
-
-    hybrid_toc = list(native_toc)
-
-    for fb_entry in fallback_toc:
-        level, title, page = fb_entry
-        clean_title = re.sub(r'[^a-zA-Z0-9]', '', title.lower())
-
-        if clean_title in native_titles:
-            continue
-
-        # Add if deeper than native max level, or if it appears on a page completely missing from native TOC
-        if level > max_native_level or page not in native_pages:
-            hybrid_toc.append(fb_entry)
-            native_titles.add(clean_title)
-
-    # Sort by page number, then by level
-    hybrid_toc.sort(key=lambda x: (x[2], x[0]))
-
-    return hybrid_toc
+    return clean_native_toc
 
 
 def build_granular_toc(toc: List[List[Any]], total_pages: int) -> List[Dict[str, Any]]:
     """Computes exact start_page and end_page boundaries for every entry in the TOC hierarchy."""
     granular_toc = []
 
-    filtered_toc = [entry for entry in toc if not is_noise_heading(entry[1])]
+    filtered_toc = [
+        entry for entry in toc 
+        if not is_cover_title(entry[1], page_num=int(entry[2]), total_pages=total_pages)
+        and not is_noise_heading(entry[1], page_num=int(entry[2]), total_pages=total_pages)
+    ]
 
     if not filtered_toc:
         return [{
@@ -268,6 +373,13 @@ def build_granular_toc(toc: List[List[Any]], total_pages: int) -> List[Dict[str,
             "start_page": 1,
             "end_page": total_pages,
         }]
+
+    # Level normalization: if the top-level entries start at level > 1 (e.g. because Cover at level 1 was discarded),
+    # normalize levels so that root items always start at level 1.
+    min_level = min(int(entry[0]) for entry in filtered_toc)
+    if min_level > 1:
+        shift = min_level - 1
+        filtered_toc = [[int(entry[0]) - shift, entry[1], entry[2]] for entry in filtered_toc]
 
     for i, entry in enumerate(filtered_toc):
         level = int(entry[0])

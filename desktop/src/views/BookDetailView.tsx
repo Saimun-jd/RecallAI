@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useMemo, useCallback, lazy, Suspense } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useSearchParams } from 'react-router-dom';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useDispatch, useSelector } from 'react-redux';
 import { ErrorBoundary } from '../components/ErrorBoundary';
@@ -14,7 +14,7 @@ import {
   setPdfTheme
 } from '../store/readerSlice';
 import { client, type Book, type Topic, type Flashcard, type PdfAnnotation, type AtomicConcept } from '../api/client';
-import { Loader2, Zap, PenTool, Link2, BrainCircuit, Play, FileText, ChevronRight, ChevronLeft, CheckCircle2, Circle, Clock, Check, X, Edit2, Trash2, BookOpen, ArrowLeft, LayoutList, ChevronDown, Search, Save, Sun, Moon, MoreHorizontal, Bot, Copy, Target, Sparkles, Layers } from 'lucide-react';
+import { Loader2, Zap, PenTool, Link2, BrainCircuit, Play, FileText, ChevronRight, ChevronLeft, CheckCircle2, Circle, Clock, Check, X, Edit2, Trash2, BookOpen, ArrowLeft, LayoutList, ChevronDown, Search, Save, Sun, Moon, MoreHorizontal, Bot, Copy, Target, Sparkles, Layers, ChevronsDownUp, ChevronsUpDown } from 'lucide-react';
 import { MarkdownRenderer } from '../components/MarkdownRenderer';
 import clsx from 'clsx';
 import { FlashcardGenModal } from '../components/FlashcardGenModal';
@@ -33,6 +33,7 @@ import type { ApiError } from '../api/errors';
 
 export function BookDetailView() {
   const { id } = useParams<{ id: string }>();
+  const [searchParams] = useSearchParams();
   const bookId = parseInt(id || '0', 10);
   const dispatch = useDispatch();
 
@@ -62,7 +63,17 @@ export function BookDetailView() {
   const [isRelatedModalOpen, setIsRelatedModalOpen] = useState(false);
   const [isPracticeModalOpen, setIsPracticeModalOpen] = useState(false);
   const [pdfNumPages, setPdfNumPages] = useState<number>(1);
-  const [processingProgress, setProcessingProgress] = useState<{ stage?: string, status?: string, progress?: number, section_count?: number } | null>(null);
+  const [processingProgress, setProcessingProgress] = useState<{
+    stage?: string;
+    status?: string;
+    progress?: number;
+    section_count?: number;
+    child_title?: string;
+    child_count?: number;
+    current?: number;
+    total?: number;
+    message?: string;
+  } | null>(null);
   const [editingCardId, setEditingCardId] = useState<number | null>(null);
   const [editQuestion, setEditQuestion] = useState("");
   const [editAnswer, setEditAnswer] = useState("");
@@ -133,6 +144,18 @@ export function BookDetailView() {
           setBook(bookData);
           setTopics(topicsData);
           setAnnotations(annotationsData);
+
+          const topicParam = searchParams.get('topic');
+          if (topicParam) {
+            const parsedTopicId = parseInt(topicParam, 10);
+            if (!isNaN(parsedTopicId)) {
+              dispatch(setActiveTopicId(parsedTopicId));
+              const targetTopic = topicsData.find(t => t.id === parsedTopicId);
+              if (targetTopic) {
+                setPdfScrollCommand({ page: targetTopic.start_page, ts: Date.now() });
+              }
+            }
+          }
         }
       } catch (err: any) {
         console.error(err);
@@ -218,13 +241,31 @@ export function BookDetailView() {
     });
   };
 
+  const parentTopicIds = useMemo(() => {
+    const ids = new Set<number>();
+    for (const t of topics) {
+      if (t.parent_id) {
+        ids.add(t.parent_id);
+      }
+    }
+    return ids;
+  }, [topics]);
+
+  const handleCollapseAll = () => {
+    setCollapsedParents(new Set(parentTopicIds));
+  };
+
+  const handleExpandAll = () => {
+    setCollapsedParents(new Set());
+  };
+
   const { activeProvider } = useSelector((state: RootState) => state.providers);
 
   const handleProcessTopic = async () => {
     if (!activeTopicId) return;
 
-    // Optimistically update status to processing
-    setTopics(prev => prev.map(t => t.id === activeTopicId ? { ...t, status: 'processing' } : t));
+    // Optimistically update status to processing for active topic and any children
+    setTopics(prev => prev.map(t => (t.id === activeTopicId || t.parent_id === activeTopicId) ? { ...t, status: 'processing' } : t));
 
     try {
       if (!activeTopic) return;
@@ -234,7 +275,7 @@ export function BookDetailView() {
       });
       setProcessingProgress(null);
 
-      // Refresh topic and flashcards
+      // Refresh topics and flashcards
       const updatedTopics = await client.getTopics(bookId);
       setTopics(updatedTopics);
 
@@ -245,8 +286,13 @@ export function BookDetailView() {
       console.error(err);
       showToast('error', err?.userMessage || 'Failed to process topic.', err?.debugDetail);
       setProcessingProgress(null);
-      // Revert status
-      setTopics(prev => prev.map(t => t.id === activeTopicId ? { ...t, status: 'unprocessed' } : t));
+      // Revert status from server truth
+      const updatedTopics = await client.getTopics(bookId).catch(() => null);
+      if (updatedTopics) {
+        setTopics(updatedTopics);
+      } else {
+        setTopics(prev => prev.map(t => (t.id === activeTopicId || t.parent_id === activeTopicId) ? { ...t, status: 'unprocessed' } : t));
+      }
     }
   };
 
@@ -432,13 +478,36 @@ export function BookDetailView() {
         <div className="p-4 border-b border-outline-variant bg-surface-container-lowest shrink-0 min-w-[240px]">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-xl font-bold text-on-surface">Topics</h2>
-            <button
-              onClick={() => setIsTocCollapsed(true)}
-              className="text-on-surface hover:text-primary p-1 rounded hover:bg-surface-container transition-colors shrink-0"
-              title="Collapse Outline"
-            >
-              <ChevronLeft size={18} />
-            </button>
+            <div className="flex items-center gap-1 shrink-0">
+              {parentTopicIds.size > 0 && (
+                <div className="flex items-center bg-surface-container-low rounded-lg border border-outline-variant/60 p-0.5">
+                  <button
+                    onClick={handleCollapseAll}
+                    className="text-on-surface-variant hover:text-primary p-1 rounded hover:bg-surface-container transition-colors shrink-0"
+                    title="Auto-collapse all topics"
+                    aria-label="Auto-collapse all topics"
+                  >
+                    <ChevronsDownUp size={15} />
+                  </button>
+                  <button
+                    onClick={handleExpandAll}
+                    className="text-on-surface-variant hover:text-primary p-1 rounded hover:bg-surface-container transition-colors shrink-0"
+                    title="Expand all topics"
+                    aria-label="Expand all topics"
+                  >
+                    <ChevronsUpDown size={15} />
+                  </button>
+                </div>
+              )}
+              <button
+                onClick={() => setIsTocCollapsed(true)}
+                className="text-on-surface-variant hover:text-primary p-1 rounded hover:bg-surface-container transition-colors shrink-0"
+                title="Collapse sidebar"
+                aria-label="Collapse sidebar"
+              >
+                <ChevronLeft size={18} />
+              </button>
+            </div>
           </div>
           <div className="relative">
             <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-outline" />
@@ -827,11 +896,19 @@ export function BookDetailView() {
                 <div className="px-5 mt-2 mb-2">
                   <div className="bg-amber-500/10 border-2 border-amber-500 text-amber-700 px-4 py-3 rounded-xl shadow-[4px_4px_0px_0px_var(--color-amber-500)] flex items-center gap-3">
                     <Loader2 className="animate-spin shrink-0" size={20} />
-                    <div>
-                      <h4 className="font-bold text-sm">Processing Topic...</h4>
-                      <p className="text-xs font-medium opacity-80 mt-0.5 capitalize">
-                        {(processingProgress.stage || processingProgress.status || 'processing').replace(/_/g, ' ')}
-                        {processingProgress.progress ? ` (${processingProgress.progress}%)` : ''}
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-bold text-sm truncate">
+                        {processingProgress.stage === 'processing_child'
+                          ? `Extracting Subtopic ${processingProgress.current || 1} of ${processingProgress.total || 1}...`
+                          : (processingProgress.stage === 'parent_decomposition'
+                            ? 'Decomposing Chapter into Subtopics...'
+                            : 'Processing Topic...')}
+                      </h4>
+                      <p className="text-xs font-medium opacity-80 mt-0.5 truncate">
+                        {processingProgress.child_title
+                          ? processingProgress.child_title
+                          : (processingProgress.message || (processingProgress.stage || processingProgress.status || 'processing').replace(/_/g, ' '))}
+                        {processingProgress.progress !== undefined ? ` (${processingProgress.progress}%)` : ''}
                       </p>
                     </div>
                   </div>

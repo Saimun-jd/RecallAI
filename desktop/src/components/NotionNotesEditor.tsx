@@ -113,7 +113,11 @@ export function NotionNotesEditor({
 
       setMode('preview');
       setSaveStatus('saved');
-      showToast('success', 'Cornell Study Guide generated with LaTeX math!');
+      if (res.children_count) {
+        showToast('success', `Synthesized Master Guide & ${res.children_count} subtopic notes with LaTeX math!`);
+      } else {
+        showToast('success', 'Cornell Study Guide generated with LaTeX math!');
+      }
     } catch (err: any) {
       console.error("Failed to scaffold note:", err);
       showToast('error', err?.userMessage || err?.message || 'Failed to generate Cornell notes.', err?.debugDetail);

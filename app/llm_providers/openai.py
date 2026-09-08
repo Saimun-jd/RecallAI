@@ -6,6 +6,7 @@ import httpx
 from langfuse import get_client
 
 from app.llm_providers.base import BaseLLMProvider
+from app.llm_providers.retry import retry_with_backoff
 from app.errors import RecallError, ErrorCode, classify_error
 
 
@@ -118,13 +119,31 @@ class OpenAIProvider(BaseLLMProvider):
             model=self.model,
             input=prompt_with_schema,
         ) as generation:
-            try:
+            async def _send_request():
                 async with httpx.AsyncClient(timeout=120.0) as client:
-                    r = await client.post(
+                    resp = await client.post(
                         f"{self.base_url}/chat/completions",
                         headers=headers,
                         json=payload,
                     )
+                    resp.raise_for_status()
+                    return resp
+
+            try:
+                r = await retry_with_backoff(
+                    _send_request,
+                    max_retries=3,
+                    initial_delay=2.0,
+                    backoff_factor=2.0,
+                    provider_name=f"OpenAIProvider({self.model})",
+                )
+            except httpx.HTTPStatusError as e:
+                r = e.response
+                status_code = r.status_code if r else 500
+                text = r.text if r else ""
+                print(f"response text: {text}")
+                generation.update(level="ERROR", status_message=f"HTTP {status_code}: {text}")
+                raise classify_error(e, provider_hint="openai")
             except httpx.TimeoutException as e:
                 print(f"⏱️ [OpenAIProvider] Request to {self.base_url} timed out: {e}")
                 generation.update(level="ERROR", status_message=str(e))
@@ -136,14 +155,6 @@ class OpenAIProvider(BaseLLMProvider):
 
             print(f"📥 [OpenAIProvider] Received response with status code: {r.status_code}")
             generation.update(metadata={"status_code": r.status_code})
-
-            if r.status_code >= 400:
-                print(f"response text: {r.text}")
-                generation.update(level="ERROR", status_message=f"HTTP {r.status_code}: {r.text}")
-                try:
-                    r.raise_for_status()
-                except httpx.HTTPStatusError as e:
-                    raise classify_error(e, provider_hint="openai")
 
             try:
                 data = r.json()

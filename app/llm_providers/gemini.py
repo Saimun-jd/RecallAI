@@ -3,6 +3,7 @@ import json
 from typing import Any, Dict
 from langfuse import get_client
 from app.llm_providers.base import BaseLLMProvider
+from app.llm_providers.retry import retry_with_backoff
 from app.errors import RecallError, ErrorCode, classify_error
 
 class GeminiProvider(BaseLLMProvider):
@@ -79,25 +80,35 @@ class GeminiProvider(BaseLLMProvider):
             model=self.model,
             input=prompt_with_schema,
         ) as generation:
-            try:
+            async def _send_request():
                 async with httpx.AsyncClient(timeout=120.0) as client:
-                    r = await client.post(url, headers=headers, json=payload)
+                    resp = await client.post(url, headers=headers, json=payload)
+                    resp.raise_for_status()
+                    return resp
+
+            try:
+                r = await retry_with_backoff(
+                    _send_request,
+                    max_retries=3,
+                    initial_delay=2.0,
+                    backoff_factor=2.0,
+                    provider_name="Gemini",
+                )
+            except httpx.HTTPStatusError as e:
+                r = e.response
+                generation.update(metadata={"status_code": r.status_code if r else 500})
+                body = r.text[:2000] if (r and r.text) else ""
+                # Gemini-specific: detect RESOURCE_EXHAUSTED quota errors
+                if "RESOURCE_EXHAUSTED" in body or (r and r.status_code == 429):
+                    generation.update(level="ERROR", status_message=f"Rate limit / Quota exceeded: {body}")
+                    raise RecallError(ErrorCode.LLM_RATE_LIMITED, f"Gemini rate limit / quota exceeded: {body}", e)
+                generation.update(level="ERROR", status_message=f"HTTP {r.status_code if r else 'unknown'}: {body}")
+                raise classify_error(e, provider_hint="gemini")
             except Exception as e:
                 generation.update(level="ERROR", status_message=str(e))
                 raise classify_error(e, provider_hint="gemini")
                 
             generation.update(metadata={"status_code": r.status_code})
-            
-            try:
-                r.raise_for_status()
-            except httpx.HTTPStatusError as e:
-                body = r.text[:2000] if r.text else ""
-                # Gemini-specific: detect RESOURCE_EXHAUSTED quota errors
-                if "RESOURCE_EXHAUSTED" in body or r.status_code == 429:
-                    generation.update(level="ERROR", status_message=f"Quota exceeded: {body}")
-                    raise RecallError(ErrorCode.LLM_QUOTA_EXCEEDED, f"Gemini quota exceeded: {body}", e)
-                generation.update(level="ERROR", status_message=f"HTTP {r.status_code}: {body}")
-                raise classify_error(e, provider_hint="gemini")
             
             resp_data = r.json()
             try:

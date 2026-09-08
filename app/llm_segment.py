@@ -190,7 +190,7 @@ async def extract_atomic_concepts(heading: str, text: str, code_blocks: dict = N
         prompt=prompt,
         json_schema=schema,
         temperature=0.1,
-        max_tokens=2048,
+        max_tokens=4096,
     )
     sanitized_raw = _sanitize_llm_response(raw)
 

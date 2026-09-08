@@ -28,6 +28,7 @@ class ErrorCode(str, Enum):
     """Every classifiable error gets a stable code and user-facing message."""
 
     LLM_RATE_LIMITED = "LLM_RATE_LIMITED"
+    LLM_UNAVAILABLE = "LLM_UNAVAILABLE"
     LLM_TIMEOUT = "LLM_TIMEOUT"
     LLM_CONNECTION_ERROR = "LLM_CONNECTION_ERROR"
     LLM_AUTH_FAILED = "LLM_AUTH_FAILED"
@@ -50,6 +51,10 @@ _ERROR_MESSAGES: dict[ErrorCode, tuple[int, str]] = {
     ErrorCode.LLM_RATE_LIMITED: (
         429,
         "AI provider is rate limited. Please wait a moment and retry.",
+    ),
+    ErrorCode.LLM_UNAVAILABLE: (
+        503,
+        "AI model is currently experiencing high demand. Spikes in demand are temporary; please retry in a moment.",
     ),
     ErrorCode.LLM_TIMEOUT: (
         504,
@@ -166,6 +171,8 @@ def classify_error(exc: Exception, provider_hint: str = "") -> RecallError:
 
         if status == 429:
             return RecallError(ErrorCode.LLM_RATE_LIMITED, f"HTTP 429: {body}", exc)
+        if status == 503 or "high demand" in body.lower() or "unavailable" in body.lower():
+            return RecallError(ErrorCode.LLM_UNAVAILABLE, f"HTTP 503: {body}", exc)
         if status in (401, 403):
             return RecallError(ErrorCode.LLM_AUTH_FAILED, f"HTTP {status}: {body}", exc)
         if status == 402 or "quota" in body.lower() or "RESOURCE_EXHAUSTED" in body:
@@ -199,6 +206,9 @@ def classify_error(exc: Exception, provider_hint: str = "") -> RecallError:
     import json
     if isinstance(exc, json.JSONDecodeError):
         return RecallError(ErrorCode.LLM_INVALID_RESPONSE, detail, exc)
+
+    if "high demand" in detail.lower() or "temporarily unavailable" in detail.lower():
+        return RecallError(ErrorCode.LLM_UNAVAILABLE, detail, exc)
 
     # ── Fallback ──
     return RecallError(ErrorCode.INTERNAL_ERROR, detail, exc)

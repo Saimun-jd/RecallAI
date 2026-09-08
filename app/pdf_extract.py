@@ -142,3 +142,73 @@ async def extract_raw_text(pdf_bytes: bytes, start_page: int | None = None, forc
         await run_in_threadpool(lambda: md_file.write_text(md_text, encoding="utf-8"))
         
     return md_text, cache_key, start_page_num
+
+
+async def extract_page_range_chunked(
+    file_path: str,
+    start_page: int,
+    end_page: int,
+    max_pages_per_chunk: int = 6,
+    on_chunk_progress=None
+) -> tuple[str, str, int]:
+    """
+    Safely extracts markdown from a PDF page range.
+    If the page range exceeds max_pages_per_chunk, it slices the PDF into smaller
+    windows (e.g. 4-6 pages) and extracts each chunk independently.
+    This prevents Marker VRAM exhaustion / CUDA OOM, keeps latencies bounded,
+    and leverages per-chunk disk caching.
+    
+    Returns:
+        tuple[str, str, int]: (combined_markdown, primary_cache_key, start_page)
+    """
+    import asyncio
+    import fitz
+    
+    start_page = max(1, start_page)
+    end_page = max(start_page, end_page)
+    total_pages = end_page - start_page + 1
+    
+    if total_pages <= max_pages_per_chunk:
+        # Single chunk extraction
+        with fitz.open(file_path) as doc:
+            start_idx = max(0, start_page - 1)
+            end_idx = min(doc.page_count - 1, end_page - 1)
+            with fitz.open() as new_doc:
+                new_doc.insert_pdf(doc, from_page=start_idx, to_page=end_idx)
+                pdf_bytes = new_doc.write()
+        return await extract_raw_text(pdf_bytes, start_page)
+
+    # Multi-chunk sliding window extraction
+    sub_ranges = []
+    curr = start_page
+    while curr <= end_page:
+        chunk_end = min(curr + max_pages_per_chunk - 1, end_page)
+        sub_ranges.append((curr, chunk_end))
+        curr = chunk_end + 1
+        
+    combined_md_parts = []
+    first_cache_key = None
+    
+    with fitz.open(file_path) as doc:
+        total_chunks = len(sub_ranges)
+        for i, (p_start, p_end) in enumerate(sub_ranges):
+            if on_chunk_progress:
+                res = on_chunk_progress(i + 1, total_chunks, p_start, p_end)
+                if asyncio.iscoroutine(res):
+                    await res
+                
+            start_idx = max(0, p_start - 1)
+            end_idx = min(doc.page_count - 1, p_end - 1)
+            with fitz.open() as new_doc:
+                new_doc.insert_pdf(doc, from_page=start_idx, to_page=end_idx)
+                pdf_bytes = new_doc.write()
+                
+            chunk_md, cache_key, _ = await extract_raw_text(pdf_bytes, p_start)
+            if first_cache_key is None:
+                first_cache_key = cache_key
+                
+            if chunk_md and chunk_md.strip():
+                combined_md_parts.append(chunk_md.strip())
+                
+    combined_md = "\n\n".join(combined_md_parts)
+    return combined_md, first_cache_key or f"chunked_p{start_page}-{end_page}", start_page

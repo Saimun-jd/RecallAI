@@ -43,6 +43,15 @@ export interface ProgressEvent {
   _apiError?: ApiError;
 }
 
+export interface PdfSyncProgressEvent {
+  status: 'downloading' | 'complete' | 'error';
+  current?: number;
+  total?: number;
+  title?: string;
+  percentage?: number;
+  message?: string;
+}
+
 export const API_BASE = "http://127.0.0.1:8000";
 
 export interface Book {
@@ -159,6 +168,34 @@ export interface PdfAnnotation {
   rect_json: string;
   content: string | null;
   custom_prompt: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface NoteItem {
+  id: number;
+  topic_id: number;
+  content: string;
+  created_at: string;
+  updated_at: string;
+  uuid?: string;
+  topic_title: string;
+  breadcrumb?: string;
+  level: number;
+  start_page: number;
+  end_page: number;
+  book_id: number;
+  book_title: string;
+}
+
+export interface NoteAnnotationItem {
+  id: number;
+  book_id: number;
+  book_title: string;
+  page_number: number;
+  annotation_type: string;
+  selected_text: string;
+  content: string;
   created_at: string;
   updated_at: string;
 }
@@ -496,7 +533,7 @@ export const client = {
     return res.json();
   },
 
-  async generateNoteScaffold(topicId: number, providerOverride?: string | null): Promise<{ topic_id: number; scaffold: string; note: string }> {
+  async generateNoteScaffold(topicId: number, providerOverride?: string | null): Promise<{ topic_id: number; scaffold: string; note: string; children_count?: number }> {
     const res = await fetch(`${API_BASE}/topics/${topicId}/notes/scaffold`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -513,6 +550,31 @@ export const client = {
       body: JSON.stringify({ content, section_title: sectionTitle || null }),
     });
     await this._throwIfError(res, "Failed to append to note");
+    return res.json();
+  },
+
+  async getAllNotes(bookId?: number, search?: string): Promise<NoteItem[]> {
+    const params = new URLSearchParams();
+    if (bookId !== undefined) params.append('book_id', bookId.toString());
+    if (search && search.trim()) params.append('search', search.trim());
+    const query = params.toString() ? `?${params.toString()}` : '';
+    const res = await fetch(`${API_BASE}/notes${query}`);
+    await this._throwIfError(res, "Failed to fetch all notes");
+    return res.json();
+  },
+
+  async getAllAnnotations(bookId?: number): Promise<NoteAnnotationItem[]> {
+    const query = bookId !== undefined ? `?book_id=${bookId}` : '';
+    const res = await fetch(`${API_BASE}/notes/annotations${query}`);
+    await this._throwIfError(res, "Failed to fetch all annotations");
+    return res.json();
+  },
+
+  async deleteNote(topicId: number): Promise<{ status: string; deleted: boolean }> {
+    const res = await fetch(`${API_BASE}/topics/${topicId}/notes`, {
+      method: "DELETE",
+    });
+    await this._throwIfError(res, "Failed to delete note");
     return res.json();
   },
   
@@ -750,6 +812,53 @@ export const client = {
               if (e instanceof Error && e.message !== "Unexpected end of JSON input") {
                 if (dataStr.includes('"error":')) throw e;
               }
+            }
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
+  },
+
+  async syncPdfsStream(token: string, onEvent: (event: PdfSyncProgressEvent) => void): Promise<void> {
+    const res = await fetch(`${API_BASE}/api/sync/pdfs`, {
+      method: "GET",
+      headers: {
+        "Authorization": `Bearer ${token}`,
+        "Accept": "text/event-stream",
+      },
+    });
+
+    if (!res.ok) {
+      throw await parseApiError(res);
+    }
+
+    if (!res.body) throw new Error("Stream not supported by browser.");
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder("utf-8");
+    let buffer = "";
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+
+        let newlineIdx;
+        while ((newlineIdx = buffer.indexOf("\n\n")) !== -1) {
+          const message = buffer.slice(0, newlineIdx).trim();
+          buffer = buffer.slice(newlineIdx + 2);
+
+          if (message.startsWith("data: ")) {
+            const dataStr = message.slice(6);
+            try {
+              const data = JSON.parse(dataStr);
+              onEvent(data);
+            } catch (e) {
+              console.error("Failed to parse SSE event", e);
             }
           }
         }

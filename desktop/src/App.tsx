@@ -4,6 +4,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { type RootState } from './store';
 import { client } from './api/client';
 import { LibraryView } from './views/LibraryView';
+import { NotesView } from './views/NotesView';
 import { ReviewView } from './views/ReviewView';
 import { SettingsView } from './views/SettingsView';
 import { BookDetailView } from './views/BookDetailView';
@@ -334,6 +335,7 @@ export default function App() {
           ) : (
             <Routes key={activeUserId || 'default'}>
               <Route path="/" element={<LibraryView />} />
+              <Route path="/notes" element={<NotesView />} />
               <Route path="/review" element={<ReviewView />} />
               <Route path="/analytics" element={<AnalyticsView />} />
               <Route path="/settings" element={<SettingsView />} />

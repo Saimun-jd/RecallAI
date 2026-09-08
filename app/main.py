@@ -850,8 +850,12 @@ class ProcessTopicRequest(BaseModel):
 
 @app.post("/topics/{topic_id}/process-stream")
 async def process_topic_stream(topic_id: int, req: ProcessTopicRequest):
-    from app.database import get_topic_by_id, update_topic_status, get_book_by_id, update_topic_enrichment, get_connection
-    from app.pdf_extract import extract_raw_text
+    from app.database import (
+        get_topic_by_id, update_topic_status, get_book_by_id, 
+        update_topic_enrichment, get_child_topics, get_connection
+    )
+    from app.pdf_extract import extract_raw_text, extract_page_range_chunked
+    from app.markdown_slicer import match_concept_to_section_heading
     import fitz
     
     topic = get_topic_by_id(topic_id)
@@ -867,35 +871,135 @@ async def process_topic_stream(topic_id: int, req: ProcessTopicRequest):
         return JSONResponse(status_code=404, content={"error": "PDF file not found on disk"})
         
     async def event_generator():
+        children = []
         try:
             update_topic_status(topic_id, "processing")
-            
-            content_md = topic.get("content_md") or ""
-            code_blocks = {}
-            images = {}
+            children = get_child_topics(topic_id)
             
             from app.extractors import get_extractor
             is_marker = get_extractor().name == "marker"
             extra_msg = " (Marker may take a few minutes to download models on first run)" if is_marker else ""
             
+            # BRANCH 1: Hierarchical Cascade (Parent topic has child subtopics)
+            if children:
+                total_children = len(children)
+                yield f"data: {json.dumps({'stage': 'parent_decomposition', 'child_count': total_children, 'message': f'Auto-processing {total_children} child topics'})}\n\n"
+                
+                completed_children_mds = []
+                all_parent_concepts = []
+                
+                for idx, child in enumerate(children, 1):
+                    child_id = child["id"]
+                    child_title = child["title"]
+                    pct = int(((idx - 1) / total_children) * 100)
+                    
+                    # Smart Resume Check: If already processed and has content & concepts, reuse from checkpoint!
+                    c_current = get_topic_by_id(child_id) or child
+                    c_status = c_current.get("status")
+                    c_md = c_current.get("content_md") or ""
+                    c_concepts_raw = c_current.get("atomic_concepts")
+
+                    if c_status == "processed" and len(c_md.strip()) > 20 and c_concepts_raw:
+                        logger.info(f"Subtopic {child_id} ('{child_title}') already processed; resuming from checkpoint.")
+                        yield f"data: {json.dumps({'stage': 'processing_child', 'child_id': child_id, 'child_title': child_title, 'current': idx, 'total': total_children, 'progress': pct, 'message': f'Reusing checkpointed subtopic: {child_title}'})}\n\n"
+                        try:
+                            child_concepts = json.loads(c_concepts_raw) if isinstance(c_concepts_raw, str) else c_concepts_raw
+                        except Exception:
+                            child_concepts = []
+                        completed_children_mds.append(f"## {child_title}\n\n{c_md}")
+                        all_parent_concepts.extend(child_concepts)
+                        continue
+
+                    update_topic_status(child_id, "processing")
+                    yield f"data: {json.dumps({'stage': 'processing_child', 'child_id': child_id, 'child_title': child_title, 'current': idx, 'total': total_children, 'progress': pct})}\n\n"
+                    
+                    child_md = c_md
+                    code_blocks = {}
+                    images = {}
+                    sections = []
+                    
+                    if child_md and len(child_md.strip()) > 20:
+                        modified_md_text, code_blocks, images = parse_markdown_assets(child_md, child.get("topic_hash", "cache_key"))
+                        sections = detect_headings(modified_md_text, child.get("start_page", 1))
+                        child_md = modified_md_text
+                    else:
+                        c_start = child.get("start_page", 1)
+                        c_end = child.get("end_page", c_start)
+                        raw_md, cache_key, start_page_num = await extract_page_range_chunked(
+                            file_path, c_start, c_end, max_pages_per_chunk=6
+                        )
+                        modified_md_text, code_blocks, images = parse_markdown_assets(raw_md, cache_key)
+                        sections = detect_headings(modified_md_text, start_page_num)
+                        child_md = modified_md_text
+                    
+                    # Extract concepts for child
+                    heading = child_title or "Section"
+                    text_content = child_md or (sections[0]["text"] if sections else "")
+                    
+                    section_extraction = await extract_atomic_concepts(
+                        heading, text_content, code_blocks, images, req.provider_override
+                    )
+                    
+                    child_concepts = []
+                    if hasattr(section_extraction, 'atomic_topics') and section_extraction.atomic_topics:
+                        for c_idx, t in enumerate(section_extraction.atomic_topics):
+                            sec_heading = match_concept_to_section_heading(
+                                sections, t.topic_name, t.summary, t.key_terms
+                            )
+                            child_concepts.append({
+                                "id": f"c_{idx}_{c_idx + 1}",
+                                "name": t.topic_name,
+                                "concept_type": t.concept_type or "Definition",
+                                "summary": t.summary or "",
+                                "key_terms": t.key_terms or [],
+                                "section_heading": sec_heading,
+                                "related_code_id": t.related_code_id,
+                                "related_image_id": t.related_image_id,
+                                "mastery_score": None,
+                                "mastery_status": "untested",
+                                "last_drilled_at": None,
+                            })
+                    
+                    update_topic_enrichment(
+                        topic_id=child_id,
+                        atomic_concepts=json.dumps(child_concepts),
+                        content_md=child_md,
+                        status="processed"
+                    )
+                    
+                    completed_children_mds.append(f"## {child_title}\n\n{child_md}")
+                    all_parent_concepts.extend(child_concepts)
+                
+                # Aggregate into Parent
+                parent_md = "\n\n".join(completed_children_mds)
+                update_topic_enrichment(
+                    topic_id=topic_id,
+                    atomic_concepts=json.dumps(all_parent_concepts),
+                    content_md=parent_md,
+                    status="processed"
+                )
+                
+                yield f"data: {json.dumps({'stage': 'extracting_topics', 'progress': 100})}\n\n"
+                yield f"data: {json.dumps({'status': 'complete', 'topic_id': topic_id, 'children_processed': total_children})}\n\n"
+                return
+
+            # BRANCH 2: Flat Topic (No children in DB)
+            content_md = topic.get("content_md") or ""
+            code_blocks = {}
+            images = {}
+            sections = []
+            
             if content_md and len(content_md.strip()) > 20:
                 yield f"data: {json.dumps({'stage': f'reading_pdf{extra_msg}'})}\n\n"
                 modified_md_text, code_blocks, images = parse_markdown_assets(content_md, topic.get("topic_hash", "cache_key"))
                 sections = detect_headings(modified_md_text, topic.get("start_page", 1))
+                content_md = modified_md_text
             else:
                 yield f"data: {json.dumps({'stage': f'reading_pdf{extra_msg}'})}\n\n"
-                doc = fitz.open(file_path)
-                start_idx = max(0, topic['start_page'] - 1)
-                end_idx = min(doc.page_count - 1, topic['end_page'] - 1)
-                new_doc = fitz.open()
-                new_doc.insert_pdf(doc, from_page=start_idx, to_page=end_idx)
-                pdf_bytes = new_doc.write()
-                new_doc.close()
-                doc.close()
-                
-                from fastapi.concurrency import run_in_threadpool
-                md_text, cache_key, start_page_num = await extract_raw_text(pdf_bytes, topic['start_page'])
-                modified_md_text, code_blocks, images = parse_markdown_assets(md_text, cache_key)
+                raw_md, cache_key, start_page_num = await extract_page_range_chunked(
+                    file_path, topic.get("start_page", 1), topic.get("end_page", 1), max_pages_per_chunk=6
+                )
+                modified_md_text, code_blocks, images = parse_markdown_assets(raw_md, cache_key)
                 sections = detect_headings(modified_md_text, start_page_num)
                 content_md = modified_md_text
             
@@ -915,36 +1019,60 @@ async def process_topic_stream(topic_id: int, req: ProcessTopicRequest):
             
             # Extract concepts from section text to enrich topic in-place
             heading = topic.get("title") or "Section"
-            text_content = content_md or (sections[0]["text"] if sections else "")
             
-            yield f"data: {json.dumps({'stage': 'extracting_topics', 'progress': 50})}\n\n"
-            
-            section_extraction = await extract_atomic_concepts(
-                heading, text_content, code_blocks, images, req.provider_override
-            )
-            
-            from app.markdown_slicer import match_concept_to_section_heading
-
-            # Build clean structured atomic concepts list
+            # If document is very long (> 16,000 characters) and has multiple detected sections,
+            # process per section to prevent LLM context/output truncation
             atomic_concepts = []
-            if hasattr(section_extraction, 'atomic_topics') and section_extraction.atomic_topics:
-                for idx, t in enumerate(section_extraction.atomic_topics):
-                    sec_heading = match_concept_to_section_heading(
-                        sections, t.topic_name, t.summary, t.key_terms
+            if len(content_md) > 16000 and len(sections) >= 2:
+                yield f"data: {json.dumps({'stage': 'extracting_topics', 'progress': 25})}\n\n"
+                for s_idx, sec in enumerate(sections, 1):
+                    sec_heading = sec["heading"]
+                    sec_text = sec["text"]
+                    if not sec_text.strip() or len(sec_text.strip()) < 50:
+                        continue
+                    sec_extraction = await extract_atomic_concepts(
+                        sec_heading, sec_text, code_blocks, images, req.provider_override
                     )
-                    atomic_concepts.append({
-                        "id": f"c_{idx + 1}",
-                        "name": t.topic_name,
-                        "concept_type": t.concept_type or "Definition",
-                        "summary": t.summary or "",
-                        "key_terms": t.key_terms or [],
-                        "section_heading": sec_heading,
-                        "related_code_id": t.related_code_id,
-                        "related_image_id": t.related_image_id,
-                        "mastery_score": None,
-                        "mastery_status": "untested",
-                        "last_drilled_at": None,
-                    })
+                    if hasattr(sec_extraction, 'atomic_topics') and sec_extraction.atomic_topics:
+                        for idx, t in enumerate(sec_extraction.atomic_topics):
+                            atomic_concepts.append({
+                                "id": f"c_{s_idx}_{idx + 1}",
+                                "name": t.topic_name,
+                                "concept_type": t.concept_type or "Definition",
+                                "summary": t.summary or "",
+                                "key_terms": t.key_terms or [],
+                                "section_heading": sec_heading,
+                                "related_code_id": t.related_code_id,
+                                "related_image_id": t.related_image_id,
+                                "mastery_score": None,
+                                "mastery_status": "untested",
+                                "last_drilled_at": None,
+                            })
+                yield f"data: {json.dumps({'stage': 'extracting_topics', 'progress': 90})}\n\n"
+            else:
+                text_content = content_md or (sections[0]["text"] if sections else "")
+                yield f"data: {json.dumps({'stage': 'extracting_topics', 'progress': 50})}\n\n"
+                section_extraction = await extract_atomic_concepts(
+                    heading, text_content, code_blocks, images, req.provider_override
+                )
+                if hasattr(section_extraction, 'atomic_topics') and section_extraction.atomic_topics:
+                    for idx, t in enumerate(section_extraction.atomic_topics):
+                        sec_heading = match_concept_to_section_heading(
+                            sections, t.topic_name, t.summary, t.key_terms
+                        )
+                        atomic_concepts.append({
+                            "id": f"c_{idx + 1}",
+                            "name": t.topic_name,
+                            "concept_type": t.concept_type or "Definition",
+                            "summary": t.summary or "",
+                            "key_terms": t.key_terms or [],
+                            "section_heading": sec_heading,
+                            "related_code_id": t.related_code_id,
+                            "related_image_id": t.related_image_id,
+                            "mastery_score": None,
+                            "mastery_status": "untested",
+                            "last_drilled_at": None,
+                        })
 
             # Enrich topic with structured atomic concepts
             update_topic_enrichment(
@@ -961,9 +1089,27 @@ async def process_topic_stream(topic_id: int, req: ProcessTopicRequest):
             import traceback
             logger.error(f"Error processing topic {topic_id}: {e}\n{traceback.format_exc()}")
             update_topic_status(topic_id, "unprocessed")
-            yield f"data: {json.dumps(error_event(e, include_debug=_is_debug()))}\n\n"
+            
+            saved_count = 0
+            if children:
+                for c in children:
+                    c_curr = get_topic_by_id(c["id"])
+                    if c_curr and c_curr.get("status") == "processing":
+                        update_topic_status(c["id"], "unprocessed")
+                    elif c_curr and c_curr.get("status") == "processed":
+                        saved_count += 1
+
+            err_dict = error_event(e, include_debug=_is_debug())
+            if children and saved_count > 0:
+                base_msg = err_dict.get("message", "")
+                err_dict["message"] = f"{base_msg} (Progress checkpointed: {saved_count}/{len(children)} subtopics saved. You can resume safely.)"
+                err_dict["checkpointed_count"] = saved_count
+                err_dict["total_children"] = len(children)
+
+            yield f"data: {json.dumps(err_dict)}\n\n"
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
+
 
 
 # ── Socratic Drill Endpoints ────────────────────────────────────────────
@@ -1413,30 +1559,42 @@ def update_topic_notes_api(topic_id: int, req: NoteUpdate):
     save_note_for_topic(topic_id, req.note)
     return {"status": "success"}
 
+@app.delete("/topics/{topic_id}/notes")
+def delete_topic_notes_api(topic_id: int):
+    from app.database import delete_note_by_topic
+    deleted = delete_note_by_topic(topic_id)
+    return {"status": "success", "deleted": deleted}
 
-class NoteScaffoldRequest(BaseModel):
-    provider_override: str | None = None
+@app.get("/notes")
+def get_all_notes_api(book_id: int | None = None, search: str | None = None):
+    from app.database import get_all_notes
+    return get_all_notes(book_id=book_id, search=search)
 
-@app.post("/topics/{topic_id}/notes/scaffold")
-async def generate_note_scaffold_api(topic_id: int, req: NoteScaffoldRequest):
-    """Generate a structured Cornell Study Guide for a topic using its atomic concepts and text."""
-    from app.database import get_topic_by_id
+@app.get("/notes/annotations")
+def get_all_annotations_api(book_id: int | None = None):
+    from app.database import get_all_annotations
+    return get_all_annotations(book_id=book_id)
+
+
+async def generate_single_cornell_note(topic: dict, provider_override: str | None = None) -> str:
+    """Generates a structured, LaTeX-enabled Cornell Study Guide for an individual topic."""
     from app.llm_providers.factory import get_llm_provider
     from app.config import settings
+    from copy import copy
     import json
     
-    topic = get_topic_by_id(topic_id)
-    if not topic:
-        return JSONResponse(status_code=404, content={"error": "Topic not found"})
-        
-    content = ""
-    try:
-        content = await ensure_topic_markdown(topic_id)
-    except Exception as e:
-        logger.warning(f"Could not extract markdown for topic {topic_id}: {e}")
-        content = topic.get("summary") or ""
-    
-    # Extract concepts context if available
+    topic_id = topic.get("id")
+    content = topic.get("content_md") or ""
+    if not content or len(content.strip()) < 30:
+        if topic_id:
+            try:
+                content = await ensure_topic_markdown(topic_id)
+            except Exception as e:
+                logger.warning(f"Could not extract markdown for topic {topic_id}: {e}")
+                content = topic.get("summary") or ""
+        else:
+            content = topic.get("summary") or ""
+            
     concepts_summary = ""
     if topic.get("atomic_concepts"):
         try:
@@ -1456,7 +1614,7 @@ Breadcrumb: {topic.get('breadcrumb', '')}
 {concepts_summary}
 
 Content Reference:
-{content[:7000]}
+{content[:8000]}
 
 Generate a comprehensive, beautifully structured study note in Markdown adhering strictly to this Cornell & Active Recall structure:
 
@@ -1479,15 +1637,121 @@ Generate a comprehensive, beautifully structured study note in Markdown adhering
 Format strictly in clean, readable Markdown. Do not include introductory conversational filler.
 """
 
+    local_settings = copy(settings)
+    provider = get_llm_provider(local_settings, provider_override=provider_override)
+    scaffold_markdown = await provider.generate(scaffold_prompt, json_schema=None, temperature=0.2, max_tokens=3000)
+    if not scaffold_markdown or not scaffold_markdown.strip():
+        raise RuntimeError(f"LLM provider returned empty response for study notes of '{topic.get('title')}'.")
+    return scaffold_markdown.strip()
+
+
+def extract_cue_questions(note_text: str) -> str:
+    """Extracts the self-testing cue questions section from a Cornell note."""
+    import re
+    match = re.search(r'##\s*📌?\s*Self-Testing Cue Questions.*?\n(.*)', note_text, re.DOTALL | re.IGNORECASE)
+    if match:
+        cues_text = match.group(1).strip()
+        next_heading = re.search(r'\n##\s+', cues_text)
+        if next_heading:
+            cues_text = cues_text[:next_heading.start()].strip()
+        return cues_text
+    return ""
+
+
+def assemble_master_chapter_guide(parent_topic: dict, child_results: list[tuple[dict, str]]) -> str:
+    """Assembles individual subtopic Cornell notes into an authoritative Master Chapter Study Guide."""
+    parent_title = parent_topic.get("title", "Chapter Study Guide")
+    subtopic_titles = [c.get("title", f"Part {i}") for i, (c, _) in enumerate(child_results, 1)]
+    subtopics_summary = ", ".join(f"*{t}*" for t in subtopic_titles)
+    
+    lines = [
+        f"# 📚 {parent_title} — Master Study Guide\n",
+        f"> **Chapter Overview**: Synthesized master notes covering {len(child_results)} subtopics: {subtopics_summary}.\n",
+        "## 📑 Subtopics Navigation\n"
+    ]
+    
+    for idx, (c, _) in enumerate(child_results, 1):
+        c_title = c.get("title", f"Part {idx}")
+        start_p = c.get('start_page', '?')
+        end_p = c.get('end_page', '?')
+        lines.append(f"{idx}. **{c_title}** (p. {start_p}–{end_p})")
+    
+    lines.append("\n---\n")
+    
+    cue_sections = []
+    for idx, (c, note_text) in enumerate(child_results, 1):
+        c_title = c.get("title", f"Part {idx}")
+        lines.append(f"## 📑 Part {idx}: {c_title}\n")
+        lines.append(note_text.strip())
+        lines.append("\n\n---\n")
+        
+        cues = extract_cue_questions(note_text)
+        if cues:
+            cue_sections.append(f"### 📌 From {c_title}:\n{cues}")
+            
+    if cue_sections:
+        lines.append("# 🎯 Chapter Master Active Recall Deck\n")
+        lines.append("*Consolidated cue questions from all subtopics for self-testing before exams:*\n\n")
+        lines.append("\n\n".join(cue_sections))
+        
+    return "\n".join(lines)
+
+
+class NoteScaffoldRequest(BaseModel):
+    provider_override: str | None = None
+
+@app.post("/topics/{topic_id}/notes/scaffold")
+async def generate_note_scaffold_api(topic_id: int, req: NoteScaffoldRequest):
+    """
+    Generate a structured Cornell Study Guide.
+    If the topic has child subtopics (e.g. Chapter with 4.1, 4.2), it generates Cornell notes
+    for each child concurrently (reusing any existing child notes) and compiles an authoritative
+    Master Chapter Guide with subtopic navigation and a consolidated Master Active Recall Deck.
+    """
+    from app.database import get_topic_by_id, get_child_topics, get_note_by_topic, save_note_for_topic
+    
+    topic = get_topic_by_id(topic_id)
+    if not topic:
+        return JSONResponse(status_code=404, content={"error": "Topic not found"})
+        
+    children = get_child_topics(topic_id)
+    
     try:
-        from copy import copy
-        local_settings = copy(settings)
-        provider = get_llm_provider(local_settings, provider_override=req.provider_override)
-        scaffold_markdown = await provider.generate(scaffold_prompt, json_schema=None, temperature=0.2, max_tokens=3000)
-        if not scaffold_markdown or not scaffold_markdown.strip():
-            raise RuntimeError("LLM provider returned empty response for study notes.")
-        result_text = scaffold_markdown.strip()
-        return {"topic_id": topic_id, "scaffold": result_text, "note": result_text}
+        if children:
+            logger.info(f"Generating hierarchical Cornell notes for parent topic {topic_id} ({len(children)} children)...")
+            
+            # Concurrency semaphore (3 parallel) to avoid burst rate-limits on LLM tiers
+            sem = asyncio.Semaphore(3)
+            
+            async def process_child(child):
+                c_id = child["id"]
+                existing_note = get_note_by_topic(c_id)
+                # Smart reuse: if child already has a substantive note, reuse it!
+                if existing_note and len(existing_note.strip()) > 60:
+                    logger.info(f"Reusing existing note for child topic {c_id} ('{child.get('title')}')")
+                    return child, existing_note
+                    
+                async with sem:
+                    c_note = await generate_single_cornell_note(child, req.provider_override)
+                    save_note_for_topic(c_id, c_note)
+                    return child, c_note
+                    
+            child_results = await asyncio.gather(*(process_child(c) for c in children))
+            
+            master_guide = assemble_master_chapter_guide(topic, child_results)
+            save_note_for_topic(topic_id, master_guide)
+            
+            return {
+                "topic_id": topic_id,
+                "scaffold": master_guide,
+                "note": master_guide,
+                "children_count": len(children)
+            }
+        else:
+            note = await generate_single_cornell_note(topic, req.provider_override)
+            save_note_for_topic(topic_id, note)
+            return {"topic_id": topic_id, "scaffold": note, "note": note}
+            
     except Exception as e:
         logger.error(f"Failed to generate note scaffold: {e}")
         return error_response(e, include_debug=_is_debug())

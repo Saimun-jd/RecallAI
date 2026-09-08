@@ -457,10 +457,11 @@ def save_book(title: str, file_path: str, file_hash: str, total_pages: int) -> i
         if row:
             return row['id']
             
+        import uuid
         cursor.execute("""
-            INSERT INTO books (title, file_path, file_hash, total_pages)
-            VALUES (?, ?, ?, ?)
-        """, (title, file_path, file_hash, total_pages))
+            INSERT INTO books (title, file_path, file_hash, total_pages, uuid, updated_at)
+            VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        """, (title, file_path, file_hash, total_pages, str(uuid.uuid4())))
         
         return cursor.lastrowid
 
@@ -719,6 +720,13 @@ def get_topic_by_id(topic_id: int) -> Optional[Dict[str, Any]]:
         cursor.execute("SELECT * FROM topics WHERE id = ?", (topic_id,))
         row = cursor.fetchone()
         return dict(row) if row else None
+
+def get_child_topics(parent_id: int) -> List[Dict[str, Any]]:
+    """Retrieves immediate child topics for a given parent topic, sorted by sort_order and id."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM topics WHERE parent_id = ? ORDER BY sort_order ASC, id ASC", (parent_id,))
+        return [dict(row) for row in cursor.fetchall()]
 
 def update_topic_enrichment(
     topic_id: int,
@@ -1158,14 +1166,86 @@ def get_note_by_topic(topic_id: int) -> str:
 
 def save_note_for_topic(topic_id: int, note_text: str) -> None:
     """Upserts the Markdown text in the notes table for a topic."""
+    import uuid
     with get_connection() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT id FROM notes WHERE topic_id = ?", (topic_id,))
+        cursor.execute("SELECT id, uuid FROM notes WHERE topic_id = ?", (topic_id,))
         row = cursor.fetchone()
         if row:
-            cursor.execute("UPDATE notes SET content = ?, updated_at = CURRENT_TIMESTAMP WHERE topic_id = ?", (note_text, topic_id))
+            note_uuid = row['uuid'] or str(uuid.uuid4())
+            cursor.execute("UPDATE notes SET content = ?, uuid = ?, updated_at = CURRENT_TIMESTAMP WHERE topic_id = ?", (note_text, note_uuid, topic_id))
         else:
-            cursor.execute("INSERT INTO notes (topic_id, content) VALUES (?, ?)", (topic_id, note_text))
+            cursor.execute("INSERT INTO notes (topic_id, content, uuid, updated_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)", (topic_id, note_text, str(uuid.uuid4())))
+
+def get_all_notes(book_id: Optional[int] = None, search: Optional[str] = None) -> List[Dict[str, Any]]:
+    """Retrieves all notes joined with their topic and book metadata."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        sql = """
+            SELECT 
+                n.id,
+                n.topic_id,
+                n.content,
+                n.created_at,
+                n.updated_at,
+                n.uuid,
+                t.title AS topic_title,
+                t.breadcrumb,
+                t.level,
+                t.start_page,
+                t.end_page,
+                t.book_id,
+                b.title AS book_title
+            FROM notes n
+            JOIN topics t ON n.topic_id = t.id
+            JOIN books b ON t.book_id = b.id
+            WHERE length(trim(n.content)) > 0
+        """
+        params = []
+        if book_id is not None:
+            sql += " AND t.book_id = ?"
+            params.append(book_id)
+        if search and search.strip():
+            term = f"%{search.strip()}%"
+            sql += " AND (n.content LIKE ? OR t.title LIKE ? OR b.title LIKE ?)"
+            params.extend([term, term, term])
+        sql += " ORDER BY n.updated_at DESC"
+        cursor.execute(sql, tuple(params))
+        return [dict(row) for row in cursor.fetchall()]
+
+def delete_note_by_topic(topic_id: int) -> bool:
+    """Deletes the note for a specific topic."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM notes WHERE topic_id = ?", (topic_id,))
+        return cursor.rowcount > 0
+
+def get_all_annotations(book_id: Optional[int] = None) -> List[Dict[str, Any]]:
+    """Retrieves all PDF annotations that contain note/comment content across books."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        sql = """
+            SELECT 
+                a.id,
+                a.book_id,
+                b.title AS book_title,
+                a.page_number,
+                a.annotation_type,
+                a.selected_text,
+                a.content,
+                a.created_at,
+                a.updated_at
+            FROM pdf_annotations a
+            JOIN books b ON a.book_id = b.id
+            WHERE a.content IS NOT NULL AND length(trim(a.content)) > 0
+        """
+        params = []
+        if book_id is not None:
+            sql += " AND a.book_id = ?"
+            params.append(book_id)
+        sql += " ORDER BY a.updated_at DESC"
+        cursor.execute(sql, tuple(params))
+        return [dict(row) for row in cursor.fetchall()]
 
 def get_topics(book_id: Optional[int] = None, skip: int = 0, limit: int = 10000) -> List[Dict[str, Any]]:
     with get_connection() as conn:
@@ -1383,6 +1463,16 @@ def search_all(query: str, limit: int = 20) -> List[Dict[str, Any]]:
         """, (search_term, search_term, limit))
         card_results = [dict(r) for r in cursor.fetchall()]
         
-        # Combine and sort, prioritizing topics
-        results = topic_results + card_results
+        # Search notes
+        cursor.execute("""
+            SELECT 'note' as type, n.topic_id as id, t.title as title, 'Note: ' || substr(n.content, 1, 80) as subtitle, t.book_id
+            FROM notes n
+            JOIN topics t ON n.topic_id = t.id
+            WHERE n.content LIKE ? OR t.title LIKE ?
+            LIMIT ?
+        """, (search_term, search_term, limit))
+        note_results = [dict(r) for r in cursor.fetchall()]
+        
+        # Combine and sort, prioritizing topics and notes
+        results = topic_results + note_results + card_results
         return results[:limit]

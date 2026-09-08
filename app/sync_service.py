@@ -130,10 +130,11 @@ def translate_fks_for_pull(table: str, record: dict, reverse_mappings: dict) -> 
             if not local_id: return False
             record["flashcard_id"] = local_id
     elif table == "pdf_annotations":
-        if record.get("book_id"):
-            local_id = reverse_mappings["books"].get(record["book_id"])
-            if not local_id: return False
-            record["book_id"] = local_id
+        if not record.get("book_id"):
+            return False
+        local_id = reverse_mappings["books"].get(record["book_id"])
+        if not local_id: return False
+        record["book_id"] = local_id
             
     return True
 
@@ -243,6 +244,7 @@ def pull_changes(supabase: Client, last_sync: str):
                         break
             except Exception as e:
                 logger.error(f"Error pulling table {table} from Supabase: {e}")
+                raise e
 
 def push_changes(supabase: Client, last_sync: str):
     """Pushes local changes that occurred after last_sync to Supabase."""
@@ -260,14 +262,16 @@ def push_changes(supabase: Client, last_sync: str):
             cursor.execute(f"SELECT id FROM {table} WHERE uuid IS NULL")
             missing = cursor.fetchall()
             for r in missing:
-                cursor.execute(f"UPDATE {table} SET uuid = ? WHERE id = ?", (str(uuid.uuid4()), r['id']))
+                cursor.execute(f"UPDATE {table} SET uuid = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", (str(uuid.uuid4()), r['id']))
             
         mappings = {t: get_mapping_id_to_uuid(t) for t in SYNC_TABLES}
             
         for table in SYNC_TABLES:
             try:
-                # Fetch local records modified since last sync
-                cursor.execute(f"SELECT * FROM {table} WHERE updated_at > ?", (last_sync,))
+                # Fetch local records modified since last sync.
+                # For topics, push parent topics first (level ASC) so parent_id references succeed.
+                order_clause = "ORDER BY level ASC" if table == "topics" else ""
+                cursor.execute(f"SELECT * FROM {table} WHERE updated_at > ? {order_clause}", (last_sync,))
                 rows = cursor.fetchall()
                 
                 if rows:
@@ -276,11 +280,15 @@ def push_changes(supabase: Client, last_sync: str):
                         r["user_id"] = user_id
                         translate_fks_for_push(table, r, mappings)
                     
-                    res = supabase.table(table).upsert(records, on_conflict="uuid").execute()
+                    # Batch in chunks of 100 for PostgREST
+                    for i in range(0, len(records), 100):
+                        batch = records[i:i + 100]
+                        supabase.table(table).upsert(batch, on_conflict="uuid").execute()
                     
             except Exception as e:
                 logger.error(f"Error pushing table {table} to Supabase: {e}")
                 logger.error(traceback.format_exc())
+                raise e
 
         # Process local tombstones in reverse dependency order (children first) to avoid FK constraint errors on Supabase
         for table in reversed(SYNC_TABLES):
@@ -289,14 +297,20 @@ def push_changes(supabase: Client, last_sync: str):
                 tombstone_rows = cursor.fetchall()
                 if tombstone_rows:
                     uuids_to_delete = [r["uuid"] for r in tombstone_rows]
-                    # Send delete requests to Supabase
-                    supabase.table(table).delete().in_("uuid", uuids_to_delete).execute()
+                    # Chunk deletes into batches of 50 to avoid URL length limits
+                    for i in range(0, len(uuids_to_delete), 50):
+                        batch_uuids = uuids_to_delete[i:i + 50]
+                        supabase.table(table).delete().in_("uuid", batch_uuids).execute()
                     
-                    # Push tombstones to Supabase so other clients know to delete
+                    # Push tombstones to Supabase so other clients know to delete (batched by 100)
                     tombstones_payload = [{"uuid": r["uuid"], "table_name": table, "deleted_at": r["deleted_at"]} for r in tombstone_rows]
-                    supabase.table("sync_tombstones").upsert(tombstones_payload, on_conflict="uuid").execute()
+                    for i in range(0, len(tombstones_payload), 100):
+                        batch_payload = tombstones_payload[i:i + 100]
+                        supabase.table("sync_tombstones").upsert(batch_payload, on_conflict="uuid").execute()
             except Exception as e:
                 logger.error(f"Error pushing tombstones for {table}: {e}")
+                logger.error(traceback.format_exc())
+                raise e
 
 def sync_with_remote(token: str):
     """Coordinates the two-way sync process."""

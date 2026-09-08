@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
-import { Book, BrainCircuit, Settings, BarChart3, Menu } from 'lucide-react';
+import { Book, BrainCircuit, Settings, BarChart3, Menu, NotebookPen } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { AuthButton } from './AuthButton';
 
@@ -46,6 +46,10 @@ export function Sidebar() {
         <Link to="/" className={linkClass("/")} title={!isExpanded ? "Dashboard" : undefined}>
           <Book size={20} strokeWidth={2.5} className={iconClass("/")} />
           <span className={cn("font-bold text-sm", !isExpanded && "hidden")}>Dashboard</span>
+        </Link>
+        <Link to="/notes" className={linkClass("/notes")} title={!isExpanded ? "Notes" : undefined}>
+          <NotebookPen size={20} strokeWidth={2.5} className={iconClass("/notes")} />
+          <span className={cn("font-bold text-sm", !isExpanded && "hidden")}>Notes</span>
         </Link>
         <Link to="/review" className={linkClass("/review")} title={!isExpanded ? "Flashcards" : undefined}>
           <BrainCircuit size={20} strokeWidth={2.5} className={iconClass("/review")} />
