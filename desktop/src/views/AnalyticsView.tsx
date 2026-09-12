@@ -29,17 +29,17 @@ export function AnalyticsView() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full bg-[#f0f0f0]">
-        <div className="animate-spin rounded-full h-12 w-12 border-[4px] border-black border-t-blue-500"></div>
+      <div className="flex items-center justify-center h-full bg-surface">
+        <div className="animate-spin rounded-full h-10 w-10 border-2 border-primary border-t-transparent"></div>
       </div>
     );
   }
 
   if (!stats) {
     return (
-      <div className="flex items-center justify-center h-full bg-[#f0f0f0] text-black flex-col gap-4 font-bold">
-        <AlertCircle size={48} strokeWidth={2.5} />
-        <p className="text-xl">Could not load analytics data.</p>
+      <div className="flex items-center justify-center h-full bg-surface text-on-surface flex-col gap-4 font-medium">
+        <AlertCircle size={40} className="text-on-surface-variant" />
+        <p className="text-base">Could not load analytics data.</p>
       </div>
     );
   }
@@ -47,18 +47,18 @@ export function AnalyticsView() {
   const { totals, queue, fsrs_metrics, forecast_7d } = stats;
 
   const StatCard = ({ title, value, icon: Icon, colorClass, subtitle }: any) => (
-    <div className={clsx("border-2 border-on-surface rounded-xl shadow-[8px_8px_0px_0px_#191b23] p-5 relative overflow-hidden transition-all duration-200 hover:-translate-y-1 flex flex-col min-h-[120px] justify-between gap-4", colorClass)}>
+    <div className={clsx("border border-border-default rounded-xl shadow-xs bg-surface-container-lowest p-5 relative overflow-hidden transition-all duration-200 hover:shadow-sm flex flex-col min-h-[120px] justify-between gap-4", colorClass)}>
       <div className="flex items-center gap-3">
-        <div className="p-2 border-2 border-on-surface bg-surface-container-lowest rounded-md shrink-0 flex items-center justify-center">
-          <Icon size={20} strokeWidth={2.5} className="text-on-surface" />
+        <div className="p-2 border border-border-default bg-surface-container-low rounded-lg shrink-0 flex items-center justify-center">
+          <Icon size={18} className="text-primary" />
         </div>
-        <h3 className="text-sm font-bold text-on-surface uppercase tracking-wider break-words min-w-0 leading-tight">
+        <h3 className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider break-words min-w-0 leading-tight">
           {title}
         </h3>
       </div>
       <div>
-        <div className="text-3xl font-black text-on-surface">{value}</div>
-        {subtitle && <p className="text-xs font-bold text-on-surface mt-1 opacity-80">{subtitle}</p>}
+        <div className="text-2xl font-bold text-on-surface">{value}</div>
+        {subtitle && <p className="text-xs font-medium text-on-surface-variant mt-1">{subtitle}</p>}
       </div>
     </div>
   );

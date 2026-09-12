@@ -15,10 +15,10 @@ export function StatusBar({ bootTime, sidecarStatus }: { bootTime: number, sidec
   const isBooting = elapsed < 30 && sidecarStatus !== 'connected';
 
   return (
-    <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider bg-surface border-2 border-on-surface px-2.5 py-1 rounded-md shadow-[2px_2px_0px_0px_#191b23]">
+    <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider bg-surface-container-lowest border border-border-default px-2.5 py-1 rounded-md shadow-xs">
         {sidecarStatus === 'connected' ? (
-          <span className="text-green-600 flex items-center gap-1.5 font-black">
-            <span className="w-2 h-2 rounded-full bg-green-500"></span> 
+          <span className="text-emerald-600 flex items-center gap-1.5 font-bold">
+            <span className="w-2 h-2 rounded-full bg-emerald-500"></span> 
             Online
           </span>
         ) : isBooting ? (
@@ -27,8 +27,8 @@ export function StatusBar({ bootTime, sidecarStatus }: { bootTime: number, sidec
             Waking up ({elapsed}s)
           </span>
         ) : (
-          <span className="text-red-600 flex items-center gap-1.5 font-black">
-            <span className="w-2 h-2 rounded-full bg-red-500"></span> 
+          <span className="text-rose-600 flex items-center gap-1.5 font-bold">
+            <span className="w-2 h-2 rounded-full bg-rose-500"></span> 
             Disconnected
           </span>
         )}

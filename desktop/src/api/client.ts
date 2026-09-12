@@ -1,8 +1,10 @@
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
 import { parseApiError, parseSSEError, type ApiError } from './errors';
+import { isTauriEnvironment } from './keychain';
 
 const fetch = async (url: string, options?: any) => {
-  const res = await tauriFetch(url, options);
+  const fetchFn = isTauriEnvironment() ? tauriFetch : window.fetch.bind(window);
+  const res = await fetchFn(url, options);
   if (options && options.method && ['POST', 'PUT', 'DELETE', 'PATCH'].includes(options.method.toUpperCase())) {
     if (res.ok) {
       window.dispatchEvent(new Event('trigger-sync'));

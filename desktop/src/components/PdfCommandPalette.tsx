@@ -247,7 +247,7 @@ export function PdfCommandPalette({ selection, position, onCommand, onDismiss, i
             </button>
             <button
               onClick={handlePin}
-              className="px-4 py-1.5 text-xs font-semibold bg-emerald-500 text-zinc-950 rounded-lg hover:bg-emerald-400 transition-colors"
+              className="px-4 py-1.5 text-xs font-semibold bg-emerald-600 text-white rounded-lg hover:bg-emerald-500 transition-colors shadow-xs"
             >
               Pin to PDF
             </button>
@@ -347,7 +347,7 @@ export function PdfCommandPalette({ selection, position, onCommand, onDismiss, i
             </button>
             <button
               onClick={handleSubmit}
-              className="px-4 py-1.5 text-xs font-semibold bg-emerald-500 text-zinc-950 rounded-lg hover:bg-emerald-400 transition-colors"
+              className="px-4 py-1.5 text-xs font-semibold bg-emerald-600 text-white rounded-lg hover:bg-emerald-500 transition-colors shadow-xs"
             >
               Explain
             </button>
@@ -383,7 +383,7 @@ export function PdfCommandPalette({ selection, position, onCommand, onDismiss, i
               <button
                 onClick={handleSubmit}
                 disabled={!sidenoteText.trim()}
-                className="px-4 py-1.5 text-xs font-semibold bg-amber-500 text-zinc-950 rounded-lg hover:bg-amber-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                className="px-4 py-1.5 text-xs font-semibold bg-amber-600 text-white rounded-lg hover:bg-amber-500 transition-colors disabled:opacity-40 disabled:cursor-not-allowed shadow-xs"
               >
                 Save Note
               </button>

@@ -1,7 +1,7 @@
 import { Stronghold, Store as StrongholdStore } from '@tauri-apps/plugin-stronghold';
 import { load, Store as PluginStore } from '@tauri-apps/plugin-store';
 import { appLocalDataDir, join } from '@tauri-apps/api/path';
-import { saveApiKey } from './keychain';
+import { saveApiKey, isTauriEnvironment } from './keychain';
 
 const VAULT_NAME = '.recall-keys.app';
 const FALLBACK_STORE_NAME = 'keys.json';
@@ -9,7 +9,7 @@ const DEFAULT_PASSWORD = 'recall-local-secure-vault-v1';
 const CLIENT_NAME = 'recall-client';
 
 export const migrateLegacyKeys = async () => {
-  if (localStorage.getItem('legacy-keyring-migrated') === 'true') {
+  if (!isTauriEnvironment() || localStorage.getItem('legacy-keyring-migrated') === 'true') {
     return;
   }
 

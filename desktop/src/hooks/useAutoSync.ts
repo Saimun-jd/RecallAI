@@ -1,9 +1,13 @@
 import { useEffect, useCallback, useRef } from 'react';
 import { useToast } from './useToast';
-import { fetch } from '@tauri-apps/plugin-http';
+import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
+import { isTauriEnvironment } from '../api/keychain';
 import { useDispatch } from 'react-redux';
 import { setIngestionProgress } from '../store';
 import { client } from '../api/client';
+
+const fetchFn = (url: string, options?: any) =>
+  isTauriEnvironment() ? tauriFetch(url, options) : window.fetch(url, options);
 
 export function useAutoSync(token: string | null) {
   const { showToast } = useToast();
@@ -15,7 +19,7 @@ export function useAutoSync(token: string | null) {
     
     isSyncing.current = true;
     try {
-      const response = await fetch('http://localhost:8000/api/sync', {
+      const response = await fetchFn('http://localhost:8000/api/sync', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

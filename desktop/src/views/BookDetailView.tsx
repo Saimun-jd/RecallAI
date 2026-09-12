@@ -541,8 +541,8 @@ export function BookDetailView() {
                   className={clsx(
                     "absolute top-0 left-0 w-full flex items-center text-left transition-colors group",
                     isSelected 
-                      ? "bg-primary/10 border-l-4 border-primary text-primary font-bold z-10" 
-                      : "text-on-surface hover:bg-surface-container hover:text-primary border-l-4 border-transparent"
+                      ? "bg-primary/10 text-primary font-semibold z-10 rounded-md" 
+                      : "text-on-surface-variant hover:bg-surface-container hover:text-on-surface rounded-md"
                   )}
                   style={{
                     height: `${virtualRow.size}px`,
@@ -659,7 +659,7 @@ export function BookDetailView() {
                   {annotations.length > 0 && (
                     <button
                       onClick={() => window.open(`http://127.0.0.1:8000/books/${bookId}/export-annotated`, '_blank')}
-                      className="text-label-sm font-bold text-primary bg-tertiary-fixed px-3 py-1.5 transition-colors border-[3px] border-primary neo-shadow-sm active-neo-press"
+                      className="text-xs font-semibold text-primary bg-surface-container-low hover:bg-surface-container px-3 py-1.5 transition-colors border border-border-default rounded-md shadow-xs"
                     >
                       Export PDF
                     </button>
@@ -1020,13 +1020,13 @@ export function BookDetailView() {
                   const masteredCount = concepts.filter(c => c.mastery_status === 'mastered').length;
 
                   return (
-                    <div className="bg-surface-container-lowest border-[3px] border-on-background neo-shadow-lg p-6">
+                    <div className="bg-surface-container-lowest border border-border-default rounded-xl shadow-xs p-6">
                       <div 
                         className="flex items-center justify-between mb-4 cursor-pointer group select-none"
                         onClick={() => setIsSummaryCollapsed(!isSummaryCollapsed)}
                       >
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 border-[3px] border-on-background bg-surface-container-lowest flex items-center justify-center neo-shadow-sm text-primary group-hover:bg-primary/5 transition-colors">
+                          <div className="w-10 h-10 border border-border-default bg-surface-container-low rounded-lg flex items-center justify-center text-primary group-hover:bg-primary/5 transition-colors">
                             <Layers size={20} />
                           </div>
                           <div>
@@ -1363,9 +1363,11 @@ export function BookDetailView() {
               {!isChatOpen && !isNotesOpen && (
                 <button
                   onClick={() => setIsChatOpen(true)}
-                  className="fixed bottom-6 right-6 z-40 w-16 h-16 bg-primary text-white rounded-full flex items-center justify-center shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] border-2 border-on-surface hover:bg-accent-blue transition-colors animate-bounce hover:animate-none"
+                  aria-label="Open AI Reading Assistant"
+                  title="Open AI Reading Assistant"
+                  className="fixed bottom-6 right-6 z-40 w-13 h-13 bg-primary text-on-primary rounded-full flex items-center justify-center shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 transition-all duration-200 border border-white/20"
                 >
-                  <Bot size={32} />
+                  <Bot size={24} />
                 </button>
               )}
 
@@ -1373,10 +1375,10 @@ export function BookDetailView() {
               {isNotesOpen && activeTopic && (
                 <div
                   className={clsx(
-                    "border-l-[3px] border-on-background bg-surface-container-lowest flex flex-col transition-all duration-200 shadow-[-4px_0px_0px_0px_rgba(0,0,0,0.1)]",
+                    "border-l border-border-default bg-surface-container-lowest flex flex-col transition-all duration-200 shadow-lg",
                     isNotesExpanded 
                       ? "absolute inset-0 z-50" 
-                      : "w-[480px] lg:w-[560px] xl:w-[620px] shrink-0 h-full relative z-30"
+                      : "w-[360px] md:w-[420px] lg:w-[500px] xl:w-[580px] shrink-0 h-full relative z-30"
                   )}
                 >
                   <ErrorBoundary>

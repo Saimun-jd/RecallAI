@@ -903,18 +903,18 @@ export function NotesView() {
             <div className="flex-1 overflow-y-auto p-6 flex justify-center bg-surface-container-low/50">
               <div className="w-full max-w-2xl space-y-4">
                 {/* Quoted Text Card */}
-                <div className="p-4 rounded-lg bg-surface border-2 border-on-surface shadow-[3px_3px_0px_0px_#191b23] space-y-1">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant font-mono">
+                <div className="p-4 rounded-xl bg-surface-container-lowest border border-border-default shadow-xs space-y-2">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-on-surface-variant">
                     Referenced Excerpt from Page {currentAnnotation.page_number}
                   </span>
-                  <blockquote className="border-l-4 border-accent-blue pl-3 py-1 italic font-serif text-sm text-on-surface">
+                  <blockquote className="pl-4 pr-3.5 py-2.5 italic font-serif text-sm text-on-surface bg-surface-container-low/60 rounded-lg border border-border-default/80">
                     "{currentAnnotation.selected_text}"
                   </blockquote>
                 </div>
 
                 {/* Sidenote Content */}
-                <div className="p-6 rounded-lg bg-surface border-2 border-on-surface shadow-[3px_3px_0px_0px_#191b23] space-y-2">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant font-mono">
+                <div className="p-6 rounded-xl bg-surface-container-lowest border border-border-default shadow-xs space-y-3">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-on-surface-variant">
                     Study Note / AI Explanation
                   </span>
                   <div className="prose dark:prose-invert max-w-none text-sm text-on-surface">

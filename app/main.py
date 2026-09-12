@@ -34,12 +34,21 @@ from app.markdown_ast import parse_markdown_assets
 from app.errors import RecallError, ErrorCode, classify_error, error_response, error_event, get_user_message
 from app.config import settings as app_settings
 
+from fastapi.exceptions import RequestValidationError
+from app.core.config import settings as core_settings
+from app.core.errors import AppException, ErrorCode as CoreErrorCode, format_error_response
+from app.api.middleware import SecurityHeadersMiddleware, RequestSizeLimitMiddleware
+from app.api.v1.router import api_v1_router
+from app.api.v1.health import router as health_router
+from app.models.schema_init import init_foundation_db
+
 logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    init_foundation_db()
     os.makedirs(PARSED_DOCS_DIR, exist_ok=True)
     
     sk = get_setting("langfuse_secret_key")
@@ -65,25 +74,24 @@ async def lifespan(app: FastAPI):
         pass
 
 
-app = FastAPI(title="Chunking Service", lifespan=lifespan)
+app = FastAPI(title="Recall AI Platform API", lifespan=lifespan)
 
+# Security Middleware
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(RequestSizeLimitMiddleware)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "tauri://localhost", 
-        "https://tauri.localhost", 
-        "http://localhost:5173", 
-        "http://127.0.0.1:5173",
-        "http://localhost:8000",
-        "http://127.0.0.1:8000",
-        "*"
-    ],
+    allow_origins=core_settings.CORS_ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 app.mount("/static", StaticFiles(directory=PARSED_DOCS_DIR), name="static")
+
+# Mount API Routers
+app.include_router(api_v1_router)
+app.include_router(health_router)
 
 from app.config import get_provider_concurrency
 
@@ -94,13 +102,43 @@ def _is_debug() -> bool:
 
 # ── Global Exception Handlers ────────────────────────────────────────────
 
+@app.exception_handler(AppException)
+async def app_exception_handler(request: Request, exc: AppException):
+    return format_error_response(
+        code=exc.code,
+        message=exc.message,
+        status_code=exc.status_code,
+        details=exc.details
+    )
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    field_errors = []
+    for error in exc.errors():
+        loc = " -> ".join(str(l) for l in error.get("loc", []))
+        field_errors.append({
+            "field": loc,
+            "message": error.get("msg", "Invalid value")
+        })
+    return format_error_response(
+        code=CoreErrorCode.VALIDATION_ERROR,
+        message="Request validation failed. Please check your inputs.",
+        status_code=422,
+        details=field_errors
+    )
+
 @app.exception_handler(RecallError)
 async def recall_error_handler(request: Request, exc: RecallError):
     return error_response(exc, include_debug=_is_debug())
 
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception):
-    return error_response(exc, include_debug=_is_debug())
+    logger.error(f"Unhandled server exception: {exc}", exc_info=True)
+    return format_error_response(
+        code=CoreErrorCode.INTERNAL_ERROR,
+        message="An unexpected internal error occurred. Please try again later.",
+        status_code=500
+    )
 
 async def process_section(
     sec: dict, 

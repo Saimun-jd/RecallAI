@@ -209,7 +209,11 @@ export default function App() {
 
     checkHealth();
     loadGlobalSettings();
-    const interval = setInterval(checkHealth, 3000);
+    const interval = setInterval(() => {
+      if (document.visibilityState !== 'hidden') {
+        checkHealth();
+      }
+    }, 10000);
     return () => {
       clearInterval(interval);
       subscription.unsubscribe();
@@ -293,29 +297,37 @@ export default function App() {
       {!hasSeenWelcome && <WelcomeScreen onComplete={handleWelcomeComplete} />}
       
       {/* Global Header */}
-      <header className="fixed top-0 inset-x-0 z-50 bg-surface-container-low border-b-2 border-on-surface pt-[env(safe-area-inset-top,0px)]">
+      <header className="fixed top-0 inset-x-0 z-50 bg-surface/90 backdrop-blur-md border-b border-border-default pt-[env(safe-area-inset-top,0px)]">
         <div className="h-16 px-5 flex items-center justify-between">
           <StatusBar bootTime={bootTime} sidecarStatus={sidecarStatus} />
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 border-2 border-on-surface rounded-lg px-3 py-1.5 bg-surface shadow-[2px_2px_0px_0px_#191b23]">
-              <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Contrast</span>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 border border-border-default rounded-lg px-3 py-1.5 bg-surface-container-lowest shadow-xs">
+              <label htmlFor="contrast-range" className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider cursor-pointer">Contrast</label>
               <input 
+                id="contrast-range"
+                aria-label="Adjust display contrast"
                 type="range" 
                 min="-100" 
                 max="100" 
                 value={contrastLevel}
                 onChange={(e) => setContrastLevel(parseInt(e.target.value, 10))}
-                className="w-20 lg:w-24 accent-on-surface cursor-pointer"
+                className="w-20 lg:w-24 accent-primary cursor-pointer h-1.5 bg-surface-container-high rounded-full appearance-none"
               />
             </div>
-            <button className="w-10 h-10 flex items-center justify-center rounded-lg border-2 border-on-surface active:translate-y-0.5 transition-transform hover:bg-surface-container">
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-on-surface"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+            <button 
+              aria-label="Notifications"
+              className="w-10 h-10 flex items-center justify-center rounded-lg border border-border-default bg-surface-container-lowest text-on-surface hover:bg-surface-container transition-colors shadow-xs"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
             </button>
-            <div className="w-10 h-10 rounded-full border-2 border-on-surface bg-primary flex items-center justify-center overflow-hidden shrink-0">
+            <div 
+              aria-label="User profile account"
+              className="w-10 h-10 rounded-full border border-border-default bg-primary flex items-center justify-center overflow-hidden shrink-0 shadow-xs"
+            >
               {user?.user_metadata?.avatar_url ? (
                 <img src={user.user_metadata.avatar_url} referrerPolicy="no-referrer" alt="Profile" className="w-full h-full object-cover" />
               ) : (
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-on-primary"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-on-primary"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
               )}
             </div>
           </div>
@@ -329,7 +341,7 @@ export default function App() {
         <main className="flex-1 flex flex-col bg-background relative min-w-0 overflow-y-auto">
           {isSwitchingDb ? (
             <div className="flex-1 flex flex-col items-center justify-center gap-3">
-              <div className="w-6 h-6 border-2 border-on-surface border-t-transparent rounded-full animate-spin"></div>
+              <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
               <span className="text-on-surface-variant font-medium text-sm">Syncing local database...</span>
             </div>
           ) : (
@@ -348,18 +360,18 @@ export default function App() {
       
       {/* Cloud Upload Progress Indicator */}
       {cloudUploadState?.isUploading && (
-        <div className="fixed bottom-6 right-6 z-[100] w-80 bg-surface border-2 border-on-surface shadow-[4px_4px_0px_0px_#191b23] rounded-lg p-4 flex flex-col gap-2">
+        <div className="fixed bottom-6 right-6 z-[100] w-80 bg-surface-container-lowest border border-border-default shadow-lg rounded-xl p-4 flex flex-col gap-2">
           <div className="flex justify-between items-center">
-            <span className="font-bold text-sm text-on-surface truncate pr-2">Uploading {cloudUploadState.fileName}...</span>
-            <span className="text-xs font-bold text-on-surface-variant bg-surface-container px-2 py-0.5 rounded-full">{cloudUploadState.progress}%</span>
+            <span className="font-semibold text-sm text-on-surface truncate pr-2">Uploading {cloudUploadState.fileName}...</span>
+            <span className="text-xs font-semibold text-on-surface-variant bg-surface-container px-2 py-0.5 rounded-full">{cloudUploadState.progress}%</span>
           </div>
-          <div className="w-full h-2 bg-surface-container-high rounded-full overflow-hidden border border-outline-variant">
+          <div className="w-full h-2 bg-surface-container-high rounded-full overflow-hidden border border-outline-variant/30">
             <div 
               className="h-full bg-primary transition-all duration-300 ease-out"
               style={{ width: `${cloudUploadState.progress}%` }}
             />
           </div>
-          <span className="text-[10px] text-on-surface-variant text-center uppercase tracking-wider">Do not close app</span>
+          <span className="text-[11px] text-on-surface-variant text-center uppercase tracking-wider font-medium">Do not close app</span>
         </div>
       )}
 

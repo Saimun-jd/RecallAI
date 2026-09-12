@@ -3,7 +3,8 @@ import { LogIn, LogOut, RefreshCw } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { cn } from '../lib/utils';
 import { useToast } from '../hooks/useToast';
-import { open } from '@tauri-apps/plugin-shell';
+import { open as tauriOpen } from '@tauri-apps/plugin-shell';
+import { isTauriEnvironment } from '../api/keychain';
 
 export function AuthButton({ isExpanded }: { isExpanded: boolean }) {
   const [session, setSession] = useState<any>(null);
@@ -43,7 +44,11 @@ export function AuthButton({ isExpanded }: { isExpanded: boolean }) {
       });
       if (error) throw error;
       if (data?.url) {
-        await open(data.url);
+        if (isTauriEnvironment()) {
+          await tauriOpen(data.url);
+        } else {
+          window.open(data.url, '_blank');
+        }
       }
     } catch (err: any) {
       showToast("error", "Login failed", err.message || String(err));

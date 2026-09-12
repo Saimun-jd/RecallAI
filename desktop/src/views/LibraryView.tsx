@@ -212,10 +212,11 @@ export function LibraryView() {
       onDrop={handleDrop}
     >
       {isDragging && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-surface/80 backdrop-blur-sm pointer-events-none">
-          <div className="flex flex-col items-center p-8 bg-white border-4 border-on-background neo-shadow-lg">
-            <Upload size={48} className="text-on-background mb-4 animate-bounce" strokeWidth={2.5} />
-            <h2 className="text-3xl font-black text-on-background mb-2 uppercase">Drop PDF Here</h2>
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm pointer-events-none">
+          <div className="flex flex-col items-center p-8 bg-surface-container-lowest border border-border-default rounded-2xl shadow-xl">
+            <Upload size={40} className="text-primary mb-3" strokeWidth={2} />
+            <h2 className="text-xl font-bold text-on-surface mb-1">Drop PDF to Import</h2>
+            <p className="text-xs text-on-surface-variant">We'll automatically extract headings and generate topics</p>
           </div>
         </div>
       )}
@@ -224,18 +225,18 @@ export function LibraryView() {
         {/* Hero Welcome Section */}
         <section className="flex flex-col md:flex-row justify-between items-end gap-6 mb-8">
           <div>
-            <h2 className="text-4xl font-black text-on-background mb-2 tracking-tight">Welcome to Recall AI.</h2>
-            <p className="text-lg text-on-surface-variant font-medium max-w-2xl">
+            <h2 className="text-3xl font-bold text-on-surface mb-2 tracking-tight">Welcome to Recall AI</h2>
+            <p className="text-base text-on-surface-variant max-w-2xl">
               Your intelligent knowledge workspace. Manage your documents, generate flashcards, and track your progress.
             </p>
           </div>
-          <div className="flex gap-4">
+          <div className="flex items-center gap-3">
             <Link 
               to="/review"
-              className="px-6 py-3 bg-[#E5E7EB] text-on-surface border-4 border-on-background neo-shadow neo-shadow-button font-bold uppercase transition-transform flex items-center gap-2"
+              className="px-5 py-2.5 bg-primary text-on-primary font-semibold text-sm rounded-lg shadow-sm hover:bg-primary/90 hover:shadow transition-all flex items-center gap-2"
             >
-              <Zap size={20} strokeWidth={2.5} />
-              Start Study
+              <Zap size={16} />
+              <span>Start Study</span>
             </Link>
             
             <input 
@@ -249,12 +250,12 @@ export function LibraryView() {
               <button 
                 onClick={() => fileInputRef.current?.click()}
                 disabled={isUploading || books.length >= 5}
-                className="px-6 py-3 bg-[#E5E7EB] text-on-surface border-4 border-on-background neo-shadow neo-shadow-button font-bold uppercase transition-transform flex items-center gap-2 disabled:opacity-70"
+                className="px-5 py-2.5 bg-surface-container-lowest text-on-surface border border-border-default font-semibold text-sm rounded-lg shadow-xs hover:bg-surface-container transition-all flex items-center gap-2 disabled:opacity-70"
               >
-                {isUploading ? <Loader2 size={20} className="animate-spin" strokeWidth={2.5} /> : <Plus size={20} strokeWidth={2.5} />}
-                Upload PDF
+                {isUploading ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
+                <span>Upload PDF</span>
               </button>
-              <span className="text-xs font-bold text-on-surface-variant mt-2 uppercase tracking-wide">Limit: {books.length} / 5</span>
+              <span className="text-[11px] font-medium text-on-surface-variant mt-1.5">Limit: {books.length} / 5</span>
             </div>
           </div>
         </section>
@@ -263,62 +264,63 @@ export function LibraryView() {
         <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
 
           {/* Recent Documents */}
-          <div className="md:col-span-12 p-6 bg-surface-container-lowest border-4 border-on-background neo-shadow flex flex-col neo-shadow-card transition-transform">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-2xl font-black uppercase tracking-tight">Your Documents</h3>
+          <div className="md:col-span-12 p-6 bg-surface-container-lowest border border-border-default rounded-xl shadow-xs flex flex-col">
+            <div className="flex justify-between items-center mb-5">
+              <h3 className="text-lg font-bold text-on-surface tracking-tight">Your Documents</h3>
             </div>
             
             {books.length === 0 ? (
                <div 
                  onClick={() => fileInputRef.current?.click()}
-                 className="border-4 border-dashed border-on-background p-16 text-center flex flex-col items-center justify-center min-h-[300px] cursor-pointer hover:bg-surface-container transition-all group"
+                 className="border-2 border-dashed border-border-default rounded-xl p-12 text-center flex flex-col items-center justify-center min-h-[260px] cursor-pointer hover:bg-surface-container-low/60 hover:border-primary/40 transition-all group"
                >
-                 <div className="w-16 h-16 border-4 border-on-background bg-secondary-container flex items-center justify-center mb-6 group-hover:scale-110 transition-transform shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
-                   <Upload size={32} strokeWidth={2.5} className="text-on-background" />
+                 <div className="w-12 h-12 border border-border-default rounded-xl bg-surface-container-low flex items-center justify-center mb-4 group-hover:scale-105 transition-transform shadow-2xs">
+                   <Upload size={24} className="text-primary" />
                  </div>
-                 <h3 className="text-xl font-black uppercase mb-2 text-on-background">Upload your first PDF</h3>
-                 <p className="max-w-md font-medium text-on-surface-variant">Let the AI chunk it into intelligent study topics and flashcards.</p>
+                 <h3 className="text-base font-semibold text-on-surface mb-1">Import your first PDF</h3>
+                 <p className="max-w-sm text-xs text-on-surface-variant">Let the AI chunk it into intelligent study topics and flashcards.</p>
                </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                   <thead>
-                    <tr className="bg-transparent border-b-4 border-on-background">
-                      <th className="p-4 font-bold uppercase text-on-background">Name</th>
-                      <th className="p-4 font-bold uppercase text-on-background">Progress</th>
-                      <th className="p-4 font-bold uppercase text-on-background">Added</th>
-                      <th className="p-4"></th>
+                    <tr className="border-b border-border-default">
+                      <th className="py-3 px-4 text-xs font-semibold uppercase tracking-wider text-on-surface-variant">Name</th>
+                      <th className="py-3 px-4 text-xs font-semibold uppercase tracking-wider text-on-surface-variant">Progress</th>
+                      <th className="py-3 px-4 text-xs font-semibold uppercase tracking-wider text-on-surface-variant">Added</th>
+                      <th className="py-3 px-4"></th>
                     </tr>
                   </thead>
                   <tbody>
                     {books.map(book => (
-                      <tr key={book.id} className="border-b-4 border-on-background hover:bg-surface-container transition-colors group cursor-pointer" onClick={() => navigate(`/books/${book.id}`)}>
-                        <td className="p-4">
-                          <div className="flex items-center gap-4">
-                            <BookCover bookId={book.id} className="w-12 h-16 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]" />
-                            <span className="font-bold text-lg text-on-background line-clamp-1">{book.title}</span>
+                      <tr key={book.id} className="border-b border-border-default/50 hover:bg-surface-container-low/60 transition-colors group cursor-pointer" onClick={() => navigate(`/books/${book.id}`)}>
+                        <td className="py-3.5 px-4">
+                          <div className="flex items-center gap-3.5">
+                            <BookCover bookId={book.id} className="w-10 h-14 rounded-md border border-border-default shadow-2xs" />
+                            <span className="font-semibold text-sm text-on-surface line-clamp-1">{book.title}</span>
                           </div>
                         </td>
-                        <td className="p-4">
+                        <td className="py-3.5 px-4">
                            <div className="flex items-center gap-3">
-                             <div className="w-32 h-3 bg-surface border-2 border-on-background">
+                             <div className="w-28 h-2 bg-surface-container-high rounded-full overflow-hidden">
                                <div 
-                                 className="h-full bg-accent-blue border-r-2 border-on-background" 
+                                 className="h-full bg-primary rounded-full transition-all duration-300" 
                                  style={{ width: `${book.total_topics ? Math.round(((book.topics_processed || 0) / book.total_topics) * 100) : 0}%` }}
                                />
                              </div>
-                             <span className="font-bold">{book.total_topics ? Math.round(((book.topics_processed || 0) / book.total_topics) * 100) : 0}%</span>
+                             <span className="text-xs font-medium text-on-surface-variant">{book.total_topics ? Math.round(((book.topics_processed || 0) / book.total_topics) * 100) : 0}%</span>
                            </div>
                         </td>
-                        <td className="p-4 font-medium text-on-surface-variant">
+                        <td className="py-3.5 px-4 text-xs text-on-surface-variant">
                           {new Date(book.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
                         </td>
-                        <td className="p-4 text-right">
+                        <td className="py-3.5 px-4 text-right">
                           <button 
                             onClick={(e) => handleDelete(e, book.id)}
-                            className="p-2 border-2 border-transparent hover:border-on-background hover:bg-error hover:text-white transition-all shadow-none hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
+                            className="p-1.5 text-on-surface-variant hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg transition-colors"
+                            aria-label={`Delete ${book.title}`}
                           >
-                            <Trash2 size={20} strokeWidth={2.5} />
+                            <Trash2 size={16} />
                           </button>
                         </td>
                       </tr>
@@ -330,40 +332,40 @@ export function LibraryView() {
           </div>
 
           {/* Learning Progress Chart */}
-          <div className="md:col-span-8 p-6 bg-surface-container-lowest border-4 border-on-background neo-shadow flex flex-col neo-shadow-card transition-transform">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-2xl font-black uppercase tracking-tight">Learning Progress</h3>
+          <div className="md:col-span-8 p-6 bg-surface-container-lowest border border-border-default rounded-xl shadow-xs flex flex-col">
+            <div className="flex justify-between items-center mb-5">
+              <h3 className="text-lg font-bold text-on-surface tracking-tight">Learning Progress</h3>
             </div>
             {loadingStats ? (
               <div className="h-64 flex items-center justify-center">
-                <Loader2 size={32} className="animate-spin text-on-background" />
+                <Loader2 size={24} className="animate-spin text-primary" />
               </div>
             ) : stats?.forecast_7d ? (
               <div className="h-64 w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={stats.forecast_7d} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#1b1b1b" vertical={false} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" vertical={false} />
                     <XAxis 
                       dataKey="date" 
-                      stroke="#1b1b1b" 
-                      tick={{fill: '#1b1b1b', fontSize: 12, fontWeight: 'bold'}} 
+                      stroke="#94A3B8" 
+                      tick={{fill: '#64748B', fontSize: 11}} 
                       tickLine={false}
-                      axisLine={true}
+                      axisLine={{ stroke: '#E2E8F0' }}
                       tickFormatter={(val: string) => {
                         const [, m, d] = val.split('-');
                         return `${parseInt(m)}/${parseInt(d)}`;
                       }}
                     />
                     <YAxis 
-                      stroke="#1b1b1b" 
-                      tick={{fill: '#1b1b1b', fontSize: 12, fontWeight: 'bold'}} 
+                      stroke="#94A3B8" 
+                      tick={{fill: '#64748B', fontSize: 11}} 
                       tickLine={false}
-                      axisLine={true}
+                      axisLine={false}
                     />
                     <Tooltip 
-                      contentStyle={{ backgroundColor: '#ffffff', borderColor: '#1b1b1b', borderWidth: '3px', borderRadius: '0px', boxShadow: '4px 4px 0px 0px rgba(0,0,0,1)' }}
-                      itemStyle={{ color: '#1b1b1b', fontWeight: 'bold' }}
-                      labelStyle={{ color: '#1b1b1b', marginBottom: '4px', fontWeight: 'bold' }}
+                      contentStyle={{ backgroundColor: '#ffffff', borderColor: '#E2E8F0', borderWidth: '1px', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.08)' }}
+                      itemStyle={{ color: '#0F172A', fontWeight: '600' }}
+                      labelStyle={{ color: '#64748B', marginBottom: '4px', fontSize: '11px' }}
                       formatter={(value: any) => [value, 'Due Cards']}
                       labelFormatter={(label: any) => {
                          return new Date(label + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
@@ -371,11 +373,10 @@ export function LibraryView() {
                     />
                     <Bar 
                       dataKey="due_count" 
-                      fill="#004ac6" 
-                      stroke="#1b1b1b"
-                      strokeWidth={3}
-                      barSize={40}
-                      animationDuration={1000}
+                      fill="#2563EB" 
+                      radius={[4, 4, 0, 0]}
+                      barSize={32}
+                      animationDuration={800}
                     />
                   </BarChart>
                 </ResponsiveContainer>
@@ -388,40 +389,40 @@ export function LibraryView() {
           </div>
 
           {/* Quick Stats */}
-          <div className="md:col-span-4 space-y-8">
-            <div className="p-6 bg-surface-container-lowest border-4 border-on-background neo-shadow neo-shadow-card transition-transform">
-              <h4 className="font-bold uppercase mb-2 text-on-background">Total Documents</h4>
-              <div className="text-5xl font-black mb-2 text-on-background">{stats?.totals?.books || 0}</div>
-              <p className="font-medium text-on-surface-variant">In your knowledge base</p>
+          <div className="md:col-span-4 space-y-4">
+            <div className="p-5 bg-surface-container-lowest border border-border-default rounded-xl shadow-xs">
+              <h4 className="text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1">Total Documents</h4>
+              <div className="text-3xl font-bold text-on-surface mb-1">{stats?.totals?.books || 0}</div>
+              <p className="text-xs text-on-surface-variant">In your knowledge base</p>
             </div>
-            <div className="p-6 bg-surface-container-lowest border-4 border-on-background neo-shadow neo-shadow-card transition-transform">
-              <h4 className="font-bold uppercase mb-2 text-on-background">Total Flashcards</h4>
-              <div className="text-5xl font-black mb-2 text-on-background">{stats?.totals?.flashcards || 0}</div>
-              <p className="font-medium text-on-surface-variant">Generated for study</p>
+            <div className="p-5 bg-surface-container-lowest border border-border-default rounded-xl shadow-xs">
+              <h4 className="text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1">Total Flashcards</h4>
+              <div className="text-3xl font-bold text-on-surface mb-1">{stats?.totals?.flashcards || 0}</div>
+              <p className="text-xs text-on-surface-variant">Generated for spaced repetition</p>
             </div>
           </div>
           
           {/* Knowledge Hub Grid */}
-          <div className="md:col-span-12 grid grid-cols-2 md:grid-cols-4 gap-6">
-            <div className="p-6 bg-surface-container-lowest border-4 border-on-background neo-shadow neo-shadow-card flex flex-col justify-center items-center text-center transition-transform">
-              <Layers className="text-on-background mb-2" size={32} strokeWidth={2.5} />
-              <div className="text-3xl font-black text-on-background">{stats?.totals?.topics || 0}</div>
-              <div className="font-bold uppercase text-sm mt-1 text-on-surface-variant">Extracted Topics</div>
+          <div className="md:col-span-12 grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="p-5 bg-surface-container-lowest border border-border-default rounded-xl shadow-xs flex flex-col justify-center items-center text-center">
+              <Layers className="text-primary mb-2" size={24} />
+              <div className="text-2xl font-bold text-on-surface">{stats?.totals?.topics || 0}</div>
+              <div className="text-xs font-medium text-on-surface-variant mt-0.5">Extracted Topics</div>
             </div>
-            <div className="p-6 bg-surface-container-lowest border-4 border-on-background neo-shadow neo-shadow-card flex flex-col justify-center items-center text-center transition-transform">
-              <CheckCircle2 className="text-on-background mb-2" size={32} strokeWidth={2.5} />
-              <div className="text-3xl font-black text-on-background">{stats?.totals?.total_reviews || 0}</div>
-              <div className="font-bold uppercase text-sm mt-1 text-on-surface-variant">Reviews Done</div>
+            <div className="p-5 bg-surface-container-lowest border border-border-default rounded-xl shadow-xs flex flex-col justify-center items-center text-center">
+              <CheckCircle2 className="text-emerald-600 mb-2" size={24} />
+              <div className="text-2xl font-bold text-on-surface">{stats?.totals?.total_reviews || 0}</div>
+              <div className="text-xs font-medium text-on-surface-variant mt-0.5">Reviews Done</div>
             </div>
-            <div className="p-6 bg-surface-container-lowest border-4 border-on-background neo-shadow neo-shadow-card flex flex-col justify-center items-center text-center transition-transform">
-              <Brain className="text-on-background mb-2" size={32} strokeWidth={2.5} />
-              <div className="text-3xl font-black text-on-background">{stats?.queue?.due_now || 0}</div>
-              <div className="font-bold uppercase text-sm mt-1 text-on-surface-variant">Due Now</div>
+            <div className="p-5 bg-surface-container-lowest border border-border-default rounded-xl shadow-xs flex flex-col justify-center items-center text-center">
+              <Brain className="text-accent-blue mb-2" size={24} />
+              <div className="text-2xl font-bold text-on-surface">{stats?.queue?.due_now || 0}</div>
+              <div className="text-xs font-medium text-on-surface-variant mt-0.5">Due Now</div>
             </div>
-            <div className="p-6 bg-surface-container-lowest border-4 border-on-background neo-shadow neo-shadow-card flex flex-col justify-center items-center text-center transition-transform">
-              <BookIcon className="text-on-background mb-2" size={32} strokeWidth={2.5} />
-              <div className="text-3xl font-black text-on-background">{stats?.queue?.new || 0}</div>
-              <div className="font-bold uppercase text-sm mt-1 text-on-surface-variant">New Cards</div>
+            <div className="p-5 bg-surface-container-lowest border border-border-default rounded-xl shadow-xs flex flex-col justify-center items-center text-center">
+              <BookIcon className="text-primary mb-2" size={24} />
+              <div className="text-2xl font-bold text-on-surface">{stats?.queue?.new || 0}</div>
+              <div className="text-xs font-medium text-on-surface-variant mt-0.5">New Cards</div>
             </div>
           </div>
         </div>

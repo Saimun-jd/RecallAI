@@ -11,6 +11,7 @@ import 'katex/dist/katex.min.css'
 import { getCurrent } from '@tauri-apps/plugin-deep-link'
 import { listen } from '@tauri-apps/api/event'
 import { supabase } from './lib/supabase'
+import { isTauriEnvironment } from './api/keychain'
 
 ;(window as any).supabase = supabase;
 
@@ -33,28 +34,30 @@ const handleAuthUrl = async (url: string) => {
   }
 };
 
-// Cold start: app was just launched by the deep link
-getCurrent().then(urls => {
-  if (urls && Array.isArray(urls)) {
-    for (const url of urls) {
-      if (url.includes('recallai://')) {
-        handleAuthUrl(url);
+if (isTauriEnvironment()) {
+  // Cold start: app was just launched by the deep link
+  getCurrent().then(urls => {
+    if (urls && Array.isArray(urls)) {
+      for (const url of urls) {
+        if (url.includes('recallai://')) {
+          handleAuthUrl(url);
+        }
       }
     }
-  }
-}).catch(console.error);
+  }).catch(console.error);
 
-// Already running: your Rust side forwards it as "deep-link-urls"
-listen<string[]>('deep-link-urls', (event) => {
-  console.log('[DeepLink] Received deep-link-urls event with payload:', event.payload);
-  if (event.payload && Array.isArray(event.payload)) {
-    for (const arg of event.payload) {
-      if (arg.includes('recallai://')) {
-        handleAuthUrl(arg);
+  // Already running: your Rust side forwards it as "deep-link-urls"
+  listen<string[]>('deep-link-urls', (event) => {
+    console.log('[DeepLink] Received deep-link-urls event with payload:', event.payload);
+    if (event.payload && Array.isArray(event.payload)) {
+      for (const arg of event.payload) {
+        if (arg.includes('recallai://')) {
+          handleAuthUrl(arg);
+        }
       }
     }
-  }
-});
+  });
+}
 createRoot(document.getElementById('root')!).render(
     <Provider store={store}>
       <HashRouter>
