@@ -58,6 +58,8 @@
   --color-on-secondary: #ffffff;
   
   /* Additional States & Borders (Restored) */
+  --color-accent-blue: #2563EB;
+  --color-ai-purple: #7C3AED;
   --color-border-default: #E2E8F0;
   --color-border-hover: #CBD5E1;
   --color-active-bg: #EFF6FF;
@@ -129,11 +131,49 @@
   --line-height-mono-sm: 18px;
   --font-weight-mono-sm: 400;
   
-  /* ─── Shadows (Diffused Ambient) ─── */
-  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-  --shadow-default: 0 4px 6px -1px rgb(0 0 0 / 0.05), 0 2px 4px -2px rgb(0 0 0 / 0.05);
-  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  /* ─── Neo Brutalism Elevation & Shadows ─── */
+  --shadow-neo-sm: 2px 2px 0px 0px var(--color-border-neo, #0F172A);
+  --shadow-neo: 3px 3px 0px 0px var(--color-border-neo, #0F172A);
+  --shadow-neo-lg: 5px 5px 0px 0px var(--color-border-neo, #0F172A);
+  --color-border-neo: #0F172A;
+  --color-ai-purple: #7C3AED;
+  --color-electric-blue: #2563EB;
+}
+
+/* ─── Light Mode Defaults ─── */
+:root {
+  --color-border-neo: #0F172A;
+}
+
+/* ─── Refined Dark Mode Theme ─── */
+.dark,
+[data-theme="dark"] {
+  color-scheme: dark;
+  --color-background: #090D16;
+  --color-surface: #111827;
+  --color-surface-container-lowest: #111827;
+  --color-surface-container-low: #151E2E;
+  --color-surface-container: #1E293B;
+  --color-surface-container-high: #273549;
+  --color-surface-container-highest: #334155;
+  --color-on-background: #F8FAFC;
+  --color-on-surface: #F8FAFC;
+  --color-on-surface-variant: #94A3B8;
+  --color-border-default: #334155;
+  --color-border-hover: #475569;
+  --color-border-neo: #475569;
+  --color-active-bg: #1E293B;
+  --color-hover-bg: #151E2E;
+  --color-outline: #475569;
+  --color-outline-variant: #334155;
+  --color-primary: #3B82F6;
+  --color-on-primary: #FFFFFF;
+  --color-primary-container: #1D4ED8;
+  --color-on-primary-container: #DBEAFE;
+  --color-academic-blue: #3B82F6;
+  --shadow-neo-sm: 2px 2px 0px 0px #000000;
+  --shadow-neo: 3px 3px 0px 0px #000000;
+  --shadow-neo-lg: 5px 5px 0px 0px #000000;
 }
 
 .high-contrast {
@@ -153,11 +193,11 @@
 }
 
 @layer base {
-  /* ─── Global Styles (Academic Precision) ─── */
+  /* ─── Global Styles (Academic Precision & Refined Neo Brutalism) ─── */
   html, body {
-    @apply bg-surface text-on-surface antialiased h-full w-full overflow-hidden;
+    @apply bg-background text-on-surface antialiased h-full w-full overflow-hidden;
     font-family: var(--font-sans);
-    color-scheme: light;
+    transition: background-color 150ms ease, color 150ms ease;
   }
   
   /* Typography Hierarchy */
@@ -769,4 +809,42 @@ body .pdf-highlighter-container.theme-dark .Highlight {
   font-size: 0.9em;
 }
 
+/* ─── Neo Brutalism Utility Classes ─── */
+.neo-card {
+  background-color: var(--color-surface);
+  border: 2px solid var(--color-border-default);
+  box-shadow: var(--shadow-neo);
+  border-radius: var(--radius-large);
+  transition: all 150ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.neo-card-hover {
+  transition: all 150ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.neo-card-hover:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: var(--shadow-neo-lg);
+}
+
+.neo-button {
+  border: 2px solid var(--color-border-default);
+  box-shadow: var(--shadow-neo);
+  transition: all 120ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.neo-button:hover:not(:disabled) {
+  transform: translate(-1px, -1px);
+  box-shadow: var(--shadow-neo-lg);
+}
+.neo-button:active:not(:disabled) {
+  transform: translate(2px, 2px);
+  box-shadow: none;
+}
+
+.neo-border {
+  border: 2px solid var(--color-border-default);
+}
+
+.neo-border-sm {
+  border: 1px solid var(--color-border-default);
+}
 

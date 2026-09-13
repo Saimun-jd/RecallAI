@@ -80,12 +80,18 @@ class LearningProgressService:
             db_conn=db_conn
         )
 
+        rating_str = "good" if is_correct else "again"
         event = ReviewEventRepository.create_event(
             workspace_id=workspace_id,
             user_id=user_id,
             content_type=content_type,
             content_id=content_id,
             result="correct" if is_correct else "incorrect",
+            rating=rating_str,
+            previous_state=item.get("scheduling_metadata") or {},
+            new_state=updated_metadata,
+            previous_due=item.get("next_review_at"),
+            new_due=next_review_iso,
             source_type=source_type,
             source_id=source_id,
             learning_item_id=item["id"],

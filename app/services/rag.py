@@ -10,6 +10,7 @@ import re
 from typing import Any, AsyncGenerator, Dict, List, Optional, Tuple
 from fastapi import HTTPException
 
+from app.core.errors import EntitlementRequiredError, QuotaExceededError
 from app.models.repositories import (
     ConversationRepository,
     MessageRepository,
@@ -28,6 +29,7 @@ from app.services.ai.base import (
 )
 from app.services.ai.service import AIService
 from app.services.chunker import SemanticChunker
+from app.services.entitlements import EntitlementService
 from app.services.retrieval import RetrievalService
 
 logger = logging.getLogger(__name__)
@@ -116,15 +118,23 @@ class RAGService:
         if is_byok:
             return 9999
 
-        plan = PlanRepository.get_workspace_plan(workspace_id)
-        monthly_limit = plan.get("monthly_credits", 50)
-        credits_used = UsageRepository.get_monthly_credits_used(workspace_id)
+        ent = EntitlementService.get_plan_and_entitlements(workspace_id)
+        monthly_limit = ent["limits"]["monthly_credits"]
+        start_date, end_date = EntitlementService.get_period_bounds(workspace_id)
+        credits_used = UsageRepository.get_monthly_credits_used(
+            workspace_id,
+            start_date=start_date,
+            end_date=end_date
+        )
 
         if credits_used >= monthly_limit:
-            raise HTTPException(
-                status_code=402,
-                detail=f"Monthly AI credit limit reached ({credits_used}/{monthly_limit}). "
-                       f"Please upgrade your plan or provide your own API key (BYOK) in settings."
+            raise QuotaExceededError(
+                f"Monthly AI credit limit reached ({credits_used}/{monthly_limit}). "
+                f"Please upgrade your plan or provide your own API key (BYOK) in settings.",
+                feature="ai_chat",
+                limit=monthly_limit,
+                used=credits_used,
+                reset_at=end_date
             )
         return max(0, monthly_limit - credits_used - 1)
 
@@ -138,47 +148,50 @@ class RAGService:
         """
         Constructs the conversational prompt with XML-isolated reference data blocks.
         """
-        messages: List[AIMessage] = [
-            AIMessage(role="system", content=SYSTEM_PROMPT_TEMPLATE)
+        reference_blocks = []
+        for i, item in enumerate(retrieved_results, start=1):
+            page_info = f' page="{item.page_number}"' if item.page_number else ""
+            block = (
+                f'<reference_data id="S{i}" document="{item.document_title}"{page_info}>\n'
+                f"{item.content}\n"
+                f"</reference_data>"
+            )
+            reference_blocks.append(block)
+
+        context_str = "\n\n".join(reference_blocks) if reference_blocks else (
+            "<reference_data id=\"NONE\">\nNo relevant study materials found in your uploaded documents.\n</reference_data>"
+        )
+
+        user_content_parts = [
+            f"Here is the reference material from the student's study library:\n\n{context_str}\n\n",
+            f"Student Question: {query}"
+        ]
+        user_prompt = "".join(user_content_parts)
+
+        messages = [
+            AIMessage(role="system", content=SYSTEM_PROMPT_TEMPLATE),
         ]
 
-        # Add recent conversation history (excluding current turn)
-        for h in history_messages[-cls.MAX_HISTORY_MESSAGES:]:
-            role = h.get("role")
-            content = h.get("content", "")
-            if role in ("user", "assistant") and content:
+        for hist in history_messages:
+            role = hist.get("role", "user")
+            content = hist.get("content", "")
+            if role in ("user", "assistant"):
                 messages.append(AIMessage(role=role, content=content))
 
-        # Build reference blocks
-        if retrieved_results:
-            ref_parts = ["Here are the reference materials from the student's study documents:\n"]
-            for idx, r in enumerate(retrieved_results, start=1):
-                page_attr = f' page="{r.page_number}"' if r.page_number else ''
-                clean_content = r.content.strip().replace("</reference_data>", "[sanitized]")
-                ref_parts.append(
-                    f'<reference_data id="S{idx}" document="{r.document_title}"{page_attr}>\n'
-                    f'{clean_content}\n'
-                    f'</reference_data>'
-                )
-            context_block = "\n\n".join(ref_parts)
-            user_content = f"{context_block}\n\nStudent Question: {query}"
-        else:
-            user_content = (
-                "Note: No reference materials were found matching this question in the student's knowledge base.\n\n"
-                f"Student Question: {query}"
-            )
-
-        messages.append(AIMessage(role="user", content=user_content))
+        messages.append(AIMessage(role="user", content=user_prompt))
         return messages
 
     @classmethod
     def _generate_title_from_query(cls, query: str) -> str:
-        """Derives a concise conversation title from the initial user query."""
-        clean = re.sub(r'[\r\n\t]+', ' ', query).strip()
-        clean = clean.split('?')[0].split('.')[0]
-        if len(clean) > 40:
-            clean = clean[:37] + "..."
-        return clean.capitalize() if clean else "Study Session"
+        """Derives a concise conversation title from the first query."""
+        clean = re.sub(r'[^\w\s-]', '', query).strip()
+        words = clean.split()
+        if not words:
+            return "New Conversation"
+        title = " ".join(words[:6])
+        if len(title) > 60:
+            title = title[:57] + "..."
+        return title.capitalize()
 
     @classmethod
     async def execute_rag(
@@ -200,89 +213,102 @@ class RAGService:
         if not conv:
             raise HTTPException(status_code=404, detail="Conversation not found or access denied")
 
-        # 2. Check BYOK status and credit limits
+        # 2. Check BYOK status and reserve credit
         _, provider_name, model_name, is_byok = AIService.resolve_adapter(
             workspace_id=workspace_id,
             provider_preference=provider_preference
         )
-        remaining_credits = cls._check_entitlements(workspace_id=workspace_id, is_byok=is_byok)
-
-        # 3. Save User Message
-        user_tokens = SemanticChunker.estimate_tokens(query)
-        MessageRepository.create_message(
-            conversation_id=conversation_id,
-            role="user",
-            content=query,
-            token_count=user_tokens
-        )
-
-        # 4. Hybrid Knowledge Retrieval
-        search_res = RetrievalService.search(
-            query=query,
-            workspace_id=workspace_id,
-            document_id=document_id,
-            mode="hybrid",
-            limit=5
-        )
-        retrieved_items = search_res.results
-
-        # 5. Fetch history & build isolated prompt
-        history = MessageRepository.list_by_conversation(conversation_id, limit=cls.MAX_HISTORY_MESSAGES + 1)
-        # Exclude the user message just inserted
-        prior_history = [m for m in history if m["role"] == "assistant" or (m["role"] == "user" and m["content"] != query)]
-        ai_messages = cls._build_context_prompt(query, retrieved_items, prior_history)
-
-        # 6. Invoke AI Provider
-        try:
-            ai_resp, provider_name, model_name, is_byok = await AIService.generate(
-                workspace_id=workspace_id,
-                messages=ai_messages,
-                provider_preference=provider_preference,
-                temperature=temperature,
-                max_tokens=max_tokens
-            )
-        except AIProviderError as e:
-            logger.error("AI provider error during RAG for workspace=%s: %s", workspace_id, e.message)
-            raise HTTPException(
-                status_code=e.status_code or 502,
-                detail=f"AI generation failed: {e.message}"
-            ) from e
-
-        # 7. Citation Validation
-        verified_citations = CitationValidator.validate(ai_resp.content, retrieved_items)
-        citation_dicts = [c.model_dump() for c in verified_citations]
-
-        # 8. Persist Assistant Message
-        out_tokens = ai_resp.usage.output_tokens or SemanticChunker.estimate_tokens(ai_resp.content)
-        saved_assistant_msg = MessageRepository.create_message(
-            conversation_id=conversation_id,
-            role="assistant",
-            content=ai_resp.content,
-            sources=citation_dicts,
-            token_count=out_tokens
-        )
-
-        # 9. Auto-title conversation on first turn
-        current_title = conv.get("title", "New Conversation")
-        if current_title in ("New Conversation", "Untitled"):
-            new_title = cls._generate_title_from_query(query)
-            ConversationRepository.update_title(conversation_id, workspace_id, new_title)
-            current_title = new_title
-        else:
-            ConversationRepository.touch_updated_at(conversation_id, workspace_id)
-
-        # 10. Record usage credits
-        credits_spent = 0 if is_byok else 1
-        UsageRepository.record_usage(
+        reservation = EntitlementService.reserve_usage(
             workspace_id=workspace_id,
             user_id=user_id,
-            operation_type="chat_rag",
-            provider=provider_name,
-            model=model_name,
-            input_tokens=ai_resp.usage.input_tokens or user_tokens,
-            output_tokens=out_tokens,
-            credits_used=credits_spent
+            feature="ai_chat",
+            quantity=0 if is_byok else 1,
+            is_byok=is_byok,
         )
+
+        try:
+            # 3. Save User Message
+            user_tokens = SemanticChunker.estimate_tokens(query)
+            MessageRepository.create_message(
+                conversation_id=conversation_id,
+                role="user",
+                content=query,
+                token_count=user_tokens
+            )
+
+            # 4. Hybrid Knowledge Retrieval
+            search_res = RetrievalService.search(
+                query=query,
+                workspace_id=workspace_id,
+                document_id=document_id,
+                mode="hybrid",
+                limit=5
+            )
+            retrieved_items = search_res.results
+
+            # 5. Fetch history & build isolated prompt
+            history = MessageRepository.list_by_conversation(conversation_id, limit=cls.MAX_HISTORY_MESSAGES + 1)
+            # Exclude the user message just inserted
+            prior_history = [m for m in history if m["role"] == "assistant" or (m["role"] == "user" and m["content"] != query)]
+            ai_messages = cls._build_context_prompt(query, retrieved_items, prior_history)
+
+            # 6. Invoke AI Provider
+            try:
+                ai_resp, provider_name, model_name, is_byok = await AIService.generate(
+                    workspace_id=workspace_id,
+                    messages=ai_messages,
+                    provider_preference=provider_preference,
+                    temperature=temperature,
+                    max_tokens=max_tokens
+                )
+            except AIProviderError as e:
+                logger.error("AI provider error during RAG for workspace=%s: %s", workspace_id, e.message)
+                raise HTTPException(
+                    status_code=e.status_code or 502,
+                    detail=f"AI generation failed: {e.message}"
+                ) from e
+
+            # 7. Citation Validation
+            verified_citations = CitationValidator.validate(ai_resp.content, retrieved_items)
+            citation_dicts = [c.model_dump() for c in verified_citations]
+
+            # 8. Persist Assistant Message
+            out_tokens = ai_resp.usage.output_tokens or SemanticChunker.estimate_tokens(ai_resp.content)
+            saved_assistant_msg = MessageRepository.create_message(
+                conversation_id=conversation_id,
+                role="assistant",
+                content=ai_resp.content,
+                sources=citation_dicts,
+                token_count=out_tokens
+            )
+
+            # 9. Auto-title conversation on first turn
+            current_title = conv.get("title", "New Conversation")
+            if current_title in ("New Conversation", "Untitled"):
+                new_title = cls._generate_title_from_query(query)
+                ConversationRepository.update_title(conversation_id, workspace_id, new_title)
+                current_title = new_title
+            else:
+                ConversationRepository.touch_updated_at(conversation_id, workspace_id)
+
+            # 10. Finalize usage
+            in_tokens = ai_resp.usage.input_tokens or user_tokens
+            EntitlementService.finalize_usage(
+                reservation=reservation,
+                provider=provider_name,
+                model=model_name,
+                input_tokens=in_tokens,
+                output_tokens=out_tokens
+            )
+        except Exception:
+            EntitlementService.release_usage(reservation)
+            raise
+
+        if is_byok:
+            remaining_credits = 9999
+        else:
+            usage_sum = EntitlementService.get_usage_summary(workspace_id)
+            remaining_credits = usage_sum.ai_credits.remaining
 
         return RAGResponse(
             message=MessageResponse(
@@ -328,91 +354,103 @@ class RAGService:
             provider_preference=provider_preference
         )
         try:
-            remaining_credits = cls._check_entitlements(workspace_id=workspace_id, is_byok=is_byok)
-        except HTTPException as e:
-            yield f"data: {json.dumps({'type': 'error', 'message': e.detail})}\n\n"
-            return
-
-        # 3. Save User Message
-        user_tokens = SemanticChunker.estimate_tokens(query)
-        MessageRepository.create_message(
-            conversation_id=conversation_id,
-            role="user",
-            content=query,
-            token_count=user_tokens
-        )
-
-        # 4. Knowledge Retrieval
-        search_res = RetrievalService.search(
-            query=query,
-            workspace_id=workspace_id,
-            document_id=document_id,
-            mode="hybrid",
-            limit=5
-        )
-        retrieved_items = search_res.results
-
-        # 5. Build prompt
-        history = MessageRepository.list_by_conversation(conversation_id, limit=cls.MAX_HISTORY_MESSAGES + 1)
-        prior_history = [m for m in history if m["role"] == "assistant" or (m["role"] == "user" and m["content"] != query)]
-        ai_messages = cls._build_context_prompt(query, retrieved_items, prior_history)
-
-        # 6. Stream tokens
-        token_stream, provider_name, model_name, is_byok = AIService.generate_stream(
-            workspace_id=workspace_id,
-            messages=ai_messages,
-            provider_preference=provider_preference,
-            temperature=temperature,
-            max_tokens=max_tokens
-        )
-
-        accumulated_chunks: List[str] = []
-        try:
-            async for token in token_stream:
-                accumulated_chunks.append(token)
-                yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
-        except AIProviderError as e:
-            logger.error("Streaming error: %s", e.message)
+            reservation = EntitlementService.reserve_usage(
+                workspace_id=workspace_id,
+                user_id=user_id,
+                feature="ai_chat",
+                quantity=0 if is_byok else 1,
+                is_byok=is_byok,
+            )
+        except (QuotaExceededError, EntitlementRequiredError) as e:
             yield f"data: {json.dumps({'type': 'error', 'message': e.message})}\n\n"
             return
 
-        full_content = "".join(accumulated_chunks)
+        try:
+            # 3. Save User Message
+            user_tokens = SemanticChunker.estimate_tokens(query)
+            MessageRepository.create_message(
+                conversation_id=conversation_id,
+                role="user",
+                content=query,
+                token_count=user_tokens
+            )
 
-        # 7. Validate citations
-        verified_citations = CitationValidator.validate(full_content, retrieved_items)
-        citation_dicts = [c.model_dump() for c in verified_citations]
+            # 4. Knowledge Retrieval
+            search_res = RetrievalService.search(
+                query=query,
+                workspace_id=workspace_id,
+                document_id=document_id,
+                mode="hybrid",
+                limit=5
+            )
+            retrieved_items = search_res.results
 
-        # 8. Save Assistant Message
-        out_tokens = SemanticChunker.estimate_tokens(full_content)
-        saved_msg = MessageRepository.create_message(
-            conversation_id=conversation_id,
-            role="assistant",
-            content=full_content,
-            sources=citation_dicts,
-            token_count=out_tokens
-        )
+            # 5. Build prompt
+            history = MessageRepository.list_by_conversation(conversation_id, limit=cls.MAX_HISTORY_MESSAGES + 1)
+            prior_history = [m for m in history if m["role"] == "assistant" or (m["role"] == "user" and m["content"] != query)]
+            ai_messages = cls._build_context_prompt(query, retrieved_items, prior_history)
 
-        # 9. Auto-title conversation
-        current_title = conv.get("title", "New Conversation")
-        if current_title in ("New Conversation", "Untitled"):
-            new_title = cls._generate_title_from_query(query)
-            ConversationRepository.update_title(conversation_id, workspace_id, new_title)
-            current_title = new_title
+            # 6. Stream tokens
+            token_stream, provider_name, model_name, is_byok = AIService.generate_stream(
+                workspace_id=workspace_id,
+                messages=ai_messages,
+                provider_preference=provider_preference,
+                temperature=temperature,
+                max_tokens=max_tokens
+            )
+
+            accumulated_chunks: List[str] = []
+            try:
+                async for token in token_stream:
+                    accumulated_chunks.append(token)
+                    yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
+            except AIProviderError as e:
+                logger.error("Streaming error: %s", e.message)
+                yield f"data: {json.dumps({'type': 'error', 'message': e.message})}\n\n"
+                return
+
+            full_content = "".join(accumulated_chunks)
+
+            # 7. Validate citations
+            verified_citations = CitationValidator.validate(full_content, retrieved_items)
+            citation_dicts = [c.model_dump() for c in verified_citations]
+
+            # 8. Save Assistant Message
+            out_tokens = SemanticChunker.estimate_tokens(full_content)
+            saved_msg = MessageRepository.create_message(
+                conversation_id=conversation_id,
+                role="assistant",
+                content=full_content,
+                sources=citation_dicts,
+                token_count=out_tokens
+            )
+
+            # 9. Auto-title conversation
+            current_title = conv.get("title", "New Conversation")
+            if current_title in ("New Conversation", "Untitled"):
+                new_title = cls._generate_title_from_query(query)
+                ConversationRepository.update_title(conversation_id, workspace_id, new_title)
+                current_title = new_title
+            else:
+                ConversationRepository.touch_updated_at(conversation_id, workspace_id)
+
+            # 10. Usage tracking
+            EntitlementService.finalize_usage(
+                reservation=reservation,
+                provider=provider_name,
+                model=model_name,
+                input_tokens=user_tokens,
+                output_tokens=out_tokens
+            )
+        except Exception:
+            EntitlementService.release_usage(reservation)
+            raise
+
+        if is_byok:
+            remaining_credits = 9999
         else:
-            ConversationRepository.touch_updated_at(conversation_id, workspace_id)
-
-        # 10. Usage tracking
-        credits_spent = 0 if is_byok else 1
-        UsageRepository.record_usage(
-            workspace_id=workspace_id,
-            user_id=user_id,
-            operation_type="chat_rag_stream",
-            provider=provider_name,
-            model=model_name,
-            input_tokens=user_tokens,
-            output_tokens=out_tokens,
-            credits_used=credits_spent
-        )
+            usage_sum = EntitlementService.get_usage_summary(workspace_id)
+            remaining_credits = usage_sum.ai_credits.remaining
 
         # 11. Yield completion event with message metadata & citations
         done_payload = {

@@ -4,7 +4,23 @@ import { isTauriEnvironment } from './keychain';
 
 const fetch = async (url: string, options?: any) => {
   const fetchFn = isTauriEnvironment() ? tauriFetch : window.fetch.bind(window);
-  const res = await fetchFn(url, options);
+  
+  const token = typeof window !== 'undefined' ? localStorage.getItem('recall_token') : null;
+  const mergedOptions = { ...options };
+  
+  if (token && !mergedOptions.headers?.Authorization && !mergedOptions.headers?.authorization) {
+    mergedOptions.headers = {
+      ...mergedOptions.headers,
+      Authorization: `Bearer ${token}`,
+    };
+  }
+
+  const res = await fetchFn(url, mergedOptions);
+
+  if (res.status === 401 && typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('auth-unauthorized'));
+  }
+
   if (options && options.method && ['POST', 'PUT', 'DELETE', 'PATCH'].includes(options.method.toUpperCase())) {
     if (res.ok) {
       window.dispatchEvent(new Event('trigger-sync'));
@@ -869,4 +885,816 @@ export const client = {
       reader.releaseLock();
     }
   },
+
+  async getLearningDashboard(): Promise<DashboardSummaryResponse> {
+    const res = await fetch(`${API_BASE}/api/v1/learning/dashboard`);
+    if (!res.ok) throw await parseApiError(res);
+    const json = await res.json();
+    return json.data;
+  },
+
+  async getStudyActivity(range: string = '7d'): Promise<StudyActivityResponse> {
+    const res = await fetch(`${API_BASE}/api/v1/learning/activity?range=${encodeURIComponent(range)}`);
+    if (!res.ok) throw await parseApiError(res);
+    const json = await res.json();
+    return json.data;
+  },
+
+  async getDocuments(limit: number = 20, offset: number = 0, status?: string): Promise<DocumentListResponse> {
+    const params = new URLSearchParams({ limit: limit.toString(), offset: offset.toString() });
+    if (status) params.append('status', status);
+    const res = await fetch(`${API_BASE}/api/v1/documents?${params.toString()}`);
+    if (!res.ok) throw await parseApiError(res);
+    const json = await res.json();
+    return json.data;
+  },
+
+  async getAccountOverview(): Promise<AccountOverviewResponse> {
+    const res = await fetch(`${API_BASE}/api/v1/account/overview`);
+    if (!res.ok) throw await parseApiError(res);
+    const json = await res.json();
+    return json.data;
+  },
+
+  async getReviewQueue(limit: number = 10, contentType?: string): Promise<ReviewQueueItem[]> {
+    const params = new URLSearchParams({ limit: limit.toString() });
+    if (contentType) params.append('content_type', contentType);
+    const res = await fetch(`${API_BASE}/api/v1/reviews/queue?${params.toString()}`);
+    if (!res.ok) throw await parseApiError(res);
+    const json = await res.json();
+    return json.data;
+  },
+
+  async uploadDocument(file: File): Promise<DocumentUploadResponse> {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch(`${API_BASE}/api/v1/documents/upload`, {
+      method: 'POST',
+      body: formData,
+    });
+    if (!res.ok) throw await parseApiError(res);
+    const json = await res.json();
+    return json.data;
+  },
+
+  async getDocument(documentId: string): Promise<DocumentItem> {
+    const res = await fetch(`${API_BASE}/api/v1/documents/${documentId}`);
+    if (!res.ok) throw await parseApiError(res);
+    const json = await res.json();
+    return json.data;
+  },
+
+  async getDocumentStatus(documentId: string): Promise<DocumentStatusResponse> {
+    const res = await fetch(`${API_BASE}/api/v1/documents/${documentId}/status`);
+    if (!res.ok) throw await parseApiError(res);
+    const json = await res.json();
+    return json.data;
+  },
+
+  async getDocumentChunks(documentId: string, limit: number = 50, offset: number = 0): Promise<ChunkListResponse> {
+    const params = new URLSearchParams({ limit: limit.toString(), offset: offset.toString() });
+    const res = await fetch(`${API_BASE}/api/v1/documents/${documentId}/chunks?${params.toString()}`);
+    if (!res.ok) throw await parseApiError(res);
+    const json = await res.json();
+    return json.data;
+  },
+
+  async deleteDocument(documentId: string): Promise<{ message: string; document_id: string }> {
+    const res = await fetch(`${API_BASE}/api/v1/documents/${documentId}`, {
+      method: 'DELETE',
+    });
+    if (!res.ok) throw await parseApiError(res);
+    const json = await res.json();
+    return json.data;
+  },
+
+  async reindexDocument(documentId: string): Promise<ReindexResponse> {
+    const res = await fetch(`${API_BASE}/api/v1/documents/${documentId}/reindex`, {
+      method: 'POST',
+    });
+    if (!res.ok) throw await parseApiError(res);
+    const json = await res.json();
+    return json.data;
+  },
+
+  async getDocumentSummary(documentId: string, summaryType: 'short' | 'standard' | 'detailed' = 'standard'): Promise<DocumentSummaryResponse> {
+    const params = new URLSearchParams({ summary_type: summaryType });
+    const res = await fetch(`${API_BASE}/api/v1/documents/${documentId}/summary?${params.toString()}`);
+    if (!res.ok) throw await parseApiError(res);
+    const json = await res.json();
+    return json.data;
+  },
+
+  async generateDocumentSummary(documentId: string, summaryType: 'short' | 'standard' | 'detailed' = 'standard', force: boolean = false): Promise<DocumentSummaryResponse> {
+    const res = await fetch(`${API_BASE}/api/v1/documents/${documentId}/summary`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ summary_type: summaryType, force }),
+    });
+    if (!res.ok) throw await parseApiError(res);
+    const json = await res.json();
+    return json.data;
+  },
+
+  async getDocumentConcepts(documentId: string): Promise<ConceptListResponse> {
+    const res = await fetch(`${API_BASE}/api/v1/documents/${documentId}/concepts`);
+    if (!res.ok) throw await parseApiError(res);
+    const json = await res.json();
+    return json.data;
+  },
+
+  async generateDocumentConcepts(documentId: string, maxConcepts: number = 10, force: boolean = false): Promise<ConceptListResponse> {
+    const res = await fetch(`${API_BASE}/api/v1/documents/${documentId}/concepts`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ max_concepts: maxConcepts, force }),
+    });
+    if (!res.ok) throw await parseApiError(res);
+    const json = await res.json();
+    return json.data;
+  },
+
+  async getRelatedDocuments(documentId: string, limit: number = 5): Promise<RelatedDocumentsResponse> {
+    const params = new URLSearchParams({ limit: limit.toString() });
+    const res = await fetch(`${API_BASE}/api/v1/documents/${documentId}/related?${params.toString()}`);
+    if (!res.ok) throw await parseApiError(res);
+    const json = await res.json();
+    return json.data;
+  },
+
+  async listConversations(limit: number = 50, offset: number = 0): Promise<ConversationListResponse> {
+    const params = new URLSearchParams({ limit: limit.toString(), offset: offset.toString() });
+    const res = await fetch(`${API_BASE}/api/v1/conversations?${params.toString()}`);
+    if (!res.ok) throw await parseApiError(res);
+    const json = await res.json();
+    return json.data;
+  },
+
+  async createConversation(title?: string): Promise<ConversationResponse> {
+    const res = await fetch(`${API_BASE}/api/v1/conversations`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: title || null }),
+    });
+    if (!res.ok) throw await parseApiError(res);
+    const json = await res.json();
+    return json.data;
+  },
+
+  async getConversation(conversationId: string): Promise<ConversationDetailResponse> {
+    const res = await fetch(`${API_BASE}/api/v1/conversations/${conversationId}`);
+    if (!res.ok) throw await parseApiError(res);
+    const json = await res.json();
+    return json.data;
+  },
+
+  async updateConversationTitle(conversationId: string, title: string): Promise<ConversationResponse> {
+    const res = await fetch(`${API_BASE}/api/v1/conversations/${conversationId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title }),
+    });
+    if (!res.ok) throw await parseApiError(res);
+    const json = await res.json();
+    return json.data;
+  },
+
+  async deleteConversation(conversationId: string): Promise<{ success: boolean }> {
+    const res = await fetch(`${API_BASE}/api/v1/conversations/${conversationId}`, {
+      method: 'DELETE',
+    });
+    if (!res.ok) throw await parseApiError(res);
+    const json = await res.json();
+    return json.data;
+  },
+
+  async sendMessage(conversationId: string, payload: SendMessageRequest): Promise<RAGResponse> {
+    const res = await fetch(`${API_BASE}/api/v1/conversations/${conversationId}/messages`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...payload, stream: false }),
+    });
+    if (!res.ok) throw await parseApiError(res);
+    const json = await res.json();
+    return json.data;
+  },
+
+  async sendMessageStream(
+    conversationId: string,
+    payload: SendMessageRequest,
+    onToken: (token: string) => void,
+    onDone: (event: StreamDoneEvent) => void,
+    onError: (err: Error) => void,
+    signal?: AbortSignal
+  ): Promise<void> {
+    const res = await fetch(`${API_BASE}/api/v1/conversations/${conversationId}/messages`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'text/event-stream',
+      },
+      body: JSON.stringify({ ...payload, stream: true }),
+      signal,
+    });
+
+    if (!res.ok) {
+      throw await parseApiError(res);
+    }
+
+    if (!res.body) throw new Error('Stream not supported by browser.');
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder('utf-8');
+    let buffer = '';
+
+    try {
+      while (true) {
+        if (signal?.aborted) {
+          reader.cancel();
+          break;
+        }
+
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+
+        let newlineIdx: number;
+        while ((newlineIdx = buffer.indexOf('\n\n')) !== -1) {
+          const rawMessage = buffer.slice(0, newlineIdx).trim();
+          buffer = buffer.slice(newlineIdx + 2);
+
+          if (rawMessage.startsWith('data: ')) {
+            const dataStr = rawMessage.slice(6);
+            if (dataStr === '[DONE]') continue;
+            try {
+              const eventData = JSON.parse(dataStr) as ChatStreamEvent;
+              if (eventData.type === 'token' && typeof eventData.content === 'string') {
+                onToken(eventData.content);
+              } else if (eventData.type === 'done') {
+                onDone(eventData);
+              } else if (eventData.type === 'error') {
+                onError(new Error(eventData.message || 'Generation error occurred'));
+              }
+            } catch (parseErr) {
+              console.error('Failed to parse chat SSE event:', parseErr);
+            }
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
+  },
+
+  // ── Flashcard Sets & Cards ──────────────────────────────────────
+
+  async listFlashcardSets(limit: number = 50, offset: number = 0): Promise<FlashcardSetListResponse> {
+    const params = new URLSearchParams({ limit: limit.toString(), offset: offset.toString() });
+    const res = await fetch(`${API_BASE}/api/v1/flashcards/sets?${params.toString()}`);
+    if (!res.ok) throw await parseApiError(res);
+    const json = await res.json();
+    return json.data;
+  },
+
+  async getFlashcardSet(setId: string): Promise<FlashcardSetDetailResponse> {
+    const res = await fetch(`${API_BASE}/api/v1/flashcards/sets/${setId}`);
+    if (!res.ok) throw await parseApiError(res);
+    const json = await res.json();
+    return json.data;
+  },
+
+  async generateFlashcards(payload: FlashcardGenerateRequest): Promise<FlashcardSetDetailResponse> {
+    const res = await fetch(`${API_BASE}/api/v1/flashcards/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw await parseApiError(res);
+    const json = await res.json();
+    return json.data;
+  },
+
+  async updateFlashcardSet(setId: string, payload: { title?: string; description?: string }): Promise<FlashcardSetItem> {
+    const res = await fetch(`${API_BASE}/api/v1/flashcards/sets/${setId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw await parseApiError(res);
+    const json = await res.json();
+    return json.data;
+  },
+
+  async deleteFlashcardSet(setId: string): Promise<{ success: boolean }> {
+    const res = await fetch(`${API_BASE}/api/v1/flashcards/sets/${setId}`, {
+      method: 'DELETE',
+    });
+    if (!res.ok) throw await parseApiError(res);
+    const json = await res.json();
+    return json.data;
+  },
+
+  async updateFlashcard(cardId: string, payload: { front?: string; back?: string; position?: number }): Promise<FlashcardItem> {
+    const res = await fetch(`${API_BASE}/api/v1/flashcards/cards/${cardId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw await parseApiError(res);
+    const json = await res.json();
+    return json.data;
+  },
+
+  async deleteFlashcard(cardId: string): Promise<{ success: boolean }> {
+    const res = await fetch(`${API_BASE}/api/v1/flashcards/cards/${cardId}`, {
+      method: 'DELETE',
+    });
+    if (!res.ok) throw await parseApiError(res);
+    const json = await res.json();
+    return json.data;
+  },
+
+  // ── Review Sessions (FSRS Study) ───────────────────────────────
+
+  async startReviewSession(payload: StartReviewSessionRequest): Promise<ReviewSessionItem> {
+    const res = await fetch(`${API_BASE}/api/v1/reviews/sessions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw await parseApiError(res);
+    const json = await res.json();
+    return json.data;
+  },
+
+  async getReviewSession(sessionId: string): Promise<ReviewSessionItem> {
+    const res = await fetch(`${API_BASE}/api/v1/reviews/sessions/${sessionId}`);
+    if (!res.ok) throw await parseApiError(res);
+    const json = await res.json();
+    return json.data;
+  },
+
+  async getNextReviewItem(sessionId: string): Promise<MaskedReviewItem | null> {
+    const res = await fetch(`${API_BASE}/api/v1/reviews/sessions/${sessionId}/next`);
+    if (!res.ok) throw await parseApiError(res);
+    const json = await res.json();
+    return json.data;
+  },
+
+  async revealReviewItem(reviewId: string): Promise<RevealedReviewItem> {
+    const res = await fetch(`${API_BASE}/api/v1/reviews/${reviewId}/reveal`, {
+      method: 'POST',
+    });
+    if (!res.ok) throw await parseApiError(res);
+    const json = await res.json();
+    return json.data;
+  },
+
+  async rateReviewItem(reviewId: string, rating: ReviewRating): Promise<RateReviewResult> {
+    const res = await fetch(`${API_BASE}/api/v1/reviews/${reviewId}/rate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rating }),
+    });
+    if (!res.ok) throw await parseApiError(res);
+    const json = await res.json();
+    return json.data;
+  },
+
+  async completeReviewSession(sessionId: string): Promise<ReviewSessionItem> {
+    const res = await fetch(`${API_BASE}/api/v1/reviews/sessions/${sessionId}/complete`, {
+      method: 'POST',
+    });
+    if (!res.ok) throw await parseApiError(res);
+    const json = await res.json();
+    return json.data;
+  },
+
+  async abandonReviewSession(sessionId: string): Promise<ReviewSessionItem> {
+    const res = await fetch(`${API_BASE}/api/v1/reviews/sessions/${sessionId}/abandon`, {
+      method: 'POST',
+    });
+    if (!res.ok) throw await parseApiError(res);
+    const json = await res.json();
+    return json.data;
+  },
 };
+
+export interface ReviewWorkloadStats {
+  due: number;
+  overdue: number;
+  new: number;
+  total_active: number;
+}
+
+export interface LearningStateDistribution {
+  total: number;
+  by_state: {
+    new: number;
+    learning: number;
+    review: number;
+    relearning: number;
+    [key: string]: number;
+  };
+}
+
+export interface TodayActivityStats {
+  reviews_completed: number;
+  quiz_attempts: number;
+}
+
+export interface QuizPerformanceStats {
+  total_attempts: number;
+  completed_attempts: number;
+  average_score: number | null;
+  highest_score: number | null;
+  lowest_score: number | null;
+  questions_answered: number;
+  correct_answers: number;
+  incorrect_answers: number;
+  accuracy_rate: number | null;
+}
+
+export interface FlashcardPerformanceStats {
+  total_cards: number;
+  active_cards: number;
+  cards_reviewed: number;
+  cards_due: number;
+  cards_in_review_state: number;
+}
+
+export interface DashboardSummaryResponse {
+  review_workload: ReviewWorkloadStats;
+  learning_states: LearningStateDistribution;
+  today: TodayActivityStats;
+  quizzes: QuizPerformanceStats;
+  flashcards: FlashcardPerformanceStats;
+}
+
+export interface DailyStudyActivity {
+  date: string;
+  reviews_count: number;
+  quiz_attempts_count: number;
+  correct_answers: number;
+  incorrect_answers: number;
+}
+
+export interface StudyActivityResponse {
+  range: string;
+  start_date: string;
+  end_date: string;
+  total_active_days: number;
+  total_reviews: number;
+  total_quiz_attempts: number;
+  activity: DailyStudyActivity[];
+}
+
+export interface DocumentItem {
+  id: string;
+  workspace_id: string;
+  file_id?: string | null;
+  title: string;
+  source_type: string;
+  total_pages: number;
+  status: 'uploading' | 'processing' | 'ready' | 'failed' | string;
+  processing_error?: string | null;
+  metadata?: Record<string, any>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DocumentListResponse {
+  total: number;
+  limit: number;
+  offset: number;
+  documents: DocumentItem[];
+}
+
+export interface UsageMetricItem {
+  used: number;
+  limit: number;
+  remaining: number;
+  reset_at?: string | null;
+}
+
+export interface UsageSummaryResponse {
+  ai_credits: UsageMetricItem;
+  documents: UsageMetricItem;
+  storage_mb: UsageMetricItem;
+}
+
+export interface BYOKStatusResponse {
+  enabled: boolean;
+  has_configured_providers: boolean;
+  configured_providers: string[];
+}
+
+export interface PlanInfo {
+  id: string;
+  name: string;
+  price_cents: number;
+  billing_interval: string;
+}
+
+export interface AccountOverviewResponse {
+  plan: PlanInfo;
+  limits: {
+    monthly_credits: number;
+    max_documents: number;
+    max_storage_mb: number;
+    byok_allowed: boolean;
+    [key: string]: any;
+  };
+  subscription?: any | null;
+  features: Record<string, boolean>;
+  usage: UsageSummaryResponse;
+  byok: BYOKStatusResponse;
+}
+
+export interface ReviewQueueItem {
+  id: string;
+  content_type: string;
+  content_id: string;
+  priority_group: string;
+  next_review_at?: string | null;
+  front?: string | null;
+  source_reference?: Record<string, any>;
+}
+
+export interface DocumentUploadResponse {
+  document_id: string;
+  job_id: string;
+  status: string;
+  filename: string;
+  size_bytes: number;
+}
+
+export interface DocumentStatusResponse {
+  document_id: string;
+  status: string;
+  current_stage?: string | null;
+  stage_progress: number;
+  error_code?: string | null;
+  error_message?: string | null;
+  attempt_count: number;
+  started_at?: string | null;
+  completed_at?: string | null;
+}
+
+export interface ChunkItemResponse {
+  id: string;
+  document_id: string;
+  chunk_index: number;
+  content: string;
+  page_number?: number | null;
+  token_count: number;
+  embedding_model?: string;
+  created_at: string;
+}
+
+export interface ChunkListResponse {
+  total: number;
+  limit: number;
+  offset: number;
+  chunks: ChunkItemResponse[];
+}
+
+export interface SourceReference {
+  source_index: number;
+  chunk_id?: string | null;
+  document_id?: string | null;
+  document_title?: string | null;
+  page_number?: number | null;
+  snippet?: string | null;
+}
+
+export interface DocumentSummaryResponse {
+  id: string;
+  document_id: string;
+  summary_type: 'short' | 'standard' | 'detailed' | string;
+  summary: string;
+  key_points: string[];
+  source_references: SourceReference[];
+  content_version: string;
+  is_stale: boolean;
+  model_metadata?: Record<string, any>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ConceptItemResponse {
+  id: string;
+  document_id: string;
+  name: string;
+  normalized_name: string;
+  description: string;
+  importance: 'high' | 'medium' | 'low';
+  source_references: SourceReference[];
+  content_version: string;
+  created_at: string;
+}
+
+export interface ConceptListResponse {
+  document_id: string;
+  concepts: ConceptItemResponse[];
+  total: number;
+  content_version: string;
+}
+
+export interface RelatedDocumentItem {
+  id: string;
+  title: string;
+  source_type: string;
+  similarity_score: number;
+}
+
+export interface RelatedDocumentsResponse {
+  document_id: string;
+  related_documents: RelatedDocumentItem[];
+}
+
+export interface ReindexResponse {
+  document_id: string;
+  job_id: string;
+  status: string;
+}
+
+export interface ConversationResponse {
+  id: string;
+  workspace_id: string;
+  user_id: string;
+  title: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SourceCitation {
+  source_index: number;
+  document_id: string;
+  document_title: string;
+  chunk_id: string;
+  page_number?: number | null;
+  score?: number | null;
+}
+
+export interface MessageResponse {
+  id: string;
+  conversation_id: string;
+  role: 'user' | 'assistant' | 'system' | string;
+  content: string;
+  sources: SourceCitation[];
+  token_count: number;
+  created_at: string;
+}
+
+export interface ConversationDetailResponse {
+  id: string;
+  workspace_id: string;
+  user_id: string;
+  title: string;
+  created_at: string;
+  updated_at: string;
+  messages: MessageResponse[];
+}
+
+export interface ConversationListResponse {
+  conversations: ConversationResponse[];
+  total: number;
+}
+
+export interface SendMessageRequest {
+  content: string;
+  document_id?: string | null;
+  provider?: string | null;
+  stream?: boolean;
+}
+
+export interface RAGResponse {
+  message: MessageResponse;
+  conversation_title: string;
+  credits_remaining?: number | null;
+  is_byok: boolean;
+  provider: string;
+  model: string;
+}
+
+export interface StreamTokenEvent {
+  type: 'token';
+  content: string;
+}
+
+export interface StreamDoneEvent {
+  type: 'done';
+  message_id: string;
+  conversation_title: string;
+  sources: SourceCitation[];
+  credits_remaining?: number | null;
+  provider: string;
+  model: string;
+  is_byok: boolean;
+}
+
+export interface StreamErrorEvent {
+  type: 'error';
+  message: string;
+}
+
+export type ChatStreamEvent = StreamTokenEvent | StreamDoneEvent | StreamErrorEvent;
+
+// ── Flashcard Set & Card Interfaces ───────────────────────────────
+
+export interface FlashcardSetItem {
+  id: string;
+  workspace_id: string;
+  user_id: string;
+  title: string;
+  description?: string | null;
+  source_document_ids: string[];
+  card_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface FlashcardSetListResponse {
+  sets: FlashcardSetItem[];
+  total: number;
+}
+
+export interface FlashcardItem {
+  id: string;
+  flashcard_set_id: string;
+  front: string;
+  back: string;
+  source_metadata: Array<Record<string, any>>;
+  position: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface FlashcardSetDetailResponse extends FlashcardSetItem {
+  cards: FlashcardItem[];
+}
+
+export interface FlashcardGenerateRequest {
+  document_ids?: string[] | null;
+  title?: string | null;
+  topic?: string | null;
+  count?: number;
+  provider?: string | null;
+}
+
+// ── Review Session & FSRS Study Interfaces ────────────────────────
+
+export type ReviewRating = 'again' | 'hard' | 'good' | 'easy';
+
+export interface StartReviewSessionRequest {
+  limit?: number;
+  content_type?: string | null;
+}
+
+export interface ReviewSessionItem {
+  id: string;
+  workspace_id: string;
+  user_id: string;
+  status: string;
+  started_at: string;
+  completed_at?: string | null;
+  total_items: number;
+  reviewed_items: number;
+  progress_percentage: number;
+}
+
+export interface MaskedReviewItem {
+  review_id: string;
+  session_id: string;
+  learning_item_id: string;
+  content_type: string;
+  content_id: string;
+  front: string;
+  options?: string[] | null;
+  source_metadata?: Array<Record<string, any>> | null;
+  order_index: number;
+  status: string;
+  revealed: boolean;
+}
+
+export interface RevealedReviewItem extends MaskedReviewItem {
+  back: string;
+  explanation?: string | null;
+  revealed: true;
+}
+
+export interface RateReviewResult {
+  review_id: string;
+  session_id: string;
+  learning_item_id: string;
+  rating: string;
+  next_review_at: string;
+  stability?: number | null;
+  difficulty?: number | null;
+  state: string;
+  reviewed_items: number;
+  total_items: number;
+  session_status: string;
+}

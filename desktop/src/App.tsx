@@ -1,39 +1,47 @@
 import { useEffect, useState } from 'react';
-import { Routes, Route, Link, useLocation } from 'react-router-dom';
+import { Routes, Route, Outlet } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { type RootState } from './store';
 import { client } from './api/client';
+import { DashboardView } from './views/DashboardView';
+import { DocumentsView } from './views/DocumentsView';
+import { DocumentDetailView } from './views/DocumentDetailView';
+import { KnowledgeHubView } from './views/KnowledgeHubView';
 import { LibraryView } from './views/LibraryView';
 import { NotesView } from './views/NotesView';
 import { ReviewView } from './views/ReviewView';
 import { SettingsView } from './views/SettingsView';
 import { BookDetailView } from './views/BookDetailView';
 import { AnalyticsView } from './views/AnalyticsView';
-import { CommandPalette } from './components/CommandPalette';
 import { loadSettings } from './api/settingsStore';
 import { getApiKey } from './api/keychain';
-import { Sidebar } from './components/Sidebar';
-import { StatusBar } from './components/StatusBar';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { getActiveKeychainSave, isTauriEnvironment } from './api/keychain';
 import { getActiveSettingsSave } from './api/settingsStore';
 import { getActiveSaveOperation } from './api/saveCoordinator';
 import { WelcomeScreen } from './components/WelcomeScreen';
-import { supabase } from './lib/supabase';
 import { useAutoSync } from './hooks/useAutoSync';
-
+import { AppShell } from './components/layout';
 import { setSidecarStatus } from './store';
+import { 
+  LandingView, 
+  PricingView, 
+  HowItWorksView, 
+  SecurityView, 
+  PrivacyView, 
+  TermsView 
+} from './views/public';
+import {
+  LoginView,
+  RegisterView,
+  ForgotPasswordView,
+  OnboardingView
+} from './views/auth';
+import { ProtectedRoute, PublicOnlyRoute } from './components/auth';
+import { useAuth } from './contexts/AuthContext';
 
-export default function App() {
-  const [bootTime] = useState(Date.now());
-  const [user, setUser] = useState<any>(null);
-  const [activeUserId, setActiveUserId] = useState<string | null>(null);
-  const [isSwitchingDb, setIsSwitchingDb] = useState(true);
-  const sidecarStatus = useSelector((state: RootState) => state.system.sidecarStatus);
-  const cloudUploadState = useSelector((state: RootState) => state.system.cloudUploadState);
-  const [contrastLevel, setContrastLevel] = useState(() => {
-    return parseInt(localStorage.getItem('app-contrast-level') || '0', 10);
-  });
+function WorkspaceLayout({ bootTime, sidecarStatus }: { bootTime: number; sidecarStatus: any }) {
+  const { user } = useAuth();
   const [hasSeenWelcome, setHasSeenWelcome] = useState(() => {
     return localStorage.getItem('has-seen-welcome') === 'true';
   });
@@ -43,9 +51,32 @@ export default function App() {
     setHasSeenWelcome(true);
   };
 
+  return (
+    <>
+      {!hasSeenWelcome && <WelcomeScreen onComplete={handleWelcomeComplete} />}
+      <AppShell
+        user={user}
+        bootTime={bootTime}
+        sidecarStatus={sidecarStatus}
+      >
+        <Outlet />
+      </AppShell>
+    </>
+  );
+}
+
+export default function App() {
+  const [bootTime] = useState(Date.now());
+  const { token } = useAuth();
+  const sidecarStatus = useSelector((state: RootState) => state.system.sidecarStatus);
+  const cloudUploadState = useSelector((state: RootState) => state.system.cloudUploadState);
+  const [contrastLevel, setContrastLevel] = useState(() => {
+    return parseInt(localStorage.getItem('app-contrast-level') || '0', 10);
+  });
+
   useEffect(() => {
     const root = document.documentElement;
-    if (contrastLevel === 0) {
+    if (contrastLevel === 0 || root.classList.contains('dark') || root.getAttribute('data-theme') === 'dark') {
       root.style.removeProperty('--color-background');
       root.style.removeProperty('--color-surface');
       root.style.removeProperty('--color-surface-container-lowest');
@@ -119,11 +150,8 @@ export default function App() {
 
   const dispatch = useDispatch();
   
-  // We need the token for auto-sync, so let's extract it from the session state
-  const [sessionToken, setSessionToken] = useState<string | null>(null);
-  
-  // Import the auto sync hook
-  const { triggerSync } = useAutoSync(sessionToken);
+  // Auto sync hook
+  useAutoSync(token);
 
   useEffect(() => {
     // Health check polling
@@ -135,44 +163,6 @@ export default function App() {
         dispatch(setSidecarStatus('error'));
       }
     };
-
-    // Helper to switch backend DB
-    const updateBackendUser = async (sessionUser: any, sessionToken: string | null = null) => {
-      setIsSwitchingDb(true);
-      try {
-        await fetch('http://localhost:8000/api/set-user', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            user_id: sessionUser?.id || null,
-            token: sessionToken || null
-          })
-        });
-      } catch (e) {
-        console.error("Failed to set backend user", e);
-      } finally {
-        setUser(sessionUser || null);
-        setActiveUserId(sessionUser?.id || 'default');
-        setSessionToken(sessionToken);
-        setIsSwitchingDb(false);
-      }
-    };
-
-    // Load user session
-    const refreshSession = () => {
-      supabase.auth.getSession().then(({ data: { session } }) => {
-        updateBackendUser(session?.user, session?.access_token);
-      });
-    };
-
-    refreshSession();
-    window.addEventListener('auth-session-updated', refreshSession);
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      updateBackendUser(session?.user, session?.access_token);
-    });
 
     // Load global settings and hydrate keychain on boot
     const loadGlobalSettings = async () => {
@@ -216,8 +206,6 @@ export default function App() {
     }, 10000);
     return () => {
       clearInterval(interval);
-      subscription.unsubscribe();
-      window.removeEventListener('auth-session-updated', refreshSession);
     };
   }, [dispatch]);
 
@@ -292,89 +280,95 @@ export default function App() {
   }, []);
 
   return (
-    <div className="flex flex-col h-screen bg-background text-on-surface font-sans antialiased overflow-hidden">
-      <CommandPalette />
-      {!hasSeenWelcome && <WelcomeScreen onComplete={handleWelcomeComplete} />}
-      
-      {/* Global Header */}
-      <header className="fixed top-0 inset-x-0 z-50 bg-surface/90 backdrop-blur-md border-b border-border-default pt-[env(safe-area-inset-top,0px)]">
-        <div className="h-16 px-5 flex items-center justify-between">
-          <StatusBar bootTime={bootTime} sidecarStatus={sidecarStatus} />
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 border border-border-default rounded-lg px-3 py-1.5 bg-surface-container-lowest shadow-xs">
-              <label htmlFor="contrast-range" className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider cursor-pointer">Contrast</label>
-              <input 
-                id="contrast-range"
-                aria-label="Adjust display contrast"
-                type="range" 
-                min="-100" 
-                max="100" 
-                value={contrastLevel}
-                onChange={(e) => setContrastLevel(parseInt(e.target.value, 10))}
-                className="w-20 lg:w-24 accent-primary cursor-pointer h-1.5 bg-surface-container-high rounded-full appearance-none"
-              />
-            </div>
-            <button 
-              aria-label="Notifications"
-              className="w-10 h-10 flex items-center justify-center rounded-lg border border-border-default bg-surface-container-lowest text-on-surface hover:bg-surface-container transition-colors shadow-xs"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
-            </button>
-            <div 
-              aria-label="User profile account"
-              className="w-10 h-10 rounded-full border border-border-default bg-primary flex items-center justify-center overflow-hidden shrink-0 shadow-xs"
-            >
-              {user?.user_metadata?.avatar_url ? (
-                <img src={user.user_metadata.avatar_url} referrerPolicy="no-referrer" alt="Profile" className="w-full h-full object-cover" />
-              ) : (
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-on-primary"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-              )}
-            </div>
-          </div>
-        </div>
-      </header>
-      
-      <div className="flex relative w-full pt-16 flex-row flex-1 h-full overflow-hidden">
-        <Sidebar />
-        
-        {/* Main Viewport */}
-        <main className="flex-1 flex flex-col bg-background relative min-w-0 overflow-y-auto">
-          {isSwitchingDb ? (
-            <div className="flex-1 flex flex-col items-center justify-center gap-3">
-              <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
-              <span className="text-on-surface-variant font-medium text-sm">Syncing local database...</span>
-            </div>
-          ) : (
-            <Routes key={activeUserId || 'default'}>
-              <Route path="/" element={<LibraryView />} />
-              <Route path="/notes" element={<NotesView />} />
-              <Route path="/review" element={<ReviewView />} />
-              <Route path="/analytics" element={<AnalyticsView />} />
-              <Route path="/settings" element={<SettingsView />} />
-              <Route path="/books/:id" element={<BookDetailView />} />
-              <Route path="*" element={<LibraryView />} />
-            </Routes>
-          )}
-        </main>
-      </div>
-      
+    <>
+      <Routes>
+        {/* Public marketing pages */}
+        <Route path="/" element={<LandingView />} />
+        <Route path="/pricing" element={<PricingView />} />
+        <Route path="/how-it-works" element={<HowItWorksView />} />
+        <Route path="/security" element={<SecurityView />} />
+        <Route path="/privacy" element={<PrivacyView />} />
+        <Route path="/terms" element={<TermsView />} />
+
+        {/* Public-only auth pages */}
+        <Route
+          path="/login"
+          element={
+            <PublicOnlyRoute>
+              <LoginView />
+            </PublicOnlyRoute>
+          }
+        />
+        <Route
+          path="/register"
+          element={
+            <PublicOnlyRoute>
+              <RegisterView />
+            </PublicOnlyRoute>
+          }
+        />
+        <Route
+          path="/forgot-password"
+          element={
+            <PublicOnlyRoute>
+              <ForgotPasswordView />
+            </PublicOnlyRoute>
+          }
+        />
+
+        {/* Guided Onboarding route */}
+        <Route
+          path="/onboarding"
+          element={
+            <ProtectedRoute requireOnboarding={false}>
+              <OnboardingView />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Protected workspace routes inside AppShell */}
+        <Route
+          element={
+            <ProtectedRoute>
+              <WorkspaceLayout bootTime={bootTime} sidecarStatus={sidecarStatus} />
+            </ProtectedRoute>
+          }
+        >
+          <Route path="/app" element={<DashboardView />} />
+          <Route path="/documents" element={<DocumentsView />} />
+          <Route path="/app/documents" element={<DocumentsView />} />
+          <Route path="/chat" element={<KnowledgeHubView />} />
+          <Route path="/app/chat" element={<KnowledgeHubView />} />
+          <Route path="/notes" element={<NotesView />} />
+          <Route path="/review" element={<ReviewView />} />
+          <Route path="/app/review" element={<ReviewView />} />
+          <Route path="/analytics" element={<AnalyticsView />} />
+          <Route path="/app/analytics" element={<AnalyticsView />} />
+          <Route path="/settings" element={<SettingsView />} />
+          <Route path="/app/settings" element={<SettingsView />} />
+          <Route path="/books/:id" element={<BookDetailView />} />
+          <Route path="/documents/:id" element={<DocumentDetailView />} />
+          <Route path="/app/documents/:id" element={<DocumentDetailView />} />
+          <Route path="*" element={<DocumentsView />} />
+        </Route>
+      </Routes>
+
       {/* Cloud Upload Progress Indicator */}
       {cloudUploadState?.isUploading && (
-        <div className="fixed bottom-6 right-6 z-[100] w-80 bg-surface-container-lowest border border-border-default shadow-lg rounded-xl p-4 flex flex-col gap-2">
+        <div className="fixed bottom-6 right-6 z-[100] w-80 bg-surface border-2 border-border-default shadow-neo rounded-xl p-4 flex flex-col gap-2">
           <div className="flex justify-between items-center">
-            <span className="font-semibold text-sm text-on-surface truncate pr-2">Uploading {cloudUploadState.fileName}...</span>
-            <span className="text-xs font-semibold text-on-surface-variant bg-surface-container px-2 py-0.5 rounded-full">{cloudUploadState.progress}%</span>
+            <span className="font-bold text-sm text-on-surface truncate pr-2">Uploading {cloudUploadState.fileName}...</span>
+            <span className="text-xs font-bold text-on-surface bg-surface-container border border-border-default px-2 py-0.5 rounded-full">{cloudUploadState.progress}%</span>
           </div>
-          <div className="w-full h-2 bg-surface-container-high rounded-full overflow-hidden border border-outline-variant/30">
+          <div className="w-full h-2.5 bg-surface-container-high rounded-full overflow-hidden border border-border-default">
             <div 
               className="h-full bg-primary transition-all duration-300 ease-out"
               style={{ width: `${cloudUploadState.progress}%` }}
             />
           </div>
-          <span className="text-[11px] text-on-surface-variant text-center uppercase tracking-wider font-medium">Do not close app</span>
+          <span className="text-[11px] text-on-surface-variant text-center uppercase tracking-wider font-bold">Do not close app</span>
         </div>
       )}
-
-    </div>
+    </>
   );
 }

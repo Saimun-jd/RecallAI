@@ -31,6 +31,7 @@ from app.services.storage import StorageService
 from app.services.extractor import ExtractionService, ExtractionError
 from app.services.pipeline import DocumentProcessingPipeline
 from app.services.knowledge import RelatedKnowledgeService, ReindexingService
+from app.services.entitlements import EntitlementService
 from app.schemas.search import RelatedDocumentsResponse, ReindexResponse
 
 logger = logging.getLogger(__name__)
@@ -66,6 +67,12 @@ async def upload_document(
     content = await file.read()
     if not content or len(content) == 0:
         raise ValidationError("Uploaded file is empty (0 bytes).")
+
+    # Enforce document count and storage quotas
+    EntitlementService.can_upload_document(
+        workspace_id=workspace["id"],
+        new_file_bytes=len(content)
+    )
 
     ext = os.path.splitext(filename.lower())[1]
     mime = (file.content_type or "").lower()

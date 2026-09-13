@@ -1,0 +1,268 @@
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { authApi, type User, type Workspace, type LoginPayload, type RegisterPayload } from '../api/auth';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { isTauriEnvironment } from '../api/keychain';
+import { open as tauriOpen } from '@tauri-apps/plugin-shell';
+
+export type AuthStatus = 'loading' | 'authenticated' | 'unauthenticated';
+
+interface AuthContextType {
+  user: User | null;
+  workspace: Workspace | null;
+  token: string | null;
+  status: AuthStatus;
+  onboardingCompleted: boolean;
+  login: (payload: LoginPayload) => Promise<User>;
+  register: (payload: RegisterPayload) => Promise<User>;
+  loginWithGoogle: () => Promise<void>;
+  logout: () => Promise<void>;
+  completeOnboarding: () => void;
+  resetOnboarding: () => void;
+}
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+const TOKEN_KEY = 'recall_token';
+const ONBOARDING_KEY = 'recall_onboarding_completed';
+
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [user, setUser] = useState<User | null>(null);
+  const [workspace, setWorkspace] = useState<Workspace | null>(null);
+  const [token, setToken] = useState<string | null>(() => {
+    return typeof window !== 'undefined' ? localStorage.getItem(TOKEN_KEY) : null;
+  });
+  const [status, setStatus] = useState<AuthStatus>('loading');
+  const [onboardingCompleted, setOnboardingCompleted] = useState<boolean>(() => {
+    return typeof window !== 'undefined' ? localStorage.getItem(ONBOARDING_KEY) === 'true' : false;
+  });
+
+  // Sync token to localStorage
+  const saveToken = useCallback((newToken: string | null) => {
+    setToken(newToken);
+    if (newToken) {
+      localStorage.setItem(TOKEN_KEY, newToken);
+    } else {
+      localStorage.removeItem(TOKEN_KEY);
+    }
+  }, []);
+
+  // Hydrate session on app boot
+  useEffect(() => {
+    let isMounted = true;
+
+    const initializeAuth = async () => {
+      const storedToken = localStorage.getItem(TOKEN_KEY);
+
+      // 1. Try FastAPI JWT token if stored
+      if (storedToken) {
+        try {
+          const profile = await authApi.getMe(storedToken);
+          if (isMounted) {
+            setUser(profile.user);
+            setWorkspace(profile.workspace);
+            setStatus('authenticated');
+            await authApi.setBackendUser(profile.user.id, storedToken);
+          }
+          return;
+        } catch (err) {
+          console.warn('[Auth] Stored JWT expired or invalid:', err);
+          saveToken(null);
+        }
+      }
+
+      // 2. Try Supabase session if configured
+      if (isSupabaseConfigured) {
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.user && isMounted) {
+            const mappedUser: User = {
+              id: session.user.id,
+              email: session.user.email || '',
+              full_name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'User',
+              avatar_url: session.user.user_metadata?.avatar_url || null,
+              created_at: session.user.created_at,
+            };
+            const mappedWorkspace: Workspace = {
+              id: session.user.id,
+              owner_id: session.user.id,
+              name: 'Personal Workspace',
+            };
+            setUser(mappedUser);
+            setWorkspace(mappedWorkspace);
+            saveToken(session.access_token);
+            setStatus('authenticated');
+            await authApi.setBackendUser(session.user.id, session.access_token);
+            return;
+          }
+        } catch (err) {
+          console.warn('[Auth] Supabase session check error:', err);
+        }
+      }
+
+      // 3. Fallback: unauthenticated
+      if (isMounted) {
+        setUser(null);
+        setWorkspace(null);
+        setStatus('unauthenticated');
+        await authApi.setBackendUser(null, null);
+      }
+    };
+
+    initializeAuth();
+
+    // Listen for unauthorized events emitted by client.ts
+    const handleUnauthorized = () => {
+      saveToken(null);
+      setUser(null);
+      setWorkspace(null);
+      setStatus('unauthenticated');
+      authApi.setBackendUser(null, null);
+    };
+
+    window.addEventListener('auth-unauthorized', handleUnauthorized);
+
+    // Listen for Supabase OAuth updates
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (!isMounted) return;
+      if (session?.user) {
+        const mappedUser: User = {
+          id: session.user.id,
+          email: session.user.email || '',
+          full_name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'User',
+          avatar_url: session.user.user_metadata?.avatar_url || null,
+          created_at: session.user.created_at,
+        };
+        const mappedWorkspace: Workspace = {
+          id: session.user.id,
+          owner_id: session.user.id,
+          name: 'Personal Workspace',
+        };
+        setUser(mappedUser);
+        setWorkspace(mappedWorkspace);
+        saveToken(session.access_token);
+        setStatus('authenticated');
+        await authApi.setBackendUser(session.user.id, session.access_token);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      window.removeEventListener('auth-unauthorized', handleUnauthorized);
+      subscription.unsubscribe();
+    };
+  }, [saveToken]);
+
+  const login = async (payload: LoginPayload): Promise<User> => {
+    setStatus('loading');
+    try {
+      const resp = await authApi.login(payload);
+      saveToken(resp.access_token);
+      setUser(resp.user);
+      setWorkspace(resp.workspace);
+      setStatus('authenticated');
+      await authApi.setBackendUser(resp.user.id, resp.access_token);
+      return resp.user;
+    } catch (err) {
+      setStatus('unauthenticated');
+      throw err;
+    }
+  };
+
+  const register = async (payload: RegisterPayload): Promise<User> => {
+    setStatus('loading');
+    try {
+      const resp = await authApi.signup(payload);
+      saveToken(resp.access_token);
+      setUser(resp.user);
+      setWorkspace(resp.workspace);
+      setStatus('authenticated');
+      // Mark onboarding as pending for new registrants
+      setOnboardingCompleted(false);
+      localStorage.removeItem(ONBOARDING_KEY);
+      await authApi.setBackendUser(resp.user.id, resp.access_token);
+      return resp.user;
+    } catch (err) {
+      setStatus('unauthenticated');
+      throw err;
+    }
+  };
+
+  const loginWithGoogle = async (): Promise<void> => {
+    if (!isSupabaseConfigured) {
+      throw new Error('Google OAuth is not configured in this environment. Please log in with your email and password.');
+    }
+
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        skipBrowserRedirect: isTauriEnvironment(),
+        redirectTo: 'http://localhost:8000/auth-success',
+      },
+    });
+
+    if (error) {
+      throw error;
+    }
+
+    if (data?.url) {
+      if (isTauriEnvironment()) {
+        await tauriOpen(data.url);
+      } else {
+        window.location.href = data.url;
+      }
+    }
+  };
+
+  const logout = async (): Promise<void> => {
+    const currentToken = token;
+    saveToken(null);
+    setUser(null);
+    setWorkspace(null);
+    setStatus('unauthenticated');
+
+    // Notify backend
+    await Promise.allSettled([
+      authApi.logout(currentToken),
+      authApi.setBackendUser(null, null),
+      isSupabaseConfigured ? supabase.auth.signOut() : Promise.resolve(),
+    ]);
+  };
+
+  const completeOnboarding = () => {
+    setOnboardingCompleted(true);
+    localStorage.setItem(ONBOARDING_KEY, 'true');
+  };
+
+  const resetOnboarding = () => {
+    setOnboardingCompleted(false);
+    localStorage.removeItem(ONBOARDING_KEY);
+  };
+
+  return (
+    <AuthContext.Provider
+      value={{
+        user,
+        workspace,
+        token,
+        status,
+        onboardingCompleted,
+        login,
+        register,
+        loginWithGoogle,
+        logout,
+        completeOnboarding,
+        resetOnboarding,
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  );
+}
+
+export function useAuth(): AuthContextType {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+}

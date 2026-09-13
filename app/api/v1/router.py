@@ -14,6 +14,10 @@ from app.api.v1.flashcards import router as flashcards_router, sets_alias_router
 from app.api.v1.quizzes import router as quizzes_router
 from app.api.v1.attempts import router as attempts_router
 from app.api.v1.learning import router as learning_router
+from app.api.v1.reviews import router as reviews_router
+from app.api.v1.knowledge import router as knowledge_router
+from app.api.v1.billing import router as billing_router
+from app.api.v1.account import router as account_router
 
 api_v1_router = APIRouter(prefix="/api/v1")
 
@@ -27,9 +31,9 @@ api_v1_router.include_router(sets_alias_router)
 api_v1_router.include_router(quizzes_router)
 api_v1_router.include_router(attempts_router)
 api_v1_router.include_router(learning_router)
+api_v1_router.include_router(reviews_router)
+api_v1_router.include_router(knowledge_router)
+api_v1_router.include_router(billing_router)
+api_v1_router.include_router(account_router)
 # Include health checks both at /api/v1 and at root
 api_v1_router.include_router(health_router)
-
-
-
-

@@ -4,6 +4,7 @@ Creates tables for users, workspaces, user_preferences, plans, documents,
 and provider_credentials with constraints and indexes.
 """
 
+import json
 import sqlite3
 import logging
 from typing import Optional
@@ -68,13 +69,19 @@ def init_foundation_db(db_path: Optional[str] = None) -> None:
                 price_cents INTEGER NOT NULL DEFAULT 0,
                 billing_interval TEXT NOT NULL DEFAULT 'month',
                 monthly_credits INTEGER NOT NULL DEFAULT 50,
-                max_documents INTEGER NOT NULL DEFAULT 3,
+                max_documents INTEGER NOT NULL DEFAULT 5,
                 max_storage_mb INTEGER NOT NULL DEFAULT 50,
                 byok_allowed INTEGER NOT NULL DEFAULT 1,
+                features TEXT NOT NULL DEFAULT '{}',
                 is_active INTEGER NOT NULL DEFAULT 1,
                 created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
             )
         """)
+
+        cursor.execute("PRAGMA table_info(plans)")
+        plan_cols = [row["name"] for row in cursor.fetchall()]
+        if "features" not in plan_cols:
+            cursor.execute("ALTER TABLE plans ADD COLUMN features TEXT NOT NULL DEFAULT '{}'")
 
         # 5. Files Table (Uploaded asset metadata)
         cursor.execute("""
@@ -333,6 +340,7 @@ def init_foundation_db(db_path: Optional[str] = None) -> None:
         """)
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_quiz_attempts_ws_user ON quiz_attempts(workspace_id, user_id, updated_at DESC)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_quiz_attempts_quiz ON quiz_attempts(quiz_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_quiz_attempts_submitted ON quiz_attempts(workspace_id, user_id, status, submitted_at DESC)")
 
         # 18. Quiz Answers Table (User's individual response to an assessment question)
         cursor.execute("""
@@ -372,6 +380,7 @@ def init_foundation_db(db_path: Optional[str] = None) -> None:
             )
         """)
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_learning_items_due ON learning_items(workspace_id, user_id, next_review_at ASC)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_learning_items_ws_user_content ON learning_items(workspace_id, user_id, content_type)")
 
         # 20. Review Events Table (Append-only historical log of all review interactions)
         cursor.execute("""
@@ -382,9 +391,15 @@ def init_foundation_db(db_path: Optional[str] = None) -> None:
                 learning_item_id TEXT,
                 content_type TEXT NOT NULL,
                 content_id TEXT NOT NULL,
-                result TEXT NOT NULL CHECK (result IN ('correct', 'incorrect')),
+                result TEXT NOT NULL,
+                rating TEXT NOT NULL DEFAULT 'good' CHECK (rating IN ('again', 'hard', 'good', 'easy', 'correct', 'incorrect')),
+                previous_state TEXT NOT NULL DEFAULT '{}',
+                new_state TEXT NOT NULL DEFAULT '{}',
+                previous_due TEXT,
+                new_due TEXT,
                 source_type TEXT NOT NULL DEFAULT 'quiz_attempt',
                 source_id TEXT,
+                session_id TEXT,
                 reviewed_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
                 FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE,
                 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
@@ -394,17 +409,229 @@ def init_foundation_db(db_path: Optional[str] = None) -> None:
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_review_events_user ON review_events(workspace_id, user_id, reviewed_at DESC)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_review_events_item ON review_events(learning_item_id)")
 
+        # Defensive column migration for existing review_events table
+        cursor.execute("PRAGMA table_info(review_events)")
+        existing_cols = {row[1] for row in cursor.fetchall()}
+        for col_def in [
+            ("rating", "TEXT NOT NULL DEFAULT 'good'"),
+            ("previous_state", "TEXT NOT NULL DEFAULT '{}'"),
+            ("new_state", "TEXT NOT NULL DEFAULT '{}'"),
+            ("previous_due", "TEXT"),
+            ("new_due", "TEXT"),
+            ("session_id", "TEXT"),
+        ]:
+            if col_def[0] not in existing_cols:
+                cursor.execute(f"ALTER TABLE review_events ADD COLUMN {col_def[0]} {col_def[1]}")
 
+        # 21. Review Sessions Table (Groups active study reviews performed in a session)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS review_sessions (
+                id TEXT PRIMARY KEY,
+                workspace_id TEXT NOT NULL,
+                user_id TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'completed', 'abandoned')),
+                started_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+                completed_at TEXT,
+                total_items INTEGER NOT NULL DEFAULT 0,
+                reviewed_items INTEGER NOT NULL DEFAULT 0,
+                metadata TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+                updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+                FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_review_sessions_user ON review_sessions(workspace_id, user_id, status)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_review_sessions_started ON review_sessions(workspace_id, user_id, started_at DESC)")
 
-        # Seed default plans if table is empty
+        # 22. Review Session Items Table (Individual cards/questions queued in a session)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS review_session_items (
+                id TEXT PRIMARY KEY,
+                session_id TEXT NOT NULL,
+                learning_item_id TEXT NOT NULL,
+                order_index INTEGER NOT NULL DEFAULT 0,
+                status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'revealed', 'completed', 'skipped')),
+                rating TEXT CHECK (rating IN ('again', 'hard', 'good', 'easy')),
+                reviewed_at TEXT,
+                review_event_id TEXT,
+                created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+                FOREIGN KEY (session_id) REFERENCES review_sessions(id) ON DELETE CASCADE,
+                FOREIGN KEY (learning_item_id) REFERENCES learning_items(id) ON DELETE CASCADE,
+                FOREIGN KEY (review_event_id) REFERENCES review_events(id) ON DELETE SET NULL,
+                CONSTRAINT uq_session_item UNIQUE (session_id, learning_item_id)
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_session_items_order ON review_session_items(session_id, order_index ASC)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_session_items_status ON review_session_items(session_id, status)")
+
+        # 23. Document Summaries Table (AI-generated cached summaries per document)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS document_summaries (
+                id TEXT PRIMARY KEY,
+                document_id TEXT NOT NULL,
+                workspace_id TEXT NOT NULL,
+                user_id TEXT NOT NULL,
+                summary_type TEXT NOT NULL DEFAULT 'standard'
+                    CHECK (summary_type IN ('short', 'standard', 'detailed')),
+                summary TEXT NOT NULL,
+                key_points TEXT NOT NULL DEFAULT '[]',
+                source_references TEXT NOT NULL DEFAULT '[]',
+                content_version TEXT NOT NULL,
+                model_metadata TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+                updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+                FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE,
+                FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                CONSTRAINT uq_doc_summary UNIQUE (document_id, summary_type)
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_doc_summaries_doc ON document_summaries(document_id, summary_type)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_doc_summaries_user ON document_summaries(workspace_id, user_id)")
+
+        # 24. Concepts Table (AI-extracted normalized concepts per document)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS concepts (
+                id TEXT PRIMARY KEY,
+                document_id TEXT NOT NULL,
+                workspace_id TEXT NOT NULL,
+                user_id TEXT NOT NULL,
+                name TEXT NOT NULL,
+                normalized_name TEXT NOT NULL,
+                description TEXT NOT NULL,
+                importance TEXT NOT NULL DEFAULT 'medium'
+                    CHECK (importance IN ('high', 'medium', 'low')),
+                source_references TEXT NOT NULL DEFAULT '[]',
+                content_version TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+                updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+                FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE,
+                FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                CONSTRAINT uq_doc_concept UNIQUE (document_id, normalized_name)
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_concepts_doc ON concepts(document_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_concepts_ws_user ON concepts(workspace_id, user_id)")
+
+        # 25. Subscriptions Table (SaaS subscription state machine)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS subscriptions (
+                id TEXT PRIMARY KEY,
+                workspace_id TEXT NOT NULL,
+                user_id TEXT,
+                plan_id TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'active'
+                    CHECK (status IN ('active', 'trialing', 'past_due', 'canceled', 'expired')),
+                provider TEXT NOT NULL DEFAULT 'stripe',
+                provider_customer_id TEXT,
+                provider_subscription_id TEXT UNIQUE,
+                current_period_start TEXT NOT NULL,
+                current_period_end TEXT NOT NULL,
+                cancel_at_period_end INTEGER NOT NULL DEFAULT 0,
+                canceled_at TEXT,
+                created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+                updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+                FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
+                FOREIGN KEY (plan_id) REFERENCES plans(id)
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_subscriptions_ws ON subscriptions(workspace_id, status)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_subscriptions_provider ON subscriptions(provider_subscription_id)")
+
+        # 26. Billing Events Table (Webhook audit log and idempotency guard)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS billing_events (
+                id TEXT PRIMARY KEY,
+                event_id TEXT NOT NULL UNIQUE,
+                provider TEXT NOT NULL DEFAULT 'stripe',
+                event_type TEXT NOT NULL,
+                payload TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'processed',
+                processed_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_billing_events_id ON billing_events(event_id)")
+
+        # 27. Usage Reservations Table (Atomic concurrency-safe credit locking)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS usage_reservations (
+                id TEXT PRIMARY KEY,
+                workspace_id TEXT NOT NULL,
+                user_id TEXT NOT NULL,
+                feature TEXT NOT NULL,
+                quantity INTEGER NOT NULL DEFAULT 1,
+                status TEXT NOT NULL DEFAULT 'pending'
+                    CHECK (status IN ('pending', 'finalized', 'released', 'expired')),
+                expires_at TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+                finalized_at TEXT,
+                released_at TEXT,
+                FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_reservations_ws_status ON usage_reservations(workspace_id, status, expires_at)")
+
+        # 28. Account Overrides Table (Internal/promotional plan overrides)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS account_overrides (
+                id TEXT PRIMARY KEY,
+                workspace_id TEXT NOT NULL,
+                feature_or_limit TEXT NOT NULL,
+                override_value TEXT NOT NULL,
+                reason TEXT,
+                created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+                updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+                FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE,
+                CONSTRAINT uq_ws_override UNIQUE (workspace_id, feature_or_limit)
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_overrides_ws ON account_overrides(workspace_id)")
+
+        # Seed or update default plans with features
+        free_features = json.dumps({
+            "documents": True,
+            "document_storage": True,
+            "ai_chat": True,
+            "semantic_search": True,
+            "summaries": True,
+            "concepts": True,
+            "flashcards": True,
+            "quizzes": True,
+            "reviews": True,
+            "analytics": True,
+            "byok": True,
+            "exports": False
+        })
+        pro_features = json.dumps({
+            "documents": True,
+            "document_storage": True,
+            "ai_chat": True,
+            "semantic_search": True,
+            "summaries": True,
+            "concepts": True,
+            "flashcards": True,
+            "quizzes": True,
+            "reviews": True,
+            "analytics": True,
+            "byok": True,
+            "exports": True
+        })
+
         cursor.execute("SELECT COUNT(*) FROM plans")
         if cursor.fetchone()[0] == 0:
             cursor.execute("""
-                INSERT INTO plans (id, name, price_cents, billing_interval, monthly_credits, max_documents, max_storage_mb, byok_allowed, is_active)
+                INSERT INTO plans (id, name, price_cents, billing_interval, monthly_credits, max_documents, max_storage_mb, byok_allowed, features, is_active)
                 VALUES 
-                    ('free', 'Starter Free', 0, 'month', 50, 3, 50, 1, 1),
-                    ('pro', 'Pro Scholar', 1500, 'month', 500, 100, 2048, 1, 1)
-            """)
+                    ('free', 'Starter Free', 0, 'month', 50, 10, 50, 1, ?, 1),
+                    ('pro', 'Pro Scholar', 1500, 'month', 500, 100, 2048, 1, ?, 1)
+            """, (free_features, pro_features))
             logger.info("Default plans (free, pro) seeded successfully.")
+        else:
+            cursor.execute("UPDATE plans SET features = ? WHERE id = 'free' AND (features IS NULL OR features = '{}' OR features = '')", (free_features,))
+            cursor.execute("UPDATE plans SET features = ? WHERE id = 'pro' AND (features IS NULL OR features = '{}' OR features = '')", (pro_features,))
 
     logger.info("Foundation database schema initialized.")

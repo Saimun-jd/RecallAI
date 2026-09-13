@@ -103,6 +103,54 @@ from app.schemas.attempt import (
     LearningItemResponse,
 )
 
+from app.schemas.review import (
+    ReviewRatingEnum,
+    StartReviewSessionRequest,
+    ReviewSessionResponse,
+    MaskedReviewContentResponse,
+    RevealedReviewContentResponse,
+    RateReviewRequest,
+    RateReviewResponse,
+    ReviewQueueItemResponse,
+    ReviewStatisticsResponse,
+)
 
+from app.schemas.analytics import (
+    ReviewWorkloadStats,
+    LearningStateDistribution,
+    TodayActivityStats,
+    QuizPerformanceStats,
+    FlashcardPerformanceStats,
+    RatingDistributionItem,
+    ReviewDetailedStats,
+    DashboardSummaryResponse,
+    DailyStudyActivity,
+    StudyActivityResponse,
+    DocumentLearningProgress,
+    ConceptLearningProgress,
+    StudySessionSummary,
+)
 
+from app.schemas.knowledge import (
+    SourceReference,
+    SummaryGenerateRequest,
+    DocumentSummaryResponse,
+    ConceptItemResponse,
+    ConceptListResponse,
+    ConceptGenerateRequest,
+)
+
+from app.schemas.billing import (
+    PlanResponse,
+    PlanListResponse,
+    SubscriptionResponse,
+    CheckoutRequest,
+    CheckoutResponse,
+    CancelSubscriptionRequest,
+    UsageMetricItem,
+    UsageSummaryResponse,
+    BYOKStatusResponse,
+    AccountOverviewResponse,
+    EntitlementCheckResponse,
+)
 

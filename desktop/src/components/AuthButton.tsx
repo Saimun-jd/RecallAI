@@ -1,72 +1,31 @@
-import React, { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { LogIn, LogOut, RefreshCw } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
 import { cn } from '../lib/utils';
 import { useToast } from '../hooks/useToast';
-import { open as tauriOpen } from '@tauri-apps/plugin-shell';
-import { isTauriEnvironment } from '../api/keychain';
+import { Link } from 'react-router-dom';
 
 export function AuthButton({ isExpanded }: { isExpanded: boolean }) {
-  const [session, setSession] = useState<any>(null);
+  const { user, token, logout } = useAuth();
   const [isSyncing, setIsSyncing] = useState(false);
   const { showToast } = useToast();
 
-  useEffect(() => {
-    const refreshSession = () => {
-      supabase.auth.getSession().then(({ data: { session } }) => {
-        setSession(session);
-      });
-    };
-
-    refreshSession();
-    window.addEventListener('auth-session-updated', refreshSession);
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-    });
-
-    return () => {
-      subscription.unsubscribe();
-      window.removeEventListener('auth-session-updated', refreshSession);
-    };
-  }, []);
-
-  const handleLogin = async () => {
+  const handleLogout = async () => {
     try {
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          skipBrowserRedirect: true,
-          redirectTo: 'http://localhost:8000/auth-success',
-        },
-      });
-      if (error) throw error;
-      if (data?.url) {
-        if (isTauriEnvironment()) {
-          await tauriOpen(data.url);
-        } else {
-          window.open(data.url, '_blank');
-        }
-      }
+      await logout();
     } catch (err: any) {
-      showToast("error", "Login failed", err.message || String(err));
+      showToast("error", "Logout failed", err.message || String(err));
     }
   };
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-  };
-
   const handleSync = async () => {
-    if (!session) return;
+    if (!token) return;
     setIsSyncing(true);
     try {
       const response = await fetch('http://localhost:8000/api/sync', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${session.access_token}`,
+          'Authorization': `Bearer ${token}`,
         },
       });
       if (response.ok) {
@@ -89,19 +48,19 @@ export function AuthButton({ isExpanded }: { isExpanded: boolean }) {
 
   const iconClass = "shrink-0 text-on-surface group-hover:text-primary transition-colors";
 
-  if (!session) {
+  if (!user) {
     return (
-      <div className="flex flex-col gap-2 p-3 mt-auto border-t-2 border-on-surface shrink-0">
-        <button onClick={handleLogin} className={buttonClass} title={!isExpanded ? "Login with Google" : undefined}>
+      <div className="flex flex-col gap-2 p-3 mt-auto border-t-2 border-border-default shrink-0">
+        <Link to="/login" className={buttonClass} title={!isExpanded ? "Sign in" : undefined}>
           <LogIn size={20} strokeWidth={2.5} className={iconClass} />
-          <span className={cn("font-bold text-sm", !isExpanded && "hidden")}>Login</span>
-        </button>
+          <span className={cn("font-bold text-sm", !isExpanded && "hidden")}>Sign in</span>
+        </Link>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col gap-2 p-3 mt-auto border-t-2 border-on-surface shrink-0">
+    <div className="flex flex-col gap-2 p-3 mt-auto border-t-2 border-border-default shrink-0">
       <button onClick={handleSync} disabled={isSyncing} className={buttonClass} title={!isExpanded ? "Sync Data" : undefined}>
         <RefreshCw size={20} strokeWidth={2.5} className={cn(iconClass, isSyncing && "animate-spin")} />
         <span className={cn("font-bold text-sm", !isExpanded && "hidden")}>
@@ -110,7 +69,7 @@ export function AuthButton({ isExpanded }: { isExpanded: boolean }) {
       </button>
       <button onClick={handleLogout} className={buttonClass} title={!isExpanded ? "Logout" : undefined}>
         <LogOut size={20} strokeWidth={2.5} className={iconClass} />
-        <span className={cn("font-bold text-sm text-error", !isExpanded && "hidden")}>Logout</span>
+        <span className={cn("font-bold text-sm text-error", !isExpanded && "hidden")}>Sign out</span>
       </button>
     </div>
   );

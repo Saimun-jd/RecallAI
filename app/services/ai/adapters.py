@@ -77,7 +77,7 @@ class MockAIAdapter(BaseAIAdapter):
                     "source_ids": [first_id]
                 })
             return json.dumps({"flashcards": generated_cards})
-        
+
         # Check if this is a quiz generation request
         if "quiz" in full_text.lower() or "assessment" in full_text.lower():
             if not source_matches:
@@ -108,6 +108,48 @@ class MockAIAdapter(BaseAIAdapter):
                     "source_ids": [src_id]
                 })
             return json.dumps({"questions": generated_questions})
+
+        # Check if this is a concept extraction request
+        if "expert knowledge extractor" in full_text.lower() or ("concept" in full_text.lower() and "importance" in full_text.lower()):
+            if not source_matches:
+                return json.dumps({"concepts": []})
+            concepts = []
+            for idx, (src_id, doc_title) in enumerate(source_matches[:10], start=1):
+                dl = doc_title if doc_title else "Study Material"
+                importance = "high" if idx <= 2 else ("medium" if idx <= 5 else "low")
+                concepts.append({
+                    "name": f"Core Principle {idx} of {dl}",
+                    "description": f"A fundamental concept from {dl} that governs key system behavior [{src_id}].",
+                    "importance": importance,
+                    "source_ids": [src_id]
+                })
+            return json.dumps({"concepts": concepts})
+
+        # Check if this is a summary generation request
+        if "expert academic summarizer" in full_text.lower() or "summary_type" in full_text.lower() or ("summary" in full_text.lower() and "key_points" in full_text.lower()):
+            if not source_matches:
+                return json.dumps({
+                    "summary": "No source material was provided to summarize.",
+                    "key_points": [],
+                    "source_ids": []
+                })
+            first_id = source_matches[0][0]
+            doc_label = source_matches[0][1] if source_matches[0][1] else "Study Material"
+            all_ids = [s[0] for s in source_matches[:5]]
+            key_points = []
+            for idx, (src_id, doc_title) in enumerate(source_matches[:5], start=1):
+                dl = doc_title if doc_title else "Study Material"
+                key_points.append(f"Key takeaway {idx} from {dl} [{src_id}]")
+            return json.dumps({
+                "summary": (
+                    f"This document from {doc_label} covers fundamental principles "
+                    f"discussed across multiple sections [{first_id}]. "
+                    f"The material establishes core concepts that govern system behavior "
+                    f"and operational integrity [{', '.join(all_ids)}]."
+                ),
+                "key_points": key_points,
+                "source_ids": all_ids
+            })
 
         if source_matches:
 

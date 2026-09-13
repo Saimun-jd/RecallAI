@@ -17,7 +17,9 @@ from app.models.repositories import (
     QuizQuestionRepository,
     QuizRepository,
     UsageRepository,
+    UsageReservationRepository,
 )
+from app.services.entitlements import EntitlementService
 from app.schemas.quiz import (
     QuizDetailResponse,
     QuizGenerateRequest,
@@ -118,14 +120,21 @@ class QuizGenerationService:
         if is_byok:
             return
 
-        plan = PlanRepository.get_workspace_plan(workspace_id)
-        limit = plan.get("monthly_credits", 50)
-        used = UsageRepository.get_monthly_credits_used(workspace_id)
+        EntitlementService.require_feature(workspace_id, "quizzes")
+        ent = EntitlementService.get_plan_and_entitlements(workspace_id)
+        limit = ent["limits"]["monthly_credits"]
+        start_date, end_date = EntitlementService.get_period_bounds(workspace_id)
+        used = UsageRepository.get_monthly_credits_used(workspace_id, start_date=start_date, end_date=end_date)
+        reserved = UsageReservationRepository.get_active_reserved_quantity(workspace_id)
 
-        if used >= limit:
+        if (used + reserved) >= limit:
             raise UsageExceededError(
-                f"Monthly AI credit allowance reached ({used}/{limit}). "
-                f"Please upgrade your plan or configure your own API key (BYOK) in settings."
+                f"Monthly AI credit allowance reached ({used + reserved}/{limit}). "
+                f"Please upgrade your plan or configure your own API key (BYOK) in settings.",
+                feature="quizzes",
+                limit=limit,
+                used=used + reserved,
+                reset_at=end_date
             )
 
     @classmethod
@@ -417,97 +426,108 @@ class QuizGenerationService:
         )
         cls._check_entitlement(workspace_id=workspace_id, is_byok=is_byok)
 
-        # 3. Retrieve representative assessment chunks
-        assessment_chunks = cls._retrieve_assessment_chunks(
+        # 3. Reserve credit atomically before calling AI
+        reservation = EntitlementService.reserve_usage(
             workspace_id=workspace_id,
-            document_ids=request.document_ids,
-            topic=request.topic,
-            count=request.question_count
+            user_id=user_id,
+            feature="quizzes",
+            quantity=1,
+            is_byok=is_byok
         )
 
-        if not assessment_chunks:
-            raise ValidationError("Not enough source material to generate high-quality quiz questions.")
-
-        # 4. Build assessment context
-        allowed_types = [t for t in request.question_types if t in ("multiple_choice", "true_false")]
-        if not allowed_types:
-            allowed_types = ["multiple_choice", "true_false"]
-
-        difficulty = request.difficulty if request.difficulty in ("easy", "medium", "hard") else "medium"
-
-        messages, source_map = cls._build_context_prompt(
-            chunks=assessment_chunks,
-            count=request.question_count,
-            question_types=allowed_types,
-            difficulty=difficulty,
-            topic=request.topic
-        )
-
-        # 5. Invoke AI generation
         try:
-            ai_resp, provider_name, model_name, is_byok = await AIService.generate(
+            # 4. Retrieve representative assessment chunks
+            assessment_chunks = cls._retrieve_assessment_chunks(
                 workspace_id=workspace_id,
-                messages=messages,
-                provider_preference=request.provider,
-                temperature=0.3,
-                max_tokens=3500
+                document_ids=request.document_ids,
+                topic=request.topic,
+                count=request.question_count
             )
-        except AIProviderError as e:
-            logger.error("AI generation failed for quiz: %s", e.message)
-            raise ValidationError(f"Quiz generation failed: {e.message}") from e
 
-        # 6. Parse and validate questions
-        valid_questions = cls._parse_and_validate_questions(
-            raw_text=ai_resp.content,
-            source_map=source_map,
-            max_count=request.question_count,
-            allowed_types=allowed_types
-        )
+            if not assessment_chunks:
+                raise ValidationError("Not enough source material to generate high-quality quiz questions.")
 
-        if not valid_questions:
-            raise ValidationError("Not enough source material to generate high-quality quiz questions.")
+            # 5. Build assessment context
+            allowed_types = [t for t in request.question_types if t in ("multiple_choice", "true_false")]
+            if not allowed_types:
+                allowed_types = ["multiple_choice", "true_false"]
 
-        # 7. Determine quiz title
-        if request.title and request.title.strip():
-            quiz_title = request.title.strip()
-        elif request.topic and request.topic.strip():
-            quiz_title = f"{request.topic.strip().title()} Assessment"
-        elif verified_docs:
-            doc_name = verified_docs[0].get("title", "Study Material")
-            quiz_title = f"{doc_name} Quiz"
-        else:
-            quiz_title = "Study Quiz"
+            difficulty = request.difficulty if request.difficulty in ("easy", "medium", "hard") else "medium"
 
-        # 8. Atomic transactional persistence
-        source_doc_ids = [d["id"] for d in verified_docs] if verified_docs else (request.document_ids or [])
+            messages, source_map = cls._build_context_prompt(
+                chunks=assessment_chunks,
+                count=request.question_count,
+                question_types=allowed_types,
+                difficulty=difficulty,
+                topic=request.topic
+            )
 
-        created_quiz = QuizRepository.create_quiz(
-            workspace_id=workspace_id,
-            user_id=user_id,
-            title=quiz_title,
-            description=f"Generated {len(valid_questions)} assessment questions ({difficulty}) using {model_name}.",
-            source_document_ids=source_doc_ids,
-            question_count=len(valid_questions),
-            difficulty=difficulty
-        )
+            # 6. Invoke AI generation
+            try:
+                ai_resp, provider_name, model_name, is_byok = await AIService.generate(
+                    workspace_id=workspace_id,
+                    messages=messages,
+                    provider_preference=request.provider,
+                    temperature=0.3,
+                    max_tokens=3500
+                )
+            except AIProviderError as e:
+                logger.error("AI generation failed for quiz: %s", e.message)
+                raise ValidationError(f"Quiz generation failed: {e.message}") from e
 
-        persisted_questions = QuizQuestionRepository.create_questions_batch(
-            quiz_id=created_quiz["id"],
-            questions=valid_questions
-        )
+            # 7. Parse and validate questions
+            valid_questions = cls._parse_and_validate_questions(
+                raw_text=ai_resp.content,
+                source_map=source_map,
+                max_count=request.question_count,
+                allowed_types=allowed_types
+            )
 
-        # 9. Record usage credits
-        credits_spent = 0 if is_byok else 1
-        UsageRepository.record_usage(
-            workspace_id=workspace_id,
-            user_id=user_id,
-            operation_type="quiz_generation",
-            provider=provider_name,
-            model=model_name,
-            input_tokens=ai_resp.usage.input_tokens,
-            output_tokens=ai_resp.usage.output_tokens,
-            credits_used=credits_spent
-        )
+            if not valid_questions:
+                raise ValidationError("Not enough source material to generate high-quality quiz questions.")
+
+            # 8. Determine quiz title
+            if request.title and request.title.strip():
+                quiz_title = request.title.strip()
+            elif request.topic and request.topic.strip():
+                quiz_title = f"{request.topic.strip().title()} Assessment"
+            elif verified_docs:
+                doc_name = verified_docs[0].get("title", "Study Material")
+                quiz_title = f"{doc_name} Quiz"
+            else:
+                quiz_title = "Study Quiz"
+
+            # 9. Atomic transactional persistence
+            source_doc_ids = [d["id"] for d in verified_docs] if verified_docs else (request.document_ids or [])
+
+            created_quiz = QuizRepository.create_quiz(
+                workspace_id=workspace_id,
+                user_id=user_id,
+                title=quiz_title,
+                description=f"Generated {len(valid_questions)} assessment questions ({difficulty}) using {model_name}.",
+                source_document_ids=source_doc_ids,
+                question_count=len(valid_questions),
+                difficulty=difficulty
+            )
+
+            persisted_questions = QuizQuestionRepository.create_questions_batch(
+                quiz_id=created_quiz["id"],
+                questions=valid_questions
+            )
+
+            # 10. Finalize usage credits atomically
+            in_tokens = ai_resp.usage.input_tokens if ai_resp.usage else 0
+            out_tokens = ai_resp.usage.output_tokens if ai_resp.usage else 0
+            EntitlementService.finalize_usage(
+                reservation=reservation,
+                provider=provider_name,
+                model=model_name,
+                input_tokens=in_tokens,
+                output_tokens=out_tokens
+            )
+        except Exception:
+            EntitlementService.release_usage(reservation)
+            raise
 
         # 10. Format and return response
         question_responses = [

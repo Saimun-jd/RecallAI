@@ -22,6 +22,7 @@ class ErrorCode(str, Enum):
     RATE_LIMITED = "RATE_LIMITED"
     ENTITLEMENT_REQUIRED = "ENTITLEMENT_REQUIRED"
     USAGE_EXCEEDED = "USAGE_EXCEEDED"
+    QUOTA_EXCEEDED = "QUOTA_EXCEEDED"
     PAYLOAD_TOO_LARGE = "PAYLOAD_TOO_LARGE"
     INTERNAL_ERROR = "INTERNAL_ERROR"
 
@@ -36,6 +37,7 @@ ERROR_DEFAULTS: Dict[ErrorCode, tuple[int, str]] = {
     ErrorCode.RATE_LIMITED: (429, "Too many requests. Please slow down."),
     ErrorCode.ENTITLEMENT_REQUIRED: (403, "Feature not permitted by your plan. Upgrade required."),
     ErrorCode.USAGE_EXCEEDED: (402, "Credit allowance exceeded. Please upgrade or add credits."),
+    ErrorCode.QUOTA_EXCEEDED: (402, "Quota allowance exceeded. Please upgrade your plan."),
     ErrorCode.PAYLOAD_TOO_LARGE: (413, "Request payload exceeds maximum allowed size."),
     ErrorCode.INTERNAL_ERROR: (500, "An internal server error occurred. Please try again later."),
 }
@@ -93,9 +95,77 @@ class PayloadTooLargeError(AppException):
         super().__init__(ErrorCode.PAYLOAD_TOO_LARGE, message=message, status_code=413, details=details)
 
 
-class UsageExceededError(AppException):
-    def __init__(self, message: str = "Monthly credit allowance exceeded", details: Optional[Any] = None):
-        super().__init__(ErrorCode.USAGE_EXCEEDED, message=message, status_code=402, details=details)
+class EntitlementRequiredError(AppException):
+    def __init__(
+        self,
+        message: str = "Feature not permitted by your plan. Upgrade required.",
+        feature: Optional[str] = None,
+        details: Optional[Any] = None
+    ):
+        det = details if isinstance(details, dict) else {}
+        if feature is not None:
+            det["feature"] = feature
+        super().__init__(
+            ErrorCode.ENTITLEMENT_REQUIRED,
+            message=message,
+            status_code=403,
+            details=det if det else details
+        )
+
+    @property
+    def metadata(self) -> Dict[str, Any]:
+        return self.details if isinstance(self.details, dict) else {}
+
+
+class QuotaExceededError(AppException):
+    def __init__(
+        self,
+        message: str = "Credit or quota allowance exceeded. Please upgrade or add credits.",
+        feature: Optional[str] = None,
+        limit: Optional[int] = None,
+        used: Optional[int] = None,
+        reset_at: Optional[str] = None,
+        details: Optional[Any] = None
+    ):
+        det = details if isinstance(details, dict) else {}
+        if feature is not None:
+            det["feature"] = feature
+        if limit is not None:
+            det["limit"] = limit
+        if used is not None:
+            det["used"] = used
+        if reset_at is not None:
+            det["reset_at"] = reset_at
+        super().__init__(
+            ErrorCode.QUOTA_EXCEEDED,
+            message=message,
+            status_code=402,
+            details=det if det else details
+        )
+
+    @property
+    def metadata(self) -> Dict[str, Any]:
+        return self.details if isinstance(self.details, dict) else {}
+
+
+class UsageExceededError(QuotaExceededError):
+    def __init__(
+        self,
+        message: str = "Monthly credit allowance exceeded",
+        details: Optional[Any] = None,
+        feature: Optional[str] = None,
+        limit: Optional[int] = None,
+        used: Optional[int] = None,
+        reset_at: Optional[str] = None
+    ):
+        super().__init__(
+            message=message,
+            feature=feature,
+            limit=limit,
+            used=used,
+            reset_at=reset_at,
+            details=details
+        )
 
 
 
@@ -110,7 +180,8 @@ def format_error_response(
         "error": {
             "code": code.value if isinstance(code, ErrorCode) else str(code),
             "message": message,
-            "details": details
+            "details": details,
+            "metadata": details if isinstance(details, dict) else {}
         }
     }
     return JSONResponse(status_code=status_code, content=payload)
