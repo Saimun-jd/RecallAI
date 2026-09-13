@@ -1,5 +1,4 @@
-# schemas/llm.py
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import List, Literal, Optional
 
 class AtomicTopic(BaseModel):
@@ -12,6 +11,7 @@ class AtomicTopic(BaseModel):
 
 class FlashcardItem(BaseModel):
     concept_type: Literal["Definition", "Key Feature", "Formula", "Comparison", "Process Step", "Code Example", "Diagram"]
+    # summary: Optional[str] = Field(None, description="1-3 sentence self-contained explanation (optional)")
     question: str = Field(description="Clear test question")
     answer: str = Field(description="Complete answer to the question")
     key_terms: List[str] = Field(description="Key domain terms")
@@ -68,6 +68,18 @@ class SuggestedFlashcard(BaseModel):
     answer: str = Field(description="Concise correct answer")
     gap_source: str = Field(description="Brief description of the misconception or gap this card addresses")
 
+class ExamMisconception(BaseModel):
+    """An exam-relevant misconception or trap paired with proper theory and exam tips."""
+    pitfall: str = Field(description="The specific exam trap, counterfactual error, or false intuitive belief students fall into")
+    theory: str = Field(description="The correct theoretical principles, governing formulas ($...$), and physical/logical mechanisms from the textbook")
+    exam_tip: str = Field(description="Actionable exam strategy on how questions test this and how to answer correctly without falling into the trap")
+
+class DiagnosedGap(BaseModel):
+    """An omitted or incomplete concept enriched with full theoretical context."""
+    gap: str = Field(description="The specific concept, invariant, or mechanism that was omitted or underdeveloped")
+    context: str = Field(description="The theoretical explanation, core definitions, and governing formulas ($...$) needed to master this concept")
+    why_it_matters: Optional[str] = Field(None, description="Why this principle is essential in exams and technical problem-solving")
+
 class DiagnosticEvaluation(BaseModel):
     """Result of evaluating a student's free-form answer against ground truth."""
     concept_name: Optional[str] = Field(None, description="The specific atomic concept evaluated, if any")
@@ -75,15 +87,51 @@ class DiagnosticEvaluation(BaseModel):
     status: Literal["mastered", "developing", "fragile", "misconception"] = Field(
         description="Calibrated mastery status"
     )
-    strengths: List[str] = Field(description="Concepts the student demonstrated correctly")
-    diagnosed_gaps: List[str] = Field(description="Important concepts omitted or only partially addressed")
-    misconceptions: List[str] = Field(description="Actively incorrect beliefs or confusions detected")
+    strengths: List[str] = Field(default_factory=list, description="Concepts the student demonstrated correctly")
+    diagnosed_gaps: List[DiagnosedGap] = Field(
+        default_factory=list,
+        description="Important concepts omitted or only partially addressed, enriched with proper theory and context"
+    )
+    misconceptions: List[ExamMisconception] = Field(
+        default_factory=list,
+        description="Exam pitfalls, traps, and false intuitions paired with governing theory and exam tips"
+    )
     socratic_nudge: Optional[str] = Field(
         None, description="A follow-up thinking prompt if the student was close but missed a nuance"
     )
     suggested_flashcards: List[SuggestedFlashcard] = Field(
         default_factory=list, description="0-2 targeted flashcards for diagnosed gaps"
     )
+
+    @field_validator("diagnosed_gaps", mode="before")
+    @classmethod
+    def coerce_diagnosed_gaps(cls, v):
+        if not isinstance(v, list):
+            return v
+        coerced = []
+        for item in v:
+            if isinstance(item, str):
+                coerced.append({"gap": item, "context": item, "why_it_matters": None})
+            else:
+                coerced.append(item)
+        return coerced
+
+    @field_validator("misconceptions", mode="before")
+    @classmethod
+    def coerce_misconceptions(cls, v):
+        if not isinstance(v, list):
+            return v
+        coerced = []
+        for item in v:
+            if isinstance(item, str):
+                coerced.append({
+                    "pitfall": item,
+                    "theory": item,
+                    "exam_tip": "Review core theoretical mechanisms and formulas to avoid this trap on exams."
+                })
+            else:
+                coerced.append(item)
+        return coerced
 
 class ChatMessage(BaseModel):
     role: Literal["user", "ai", "system", "assistant"]
@@ -96,10 +144,20 @@ class ChatMessageDB(BaseModel):
     content: str
     created_at: str
 
+class ExamTopicItem(BaseModel):
+    id: int
+    title: str
+    page_start: Optional[int] = None
+    page_end: Optional[int] = None
+    flashcards: int = 0
+    mastery: Optional[str] = "untested"
+    summary: Optional[str] = None
+
 class ChatRequest(BaseModel):
-    topic_id: int
+    topic_id: Optional[int] = None
+    book_id: Optional[int] = None
     topic_name: Optional[str] = None
-    context_markdown: str
+    context_markdown: Optional[str] = ""
     question: str
     history: List[ChatMessage] = Field(default_factory=list)
     provider_override: Optional[str] = None

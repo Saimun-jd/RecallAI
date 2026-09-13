@@ -82,22 +82,38 @@ async def clean_markdown_with_llm(raw_markdown: str) -> str:
     provider = get_llm_provider(local_settings)
     
     chunks = _chunk_markdown(raw_markdown)
+    # On Gemini Free Tier, cap LLM cleanup at 2 chunks to prevent exhausting the 5 RPM quota
+    is_gemini_free = (
+        getattr(provider, "model", "") and "gemini" in getattr(provider, "model", "").lower()
+        and getattr(settings, "gemini_tier", "free").lower().strip() == "free"
+    )
+    if is_gemini_free and len(chunks) > 2:
+        logger.info(f"Gemini Free Tier active: capping LLM cleanup to first 2 of {len(chunks)} chunks to conserve 5 RPM quota.")
+        uncleaned_tail = chunks[2:]
+        chunks = chunks[:2]
+    else:
+        uncleaned_tail = []
+
     cleaned_chunks = []
     
     logger.info(f"Sending markdown to LLM for cleanup in {len(chunks)} chunk(s)...")
     
+    from app.prompt_manager import get_prompt_template
     for i, chunk in enumerate(chunks):
-        prompt = CLEANUP_PROMPT.format(raw_markdown=chunk)
+        prompt = get_prompt_template("markdown_cleanup_prompt").format(raw_markdown=chunk)
         try:
             full_prompt = f"System: You are a strict markdown processor. Output ONLY the exact fixed markdown.\n\n{prompt}"
             response_text = await provider.generate(
                 prompt=full_prompt,
-                json_schema=None
+                json_schema=None,
+                feature="markdown_cleanup"
             )
             cleaned_chunks.append(response_text.strip())
         except Exception as e:
             logger.error(f"Error during markdown cleanup of chunk {i+1}/{len(chunks)}: {e}")
-            # Fallback to the raw chunk if this chunk fails, to avoid losing everything
             cleaned_chunks.append(chunk.strip())
             
+    if uncleaned_tail:
+        cleaned_chunks.extend(c.strip() for c in uncleaned_tail)
+
     return '\n\n'.join(cleaned_chunks)

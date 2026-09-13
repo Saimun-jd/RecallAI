@@ -13,6 +13,7 @@ import { ReviewView } from './views/ReviewView';
 import { SettingsView } from './views/SettingsView';
 import { BookDetailView } from './views/BookDetailView';
 import { AnalyticsView } from './views/AnalyticsView';
+import { LLMInspectionView } from './views/LLMInspectionView';
 import { loadSettings } from './api/settingsStore';
 import { getApiKey } from './api/keychain';
 import { getCurrentWindow } from '@tauri-apps/api/window';
@@ -185,11 +186,38 @@ export default function App() {
           console.error("Migration check failed", err);
         }
 
+        const backendKeys: Record<string, string> = {};
         for (const provider of ['openai', 'gemini', 'groq']) {
           const key = await getApiKey(provider);
           if (key) {
             dispatch({ type: 'providers/setConfiguredProvider', payload: { provider, isConfigured: true } });
+            backendKeys[`${provider}_api_key`] = key;
           }
+        }
+        for (const extraKey of ['datalab_api_key', 'langfuse_secret_key', 'langfuse_public_key', 'langfuse_host', 'ollama_host']) {
+          const key = await getApiKey(extraKey);
+          if (key) {
+            backendKeys[extraKey] = key;
+          }
+        }
+        
+        // Sync loaded keys to Python sidecar immediately on boot
+        if (Object.keys(backendKeys).length > 0) {
+          client.saveApiKeys(backendKeys).catch((err) => {
+            console.warn('[App] Non-critical boot key sync error:', err);
+          });
+        }
+
+        // Sync active provider and extractor to Python sidecar
+        if (settings.activeProvider) {
+          client.updateSetting('llm_provider', JSON.stringify({ type: settings.activeProvider })).catch((err) =>
+            console.warn('[App] Non-critical boot provider sync error:', err)
+          );
+        }
+        if (settings.pdfExtractor) {
+          client.updateSetting('pdf_extractor', settings.pdfExtractor).catch((err) =>
+            console.warn('[App] Non-critical boot extractor sync error:', err)
+          );
         }
         console.log('[Keychain] Hydration complete.');
       } catch (e) {
@@ -344,6 +372,8 @@ export default function App() {
           <Route path="/app/review" element={<ReviewView />} />
           <Route path="/analytics" element={<AnalyticsView />} />
           <Route path="/app/analytics" element={<AnalyticsView />} />
+          <Route path="/llm-inspection" element={<LLMInspectionView />} />
+          <Route path="/app/llm-inspection" element={<LLMInspectionView />} />
           <Route path="/settings" element={<SettingsView />} />
           <Route path="/app/settings" element={<SettingsView />} />
           <Route path="/books/:id" element={<BookDetailView />} />

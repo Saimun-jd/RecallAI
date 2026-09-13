@@ -164,6 +164,38 @@ export const MarkdownRendererImpl: React.FC<MarkdownRendererProps> = ({ content 
         img: ({ node, src, alt, ...props }: any) => {
           return <DiagramImage src={src} alt={alt} {...props} />;
         },
+        table: ({ node, children, ...props }: any) => (
+          <div className="my-4 w-full overflow-x-auto rounded-xl border border-outline-variant/40 bg-surface-container-low/30 shadow-xs">
+            <table className="w-full text-left text-sm border-collapse" {...props}>
+              {children}
+            </table>
+          </div>
+        ),
+        thead: ({ node, children, ...props }: any) => (
+          <thead className="bg-surface-container-highest/60 border-b border-outline-variant/40 text-xs uppercase tracking-wider font-semibold text-on-surface" {...props}>
+            {children}
+          </thead>
+        ),
+        tbody: ({ node, children, ...props }: any) => (
+          <tbody className="divide-y divide-outline-variant/15 text-on-surface-variant" {...props}>
+            {children}
+          </tbody>
+        ),
+        tr: ({ node, children, ...props }: any) => (
+          <tr className="hover:bg-surface-container-highest/30 transition-colors" {...props}>
+            {children}
+          </tr>
+        ),
+        th: ({ node, children, ...props }: any) => (
+          <th className="px-4 py-2.5 font-semibold text-on-surface border-r border-outline-variant/20 last:border-r-0" {...props}>
+            {children}
+          </th>
+        ),
+        td: ({ node, children, ...props }: any) => (
+          <td className="px-4 py-2 text-on-surface-variant border-r border-outline-variant/20 last:border-r-0" {...props}>
+            {children}
+          </td>
+        ),
         span: ({ node, style, ...props }: any) => {
           const nodeStyle = node?.properties?.style;
           const parsedStyle = typeof nodeStyle === 'string' ? parseStyle(nodeStyle) : style;

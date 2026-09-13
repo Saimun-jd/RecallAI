@@ -15,7 +15,17 @@ FRONT_MATTER_NOISE = {
     "half title", "half-title", "half title page", "half-title page",
     "cover image", "cover art", "jacket", "dust jacket", "book jacket",
     "table of contents", "contents", "brief contents", "detailed contents",
-    "toc", "colophon", "imprint"
+    "toc", "colophon", "imprint",
+    # Slide presentation outline/agenda noise
+    "outline", "outlines", "lecture outline", "course outline",
+    "presentation outline", "topic outline", "today's outline",
+    "overview", "agenda", "meeting agenda", "session agenda", "today's agenda",
+    # Slide end/wrap-up noise
+    "questions", "question", "questions?", "q&a", "q & a",
+    "questions and answers", "any questions", "any questions?",
+    "thank you", "thank you!", "thanks", "thanks for listening",
+    "summary of lecture", "lecture summary", "wrap up", "wrap-up",
+    "references", "reference", "further reading",
 }
 
 COVER_PATTERNS = [
@@ -106,16 +116,39 @@ def is_cover_page(doc, page_index: int = 0) -> bool:
 
 MATH_SYMBOLS = re.compile(r'[=+\-×÷∫∬∮∝∆Δ√∑πθΦφελε]|\\frac|\\vec|d[A-Z]/dt|d\w+/d\w+')
 SENTENCE_STARTERS = re.compile(
-    r'^(?:where|therefore|let us|in other words|the|this|that|since|now|and|for|which|if|when|with|as|due to|from)\b',
+    r'^(?:where|therefore|let us|in other words|the|this|that|these|those|since|now|and|or|but|for|which|if|when|with|as|due to|from|such as|for example|e\.g\.|i\.e\.|we have|we can|it is|there is|there are)\b',
     re.IGNORECASE
 )
 EXERCISE_NOISE = re.compile(
     r'^(?:CHECKPOINT|PROBLEM|ANSWER|NOTE|SOLUTION|QUESTION|EXERCISE|FIG\.|FIGURE)\b',
     re.IGNORECASE
 )
+BULLET_PREFIX = re.compile(r'^[•▪▫‣⁃–—\*\-\+>]\s*')
+PRESENTER_NOISE = re.compile(
+    r'^(?:Dr\.|Dr\b|Prof\.|Prof\b|Professor|Engr\.|Lecturer|Instructor|Presented\s+by|Prepared\s+by|Speaker)\s+[A-Z]',
+    re.IGNORECASE
+)
+ACADEMIC_AFFILIATION_NOISE = re.compile(
+    r'^(?:CSE|EEE|ECE|ME|CE|IPE|PME|ETE|BME|CS|IT|SWE|SE|BBA|MBA)\s*,\s*(?:CUET|BUET|RUET|KUET|DUET|SUST|DU|JU|NSU|BRAC|IUT|AIUB|UIU|MIT|Stanford|Harvard|Berkeley|CMU)\b',
+    re.IGNORECASE
+)
+DEPARTMENT_NOISE = re.compile(
+    r'^(?:Department\s+of|Dept\.\s+of|Faculty\s+of|School\s+of)\s+',
+    re.IGNORECASE
+)
+COURSE_CODE_NOISE = re.compile(
+    r'^[A-Z]{2,4}\s*[-–]?\s*\d{3,4}[A-Z]?\s*$',
+    re.IGNORECASE
+)
+SLIDE_META_REGEX = re.compile(
+    r'^(?:outlines?|agenda|table of contents|contents|overview|questions?\??|q\s*&\s*a|any questions\??|thank you!?|thanks!?)\s*$',
+    re.IGNORECASE
+)
 
 
 def is_noise_heading(title: str, page_num: int = 1, total_pages: int = 1) -> bool:
+    if not title:
+        return True
     clean_title = title.lower().strip()
     clean_no_spaces = clean_title.replace(" ", "")
     
@@ -130,6 +163,26 @@ def is_noise_heading(title: str, page_num: int = 1, total_pages: int = 1) -> boo
             return True
             
     if EXERCISE_NOISE.match(title):
+        return True
+
+    # Reject bullet points or list items
+    if BULLET_PREFIX.match(title.strip()):
+        return True
+
+    # Reject presenter / academic speaker noise
+    if PRESENTER_NOISE.match(title.strip()):
+        return True
+
+    # Reject department / institution / course noise
+    stripped_title = title.strip()
+    if (
+        ACADEMIC_AFFILIATION_NOISE.match(stripped_title)
+        or DEPARTMENT_NOISE.match(stripped_title)
+        or COURSE_CODE_NOISE.match(stripped_title)
+    ):
+        return True
+
+    if SLIDE_META_REGEX.match(stripped_title):
         return True
 
     return False
@@ -151,8 +204,24 @@ def is_valid_heading_candidate(text: str) -> bool:
     if non_space_chars > 0 and (alpha_chars / non_space_chars) < 0.60:
         return False
 
-    # Reject outline/TOC banners themselves
-    if re.match(r'^(?:OUTLINE|TABLE OF CONTENTS|CONTENTS|INDEX)\b', clean, re.IGNORECASE):
+    # Reject outline/TOC banners and slide meta noise
+    if re.match(r'^(?:OUTLINE|TABLE OF CONTENTS|CONTENTS|INDEX)\b', clean, re.IGNORECASE) or SLIDE_META_REGEX.match(clean):
+        return False
+
+    # Reject bullet points or list items
+    if BULLET_PREFIX.match(clean) or clean[0] in '•▪▫‣⁃–—*+-~>':
+        return False
+
+    # Reject presenter noise
+    if PRESENTER_NOISE.match(clean):
+        return False
+
+    # Reject academic affiliation / department / course code noise
+    if (
+        ACADEMIC_AFFILIATION_NOISE.match(clean)
+        or DEPARTMENT_NOISE.match(clean)
+        or COURSE_CODE_NOISE.match(clean)
+    ):
         return False
 
     # Reject cover titles
@@ -356,7 +425,24 @@ def get_toc_entries(doc, pdf_path: str | None = None) -> List[List[Any]]:
     return clean_native_toc
 
 
-def build_granular_toc(toc: List[List[Any]], total_pages: int) -> List[Dict[str, Any]]:
+def has_hierarchical_parents(granular_toc: List[Dict[str, Any]]) -> bool:
+    """
+    Checks whether the TOC hierarchy has any parent-child relationships.
+    Returns True if at least one entry has a child (i.e. a succeeding entry with deeper level).
+    """
+    if len(granular_toc) < 2:
+        return False
+    for i in range(len(granular_toc) - 1):
+        if granular_toc[i + 1]["level"] > granular_toc[i]["level"]:
+            return True
+    return False
+
+
+def build_granular_toc(
+    toc: List[List[Any]], 
+    total_pages: int, 
+    document_title: Optional[str] = None
+) -> List[Dict[str, Any]]:
     """Computes exact start_page and end_page boundaries for every entry in the TOC hierarchy."""
     granular_toc = []
 
@@ -407,6 +493,35 @@ def build_granular_toc(toc: List[List[Any]], total_pages: int) -> List[Dict[str,
             "start_page": start_page,
             "end_page": max(start_page, end_page),
         })
+
+    # Auto-synthesize a Parent Topic for flat documents (e.g. lecture slides where all entries are level 1)
+    if len(granular_toc) >= 2 and not has_hierarchical_parents(granular_toc):
+        parent_title = "Full Document"
+        if document_title:
+            clean = re.sub(r'\.pdf$', '', document_title, flags=re.IGNORECASE)
+            clean = re.sub(r'[_\-]+', ' ', clean).strip()
+            clean = re.sub(r'\s+', ' ', clean)
+            if clean and clean.lower() not in {"untitled", "document", "pdf"}:
+                parent_title = clean
+
+        parent_entry = {
+            "level": 1,
+            "title": parent_title,
+            "start_page": 1,
+            "end_page": total_pages,
+        }
+
+        child_entries = []
+        for entry in granular_toc:
+            child_entries.append({
+                "level": entry["level"] + 1,
+                "title": entry["title"],
+                "start_page": entry["start_page"],
+                "end_page": entry["end_page"],
+            })
+
+        logger.info("Auto-synthesized parent topic '%s' for %d flat entries.", parent_title, len(child_entries))
+        return [parent_entry] + child_entries
 
     return granular_toc
 

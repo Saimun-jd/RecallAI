@@ -9,7 +9,22 @@ interface DropdownContextType {
 
 const DropdownContext = createContext<DropdownContextType | undefined>(undefined);
 
-export function DropdownMenu({ children }: { children: React.ReactNode }) {
+export interface DropdownMenuItemConfig {
+  label: string;
+  icon?: any;
+  onClick: () => void;
+  variant?: 'destructive' | 'danger' | 'default';
+  disabled?: boolean;
+}
+
+export interface DropdownMenuProps {
+  children?: React.ReactNode;
+  trigger?: React.ReactNode;
+  items?: DropdownMenuItemConfig[];
+  align?: 'start' | 'end' | 'center';
+}
+
+export function DropdownMenu({ children, trigger, items, align = 'end' }: DropdownMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -40,6 +55,35 @@ export function DropdownMenu({ children }: { children: React.ReactNode }) {
   return (
     <DropdownContext.Provider value={{ isOpen, setIsOpen, close }}>
       <div ref={containerRef} className="relative inline-block text-left">
+        {trigger && (
+          <DropdownMenuTrigger asChild>
+            {trigger}
+          </DropdownMenuTrigger>
+        )}
+        {items && (
+          <DropdownMenuContent align={align}>
+            {items.map((item, index) => {
+              const IconComponent = item.icon;
+              return (
+                <DropdownMenuItem
+                  key={index}
+                  onClick={item.onClick}
+                  disabled={item.disabled}
+                  destructive={item.variant === 'destructive' || item.variant === 'danger'}
+                  icon={
+                    IconComponent && (React.isValidElement(IconComponent) ? (
+                      IconComponent
+                    ) : typeof IconComponent === 'function' || typeof IconComponent === 'object' ? (
+                      <IconComponent size={14} />
+                    ) : null)
+                  }
+                >
+                  {item.label}
+                </DropdownMenuItem>
+              );
+            })}
+          </DropdownMenuContent>
+        )}
         {children}
       </div>
     </DropdownContext.Provider>

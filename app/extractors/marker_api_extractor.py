@@ -28,7 +28,11 @@ class MarkerApiExtractor(BaseExtractor):
         
         api_key = get_setting("datalab_api_key")
         if not api_key:
-            raise ValueError("Datalab API Key is missing. Please configure it in Settings.")
+            from app.errors import RecallError, ErrorCode
+            raise RecallError(
+                ErrorCode.API_KEY_MISSING,
+                "Datalab API Key is missing for Marker PDF extractor. Please configure it in Settings → API Keys."
+            )
             
         logger.info(f"Sending {pdf_path.name} to Datalab API (via requests)...")
         

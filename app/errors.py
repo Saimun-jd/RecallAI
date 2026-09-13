@@ -160,6 +160,11 @@ def classify_error(exc: Exception, provider_hint: str = "") -> RecallError:
     if isinstance(exc, RecallError):
         return exc
 
+    # ── Check for explicit API key errors in message ──
+    detail_lower = detail.lower()
+    if any(k in detail_lower for k in ("api key", "api_key", "apikey", "key is missing", "no api key configured")):
+        return RecallError(ErrorCode.API_KEY_MISSING, detail, exc)
+
     # ── httpx HTTP errors (response received with error status) ──
     if isinstance(exc, httpx.HTTPStatusError):
         status = exc.response.status_code
@@ -168,6 +173,12 @@ def classify_error(exc: Exception, provider_hint: str = "") -> RecallError:
             body = exc.response.text[:2000]
         except Exception:
             pass
+
+        body_lower = body.lower()
+        if any(k in body_lower for k in ("api_key", "api key", "apikey", "invalid api key")):
+            msg = f"AI provider rejected API key. Please check your API key in Settings."
+            code = ErrorCode.LLM_AUTH_FAILED if status in (401, 403) else ErrorCode.API_KEY_MISSING
+            return RecallError(code, msg, exc)
 
         if status == 429:
             return RecallError(ErrorCode.LLM_RATE_LIMITED, f"HTTP 429: {body}", exc)
@@ -224,7 +235,7 @@ def error_response(
     Build a JSONResponse from an exception.
 
     In debug mode, includes full traceback and detail.
-    In production mode, only includes the error code and user-friendly message.
+    In production mode, includes the error code and user-friendly message.
     """
     if isinstance(exc, RecallError):
         recall_err = exc
@@ -232,7 +243,8 @@ def error_response(
         recall_err = classify_error(exc)
 
     status_code = get_http_status(recall_err.code)
-    user_message = get_user_message(recall_err.code)
+    # Prefer specific, actionable message from recall_err.detail if present
+    user_message = recall_err.detail if recall_err.detail else get_user_message(recall_err.code)
 
     body: dict = {
         "error_code": recall_err.code.value,
@@ -280,7 +292,7 @@ def error_event(
     else:
         recall_err = classify_error(exc)
 
-    user_message = get_user_message(recall_err.code)
+    user_message = recall_err.detail if recall_err.detail else get_user_message(recall_err.code)
 
     event: dict = {
         "status": "error",

@@ -2,6 +2,20 @@ import { createSlice } from '@reduxjs/toolkit';
 import type { PayloadAction } from '@reduxjs/toolkit';
 import type { Flashcard } from '../api/client';
 
+export interface NoteGenerationState {
+  isGenerating: boolean;
+  topicId: number | null;
+  topicTitle?: string;
+  progress: number;
+  stage?: string;
+  current?: number;
+  total?: number;
+  childTitle?: string;
+  message?: string;
+  error?: string | null;
+  completedAt?: number;
+}
+
 export interface ReaderState {
   activeTopicId: number | null;
   currentPage: number;
@@ -13,6 +27,8 @@ export interface ReaderState {
   activeTopicCards: Flashcard[];
   searchQuery: string;
   pdfTheme: 'dark' | 'light';
+  noteGeneration: NoteGenerationState | null;
+  examScopeTopicIds: number[] | null;
 }
 
 const initialState: ReaderState = {
@@ -26,6 +42,8 @@ const initialState: ReaderState = {
   activeTopicCards: [],
   searchQuery: '',
   pdfTheme: 'dark',
+  noteGeneration: null,
+  examScopeTopicIds: null,
 };
 
 const readerSlice = createSlice({
@@ -62,6 +80,20 @@ const readerSlice = createSlice({
     setPdfTheme: (state, action: PayloadAction<'dark' | 'light'>) => {
       state.pdfTheme = action.payload;
     },
+    setNoteGeneration: (state, action: PayloadAction<NoteGenerationState | null>) => {
+      state.noteGeneration = action.payload;
+    },
+    updateNoteGenerationProgress: (state, action: PayloadAction<Partial<NoteGenerationState>>) => {
+      if (state.noteGeneration) {
+        state.noteGeneration = { ...state.noteGeneration, ...action.payload };
+      }
+    },
+    setExamScopeTopicIds: (state, action: PayloadAction<number[] | null>) => {
+      state.examScopeTopicIds = action.payload;
+    },
+    clearExamScope: (state) => {
+      state.examScopeTopicIds = null;
+    },
   },
 });
 
@@ -76,5 +108,9 @@ export const {
   setActiveTopicCards,
   setSearchQuery,
   setPdfTheme,
+  setNoteGeneration,
+  updateNoteGenerationProgress,
+  setExamScopeTopicIds,
+  clearExamScope,
 } = readerSlice.actions;
 export default readerSlice.reducer;

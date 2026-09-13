@@ -194,10 +194,23 @@
 
 @layer base {
   /* ─── Global Styles (Academic Precision & Refined Neo Brutalism) ─── */
-  html, body {
-    @apply bg-background text-on-surface antialiased h-full w-full overflow-hidden;
+  html {
+    @apply bg-background text-on-surface antialiased w-full;
     font-family: var(--font-sans);
     transition: background-color 150ms ease, color 150ms ease;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-background text-on-surface antialiased min-h-screen w-full;
+    font-family: var(--font-sans);
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  #root {
+    min-height: 100vh;
+    width: 100%;
   }
   
   /* Typography Hierarchy */
@@ -847,4 +860,43 @@ body .pdf-highlighter-container.theme-dark .Highlight {
 .neo-border-sm {
   border: 1px solid var(--color-border-default);
 }
+
+/* ─── Global Scrollbar Utilities ─── */
+.hide-scrollbar,
+.no-scrollbar {
+  -ms-overflow-style: none !important; /* IE and Edge */
+  scrollbar-width: none !important; /* Firefox */
+}
+
+.hide-scrollbar::-webkit-scrollbar,
+.no-scrollbar::-webkit-scrollbar {
+  display: none !important; /* Chrome, Safari, Opera */
+  width: 0 !important;
+  height: 0 !important;
+}
+
+/* Custom sleek subtle scrollbar */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(25, 27, 35, 0.25) transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(25, 27, 35, 0.2);
+  border-radius: 9999px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(25, 27, 35, 0.4);
+}
+
 

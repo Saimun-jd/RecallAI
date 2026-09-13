@@ -1,73 +1,107 @@
 import { useEffect, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { client, API_BASE, type SectionSelection } from '../api/client';
-import { Book as BookIcon, Upload, Trash2, Loader2, Plus, FileText, ChevronRight, Library, Brain, Layers, CheckCircle2, Zap } from 'lucide-react';
+import { client, API_BASE, type AnalyticsStats } from '../api/client';
+import { Book as BookIcon, Upload, Trash2, Loader2, Plus, Zap, Search, Play, BookOpen, Layers, BrainCircuit, Flame, Target } from 'lucide-react';
 import { IngestionProgressModal } from './IngestionProgressModal';
 import { useNavigate, Link } from 'react-router-dom';
 import type { RootState } from '../store';
 import { setBooks, setTocTree, setIsUploading, setIngestionProgress, setCloudUploadState } from '../store';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import clsx from 'clsx';
 import { useToast } from '../hooks/useToast';
 import { supabase } from '../lib/supabase';
 import type { ApiError } from '../api/errors';
+import libraryBgImg from '../assets/library-bg.jpg';
 
-const BookCover = ({ bookId, className }: { bookId: number, className?: string }) => {
+/* ── Book Cover Thumbnail ─────────────────────────────────────────────── */
+
+const BookCover = ({ bookId, title, className, style }: { bookId: number; title?: string; className?: string; style?: React.CSSProperties }) => {
   const [error, setError] = useState(false);
   if (error) {
     return (
-      <div className={clsx("bg-accent-blue/10 text-accent-blue flex items-center justify-center shrink-0 border-2 border-on-background", className)}>
-        <FileText size={22} strokeWidth={2} />
+      <div className={clsx("bg-surface-container-high text-on-surface flex flex-col items-center justify-center p-4 text-center h-full w-full relative overflow-hidden", className)} style={style}>
+        <div className="w-10 h-10 border-2 border-on-background bg-secondary-container flex items-center justify-center mb-2 shadow-[2px_2px_0px_0px_#191b23]">
+          <BookIcon size={20} strokeWidth={2.5} />
+        </div>
+        {title && (
+          <span className="font-black text-[10px] uppercase tracking-tight text-on-background line-clamp-3 leading-snug">
+            {title}
+          </span>
+        )}
       </div>
     );
   }
   return (
-    <div className={clsx("bg-surface-container shrink-0 border-2 border-on-background overflow-hidden", className)}>
-      <img 
-        src={`${API_BASE}/books/${bookId}/cover`} 
-        alt="Book Cover" 
-        className="w-full h-full object-cover"
+    <div className={clsx("w-full h-full bg-surface-container overflow-hidden relative", className)} style={style}>
+      <img
+        src={`${API_BASE}/books/${bookId}/cover`}
+        alt={title || "Book Cover"}
+        className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-300"
         onError={() => setError(true)}
       />
     </div>
   );
 };
 
+/* ── Main Library View ────────────────────────────────────────────────── */
+
 export function LibraryView() {
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const { showToast } = useToast();
-  
+
   const { books, isUploading, ingestionProgress } = useSelector((state: RootState) => state.library);
   const { activeProvider } = useSelector((state: RootState) => state.providers);
   const sidecarStatus = useSelector((state: RootState) => state.system.sidecarStatus);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [stats, setStats] = useState<any>(null);
-  const [loadingStats, setLoadingStats] = useState(true);
   const [isDragging, setIsDragging] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [analytics, setAnalytics] = useState<AnalyticsStats | null>(null);
+
+  const filteredBooks = books.filter(b =>
+    b.title.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  // Pick the most recently read or added book as the "continue reading" candidate
+  const continueBook = books.length > 0
+    ? [...books].sort((a, b) => {
+      const timeA = new Date(a.last_read_at || a.created_at).getTime();
+      const timeB = new Date(b.last_read_at || b.created_at).getTime();
+      return timeB - timeA;
+    })[0]
+    : null;
+
+  const getResumeUrl = (book: typeof continueBook) => {
+    if (!book) return '/';
+    if (book.last_topic_id) {
+      return `/books/${book.id}?topic=${book.last_topic_id}`;
+    }
+    if (book.last_read_page && book.last_read_page > 1) {
+      return `/books/${book.id}?page=${book.last_read_page}`;
+    }
+    return `/books/${book.id}`;
+  };
 
   const fetchData = async () => {
     try {
-      const [booksData, analyticsData] = await Promise.all([
-        client.getBooks(),
-        client.getAnalytics().catch(() => null)
-      ]);
+      const booksData = await client.getBooks();
       dispatch(setBooks(booksData));
-      if (analyticsData) setStats(analyticsData);
     } catch (err: any) {
       console.error(err);
       showToast('error', err?.userMessage || 'Failed to load library data.', err?.debugDetail);
-    } finally {
-      setLoadingStats(false);
     }
   };
 
   useEffect(() => {
     if (sidecarStatus === 'connected') {
       fetchData();
+      client.getAnalytics()
+        .then(data => setAnalytics(data))
+        .catch(err => console.error('Analytics fetch error:', err));
     }
   }, [dispatch, sidecarStatus]);
+
+  /* ── File Upload Logic ──────────────────────────────────────────────── */
 
   const processFile = async (file: File) => {
     dispatch(setIsUploading(true));
@@ -98,41 +132,41 @@ export function LibraryView() {
       // 3. Start cloud upload in the background if not oversized and session exists
       if (!isOversized && session) {
         const uploadUrl = `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/user_pdfs/${session.user.id}/${fileHash}.pdf`;
-        
+
         dispatch(setCloudUploadState({ isUploading: true, progress: 0, fileName: file.name }));
-        
+
         const xhr = new XMLHttpRequest();
         xhr.open("POST", uploadUrl, true);
         xhr.setRequestHeader("Authorization", `Bearer ${session.access_token}`);
         xhr.setRequestHeader("x-upsert", "true");
-        
+
         xhr.upload.onprogress = (e) => {
           if (e.lengthComputable) {
             const percentComplete = Math.round((e.loaded / e.total) * 100);
             dispatch(setCloudUploadState({ isUploading: true, progress: percentComplete, fileName: file.name }));
           }
         };
-        
+
         xhr.onload = () => {
           if (xhr.status >= 200 && xhr.status < 300) {
             // Success
           } else {
             if (xhr.responseText.includes('Upload limit reached')) {
-               showToast('error', 'Cloud upload limit reached.');
+              showToast('error', 'Cloud upload limit reached.');
             } else {
-               console.error("Supabase XHR upload error:", xhr.responseText);
-               showToast('warning', 'Cloud backup failed, but saved locally.');
+              console.error("Supabase XHR upload error:", xhr.responseText);
+              showToast('warning', 'Cloud backup failed, but saved locally.');
             }
           }
           dispatch(setCloudUploadState(null));
         };
-        
+
         xhr.onerror = () => {
           console.error("Supabase XHR upload network error");
           showToast('warning', 'Cloud backup failed, but saved locally.');
           dispatch(setCloudUploadState(null));
         };
-        
+
         xhr.send(file);
       }
 
@@ -165,13 +199,13 @@ export function LibraryView() {
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
-    
+
     const file = e.dataTransfer.files?.[0];
     if (!file || file.type !== 'application/pdf') {
       showToast('warning', 'Please drop a valid PDF file.');
       return;
     }
-    
+
     processFile(file);
   };
 
@@ -201,238 +235,417 @@ export function LibraryView() {
     navigate('/review');
   };
 
+  /* ── Computed Stats ─────────────────────────────────────────────────── */
+
+  const totalFlashcards = analytics?.totals?.flashcards ?? 0;
+  const totalReviews = analytics?.totals?.total_reviews ?? 0;
+  const dueNow = analytics?.queue?.due_now ?? 0;
+  const avgDifficulty = analytics?.fsrs_metrics?.average_difficulty ?? 0;
+  // Derive "mastery" as inverse of average difficulty (0-10 scale → percentage)
+  const masteryPercent = avgDifficulty > 0 ? Math.round((1 - avgDifficulty / 10) * 100) : 0;
+
+  /* ── Render ──────────────────────────────────────────────────────────── */
+
   return (
-    <div 
+    <div
       className={clsx(
-        "flex-1 overflow-y-auto bg-surface text-on-surface",
+        "min-h-full flex-1 bg-surface-container-low text-on-surface relative overflow-hidden flex flex-col",
         isDragging ? "bg-accent-blue/5 outline-dashed outline-4 outline-on-background outline-offset-[-16px]" : ""
       )}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
+      {/* Full-View Seamless Background Illustration */}
+      <div
+        className="absolute inset-0 pointer-events-none select-none z-0 overflow-hidden"
+        aria-hidden="true"
+      >
+        <img
+          src={libraryBgImg}
+          alt=""
+          className="w-full h-full object-cover object-center opacity-30 mix-blend-multiply"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-surface-container-low via-transparent to-surface-container-low/30" />
+      </div>
+
       {isDragging && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm pointer-events-none">
-          <div className="flex flex-col items-center p-8 bg-surface-container-lowest border border-border-default rounded-2xl shadow-xl">
-            <Upload size={40} className="text-primary mb-3" strokeWidth={2} />
-            <h2 className="text-xl font-bold text-on-surface mb-1">Drop PDF to Import</h2>
-            <p className="text-xs text-on-surface-variant">We'll automatically extract headings and generate topics</p>
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-surface/80 backdrop-blur-sm pointer-events-none">
+          <div className="flex flex-col items-center p-8 bg-white border-4 border-on-background neo-shadow-lg">
+            <Upload size={48} className="text-on-background mb-4 animate-bounce" strokeWidth={2.5} />
+            <h2 className="text-3xl font-black text-on-background mb-2 uppercase">Drop PDF Here</h2>
           </div>
         </div>
       )}
 
-      <div className="p-8 space-y-8 max-w-7xl mx-auto">
-        {/* Hero Welcome Section */}
-        <section className="flex flex-col md:flex-row justify-between items-end gap-6 mb-8">
-          <div>
-            <h2 className="text-3xl font-bold text-on-surface mb-2 tracking-tight">Welcome to Recall AI</h2>
-            <p className="text-base text-on-surface-variant max-w-2xl">
-              Your intelligent knowledge workspace. Manage your documents, generate flashcards, and track your progress.
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            <Link 
-              to="/review"
-              className="px-5 py-2.5 bg-primary text-on-primary font-semibold text-sm rounded-lg shadow-sm hover:bg-primary/90 hover:shadow transition-all flex items-center gap-2"
-            >
-              <Zap size={16} />
-              <span>Start Study</span>
-            </Link>
-            
-            <input 
-              type="file" 
-              accept="application/pdf" 
-              className="hidden" 
-              ref={fileInputRef}
-              onChange={handleFileChange}
-            />
-            <div className="flex flex-col items-center justify-center">
-              <button 
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isUploading || books.length >= 5}
-                className="px-5 py-2.5 bg-surface-container-lowest text-on-surface border border-border-default font-semibold text-sm rounded-lg shadow-xs hover:bg-surface-container transition-all flex items-center gap-2 disabled:opacity-70"
+      <input
+        type="file"
+        accept="application/pdf"
+        className="hidden"
+        ref={fileInputRef}
+        onChange={handleFileChange}
+      />
+
+      <div className="p-4 sm:p-5 lg:p-6 w-full relative z-10 flex-1 flex flex-col gap-4 overflow-y-auto">
+
+        {/* ── Row 1: Continue Reading Banner (full width) ─────────────── */}
+        {continueBook ? (
+          <div
+            className="bg-surface-container-lowest/95 backdrop-blur-[2px] border-4 border-on-background neo-shadow p-4 sm:p-5 cursor-pointer group transition-all hover:-translate-y-0.5 hover:shadow-[6px_6px_0px_0px_#191b23]"
+            onClick={() => navigate(getResumeUrl(continueBook))}
+          >
+            <div className="flex items-center gap-4">
+              {/* Mini cover thumbnail */}
+              <div className="w-[50px] h-[68px] border-2 border-on-background shadow-[2px_2px_0px_0px_#191b23] overflow-hidden shrink-0 bg-surface-container hidden sm:block">
+                <BookCover bookId={continueBook.id} title={continueBook.title} className="w-full h-full" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <span className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">
+                  Continue reading
+                </span>
+                <h2 className="text-base sm:text-lg font-black text-on-background mt-0.5 truncate leading-tight">
+                  {continueBook.title}
+                </h2>
+
+                {/* Progress bar */}
+                {(() => {
+                  let progress = 0;
+                  let progressLabel = "";
+
+                  if (continueBook.last_read_page && continueBook.total_pages && continueBook.total_pages > 0) {
+                    progress = Math.min(100, Math.max(1, Math.round((continueBook.last_read_page / continueBook.total_pages) * 100)));
+                    progressLabel = `Page ${continueBook.last_read_page} of ${continueBook.total_pages} (${progress}%)`;
+                  } else if (continueBook.total_topics && continueBook.total_topics > 0) {
+                    progress = Math.round(((continueBook.topics_processed || 0) / continueBook.total_topics) * 100);
+                    progressLabel = `${progress}% through`;
+                  }
+
+                  return (
+                    <div className="mt-2 flex items-center gap-3">
+                      <div className="flex-1 h-2.5 bg-surface border-2 border-on-background overflow-hidden">
+                        <div
+                          className="h-full bg-[#4a7c3f] transition-all duration-500"
+                          style={{ width: `${progress}%` }}
+                        />
+                      </div>
+                      <span className="text-xs font-black text-on-surface-variant whitespace-nowrap">
+                        {progressLabel || `${progress}% through`}
+                      </span>
+                    </div>
+                  );
+                })()}
+              </div>
+
+              <button
+                className="px-4 py-2.5 bg-on-background text-white font-black text-xs uppercase tracking-wide flex items-center gap-2 border-2 border-on-background shadow-[3px_3px_0px_0px_#434654] hover:shadow-none hover:translate-x-[2px] hover:translate-y-[2px] transition-all shrink-0"
+                onClick={(e) => { e.stopPropagation(); navigate(getResumeUrl(continueBook)); }}
               >
-                {isUploading ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
-                <span>Upload PDF</span>
+                <Play size={14} strokeWidth={3} fill="currentColor" />
+                Resume
               </button>
-              <span className="text-[11px] font-medium text-on-surface-variant mt-1.5">Limit: {books.length} / 5</span>
             </div>
           </div>
-        </section>
-
-        {/* Bento Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
-
-          {/* Recent Documents */}
-          <div className="md:col-span-12 p-6 bg-surface-container-lowest border border-border-default rounded-xl shadow-xs flex flex-col">
-            <div className="flex justify-between items-center mb-5">
-              <h3 className="text-lg font-bold text-on-surface tracking-tight">Your Documents</h3>
+        ) : (
+          /* Empty state: Upload CTA */
+          <div
+            onClick={() => fileInputRef.current?.click()}
+            className="bg-surface-container-lowest/95 backdrop-blur-[2px] border-4 border-dashed border-on-background p-8 sm:p-10 text-center flex flex-col items-center justify-center cursor-pointer hover:bg-surface-container transition-all group neo-shadow"
+          >
+            <div className="w-14 h-14 border-4 border-on-background bg-secondary-container flex items-center justify-center mb-4 group-hover:scale-110 transition-transform shadow-[4px_4px_0px_0px_#191b23]">
+              <Upload size={28} strokeWidth={2.5} className="text-on-background" />
             </div>
-            
-            {books.length === 0 ? (
-               <div 
-                 onClick={() => fileInputRef.current?.click()}
-                 className="border-2 border-dashed border-border-default rounded-xl p-12 text-center flex flex-col items-center justify-center min-h-[260px] cursor-pointer hover:bg-surface-container-low/60 hover:border-primary/40 transition-all group"
-               >
-                 <div className="w-12 h-12 border border-border-default rounded-xl bg-surface-container-low flex items-center justify-center mb-4 group-hover:scale-105 transition-transform shadow-2xs">
-                   <Upload size={24} className="text-primary" />
-                 </div>
-                 <h3 className="text-base font-semibold text-on-surface mb-1">Import your first PDF</h3>
-                 <p className="max-w-sm text-xs text-on-surface-variant">Let the AI chunk it into intelligent study topics and flashcards.</p>
-               </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="border-b border-border-default">
-                      <th className="py-3 px-4 text-xs font-semibold uppercase tracking-wider text-on-surface-variant">Name</th>
-                      <th className="py-3 px-4 text-xs font-semibold uppercase tracking-wider text-on-surface-variant">Progress</th>
-                      <th className="py-3 px-4 text-xs font-semibold uppercase tracking-wider text-on-surface-variant">Added</th>
-                      <th className="py-3 px-4"></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {books.map(book => (
-                      <tr key={book.id} className="border-b border-border-default/50 hover:bg-surface-container-low/60 transition-colors group cursor-pointer" onClick={() => navigate(`/books/${book.id}`)}>
-                        <td className="py-3.5 px-4">
-                          <div className="flex items-center gap-3.5">
-                            <BookCover bookId={book.id} className="w-10 h-14 rounded-md border border-border-default shadow-2xs" />
-                            <span className="font-semibold text-sm text-on-surface line-clamp-1">{book.title}</span>
+            <h3 className="text-lg font-black uppercase mb-1 text-on-background">Upload your first PDF</h3>
+            <p className="max-w-md text-xs font-medium text-on-surface-variant">Let the AI chunk it into intelligent study topics and flashcards.</p>
+          </div>
+        )}
+
+        {/* ── Row 2: Two-column desktop layout ───────────────────────── */}
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-4 flex-1 min-h-0">
+
+          {/* ── Left Column: Stats + Shelf ──────────────────────────── */}
+          <div className="flex flex-col gap-4 min-w-0">
+
+            {/* Stats Row */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {[
+                { icon: BookOpen, value: books.length, label: 'documents' },
+                { icon: Layers, value: totalFlashcards, label: 'flashcards' },
+                { icon: Flame, value: dueNow, label: 'due now' },
+                { icon: Target, value: `${masteryPercent}%`, label: 'mastery' },
+              ].map(({ icon: Icon, value, label }) => (
+                <div
+                  key={label}
+                  className="bg-surface-container-lowest/95 backdrop-blur-[2px] border-2 border-on-background shadow-[3px_3px_0px_0px_#191b23] p-3 sm:p-4 flex flex-col gap-1"
+                >
+                  <Icon size={14} strokeWidth={2.5} className="text-on-surface-variant" />
+                  <span className="text-2xl sm:text-3xl font-black text-on-background leading-none mt-1">
+                    {value}
+                  </span>
+                  <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-on-surface-variant">
+                    {label}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            {/* Your Shelf — book covers in a wrapping grid */}
+            <div className="bg-surface-container-lowest/95 backdrop-blur-[2px] border-4 border-on-background neo-shadow p-4 sm:p-5 flex-1">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm sm:text-base font-black uppercase tracking-tight text-on-background">
+                    Your shelf
+                  </h3>
+                  <span className="text-[10px] font-black text-on-surface-variant">
+                    — {books.length} / 5
+                  </span>
+                </div>
+
+                {books.length > 0 && (
+                  <div className="relative w-44 sm:w-52">
+                    <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none" strokeWidth={2.5} />
+                    <input
+                      type="text"
+                      placeholder="Search..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="w-full pl-7 pr-2 py-1 bg-surface border-2 border-on-background text-[10px] font-bold text-on-background placeholder:text-on-surface-variant/60 focus:outline-none focus:bg-white shadow-[2px_2px_0px_0px_#191b23] transition-colors"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Book covers grid that fills available space */}
+              <div className="flex flex-wrap gap-3">
+                {filteredBooks.map(book => (
+                  <div
+                    key={book.id}
+                    className="group relative cursor-pointer transition-all duration-200 hover:-translate-y-1"
+                    onClick={() => navigate(`/books/${book.id}`)}
+                    title={book.title}
+                  >
+                    {/* Book cover with spine effect */}
+                    <div className="w-[110px] sm:w-[130px] lg:w-[140px] h-[150px] sm:h-[178px] lg:h-[192px] border-2 border-on-background shadow-[3px_3px_0px_0px_#191b23] overflow-hidden relative bg-surface-container">
+                      <BookCover
+                        bookId={book.id}
+                        title={book.title}
+                        className="w-full h-full"
+                      />
+                      {/* Spine highlight */}
+                      <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-on-background/20" />
+                    </div>
+
+                    {/* Book title below cover */}
+                    <p className="mt-1.5 text-[10px] font-bold text-on-background leading-tight line-clamp-2 w-[110px] sm:w-[130px] lg:w-[140px]">
+                      {book.title}
+                    </p>
+
+                    {/* Delete button on hover */}
+                    <button
+                      onClick={(e) => handleDelete(e, book.id)}
+                      title="Delete"
+                      className="absolute -top-1.5 -right-1.5 p-1 bg-surface-container border-2 border-on-background text-on-background hover:bg-error hover:text-white transition-colors shadow-[2px_2px_0px_0px_#191b23] opacity-0 group-hover:opacity-100 z-10"
+                    >
+                      <Trash2 size={10} strokeWidth={2.5} />
+                    </button>
+                  </div>
+                ))}
+
+                {/* Empty search results */}
+                {filteredBooks.length === 0 && searchQuery && (
+                  <div className="flex items-center justify-center w-full py-6">
+                    <div className="text-center">
+                      <p className="font-bold text-on-surface-variant text-xs">No documents match &ldquo;{searchQuery}&rdquo;</p>
+                      <button
+                        onClick={() => setSearchQuery('')}
+                        className="mt-1 text-[10px] font-black uppercase underline hover:text-primary"
+                      >
+                        Clear search
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Add new book slot */}
+                {!searchQuery && books.length < 5 && (
+                  <div
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-[110px] sm:w-[130px] lg:w-[140px] h-[150px] sm:h-[178px] lg:h-[192px] border-2 border-dashed border-on-background/40 hover:border-on-background flex flex-col items-center justify-center gap-2 cursor-pointer transition-all hover:bg-surface-container group"
+                  >
+                    <div className="w-9 h-9 border-2 border-on-background/40 group-hover:border-on-background bg-surface-container flex items-center justify-center group-hover:bg-on-background group-hover:text-white transition-all">
+                      <Plus size={18} strokeWidth={2.5} />
+                    </div>
+                    <span className="text-[9px] font-black uppercase text-on-surface-variant text-center leading-tight px-1">
+                      {isUploading ? (
+                        <Loader2 size={14} className="animate-spin mx-auto" />
+                      ) : (
+                        <>Add PDF</>
+                      )}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Shelf edge (decorative bottom line) */}
+              <div className="mt-3 h-[3px] bg-on-background/15 rounded-full" />
+            </div>
+          </div>
+
+          {/* ── Right Column: Activity + Quick Actions ──────────────── */}
+          <div className="flex flex-col gap-4 min-w-0">
+
+            {/* Quick Actions */}
+            <div className="bg-surface-container-lowest/95 backdrop-blur-[2px] border-4 border-on-background neo-shadow p-4 sm:p-5">
+              <h3 className="text-sm font-black uppercase tracking-tight text-on-background mb-3">
+                Quick actions
+              </h3>
+              <div className="flex flex-col gap-2">
+                <Link
+                  to="/review"
+                  className="w-full px-4 py-2.5 bg-on-background text-white border-2 border-on-background shadow-[3px_3px_0px_0px_#434654] hover:shadow-none hover:translate-x-[1px] hover:translate-y-[1px] font-black text-xs uppercase tracking-wide transition-all flex items-center justify-center gap-2"
+                >
+                  <Zap size={14} strokeWidth={2.5} />
+                  Start Study Session
+                </Link>
+
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isUploading || books.length >= 5}
+                  title={books.length >= 5 ? "Upload limit reached (5/5)" : "Upload PDF"}
+                  className="w-full px-4 py-2.5 bg-surface-container-lowest border-2 border-on-background shadow-[3px_3px_0px_0px_#191b23] hover:shadow-none hover:translate-x-[1px] hover:translate-y-[1px] font-black text-xs uppercase tracking-wide transition-all flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed text-on-background"
+                >
+                  {isUploading ? <Loader2 size={14} className="animate-spin" strokeWidth={2.5} /> : <Plus size={14} strokeWidth={2.5} />}
+                  Upload PDF
+                </button>
+
+                <Link
+                  to="/analytics"
+                  className="w-full px-4 py-2.5 bg-surface-container-lowest border-2 border-on-background shadow-[3px_3px_0px_0px_#191b23] hover:shadow-none hover:translate-x-[1px] hover:translate-y-[1px] font-black text-xs uppercase tracking-wide transition-all flex items-center justify-center gap-2 text-on-background"
+                >
+                  <Target size={14} strokeWidth={2.5} />
+                  View Analytics
+                </Link>
+              </div>
+            </div>
+
+            {/* Recent Activity */}
+            <div className="bg-surface-container-lowest/95 backdrop-blur-[2px] border-4 border-on-background neo-shadow p-4 sm:p-5 flex-1">
+              <h3 className="text-sm font-black uppercase tracking-tight text-on-background mb-3">
+                Recent activity
+              </h3>
+
+              <div className="divide-y-2 divide-on-background/10">
+                {books.length === 0 && !analytics ? (
+                  <div className="py-6 text-center text-xs font-bold text-on-surface-variant">
+                    No activity yet — upload a PDF to get started.
+                  </div>
+                ) : (
+                  <>
+                    {/* Due cards activity */}
+                    {dueNow > 0 && (
+                      <div className="flex items-center justify-between py-2.5 gap-3">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <BrainCircuit size={14} strokeWidth={2.5} className="text-on-surface-variant shrink-0" />
+                          <span className="text-xs font-bold text-on-background truncate">
+                            {dueNow} flashcards due for review
+                          </span>
+                        </div>
+                        <Link
+                          to="/review"
+                          className="text-[10px] font-black uppercase text-primary hover:underline shrink-0"
+                        >
+                          Review now
+                        </Link>
+                      </div>
+                    )}
+
+                    {/* Total reviews stat */}
+                    {totalReviews > 0 && (
+                      <div className="flex items-center justify-between py-2.5 gap-3">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <Target size={14} strokeWidth={2.5} className="text-on-surface-variant shrink-0" />
+                          <span className="text-xs font-bold text-on-background truncate">
+                            Completed {totalReviews} total reviews
+                          </span>
+                        </div>
+                        <span className="text-[10px] font-bold text-on-surface-variant shrink-0">
+                          all time
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Show recent books uploaded */}
+                    {[...books]
+                      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                      .slice(0, 5)
+                      .map(book => {
+                        const timeAgo = getTimeAgo(book.created_at);
+                        return (
+                          <div key={book.id} className="flex items-center justify-between py-2.5 gap-3">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <Upload size={14} strokeWidth={2.5} className="text-on-surface-variant shrink-0" />
+                              <span className="text-xs font-bold text-on-background truncate">
+                                Uploaded {book.title}
+                              </span>
+                            </div>
+                            <span className="text-[10px] font-bold text-on-surface-variant shrink-0">
+                              {timeAgo}
+                            </span>
                           </div>
-                        </td>
-                        <td className="py-3.5 px-4">
-                           <div className="flex items-center gap-3">
-                             <div className="w-28 h-2 bg-surface-container-high rounded-full overflow-hidden">
-                               <div 
-                                 className="h-full bg-primary rounded-full transition-all duration-300" 
-                                 style={{ width: `${book.total_topics ? Math.round(((book.topics_processed || 0) / book.total_topics) * 100) : 0}%` }}
-                               />
-                             </div>
-                             <span className="text-xs font-medium text-on-surface-variant">{book.total_topics ? Math.round(((book.topics_processed || 0) / book.total_topics) * 100) : 0}%</span>
-                           </div>
-                        </td>
-                        <td className="py-3.5 px-4 text-xs text-on-surface-variant">
-                          {new Date(book.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
-                        </td>
-                        <td className="py-3.5 px-4 text-right">
-                          <button 
-                            onClick={(e) => handleDelete(e, book.id)}
-                            className="p-1.5 text-on-surface-variant hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg transition-colors"
-                            aria-label={`Delete ${book.title}`}
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
+                        );
+                      })}
 
-          {/* Learning Progress Chart */}
-          <div className="md:col-span-8 p-6 bg-surface-container-lowest border border-border-default rounded-xl shadow-xs flex flex-col">
-            <div className="flex justify-between items-center mb-5">
-              <h3 className="text-lg font-bold text-on-surface tracking-tight">Learning Progress</h3>
-            </div>
-            {loadingStats ? (
-              <div className="h-64 flex items-center justify-center">
-                <Loader2 size={24} className="animate-spin text-primary" />
+                    {/* Flashcard queue breakdown */}
+                    {analytics && (analytics.queue.new > 0 || analytics.queue.learning > 0 || analytics.queue.review > 0) && (
+                      <div className="py-3">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant mb-2 block">
+                          Card queue
+                        </span>
+                        <div className="flex gap-3 mt-1">
+                          {[
+                            { label: 'New', count: analytics.queue.new, color: 'bg-blue-500' },
+                            { label: 'Learning', count: analytics.queue.learning, color: 'bg-amber-500' },
+                            { label: 'Review', count: analytics.queue.review, color: 'bg-green-600' },
+                          ].map(({ label, count, color }) => (
+                            <div key={label} className="flex items-center gap-1.5">
+                              <div className={`w-2 h-2 ${color} border border-on-background/30`} />
+                              <span className="text-[10px] font-bold text-on-background">{count}</span>
+                              <span className="text-[10px] font-bold text-on-surface-variant">{label}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
-            ) : stats?.forecast_7d ? (
-              <div className="h-64 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={stats.forecast_7d} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" vertical={false} />
-                    <XAxis 
-                      dataKey="date" 
-                      stroke="#94A3B8" 
-                      tick={{fill: '#64748B', fontSize: 11}} 
-                      tickLine={false}
-                      axisLine={{ stroke: '#E2E8F0' }}
-                      tickFormatter={(val: string) => {
-                        const [, m, d] = val.split('-');
-                        return `${parseInt(m)}/${parseInt(d)}`;
-                      }}
-                    />
-                    <YAxis 
-                      stroke="#94A3B8" 
-                      tick={{fill: '#64748B', fontSize: 11}} 
-                      tickLine={false}
-                      axisLine={false}
-                    />
-                    <Tooltip 
-                      contentStyle={{ backgroundColor: '#ffffff', borderColor: '#E2E8F0', borderWidth: '1px', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.08)' }}
-                      itemStyle={{ color: '#0F172A', fontWeight: '600' }}
-                      labelStyle={{ color: '#64748B', marginBottom: '4px', fontSize: '11px' }}
-                      formatter={(value: any) => [value, 'Due Cards']}
-                      labelFormatter={(label: any) => {
-                         return new Date(label + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
-                      }}
-                    />
-                    <Bar 
-                      dataKey="due_count" 
-                      fill="#2563EB" 
-                      radius={[4, 4, 0, 0]}
-                      barSize={32}
-                      animationDuration={800}
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            ) : (
-              <div className="h-64 flex items-center justify-center text-on-surface-variant font-medium">
-                No data available
-              </div>
-            )}
-          </div>
-
-          {/* Quick Stats */}
-          <div className="md:col-span-4 space-y-4">
-            <div className="p-5 bg-surface-container-lowest border border-border-default rounded-xl shadow-xs">
-              <h4 className="text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1">Total Documents</h4>
-              <div className="text-3xl font-bold text-on-surface mb-1">{stats?.totals?.books || 0}</div>
-              <p className="text-xs text-on-surface-variant">In your knowledge base</p>
-            </div>
-            <div className="p-5 bg-surface-container-lowest border border-border-default rounded-xl shadow-xs">
-              <h4 className="text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1">Total Flashcards</h4>
-              <div className="text-3xl font-bold text-on-surface mb-1">{stats?.totals?.flashcards || 0}</div>
-              <p className="text-xs text-on-surface-variant">Generated for spaced repetition</p>
-            </div>
-          </div>
-          
-          {/* Knowledge Hub Grid */}
-          <div className="md:col-span-12 grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="p-5 bg-surface-container-lowest border border-border-default rounded-xl shadow-xs flex flex-col justify-center items-center text-center">
-              <Layers className="text-primary mb-2" size={24} />
-              <div className="text-2xl font-bold text-on-surface">{stats?.totals?.topics || 0}</div>
-              <div className="text-xs font-medium text-on-surface-variant mt-0.5">Extracted Topics</div>
-            </div>
-            <div className="p-5 bg-surface-container-lowest border border-border-default rounded-xl shadow-xs flex flex-col justify-center items-center text-center">
-              <CheckCircle2 className="text-emerald-600 mb-2" size={24} />
-              <div className="text-2xl font-bold text-on-surface">{stats?.totals?.total_reviews || 0}</div>
-              <div className="text-xs font-medium text-on-surface-variant mt-0.5">Reviews Done</div>
-            </div>
-            <div className="p-5 bg-surface-container-lowest border border-border-default rounded-xl shadow-xs flex flex-col justify-center items-center text-center">
-              <Brain className="text-accent-blue mb-2" size={24} />
-              <div className="text-2xl font-bold text-on-surface">{stats?.queue?.due_now || 0}</div>
-              <div className="text-xs font-medium text-on-surface-variant mt-0.5">Due Now</div>
-            </div>
-            <div className="p-5 bg-surface-container-lowest border border-border-default rounded-xl shadow-xs flex flex-col justify-center items-center text-center">
-              <BookIcon className="text-primary mb-2" size={24} />
-              <div className="text-2xl font-bold text-on-surface">{stats?.queue?.new || 0}</div>
-              <div className="text-xs font-medium text-on-surface-variant mt-0.5">New Cards</div>
             </div>
           </div>
         </div>
       </div>
 
-      <IngestionProgressModal 
-        isOpen={!!ingestionProgress} 
-        progress={ingestionProgress!} 
-        onComplete={handleProgressComplete} 
+      <IngestionProgressModal
+        isOpen={!!ingestionProgress}
+        progress={ingestionProgress!}
+        onComplete={handleProgressComplete}
       />
     </div>
   );
+}
+
+/* ── Helpers ──────────────────────────────────────────────────────────── */
+
+function getTimeAgo(dateStr: string): string {
+  const now = new Date();
+  const date = new Date(dateStr);
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMins / 60);
+  const diffDays = Math.floor(diffHours / 24);
+
+  if (diffMins < 1) return 'just now';
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays === 1) return 'yesterday';
+  if (diffDays < 7) return `${diffDays} days ago`;
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }

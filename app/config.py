@@ -29,7 +29,8 @@ class Settings(BaseSettings):
     
     # Gemini
     gemini_api_key: str = ""
-    gemini_model: str = "gemini-3.6-flash"
+    gemini_model: str = "gemini-3.5-flash-lite"
+    gemini_tier: str = "free"  # "free" (5 RPM, 2 concurrency) or "paid" (1000 RPM, 10 concurrency)
     
     # Groq
     groq_api_key: str = ""
@@ -59,7 +60,7 @@ settings = Settings()
 PROVIDER_CONCURRENCY = {
     "ollama": 2,
     "openai": 10,
-    "gemini": 10,
+    "gemini": 2,
     "groq": 15,
 }
 
@@ -67,4 +68,7 @@ def get_provider_concurrency(provider_name: str | None = None) -> int:
     if not provider_name:
         provider_name = settings.llm_provider
     provider_name = provider_name.lower().strip()
+    if provider_name == "gemini":
+        tier = getattr(settings, "gemini_tier", "free").lower().strip()
+        return 10 if tier == "paid" else 2
     return PROVIDER_CONCURRENCY.get(provider_name, 5)

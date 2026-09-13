@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { 
   Book, BrainCircuit, Settings, BarChart3, ChevronLeft, ChevronRight, 
-  NotebookPen, LayoutDashboard, MessageSquare
+  NotebookPen, LayoutDashboard, MessageSquare, Activity
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { AuthButton } from './AuthButton';
@@ -35,6 +35,7 @@ export function Sidebar({ className }: SidebarProps) {
     {
       title: 'Account',
       items: [
+        { label: 'LLM Inspection', path: '/llm-inspection', icon: Activity },
         { label: 'Settings', path: '/settings', icon: Settings },
       ],
     },
@@ -49,6 +50,9 @@ export function Sidebar({ className }: SidebarProps) {
     }
     if (path === '/app/chat' || path === '/chat') {
       return location.pathname.startsWith('/chat') || location.pathname.startsWith('/app/chat');
+    }
+    if (path === '/llm-inspection') {
+      return location.pathname.startsWith('/llm-inspection');
     }
     return location.pathname === path || (path !== '/' && location.pathname.startsWith(path));
   };

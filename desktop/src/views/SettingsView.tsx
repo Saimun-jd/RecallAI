@@ -7,7 +7,7 @@ import { getApiKey, saveApiKey, removeApiKey, saveKeychain } from '../api/keycha
 import { trackSaveOperation } from '../api/saveCoordinator';
 import { client } from '../api/client';
 import { supabase } from '../lib/supabase';
-import { Loader2, ChevronDown, RefreshCcw } from 'lucide-react';
+import { Loader2, ChevronDown, RefreshCcw, Eye, EyeOff, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import clsx from 'clsx';
 import { useToast } from '../hooks/useToast';
 import type { ApiError } from '../api/errors';
@@ -51,8 +51,35 @@ export function SettingsView() {
 
   // Local state for keys input
   const [keys, setKeys] = useState<{ [key: string]: string }>({});
+  const [showKeys, setShowKeys] = useState<Record<string, boolean>>({});
+  const [verifyingKey, setVerifyingKey] = useState<string | null>(null);
   const [ollamaStatus, setOllamaStatus] = useState<'checking' | 'active' | 'inactive' | null>(null);
   const ollamaHostRef = useRef(keys['ollama_host'] ?? 'http://localhost:11434');
+
+  const toggleShowKey = (id: string) => {
+    setShowKeys(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const handleVerifyKey = async (provider: string) => {
+    const keyVal = keys[provider]?.trim();
+    if (!keyVal) {
+      showToast('error', 'Please enter an API key first to test.');
+      return;
+    }
+    setVerifyingKey(provider);
+    try {
+      const res = await client.verifyApiKey(provider, keyVal);
+      if (res.valid) {
+        showToast('success', `${provider.toUpperCase()} API key verified successfully!`);
+      } else {
+        showToast('error', `Invalid key: ${res.message}`);
+      }
+    } catch (err: any) {
+      showToast('error', err?.userMessage || `Key verification failed: ${err?.message || err}`);
+    } finally {
+      setVerifyingKey(null);
+    }
+  };
 
   // Keep ref in sync
   useEffect(() => {
@@ -153,7 +180,11 @@ export function SettingsView() {
               backendKeys[provider] = val.trim();
             }
           } else if (val === '') {
-            vaultPromises.push(removeApiKey(provider));
+            vaultPromises.push(
+              removeApiKey(provider).catch((err) => {
+                console.warn(`[Settings] Failed to remove key for ${provider} (may not exist):`, err);
+              })
+            );
             if (['openai', 'gemini', 'groq'].includes(provider)) {
               dispatch(setConfiguredProvider({ provider: provider as AIProviderId, isConfigured: false }));
               backendKeys[`${provider}_api_key`] = "";
@@ -178,6 +209,11 @@ export function SettingsView() {
 
         // Step 3: Show success immediately after data is securely written
         showToast('success', 'Settings saved successfully.');
+
+        // If preferred provider requires an API key and none is configured, alert user
+        if (activeProvider !== 'ollama' && (!keys[activeProvider] || !keys[activeProvider].trim())) {
+          showToast('warning', `Note: ${activeProvider.toUpperCase()} is set as preferred model, but its API key is empty. Please add a key in API Keys tab.`);
+        }
 
         // Push keys to backend non-blocking
         if (Object.keys(backendKeys).length > 0) {
@@ -262,12 +298,31 @@ export function SettingsView() {
                     className="w-full appearance-none bg-white neo-border px-4 py-3 text-sm focus:bg-surface-container font-bold cursor-pointer uppercase"
                   >
                     <option value="ollama">Ollama (Gemma 3) - Local & Free</option>
-                    <option value="gemini">Gemini 3.6 Flash - Cloud & Fast</option>
+                    <option value="gemini">Gemini Flash - Cloud & Fast</option>
                     <option value="openai">OpenAI (GPT-4o Mini) - High Quality</option>
                     <option value="groq">Groq (gpt-oss-20b) - Low Latency</option>
                   </select>
                   <ChevronDown size={20} className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-black font-bold" strokeWidth={3} />
                 </div>
+
+                {activeProvider !== 'ollama' && (!keys[activeProvider] || !keys[activeProvider].trim()) && (
+                  <div className="mt-3 p-3 bg-amber-50 border-2 border-amber-500 rounded flex items-start gap-2.5 text-amber-900 animate-in fade-in">
+                    <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                    <div className="text-xs">
+                      <p className="font-black uppercase tracking-wide">API Key Not Configured for {activeProvider.toUpperCase()}</p>
+                      <p className="font-bold text-amber-800 mt-0.5">
+                        {activeProvider.toUpperCase()} is currently selected, but no API key is saved. LLM requests will fail until an API key is configured.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab('keys')}
+                        className="mt-2 px-3 py-1 bg-amber-600 text-white font-black uppercase text-[11px] rounded neo-border hover:bg-amber-700 transition-all cursor-pointer"
+                      >
+                        Configure {activeProvider.toUpperCase()} Key →
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 {activeProvider === 'ollama' && (
                   <div className="mt-4 flex flex-col gap-2 animate-in fade-in slide-in-from-top-2 duration-300">
@@ -279,7 +334,7 @@ export function SettingsView() {
                       <button
                         type="button"
                         onClick={() => verifyOllamaHealth(keys['ollama_host'] ?? 'http://localhost:11434')}
-                        className="ml-auto text-on-surface-variant hover:text-black transition-colors"
+                        className="ml-auto text-on-surface-variant hover:text-black transition-colors cursor-pointer"
                         title="Verify Connection"
                       >
                         <RefreshCcw size={14} className={ollamaStatus === 'checking' ? 'animate-spin' : ''} />
@@ -340,22 +395,43 @@ export function SettingsView() {
                   </label>
                 </div>
 
-                <div className="flex items-center justify-between group">
-                  <div className="pr-4">
-                    <p className="text-sm font-black text-black uppercase">PDF Extractor</p>
-                    <p className="text-xs text-on-surface-variant font-bold">Select the backend pipeline used to parse documents.</p>
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center justify-between group">
+                    <div className="pr-4">
+                      <p className="text-sm font-black text-black uppercase">PDF Extractor</p>
+                      <p className="text-xs text-on-surface-variant font-bold">Select the backend pipeline used to parse documents.</p>
+                    </div>
+                    <div className="relative w-48 shrink-0">
+                      <select
+                        value={pdfExtractor}
+                        onChange={(e) => dispatch(setPdfExtractor(e.target.value as any))}
+                        className="w-full appearance-none bg-white neo-border px-3 py-2 text-xs focus:bg-surface-container font-bold cursor-pointer uppercase"
+                      >
+                        <option value="pymupdf4llm">PyMuPDF4LLM</option>
+                        <option value="marker_api">Marker (API Key)</option>
+                      </select>
+                      <ChevronDown size={16} className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-black font-bold" strokeWidth={3} />
+                    </div>
                   </div>
-                  <div className="relative w-48 shrink-0">
-                    <select
-                      value={pdfExtractor}
-                      onChange={(e) => dispatch(setPdfExtractor(e.target.value as any))}
-                      className="w-full appearance-none bg-white neo-border px-3 py-2 text-xs focus:bg-surface-container font-bold cursor-pointer uppercase"
-                    >
-                      <option value="pymupdf4llm">PyMuPDF4LLM</option>
-                      <option value="marker_api">Marker (API Key)</option>
-                    </select>
-                    <ChevronDown size={16} className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-black font-bold" strokeWidth={3} />
-                  </div>
+
+                  {pdfExtractor === 'marker_api' && (!keys['datalab_api_key'] || !keys['datalab_api_key'].trim()) && (
+                    <div className="mt-2 p-3 bg-amber-50 border-2 border-amber-500 rounded flex items-start gap-2.5 text-amber-900 animate-in fade-in">
+                      <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                      <div className="text-xs">
+                        <p className="font-black uppercase">Datalab Key Missing</p>
+                        <p className="font-bold text-amber-800 mt-0.5">
+                          Marker API extractor requires a Datalab API key to run.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => setActiveTab('keys')}
+                          className="mt-1.5 px-2.5 py-0.5 bg-amber-600 text-white font-black uppercase text-[10px] rounded neo-border hover:bg-amber-700 transition-all cursor-pointer"
+                        >
+                          Configure Datalab Key →
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </section>
             </div>
@@ -365,21 +441,61 @@ export function SettingsView() {
             <div className="space-y-6 animate-in fade-in duration-300 flex-1">
               <div className="mb-2">
                 <h3 className="text-xl font-black text-black uppercase mb-1">Secure API Keys</h3>
-                <p className="text-sm text-on-surface-variant font-bold">Keys never leave your machine (Tauri Stronghold Encrypted).</p>
+                <p className="text-sm text-on-surface-variant font-bold">Keys are stored securely in your OS keychain / encrypted store.</p>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {['openai', 'gemini', 'groq', 'datalab_api_key'].map((p) => {
                   const label = p === 'datalab_api_key' ? 'Datalab Key' : p.charAt(0).toUpperCase() + p.slice(1) + ' Key';
+                  const isConfigured = Boolean(keys[p]?.trim());
+                  const isShowing = Boolean(showKeys[p]);
+                  const isTesting = verifyingKey === p;
                   return (
                     <div key={p} className="flex flex-col gap-2">
-                      <label className="text-xs font-black text-black uppercase">{label}</label>
-                      <input
-                        type="password"
-                        value={keys[p as AIProviderId] ?? ''}
-                        onChange={(e) => setKeys(prev => ({ ...prev, [p]: e.target.value }))}
-                        placeholder={`Enter ${label.toLowerCase()}`}
-                        className="w-full bg-white neo-border px-4 py-3 text-sm text-black focus:outline-none focus:ring-0 focus:bg-surface-container transition-all font-bold placeholder:text-on-surface-variant"
-                      />
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-black text-black uppercase">{label}</label>
+                        <div className="flex items-center gap-2">
+                          {isConfigured ? (
+                            <span className="text-[10px] bg-green-100 text-green-800 border border-green-400 px-2 py-0.5 rounded font-black uppercase tracking-wider flex items-center gap-1">
+                              <CheckCircle2 size={10} className="text-green-600" /> Configured
+                            </span>
+                          ) : (
+                            <span className="text-[10px] bg-zinc-100 text-zinc-500 border border-zinc-300 px-2 py-0.5 rounded font-black uppercase tracking-wider">
+                              Not Configured
+                            </span>
+                          )}
+                          {['openai', 'gemini', 'groq'].includes(p) && (
+                            <button
+                              type="button"
+                              onClick={() => handleVerifyKey(p)}
+                              disabled={!isConfigured || isTesting}
+                              className="text-[10px] px-2 py-0.5 font-black uppercase bg-surface-container hover:bg-black hover:text-white border border-black rounded transition-all disabled:opacity-40 disabled:hover:bg-surface-container disabled:hover:text-black cursor-pointer"
+                              title="Verify key with provider"
+                            >
+                              {isTesting ? <Loader2 size={10} className="animate-spin inline mr-1" /> : null}
+                              Test
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      <div className="relative flex items-center">
+                        <input
+                          type={isShowing ? 'text' : 'password'}
+                          value={keys[p] ?? ''}
+                          onChange={(e) => setKeys(prev => ({ ...prev, [p]: e.target.value }))}
+                          placeholder={`Enter ${label.toLowerCase()}`}
+                          autoComplete="new-password"
+                          spellCheck={false}
+                          className="w-full bg-white neo-border px-4 py-3 pr-12 text-sm text-black focus:outline-none focus:ring-0 focus:bg-surface-container transition-all font-mono font-medium placeholder:font-sans placeholder:text-on-surface-variant"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => toggleShowKey(p)}
+                          className="absolute right-3 p-1.5 text-zinc-500 hover:text-black transition-colors cursor-pointer"
+                          title={isShowing ? "Hide API key" : "Show API key"}
+                        >
+                          {isShowing ? <EyeOff size={16} /> : <Eye size={16} />}
+                        </button>
+                      </div>
                     </div>
                   );
                 })}
@@ -396,16 +512,40 @@ export function SettingsView() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {['langfuse_secret_key', 'langfuse_public_key', 'langfuse_host'].map((p) => {
                   const label = p.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+                  const isSecret = p.includes('secret');
+                  const isShowing = Boolean(showKeys[p]);
+                  const isConfigured = Boolean(keys[p]?.trim());
                   return (
                     <div key={p} className={clsx("flex flex-col gap-2", p === 'langfuse_host' && "col-span-1 md:col-span-2")}>
-                      <label className="text-xs font-black text-black uppercase">{label}</label>
-                      <input
-                        type={p.includes('secret') ? 'password' : 'text'}
-                        value={keys[p] ?? ''}
-                        onChange={(e) => setKeys(prev => ({ ...prev, [p]: e.target.value }))}
-                        placeholder={`Enter ${label.toLowerCase()}`}
-                        className="w-full bg-white neo-border px-4 py-3 text-sm text-black focus:outline-none focus:ring-0 focus:bg-surface-container transition-all font-bold placeholder:text-on-surface-variant"
-                      />
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-black text-black uppercase">{label}</label>
+                        {isConfigured && (
+                          <span className="text-[10px] bg-green-100 text-green-800 border border-green-400 px-2 py-0.5 rounded font-black uppercase tracking-wider flex items-center gap-1">
+                            <CheckCircle2 size={10} className="text-green-600" /> Configured
+                          </span>
+                        )}
+                      </div>
+                      <div className="relative flex items-center">
+                        <input
+                          type={isSecret ? (isShowing ? 'text' : 'password') : 'text'}
+                          value={keys[p] ?? ''}
+                          onChange={(e) => setKeys(prev => ({ ...prev, [p]: e.target.value }))}
+                          placeholder={`Enter ${label.toLowerCase()}`}
+                          autoComplete="new-password"
+                          spellCheck={false}
+                          className="w-full bg-white neo-border px-4 py-3 pr-12 text-sm text-black focus:outline-none focus:ring-0 focus:bg-surface-container transition-all font-mono font-medium placeholder:font-sans placeholder:text-on-surface-variant"
+                        />
+                        {isSecret && (
+                          <button
+                            type="button"
+                            onClick={() => toggleShowKey(p)}
+                            className="absolute right-3 p-1.5 text-zinc-500 hover:text-black transition-colors cursor-pointer"
+                            title={isShowing ? "Hide secret" : "Show secret"}
+                          >
+                            {isShowing ? <EyeOff size={16} /> : <Eye size={16} />}
+                          </button>
+                        )}
+                      </div>
                     </div>
                   );
                 })}

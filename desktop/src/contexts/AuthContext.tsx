@@ -119,7 +119,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       authApi.setBackendUser(null, null);
     };
 
+    const handleSessionUpdated = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user && isMounted) {
+          const mappedUser: User = {
+            id: session.user.id,
+            email: session.user.email || '',
+            full_name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'User',
+            avatar_url: session.user.user_metadata?.avatar_url || null,
+            created_at: session.user.created_at,
+          };
+          const mappedWorkspace: Workspace = {
+            id: session.user.id,
+            owner_id: session.user.id,
+            name: 'Personal Workspace',
+          };
+          setUser(mappedUser);
+          setWorkspace(mappedWorkspace);
+          saveToken(session.access_token);
+          setStatus('authenticated');
+          await authApi.setBackendUser(session.user.id, session.access_token);
+        }
+      } catch (err) {
+        console.error('[Auth] Error handling auth-session-updated:', err);
+      }
+    };
+
     window.addEventListener('auth-unauthorized', handleUnauthorized);
+    window.addEventListener('auth-session-updated', handleSessionUpdated);
 
     // Listen for Supabase OAuth updates
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
@@ -148,6 +176,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       isMounted = false;
       window.removeEventListener('auth-unauthorized', handleUnauthorized);
+      window.removeEventListener('auth-session-updated', handleSessionUpdated);
       subscription.unsubscribe();
     };
   }, [saveToken]);
@@ -192,11 +221,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       throw new Error('Google OAuth is not configured in this environment. Please log in with your email and password.');
     }
 
+    const redirectTo = isTauriEnvironment()
+      ? 'http://localhost:8000/auth-success'
+      : `${window.location.origin}/`;
+
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
         skipBrowserRedirect: isTauriEnvironment(),
-        redirectTo: 'http://localhost:8000/auth-success',
+        redirectTo,
       },
     });
 
@@ -207,6 +240,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (data?.url) {
       if (isTauriEnvironment()) {
         await tauriOpen(data.url);
+
+        // Fallback poller for desktop: Poll local backend in case deep-link protocol is blocked
+        const startTime = Date.now();
+        const pollInterval = setInterval(async () => {
+          if (Date.now() - startTime > 60000) {
+            clearInterval(pollInterval);
+            return;
+          }
+          try {
+            const res = await fetch('http://localhost:8000/api/auth/latest-oauth-code');
+            if (res.ok) {
+              const payload = await res.json();
+              if (payload?.code) {
+                clearInterval(pollInterval);
+                const { error: exchangeErr } = await supabase.auth.exchangeCodeForSession(payload.code);
+                if (!exchangeErr) {
+                  window.dispatchEvent(new Event('auth-session-updated'));
+                }
+              }
+            }
+          } catch {
+            // Ignore background polling errors
+          }
+        }, 1500);
       } else {
         window.location.href = data.url;
       }

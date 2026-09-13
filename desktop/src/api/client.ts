@@ -72,6 +72,102 @@ export interface PdfSyncProgressEvent {
 
 export const API_BASE = "http://127.0.0.1:8000";
 
+export interface PromptVariable {
+  name: string;
+  description: string;
+  required: boolean;
+}
+
+export interface SystemPrompt {
+  key: string;
+  name: string;
+  category: string;
+  title?: string;
+  description: string;
+  default_template: string;
+  custom_template?: string | null;
+  current_template: string;
+  variables: PromptVariable[];
+  is_custom?: boolean;
+  is_customized?: boolean;
+  model_target?: string;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface TokenUsageTotals {
+  total_prompt_tokens: number;
+  total_completion_tokens: number;
+  total_tokens: number;
+  total_estimated_cost?: number;
+  total_cost_usd: number;
+  total_requests: number;
+}
+
+export interface TokenUsageByFeature {
+  feature: string;
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+  estimated_cost?: number;
+  estimated_cost_usd?: number;
+  requests: number;
+}
+
+export interface TokenUsageByProvider {
+  provider: string;
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+  estimated_cost?: number;
+  estimated_cost_usd?: number;
+  requests: number;
+}
+
+export interface TokenUsageByModel {
+  model: string;
+  provider?: string;
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+  estimated_cost?: number;
+  estimated_cost_usd?: number;
+  requests: number;
+}
+
+export interface TokenDailyPoint {
+  date?: string;
+  day?: string;
+  total_tokens: number;
+  estimated_cost?: number;
+  estimated_cost_usd?: number;
+  requests: number;
+}
+
+export interface TokenUsageSummary {
+  totals: TokenUsageTotals;
+  by_feature: TokenUsageByFeature[];
+  by_provider: TokenUsageByProvider[];
+  by_model: TokenUsageByModel[];
+  daily_timeline: TokenDailyPoint[];
+}
+
+export interface TokenLogEntry {
+  id: number;
+  timestamp: string;
+  provider: string;
+  model: string;
+  feature: string;
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+  estimated_cost?: number;
+  estimated_cost_usd: number;
+  execution_time_ms?: number;
+  book_id?: number | null;
+  topic_id?: number | null;
+}
+
 export interface Book {
   id: number;
   title: string;
@@ -79,6 +175,9 @@ export interface Book {
   file_hash: string;
   total_pages: number;
   created_at: string;
+  last_read_at?: string | null;
+  last_read_page?: number | null;
+  last_topic_id?: number | null;
   total_topics?: number;
   topics_processed?: number;
 }
@@ -241,26 +340,51 @@ export interface SuggestedFlashcard {
   gap_source: string;
 }
 
+export interface ExamMisconception {
+  pitfall: string;
+  theory: string;
+  exam_tip: string;
+}
+
+export interface DiagnosedGap {
+  gap: string;
+  context: string;
+  why_it_matters?: string | null;
+}
+
 export interface DiagnosticEvaluation {
   concept_name?: string | null;
   mastery_score: number;
   status: 'mastered' | 'developing' | 'fragile' | 'misconception';
   strengths: string[];
-  diagnosed_gaps: string[];
-  misconceptions: string[];
-  socratic_nudge: string | null;
+  diagnosed_gaps: DiagnosedGap[];
+  misconceptions: ExamMisconception[];
+  socratic_nudge?: string | null;
   suggested_flashcards: SuggestedFlashcard[];
 }
 
+export interface ExamTopicItem {
+  id: number;
+  title: string;
+  page_start?: number;
+  page_end?: number;
+  flashcards: number;
+  mastery?: 'mastered' | 'developing' | 'fragile' | 'misconception' | 'untested';
+  summary?: string;
+}
+
 export interface ChatMessage {
+  id?: number;
   role: 'user' | 'ai' | 'system' | 'assistant';
   content: string;
+  created_at?: string;
 }
 
 export interface ChatRequest {
-  topic_id: number;
+  topic_id?: number | null;
+  book_id?: number | null;
   topic_name?: string;
-  context_markdown: string;
+  context_markdown?: string;
   question: string;
   history?: ChatMessage[];
   provider_override?: string | null;
@@ -272,6 +396,15 @@ export const client = {
     if (!res.ok) {
       throw await parseApiError(res);
     }
+  },
+
+  async updateReadingState(bookId: number, pageNumber?: number, topicId?: number | null): Promise<void> {
+    const res = await fetch(`${API_BASE}/books/${bookId}/reading-state`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ page_number: pageNumber, topic_id: topicId }),
+    });
+    await this._throwIfError(res, 'Failed to update reading state');
   },
 
   async getBooks(): Promise<Book[]> {
@@ -312,19 +445,43 @@ export const client = {
     await this._throwIfError(res, "Failed to fetch flashcard");
     return res.json();
   },
-  async updateFlashcard(id: number, data: { question: string; answer: string }): Promise<{ message: string; flashcard_id: number }> {
-    const res = await fetch(`${API_BASE}/flashcards/${id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
-    await this._throwIfError(res, "Failed to update flashcard");
-    return res.json();
+  async updateFlashcard(
+    idOrCardId: number | string,
+    dataOrPayload: any
+  ): Promise<any> {
+    if (typeof idOrCardId === 'number') {
+      const res = await fetch(`${API_BASE}/flashcards/${idOrCardId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(dataOrPayload),
+      });
+      await this._throwIfError(res, "Failed to update flashcard");
+      return res.json();
+    } else {
+      const res = await fetch(`${API_BASE}/api/v1/flashcards/cards/${idOrCardId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(dataOrPayload),
+      });
+      if (!res.ok) throw await parseApiError(res);
+      const json = await res.json();
+      return json.data;
+    }
   },
-  async deleteFlashcard(id: number): Promise<{ message: string }> {
-    const res = await fetch(`${API_BASE}/flashcards/${id}`, { method: "DELETE" });
-    await this._throwIfError(res, "Failed to delete flashcard");
-    return res.json();
+
+  async deleteFlashcard(idOrCardId: number | string): Promise<any> {
+    if (typeof idOrCardId === 'number') {
+      const res = await fetch(`${API_BASE}/flashcards/${idOrCardId}`, { method: "DELETE" });
+      await this._throwIfError(res, "Failed to delete flashcard");
+      return res.json();
+    } else {
+      const res = await fetch(`${API_BASE}/api/v1/flashcards/cards/${idOrCardId}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) throw await parseApiError(res);
+      const json = await res.json();
+      return json.data;
+    }
   },
   async getSettings(): Promise<Record<string, string>> {
     const res = await fetch(`${API_BASE}/settings`);
@@ -340,7 +497,7 @@ export const client = {
     await this._throwIfError(res, "Failed to update setting");
     return res.json();
   },
-  async saveApiKeys(keys: { gemini_api_key?: string, groq_api_key?: string, openai_api_key?: string, langfuse_secret_key?: string, langfuse_public_key?: string, langfuse_host?: string, ollama_host?: string }): Promise<{ status: string }> {
+  async saveApiKeys(keys: { gemini_api_key?: string, groq_api_key?: string, openai_api_key?: string, datalab_api_key?: string, langfuse_secret_key?: string, langfuse_public_key?: string, langfuse_host?: string, ollama_host?: string }): Promise<{ status: string }> {
     try {
       const res = await fetch(`${API_BASE}/settings/api-keys`, {
         method: "POST",
@@ -356,6 +513,16 @@ export const client = {
       throw error;
     }
   },
+  async verifyApiKey(provider: string, apiKey: string): Promise<{ valid: boolean; provider: string; message: string }> {
+    const res = await fetch(`${API_BASE}/settings/verify-key`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ provider, api_key: apiKey }),
+    });
+    await this._throwIfError(res, "Failed to verify API key");
+    return res.json();
+  },
+
   async verifyOllama(url: string): Promise<{ active: boolean; error?: string }> {
     const res = await fetch(`${API_BASE}/settings/verify-ollama?url=${encodeURIComponent(url)}`);
     return res.json();
@@ -561,6 +728,76 @@ export const client = {
     return res.json();
   },
 
+  async generateNoteScaffoldStream(
+    topicId: number,
+    providerOverride?: string,
+    onEvent?: (event: any) => void
+  ): Promise<{ topic_id?: number; scaffold: string; note: string; children_count?: number }> {
+    const res = await fetch(`${API_BASE}/topics/${topicId}/notes/scaffold-stream`, {
+      method: "POST",
+      headers: { "Accept": "text/event-stream", "Content-Type": "application/json" },
+      body: JSON.stringify({ provider_override: providerOverride || null }),
+    });
+
+    if (!res.ok) throw await parseApiError(res);
+    if (!res.body) throw new Error("No response body");
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let resultPayload: any = null;
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+
+        let boundary = buffer.indexOf("\n\n");
+        while (boundary !== -1) {
+          const chunk = buffer.slice(0, boundary);
+          buffer = buffer.slice(boundary + 2);
+
+          if (chunk.startsWith("data: ")) {
+            const dataStr = chunk.slice(6);
+            try {
+              const data = JSON.parse(dataStr);
+              if (onEvent) onEvent(data);
+
+              if (data.status === 'error') {
+                const apiErr = parseSSEError(data);
+                throw apiErr;
+              }
+              if (data.status === 'complete' || data.stage === 'complete') {
+                resultPayload = data;
+              }
+            } catch (jsonErr: any) {
+              if (jsonErr?.isRecallError) throw jsonErr;
+              console.warn("Failed to parse SSE note chunk:", dataStr);
+            }
+          }
+          boundary = buffer.indexOf("\n\n");
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
+
+    return resultPayload || { scaffold: "", note: "" };
+  },
+
+  async uploadNoteImage(file: File): Promise<{ status: string; filename: string; url: string }> {
+    const formData = new FormData();
+    formData.append("file", file);
+    const res = await fetch(`${API_BASE}/notes/upload-image`, {
+      method: "POST",
+      body: formData,
+    });
+    await this._throwIfError(res, "Failed to upload image");
+    return res.json();
+  },
+
   async appendNote(topicId: number, content: string, sectionTitle?: string): Promise<{ status: string; note: string }> {
     const res = await fetch(`${API_BASE}/topics/${topicId}/notes/append`, {
       method: "POST",
@@ -609,16 +846,30 @@ export const client = {
     return res.json();
   },
   
-  async generateFlashcards(topicId: number, options: { count: number; custom_prompt?: string, provider_override?: string }): Promise<{ flashcards: Flashcard[] }> {
-    const res = await fetch(`${API_BASE}/topics/${topicId}/flashcards`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(options),
-    });
-    if (!res.ok) {
-      throw await parseApiError(res);
+  async generateFlashcards(
+    topicIdOrPayload: number | FlashcardGenerateRequest,
+    options?: { count: number; custom_prompt?: string, provider_override?: string; concept_name?: string }
+  ): Promise<any> {
+    if (typeof topicIdOrPayload === 'number') {
+      const res = await fetch(`${API_BASE}/topics/${topicIdOrPayload}/flashcards`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(options || {}),
+      });
+      if (!res.ok) {
+        throw await parseApiError(res);
+      }
+      return res.json();
+    } else {
+      const res = await fetch(`${API_BASE}/api/v1/flashcards/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(topicIdOrPayload),
+      });
+      if (!res.ok) throw await parseApiError(res);
+      const json = await res.json();
+      return json.data;
     }
-    return res.json();
   },
 
   // ─── PDF Annotation API ───
@@ -824,11 +1075,17 @@ export const client = {
             if (dataStr === "[DONE]") continue;
             try {
               const data = JSON.parse(dataStr);
-              if (data.error) throw new Error(data.error);
+              if (data.error || data.message || data.error_code) {
+                const errMsg = data.message || data.error || data.detail || "Chat stream error";
+                const err: any = new Error(errMsg);
+                err.userMessage = errMsg;
+                err.errorCode = data.error_code;
+                throw err;
+              }
               if (data.chunk) onChunk(data.chunk);
             } catch (e) {
               if (e instanceof Error && e.message !== "Unexpected end of JSON input") {
-                if (dataStr.includes('"error":')) throw e;
+                if (dataStr.includes('"error"') || dataStr.includes('"message"') || dataStr.includes('"error_code"')) throw e;
               }
             }
           }
@@ -1164,17 +1421,6 @@ export const client = {
     return json.data;
   },
 
-  async generateFlashcards(payload: FlashcardGenerateRequest): Promise<FlashcardSetDetailResponse> {
-    const res = await fetch(`${API_BASE}/api/v1/flashcards/generate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    if (!res.ok) throw await parseApiError(res);
-    const json = await res.json();
-    return json.data;
-  },
-
   async updateFlashcardSet(setId: string, payload: { title?: string; description?: string }): Promise<FlashcardSetItem> {
     const res = await fetch(`${API_BASE}/api/v1/flashcards/sets/${setId}`, {
       method: 'PATCH',
@@ -1188,26 +1434,6 @@ export const client = {
 
   async deleteFlashcardSet(setId: string): Promise<{ success: boolean }> {
     const res = await fetch(`${API_BASE}/api/v1/flashcards/sets/${setId}`, {
-      method: 'DELETE',
-    });
-    if (!res.ok) throw await parseApiError(res);
-    const json = await res.json();
-    return json.data;
-  },
-
-  async updateFlashcard(cardId: string, payload: { front?: string; back?: string; position?: number }): Promise<FlashcardItem> {
-    const res = await fetch(`${API_BASE}/api/v1/flashcards/cards/${cardId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    if (!res.ok) throw await parseApiError(res);
-    const json = await res.json();
-    return json.data;
-  },
-
-  async deleteFlashcard(cardId: string): Promise<{ success: boolean }> {
-    const res = await fetch(`${API_BASE}/api/v1/flashcards/cards/${cardId}`, {
       method: 'DELETE',
     });
     if (!res.ok) throw await parseApiError(res);
@@ -1278,6 +1504,81 @@ export const client = {
     if (!res.ok) throw await parseApiError(res);
     const json = await res.json();
     return json.data;
+  },
+
+  // ─── LLM Inspection (System Prompts & Token Usage) ───
+  async getPrompts(): Promise<{ prompts: SystemPrompt[] }> {
+    const res = await fetch(`${API_BASE}/api/prompts`);
+    if (!res.ok) {
+      const err = await parseApiError(res);
+      throw err;
+    }
+    return res.json();
+  },
+
+  async updatePrompt(key: string, customPrompt: string): Promise<{ prompt: SystemPrompt }> {
+    const res = await fetch(`${API_BASE}/api/prompts/${key}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ custom_prompt: customPrompt }),
+    });
+    if (!res.ok) {
+      const err = await parseApiError(res);
+      throw err;
+    }
+    return res.json();
+  },
+
+  async resetPrompt(key: string): Promise<{ prompt: SystemPrompt }> {
+    const res = await fetch(`${API_BASE}/api/prompts/${key}/reset`, {
+      method: 'POST',
+    });
+    if (!res.ok) {
+      const err = await parseApiError(res);
+      throw err;
+    }
+    return res.json();
+  },
+
+  async resetAllPrompts(): Promise<{ status: string; prompts: SystemPrompt[] }> {
+    const res = await fetch(`${API_BASE}/api/prompts/reset-all`, {
+      method: 'POST',
+    });
+    if (!res.ok) {
+      const err = await parseApiError(res);
+      throw err;
+    }
+    return res.json();
+  },
+
+  async getTokenUsageSummary(days?: number): Promise<TokenUsageSummary> {
+    const url = days ? `${API_BASE}/api/token-usage/summary?days=${days}` : `${API_BASE}/api/token-usage/summary`;
+    const res = await fetch(url);
+    if (!res.ok) {
+      const err = await parseApiError(res);
+      throw err;
+    }
+    return res.json();
+  },
+
+  async getTokenUsageHistory(limit: number = 100, offset: number = 0): Promise<{ logs: TokenLogEntry[] }> {
+    const res = await fetch(`${API_BASE}/api/token-usage/history?limit=${limit}&offset=${offset}`);
+    if (!res.ok) {
+      const err = await parseApiError(res);
+      throw err;
+    }
+    return res.json();
+  },
+
+  async clearTokenUsage(): Promise<{ status: string; message: string }> {
+    const res = await fetch(`${API_BASE}/api/token-usage`, {
+      method: 'DELETE',
+    });
+    if (!res.ok) {
+      const err = await parseApiError(res);
+      throw err;
+    }
+    return res.json();
   },
 };
 

@@ -11,10 +11,11 @@ import {
   setIsNotesOpen,
   setActiveTopicCards,
   setSearchQuery,
-  setPdfTheme
+  setPdfTheme,
+  clearExamScope
 } from '../store/readerSlice';
 import { client, type Book, type Topic, type Flashcard, type PdfAnnotation, type AtomicConcept } from '../api/client';
-import { Loader2, Zap, PenTool, Link2, BrainCircuit, Play, FileText, ChevronRight, ChevronLeft, CheckCircle2, Circle, Clock, Check, X, Edit2, Trash2, BookOpen, ArrowLeft, LayoutList, ChevronDown, Search, Save, Sun, Moon, MoreHorizontal, Bot, Copy, Target, Sparkles, Layers, ChevronsDownUp, ChevronsUpDown } from 'lucide-react';
+import { Loader2, Zap, PenTool, Link2, BrainCircuit, Play, FileText, ChevronRight, ChevronLeft, CheckCircle2, Circle, Clock, Check, X, Edit2, Trash2, BookOpen, ArrowLeft, LayoutList, ChevronDown, Search, Save, Sun, Moon, MoreHorizontal, Bot, Copy, Target, Sparkles, Layers, ChevronsDownUp, ChevronsUpDown, GraduationCap } from 'lucide-react';
 import { MarkdownRenderer } from '../components/MarkdownRenderer';
 import clsx from 'clsx';
 import { FlashcardGenModal } from '../components/FlashcardGenModal';
@@ -27,6 +28,7 @@ import type { PdfSelection } from '../components/PdfViewer';
 import { PdfCommandPalette, type PdfCommandType } from '../components/PdfCommandPalette';
 import { preprocessMarkdown } from '../utils/markdown';
 import { SocraticDrillWidget } from '../components/SocraticDrillWidget';
+import { FlashcardGenWidget } from '../components/FlashcardGenWidget';
 import { loadSettings, saveSetting, saveSettingsStore } from '../api/settingsStore';
 import { useToast } from '../hooks/useToast';
 import type { ApiError } from '../api/errors';
@@ -43,7 +45,8 @@ export function BookDetailView() {
     isPdfDrawerOpen,
     isNotesOpen,
     activeTopicCards,
-    pdfTheme
+    pdfTheme,
+    examScopeTopicIds
   } = useSelector((state: RootState) => state.reader);
 
   // Resizable TOC sidebar state
@@ -54,6 +57,7 @@ export function BookDetailView() {
   const MAX_TOC_WIDTH = 480; // max 480px (120 * 4)
 
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [isChatExpanded, setIsChatExpanded] = useState(false);
 
   const [book, setBook] = useState<Book | null>(null);
   const [topics, setTopics] = useState<Topic[]>([]);
@@ -62,6 +66,12 @@ export function BookDetailView() {
   const [collapsedParents, setCollapsedParents] = useState<Set<number>>(new Set());
   const [isRelatedModalOpen, setIsRelatedModalOpen] = useState(false);
   const [isPracticeModalOpen, setIsPracticeModalOpen] = useState(false);
+  const [practiceModalConfig, setPracticeModalConfig] = useState<{
+    isOpen: boolean;
+    topicId: number;
+    topicName: string;
+    cards: Flashcard[];
+  } | null>(null);
   const [pdfNumPages, setPdfNumPages] = useState<number>(1);
   const [processingProgress, setProcessingProgress] = useState<{
     stage?: string;
@@ -84,8 +94,9 @@ export function BookDetailView() {
   const [isNotesExpanded, setIsNotesExpanded] = useState(false);
   const drillWidgetRef = useRef<HTMLDivElement>(null);
 
-  // PDF Annotation state
-  const [activeCardTab, setActiveCardTab] = useState<'cards' | 'notes'>('cards');
+  // Topic sub-tab ('concepts' | 'flashcards') & card scope filter
+  const [topicTab, setTopicTab] = useState<'concepts' | 'flashcards'>('concepts');
+  const [selectedCardScope, setSelectedCardScope] = useState<string>('all');
   const { showToast } = useToast();
   const [annotations, setAnnotations] = useState<PdfAnnotation[]>([]);
   const [isAnnotationLoading, setIsAnnotationLoading] = useState(false);
@@ -109,6 +120,15 @@ export function BookDetailView() {
 
   // Ref to track if activeTopicId change was triggered by scrolling
   const isScrollingRef = useRef(false);
+  const readingStateTimeoutRef = useRef<any>(null);
+
+  useEffect(() => {
+    return () => {
+      if (readingStateTimeoutRef.current) {
+        clearTimeout(readingStateTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -146,6 +166,7 @@ export function BookDetailView() {
           setAnnotations(annotationsData);
 
           const topicParam = searchParams.get('topic');
+          const pageParam = searchParams.get('page');
           if (topicParam) {
             const parsedTopicId = parseInt(topicParam, 10);
             if (!isNaN(parsedTopicId)) {
@@ -154,6 +175,16 @@ export function BookDetailView() {
               if (targetTopic) {
                 setPdfScrollCommand({ page: targetTopic.start_page, ts: Date.now() });
               }
+            }
+          } else if (pageParam) {
+            const parsedPage = parseInt(pageParam, 10);
+            if (!isNaN(parsedPage) && parsedPage > 0) {
+              setPdfScrollCommand({ page: parsedPage, ts: Date.now() });
+            }
+          } else if (bookData.last_read_page && bookData.last_read_page > 1) {
+            setPdfScrollCommand({ page: bookData.last_read_page, ts: Date.now() });
+            if (bookData.last_topic_id) {
+              dispatch(setActiveTopicId(bookData.last_topic_id));
             }
           }
         }
@@ -196,6 +227,7 @@ export function BookDetailView() {
     setEditingCardId(null);
     setCurrentCardIndex(0);
     setSelectedDrillConcept(null);
+    setSelectedCardScope('all');
   }, [activeTopicId, dispatch]);
 
   // Restore PDF scroll position on mount if we already have an active topic
@@ -296,6 +328,45 @@ export function BookDetailView() {
     }
   };
 
+  const handlePracticeTopic = useCallback(async (tId: number, tName: string) => {
+    try {
+      const cards = await client.getTopicFlashcards(tId);
+      if (!cards || cards.length === 0) {
+        showToast('info', `No flashcards generated yet for "${tName}".`);
+        return;
+      }
+      setPracticeModalConfig({
+        isOpen: true,
+        topicId: tId,
+        topicName: tName,
+        cards,
+      });
+    } catch (err: any) {
+      showToast('error', `Failed to load cards: ${err.message || err}`);
+    }
+  }, [showToast]);
+
+  const handlePracticeExamScope = useCallback(async (tIds: number[]) => {
+    try {
+      showToast('info', 'Gathering exam flashcards...');
+      const cardPromises = tIds.map(tId => client.getTopicFlashcards(tId).catch(() => []));
+      const cardArrays = await Promise.all(cardPromises);
+      const allCards = cardArrays.flat();
+      if (allCards.length === 0) {
+        showToast('info', 'No flashcards found for these exam topics yet.');
+        return;
+      }
+      setPracticeModalConfig({
+        isOpen: true,
+        topicId: tIds[0],
+        topicName: `Exam Scope Sprint (${tIds.length} Topics)`,
+        cards: allCards,
+      });
+    } catch (err: any) {
+      showToast('error', `Failed to load exam cards: ${err.message || err}`);
+    }
+  }, [showToast]);
+
   const filteredTopics = useMemo(() => {
     // 1. Build tree to ensure parent-child ordering regardless of DB sort_order
     type TreeNode = Topic & { children: TreeNode[] };
@@ -334,6 +405,11 @@ export function BookDetailView() {
 
     let result = flattened;
 
+    // Apply exam scope filter if active
+    if (examScopeTopicIds && examScopeTopicIds.length > 0) {
+      result = result.filter(t => examScopeTopicIds.includes(t.id));
+    }
+
     // 3. Apply search filter
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
@@ -357,7 +433,7 @@ export function BookDetailView() {
     }
 
     return result;
-  }, [topics, searchQuery, collapsedParents]);
+  }, [topics, searchQuery, collapsedParents, examScopeTopicIds]);
 
   const rowVirtualizer = useVirtualizer({
     count: filteredTopics.length,
@@ -367,6 +443,30 @@ export function BookDetailView() {
   });
 
   const activeTopic = topics.find(t => t.id === activeTopicId);
+
+  const activeTopicAtomicConcepts = useMemo<AtomicConcept[]>(() => {
+    if (!activeTopic?.atomic_concepts) return [];
+    try {
+      return JSON.parse(activeTopic.atomic_concepts);
+    } catch {
+      return [];
+    }
+  }, [activeTopic?.atomic_concepts]);
+
+  const filteredCards = useMemo(() => {
+    if (selectedCardScope === 'all') return activeTopicCards;
+    return activeTopicCards.filter(c => c.topic_name === selectedCardScope);
+  }, [activeTopicCards, selectedCardScope]);
+
+  const cardScopes = useMemo(() => {
+    const scopes = new Set<string>();
+    activeTopicCards.forEach(c => {
+      if (c.topic_name) scopes.add(c.topic_name);
+    });
+    return Array.from(scopes);
+  }, [activeTopicCards]);
+
+  const safeCardIndex = Math.min(currentCardIndex, Math.max(0, filteredCards.length - 1));
 
   const handleDeleteCard = async (cardId: number) => {
     if (!confirm("Delete this flashcard?")) return;
@@ -428,7 +528,17 @@ export function BookDetailView() {
         });
       }
     }
-  }, [topics, activeTopicId, dispatch]);
+
+    // Persist reading state (debounced by 1s)
+    if (readingStateTimeoutRef.current) {
+      clearTimeout(readingStateTimeoutRef.current);
+    }
+    readingStateTimeoutRef.current = setTimeout(() => {
+      if (bookId) {
+        client.updateReadingState(bookId, pageNumber, bestTopic?.id);
+      }
+    }, 1000);
+  }, [topics, activeTopicId, dispatch, bookId]);
 
   // Effect to scroll the TOC when activeTopicId changes (from PDF scrolling)
   useEffect(() => {
@@ -463,7 +573,7 @@ export function BookDetailView() {
     <div className="flex-1 flex overflow-hidden bg-surface h-full w-full relative">
 
       {/* Left Sidebar: TOC - Resizable */}
-      <aside 
+      <aside
         id="toc-sidebar"
         className={clsx(
           "shrink-0 min-w-0 border-r-2 border-on-surface bg-surface-container-lowest flex flex-col h-[calc(100vh-64px)] sticky top-0 overflow-hidden z-10 transition-[width] duration-200 ease-out",
@@ -474,7 +584,7 @@ export function BookDetailView() {
         <div className="h-16 px-4 flex items-center border-b-2 border-on-surface bg-surface-container-lowest shrink-0 min-w-[240px]">
           <span className="font-bold text-2xl text-primary tracking-tight">Recall AI</span>
         </div>
-        
+
         <div className="p-4 border-b border-outline-variant bg-surface-container-lowest shrink-0 min-w-[240px]">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-xl font-bold text-on-surface">Topics</h2>
@@ -521,6 +631,24 @@ export function BookDetailView() {
           </div>
         </div>
 
+        {examScopeTopicIds && examScopeTopicIds.length > 0 && (
+          <div className="mx-4 my-2.5 p-2 bg-primary/10 border-2 border-primary rounded-lg flex items-center justify-between shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] shrink-0 animate-in fade-in">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <GraduationCap size={15} className="text-primary shrink-0" />
+              <span className="text-xs font-bold text-primary truncate">
+                Exam Scope ({filteredTopics.length} Topics)
+              </span>
+            </div>
+            <button 
+              onClick={() => dispatch(clearExamScope())}
+              className="text-[11px] font-black text-on-surface-variant hover:text-red-500 uppercase tracking-wider shrink-0 transition-colors ml-2"
+              title="Exit Exam Scope and show all topics"
+            >
+              Exit
+            </button>
+          </div>
+        )}
+
         <div ref={listRef} className="flex-1 overflow-y-auto">
           <div style={{ height: `${rowVirtualizer.getTotalSize()}px`, width: '100%', position: 'relative' }}>
             {rowVirtualizer.getVirtualItems().map((virtualRow) => {
@@ -540,9 +668,9 @@ export function BookDetailView() {
                   }}
                   className={clsx(
                     "absolute top-0 left-0 w-full flex items-center text-left transition-colors group",
-                    isSelected 
-                      ? "bg-primary/10 text-primary font-semibold z-10 rounded-md" 
-                      : "text-on-surface-variant hover:bg-surface-container hover:text-on-surface rounded-md"
+                    isSelected
+                      ? "bg-primary/10 border-l-4 border-primary text-primary font-bold z-10"
+                      : "text-on-surface hover:bg-surface-container hover:text-primary border-l-4 border-transparent"
                   )}
                   style={{
                     height: `${virtualRow.size}px`,
@@ -611,11 +739,11 @@ export function BookDetailView() {
           </div>
         ) : (
           <>
-            <div 
+            <div
               className={clsx(
                 "flex flex-col bg-surface",
-                viewMode === 'pdf' 
-                  ? "flex-1 relative h-full" 
+                viewMode === 'pdf'
+                  ? "flex-1 relative h-full"
                   : "absolute inset-0 opacity-0 pointer-events-none z-[-1]"
               )}
               inert={viewMode !== 'pdf' ? true : undefined}
@@ -659,7 +787,7 @@ export function BookDetailView() {
                   {annotations.length > 0 && (
                     <button
                       onClick={() => window.open(`http://127.0.0.1:8000/books/${bookId}/export-annotated`, '_blank')}
-                      className="text-xs font-semibold text-primary bg-surface-container-low hover:bg-surface-container px-3 py-1.5 transition-colors border border-border-default rounded-md shadow-xs"
+                      className="text-label-sm font-bold text-primary bg-tertiary-fixed px-3 py-1.5 transition-colors border-[3px] border-primary neo-shadow-sm active-neo-press"
                     >
                       Export PDF
                     </button>
@@ -673,136 +801,136 @@ export function BookDetailView() {
               <div className="flex-1 min-h-0 relative">
                 <ErrorBoundary>
                   <Suspense fallback={<div className="flex flex-col items-center justify-center h-full"><Loader2 className="animate-spin text-accent-blue w-8 h-8 mb-4" /><p className="text-sm font-medium text-on-surface-variant">Loading PDF Viewer...</p></div>}>
-                  <PdfViewer
-                    theme={pdfTheme}
-                    url={`http://127.0.0.1:8000/books/${bookId}/pdf`}
-                    scrollCommand={pdfScrollCommand}
-                    annotations={annotations}
-                    onLoadSuccess={(num) => {
-                      setPdfNumPages(num);
-                    }}
-                    onPageVisible={handlePdfPageVisible}
-                    renderSelectionOverlay={(sel, cancelSelection) => (
-                      <PdfCommandPalette
-                        selection={sel}
-                        position={{ x: 0, y: 0 }}
-                        onDismiss={() => {
-                          cancelSelection();
-                        }}
-                        onCommand={async (type, options) => {
-                          const rectJson = JSON.stringify(sel.position);
-                          setIsAnnotationLoading(true);
-                          try {
-                            if (type === 'add_sidenote') {
-                              await client.createAnnotation(bookId, {
-                                page_number: sel.pageNumber,
-                                annotation_type: 'sidenote',
-                                selected_text: sel.text,
-                                rect_json: rectJson,
-                                content: options?.note || '',
-                              });
-                            } else if (type === 'explain_ai') {
-                              if (options?.pin_content) {
+                    <PdfViewer
+                      theme={pdfTheme}
+                      url={`http://127.0.0.1:8000/books/${bookId}/pdf`}
+                      scrollCommand={pdfScrollCommand}
+                      annotations={annotations}
+                      onLoadSuccess={(num) => {
+                        setPdfNumPages(num);
+                      }}
+                      onPageVisible={handlePdfPageVisible}
+                      renderSelectionOverlay={(sel, cancelSelection) => (
+                        <PdfCommandPalette
+                          selection={sel}
+                          position={{ x: 0, y: 0 }}
+                          onDismiss={() => {
+                            cancelSelection();
+                          }}
+                          onCommand={async (type, options) => {
+                            const rectJson = JSON.stringify(sel.position);
+                            setIsAnnotationLoading(true);
+                            try {
+                              if (type === 'add_sidenote') {
                                 await client.createAnnotation(bookId, {
                                   page_number: sel.pageNumber,
-                                  annotation_type: 'ai_explanation',
+                                  annotation_type: 'sidenote',
                                   selected_text: sel.text,
                                   rect_json: rectJson,
-                                  content: options.pin_content,
-                                  custom_prompt: options?.prompt,
+                                  content: options?.note || '',
                                 });
-                              } else {
-                                const res = await client.explainText(bookId, {
-                                  selected_text: sel.text,
-                                  custom_prompt: options?.prompt,
-                                  page_number: sel.pageNumber,
-                                  rect_json: rectJson,
-                                  save: !options?.preview,
-                                  provider_override: activeProvider,
-                                });
-                                if (options?.preview) return res;
+                              } else if (type === 'explain_ai') {
+                                if (options?.pin_content) {
+                                  await client.createAnnotation(bookId, {
+                                    page_number: sel.pageNumber,
+                                    annotation_type: 'ai_explanation',
+                                    selected_text: sel.text,
+                                    rect_json: rectJson,
+                                    content: options.pin_content,
+                                    custom_prompt: options?.prompt,
+                                  });
+                                } else {
+                                  const res = await client.explainText(bookId, {
+                                    selected_text: sel.text,
+                                    custom_prompt: options?.prompt,
+                                    page_number: sel.pageNumber,
+                                    rect_json: rectJson,
+                                    save: !options?.preview,
+                                    provider_override: activeProvider,
+                                  });
+                                  if (options?.preview) return res;
+                                }
+                              } else if (type === 'generate_flashcards') {
+                                if (options?.pin_content) {
+                                  await client.createAnnotation(bookId, {
+                                    page_number: sel.pageNumber,
+                                    annotation_type: 'flashcard_link',
+                                    selected_text: sel.text,
+                                    rect_json: rectJson,
+                                    content: options.pin_content,
+                                    custom_prompt: options?.prompt,
+                                  });
+                                } else {
+                                  const res = await client.generateFlashcardsFromSelection(bookId, {
+                                    selected_text: sel.text,
+                                    custom_prompt: options?.prompt,
+                                    count: options?.count || 5,
+                                    page_number: sel.pageNumber,
+                                    rect_json: rectJson,
+                                    save: !options?.preview,
+                                    provider_override: activeProvider,
+                                  });
+                                  if (options?.preview) return res;
+                                }
+                              } else if (type === 'send_to_notes') {
+                                if (activeTopic) {
+                                  const quoteContent = options?.note
+                                    ? `> "${sel.text}"\n\n*Source: Page ${sel.pageNumber}*\n\n**Note:** ${options.note}`
+                                    : `> "${sel.text}"\n\n*Source: Page ${sel.pageNumber}*`;
+                                  await client.appendNote(activeTopic.id, quoteContent, `Page ${sel.pageNumber} Excerpt`);
+                                  showToast('success', `Quotation added to Study Notes for "${activeTopic.title}"`);
+                                  dispatch(setIsNotesOpen(true));
+                                } else {
+                                  showToast('info', 'Please select a topic from outline to attach notes to.');
+                                }
                               }
-                            } else if (type === 'generate_flashcards') {
-                              if (options?.pin_content) {
-                                await client.createAnnotation(bookId, {
-                                  page_number: sel.pageNumber,
-                                  annotation_type: 'flashcard_link',
-                                  selected_text: sel.text,
-                                  rect_json: rectJson,
-                                  content: options.pin_content,
-                                  custom_prompt: options?.prompt,
-                                });
-                              } else {
-                                const res = await client.generateFlashcardsFromSelection(bookId, {
-                                  selected_text: sel.text,
-                                  custom_prompt: options?.prompt,
-                                  count: options?.count || 5,
-                                  page_number: sel.pageNumber,
-                                  rect_json: rectJson,
-                                  save: !options?.preview,
-                                  provider_override: activeProvider,
-                                });
-                                if (options?.preview) return res;
-                              }
-                            } else if (type === 'send_to_notes') {
-                              if (activeTopic) {
-                                const quoteContent = options?.note
-                                  ? `> "${sel.text}"\n\n*Source: Page ${sel.pageNumber}*\n\n**Note:** ${options.note}`
-                                  : `> "${sel.text}"\n\n*Source: Page ${sel.pageNumber}*`;
-                                await client.appendNote(activeTopic.id, quoteContent, `Page ${sel.pageNumber} Excerpt`);
-                                showToast('success', `Quotation added to Study Notes for "${activeTopic.title}"`);
-                                dispatch(setIsNotesOpen(true));
-                              } else {
-                                showToast('info', 'Please select a topic from outline to attach notes to.');
-                              }
-                            }
 
-                            // Refresh annotations if we actually saved
-                            if (!options?.preview) {
-                              cancelSelection();
-                              const updated = await client.getAnnotations(bookId);
-                              setAnnotations(updated);
+                              // Refresh annotations if we actually saved
+                              if (!options?.preview) {
+                                cancelSelection();
+                                const updated = await client.getAnnotations(bookId);
+                                setAnnotations(updated);
+                              }
+                            } catch (err: any) {
+                              console.error(`Annotation command '${type}' failed:`, err);
+                              showToast('error', err?.userMessage || `Annotation command failed.`, err?.debugDetail);
+                            } finally {
+                              setIsAnnotationLoading(false);
                             }
-                          } catch (err: any) {
-                            console.error(`Annotation command '${type}' failed:`, err);
-                            showToast('error', err?.userMessage || `Annotation command failed.`, err?.debugDetail);
-                          } finally {
-                            setIsAnnotationLoading(false);
-                          }
-                        }}
-                      />
-                    )}
-                    onDeleteAnnotation={async (id) => {
-                      try {
-                        await client.deleteAnnotation(id);
-                        const updated = await client.getAnnotations(bookId);
-                        setAnnotations(updated);
-                      } catch (e: any) {
-                        console.error("Failed to delete annotation:", e);
-                        showToast('error', e?.userMessage || 'Failed to delete annotation.', e?.debugDetail);
-                      }
-                    }}
-                    onUpdateAnnotation={async (id, content) => {
-                      try {
-                        await client.updateAnnotation(id, content);
-                        const updated = await client.getAnnotations(bookId);
-                        setAnnotations(updated);
-                      } catch (e: any) {
-                        console.error("Failed to update annotation:", e);
-                        showToast('error', e?.userMessage || 'Failed to update annotation.', e?.debugDetail);
-                      }
-                    }}
-                  />
+                          }}
+                        />
+                      )}
+                      onDeleteAnnotation={async (id) => {
+                        try {
+                          await client.deleteAnnotation(id);
+                          const updated = await client.getAnnotations(bookId);
+                          setAnnotations(updated);
+                        } catch (e: any) {
+                          console.error("Failed to delete annotation:", e);
+                          showToast('error', e?.userMessage || 'Failed to delete annotation.', e?.debugDetail);
+                        }
+                      }}
+                      onUpdateAnnotation={async (id, content) => {
+                        try {
+                          await client.updateAnnotation(id, content);
+                          const updated = await client.getAnnotations(bookId);
+                          setAnnotations(updated);
+                        } catch (e: any) {
+                          console.error("Failed to update annotation:", e);
+                          showToast('error', e?.userMessage || 'Failed to update annotation.', e?.debugDetail);
+                        }
+                      }}
+                    />
                   </Suspense>
                 </ErrorBoundary>
               </div>
             </div>
             {/* Markdown Viewer */}
-            <div 
+            <div
               className={clsx(
                 "flex flex-col bg-surface",
-                viewMode === 'markdown' 
-                  ? "flex-1 relative h-full" 
+                viewMode === 'markdown'
+                  ? "flex-1 relative h-full"
                   : "absolute inset-0 opacity-0 pointer-events-none z-[-1]"
               )}
               inert={viewMode !== 'markdown' ? true : undefined}
@@ -852,8 +980,8 @@ export function BookDetailView() {
                   )}
                 </div>
               </div>
-                <div className="flex-1 min-h-0 overflow-y-auto p-4 md:p-8 bg-surface-container custom-scrollbar">
-                  <div className="max-w-4xl mx-auto bg-surface-container-lowest p-8 md:p-12 rounded-xl shadow-sm border-2 border-primary prose prose-slate dark:prose-invert prose-p:text-on-surface prose-headings:text-on-surface prose-strong:text-on-surface prose-li:text-on-surface prose-pre:bg-surface prose-table:border-collapse prose-table:w-full prose-th:bg-surface-container-low prose-th:p-3 prose-th:border-2 prose-th:border-primary prose-th:text-on-surface prose-td:p-3 prose-td:border-2 prose-td:border-primary prose-td:text-on-surface">
+              <div className="flex-1 min-h-0 overflow-y-auto p-4 md:p-8 bg-surface-container custom-scrollbar">
+                <div className="max-w-4xl mx-auto bg-surface-container-lowest p-8 md:p-12 rounded-xl shadow-sm border-2 border-primary prose prose-slate dark:prose-invert prose-p:text-on-surface prose-headings:text-on-surface prose-strong:text-on-surface prose-li:text-on-surface prose-pre:bg-surface prose-table:border-collapse prose-table:w-full prose-th:bg-surface-container-low prose-th:p-3 prose-th:border-2 prose-th:border-primary prose-th:text-on-surface prose-td:p-3 prose-td:border-2 prose-td:border-primary prose-td:text-on-surface">
                   {activeTopic?.content_md ? (
                     <MarkdownRenderer content={activeTopic.content_md} />
                   ) : (
@@ -866,555 +994,752 @@ export function BookDetailView() {
             </div>
             <div className={clsx("flex-1 flex justify-center h-full overflow-y-auto custom-scrollbar", viewMode !== 'topics' && "hidden")}>
               <div className="w-full max-w-5xl flex flex-col min-h-full">
-              {/* Header */}
-              <div className="px-5 pt-3 flex items-center justify-between text-sm text-outline">
-                <div className="flex items-center gap-1">
-                  {isTocCollapsed && (
-                    <button 
-                      onClick={() => setIsTocCollapsed(false)}
-                      className="bg-surface-container-lowest border-2 border-on-surface rounded-md p-1.5 hover:bg-surface-container shadow-[2px_2px_0px_0px_#191b23] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none text-on-surface mr-3 flex items-center justify-center shrink-0 transition-all"
-                      title="Show Outline"
-                    >
-                      <LayoutList size={20} />
-                    </button>
-                  )}
-                  <Link to="/" className="hover:text-primary transition-colors truncate max-w-[200px]">{book.title}</Link>
-                  <ChevronRight size={16} />
-                  <span className="truncate max-w-[200px]">{activeTopic.breadcrumb || 'Chapter'}</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="px-3 py-1 bg-surface-container rounded-full border border-outline-variant font-bold text-on-surface">
-                    Target: p. {activeTopic.start_page}
-                  </span>
-                  {/* <button className="w-8 h-8 flex items-center justify-center rounded-full bg-surface-container hover:bg-surface-variant transition-colors border border-outline-variant">
+                {/* Header */}
+                <div className="px-5 pt-3 flex items-center justify-between text-sm text-outline">
+                  <div className="flex items-center gap-1">
+                    {isTocCollapsed && (
+                      <button
+                        onClick={() => setIsTocCollapsed(false)}
+                        className="bg-surface-container-lowest border-2 border-on-surface rounded-md p-1.5 hover:bg-surface-container shadow-[2px_2px_0px_0px_#191b23] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none text-on-surface mr-3 flex items-center justify-center shrink-0 transition-all"
+                        title="Show Outline"
+                      >
+                        <LayoutList size={20} />
+                      </button>
+                    )}
+                    <Link to="/" className="hover:text-primary transition-colors truncate max-w-[200px]">{book.title}</Link>
+                    <ChevronRight size={16} />
+                    <span className="truncate max-w-[200px]">{activeTopic.breadcrumb || 'Chapter'}</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="px-3 py-1 bg-surface-container rounded-full border border-outline-variant font-bold text-on-surface">
+                      Target: p. {activeTopic.start_page}
+                    </span>
+                    {/* <button className="w-8 h-8 flex items-center justify-center rounded-full bg-surface-container hover:bg-surface-variant transition-colors border border-outline-variant">
                     <MoreHorizontal size={18} className="text-on-surface" />
                   </button> */}
-                </div>
-              </div>
-
-              {processingProgress && (
-                <div className="px-5 mt-2 mb-2">
-                  <div className="bg-amber-500/10 border-2 border-amber-500 text-amber-700 px-4 py-3 rounded-xl shadow-[4px_4px_0px_0px_var(--color-amber-500)] flex items-center gap-3">
-                    <Loader2 className="animate-spin shrink-0" size={20} />
-                    <div className="flex-1 min-w-0">
-                      <h4 className="font-bold text-sm truncate">
-                        {processingProgress.stage === 'processing_child'
-                          ? `Extracting Subtopic ${processingProgress.current || 1} of ${processingProgress.total || 1}...`
-                          : (processingProgress.stage === 'parent_decomposition'
-                            ? 'Decomposing Chapter into Subtopics...'
-                            : 'Processing Topic...')}
-                      </h4>
-                      <p className="text-xs font-medium opacity-80 mt-0.5 truncate">
-                        {processingProgress.child_title
-                          ? processingProgress.child_title
-                          : (processingProgress.message || (processingProgress.stage || processingProgress.status || 'processing').replace(/_/g, ' '))}
-                        {processingProgress.progress !== undefined ? ` (${processingProgress.progress}%)` : ''}
-                      </p>
-                    </div>
                   </div>
                 </div>
-              )}
 
-              <div ref={drillWidgetRef} className="px-5 mt-2">
-                <SocraticDrillWidget
-                  topicId={activeTopic.id}
-                  topicTitle={activeTopic.title}
-                  targetConcept={selectedDrillConcept}
-                  onClearTargetConcept={() => setSelectedDrillConcept(null)}
-                  hasCachedMarkdown={!!activeTopic.content_md}
-                  onMasteryUpdate={(score, status, conceptName) => {
-                    // Refresh topics to update TOC and concept deck mastery indicators
-                    client.getTopics(bookId).then(setTopics).catch((err: any) => {
-                      console.error(err);
-                      showToast('error', err?.userMessage || 'Failed to refresh topics.', err?.debugDetail);
-                    });
-                  }}
-                />
-              </div>
-
-              {/* Quick Actions Bar */}
-              <div className="px-5 mt-2 flex overflow-x-auto gap-3 pb-1 hide-scrollbar snap-x snap-mandatory items-center">
-                {(topics.length <= 1 || activeTopic.title === 'Full Document') && (
-                  <button
-                    onClick={async () => {
-                      try {
-                        showToast('info', 'Analyzing handwritten outline with Marker...');
-                        const res = await client.reparseHandwriting(bookId);
-                        const updated = await client.getTopics(bookId);
-                        setTopics(updated);
-                        if (updated.length > 0) {
-                          dispatch(setActiveTopicId(updated[0].id));
-                        }
-                        showToast('success', `Generated ${res.topic_count} topics from handwriting!`);
-                      } catch (e: any) {
-                        showToast('error', e?.userMessage || 'Failed to analyze handwriting.');
-                      }
-                    }}
-                    className="snap-start shrink-0 bg-amber-500/10 border-2 border-amber-600 text-amber-700 dark:text-amber-300 rounded-lg px-3 py-1.5 flex items-center gap-2 hover:bg-amber-500/20 shadow-[2px_2px_0px_0px_#d97706] active:shadow-none active:translate-x-[1px] active:translate-y-[1px] transition-all h-9 font-bold text-xs"
-                    title="Extract structured chapters and topics from handwritten notes using Marker"
-                  >
-                    <Sparkles size={16} className="text-amber-600 dark:text-amber-400" />
-                    <span>Analyze Handwriting Outline</span>
-                  </button>
-                )}
-                <button
-                  onClick={() => {
-                    setViewMode('pdf');
-                    setPdfScrollCommand({ page: activeTopic.start_page, ts: Date.now() });
-                  }}
-                  className="snap-start shrink-0 bg-surface-container-lowest border-2 border-on-surface rounded-lg px-3 py-1.5 flex items-center gap-2 hover:bg-surface-container shadow-[2px_2px_0px_0px_#191b23] active:shadow-none active:translate-x-[1px] active:translate-y-[1px] transition-all h-9 text-on-surface"
-                >
-                  <FileText size={16} />
-                  <span className="font-bold text-xs">View PDF</span>
-                </button>
-                {activeTopic.content_md && (
-                  <button
-                    onClick={() => setViewMode('markdown')}
-                    className="snap-start shrink-0 bg-surface-container-lowest border-2 border-on-surface rounded-lg px-3 py-1.5 flex items-center gap-2 hover:bg-surface-container shadow-[2px_2px_0px_0px_#191b23] active:shadow-none active:translate-x-[1px] active:translate-y-[1px] transition-all h-9 text-on-surface"
-                  >
-                    <FileText size={16} />
-                    <span className="font-bold text-xs">View Markdown</span>
-                  </button>
-                )}
-                <button
-                  onClick={handleProcessTopic}
-                  disabled={activeTopic.status === 'processing'}
-                  className="snap-start shrink-0 bg-primary/10 border-2 border-primary text-primary rounded-lg px-3 py-1.5 flex items-center gap-2 hover:bg-primary/20 shadow-[2px_2px_0px_0px_#191b23] active:shadow-none active:translate-x-[1px] active:translate-y-[1px] transition-all h-9 font-bold text-xs disabled:opacity-50 cursor-pointer"
-                  title="Extract atomic concepts to enable per-concept Socratic drills and mastery tracking"
-                >
-                  {activeTopic.status === 'processing' ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
-                  <span>{activeTopic.status === 'processed' ? 'Re-extract Concepts' : 'Extract Concepts'}</span>
-                </button>
-                <button
-                  onClick={() => dispatch(setIsCardGenModalOpen(true))}
-                  className="snap-start shrink-0 bg-surface-container-lowest border-2 border-on-surface rounded-lg px-3 py-1.5 flex items-center gap-2 hover:bg-surface-container shadow-[2px_2px_0px_0px_#191b23] active:shadow-none active:translate-x-[1px] active:translate-y-[1px] transition-all h-9 text-on-surface"
-                >
-                  <Zap size={16} />
-                  <span className="font-bold text-xs">Generate Flashcards</span>
-                </button>
-                <button
-                  onClick={() => dispatch(setIsNotesOpen(!isNotesOpen))}
-                  className={clsx(
-                    "snap-start shrink-0 bg-surface-container-lowest border-2 border-on-surface rounded-lg px-3 py-1.5 flex items-center gap-2 hover:bg-surface-container shadow-[2px_2px_0px_0px_#191b23] active:shadow-none active:translate-x-[1px] active:translate-y-[1px] transition-all h-9 text-on-surface",
-                    isNotesOpen && "bg-primary/10 text-primary border-primary"
-                  )}
-                >
-                  <PenTool size={16} />
-                  <span className="font-bold text-xs">Study Notes</span>
-                </button>
-              </div>
-
-              <div className="px-5 pb-4 flex flex-col gap-2 flex-1 min-h-0 mt-1">
-
-                {/* Atomic Concepts Deck */}
-                {(() => {
-                  let concepts: AtomicConcept[] = [];
-                  if (activeTopic.atomic_concepts) {
-                    try {
-                      concepts = JSON.parse(activeTopic.atomic_concepts);
-                    } catch {
-                      concepts = [];
-                    }
-                  }
-
-                  const masteredCount = concepts.filter(c => c.mastery_status === 'mastered').length;
-
-                  return (
-                    <div className="bg-surface-container-lowest border border-border-default rounded-xl shadow-xs p-6">
-                      <div 
-                        className="flex items-center justify-between mb-4 cursor-pointer group select-none"
-                        onClick={() => setIsSummaryCollapsed(!isSummaryCollapsed)}
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 border border-border-default bg-surface-container-low rounded-lg flex items-center justify-center text-primary group-hover:bg-primary/5 transition-colors">
-                            <Layers size={20} />
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-2.5">
-                              <h3 className="font-headline-md text-headline-md font-bold text-primary">
-                                Atomic Concepts ({concepts.length})
-                              </h3>
-                              {concepts.length > 0 && (
-                                <span className={clsx(
-                                  "text-xs font-bold px-2 py-0.5 rounded border uppercase tracking-wider",
-                                  masteredCount === concepts.length && concepts.length > 0
-                                    ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/30"
-                                    : "bg-surface-container text-on-surface-variant border-outline-variant"
-                                )}>
-                                  {masteredCount}/{concepts.length} Mastered
-                                </span>
-                              )}
-                            </div>
-                            <p className="text-label-sm font-label-sm font-bold uppercase tracking-wider text-secondary">
-                              Targeted Concept Mastery & Socratic Drills
-                            </p>
-                          </div>
-                        </div>
-                        <button className="p-2 text-on-surface-variant group-hover:text-primary group-hover:bg-surface-container rounded-full transition-colors">
-                          <ChevronDown 
-                            size={24} 
-                            className={clsx("transition-transform duration-200", !isSummaryCollapsed && "rotate-180")} 
-                          />
-                        </button>
-                      </div>
-                      
-                      {!isSummaryCollapsed && (
-                        <div className="animate-in fade-in slide-in-from-top-2 duration-200 space-y-4">
-                          {concepts.length > 0 ? (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                              {concepts.map((concept) => {
-                                const isTargeted = selectedDrillConcept?.name === concept.name;
-                                const score = concept.mastery_score;
-
-                                return (
-                                  <div
-                                    key={concept.id || concept.name}
-                                    className={clsx(
-                                      "border-[2.5px] rounded-xl p-4 flex flex-col justify-between gap-3 transition-all duration-200 shadow-[2px_2px_0px_0px_#191b23] hover:shadow-[4px_4px_0px_0px_#191b23] hover:-translate-y-[1px]",
-                                      isTargeted
-                                        ? "border-secondary bg-secondary/5 ring-2 ring-secondary/30"
-                                        : "border-on-background bg-surface-container-lowest"
-                                    )}
-                                  >
-                                    <div>
-                                      {/* Header: Title & Type Pill */}
-                                      <div className="flex items-start justify-between gap-2 mb-2">
-                                        <h4 className="font-bold text-base text-primary leading-snug">
-                                          {concept.name}
-                                        </h4>
-                                        <span className={clsx(
-                                          "text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded border shrink-0",
-                                          concept.concept_type === 'Formula' ? "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/30" :
-                                          concept.concept_type === 'Definition' ? "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30" :
-                                          concept.concept_type === 'Process Step' ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30" :
-                                          concept.concept_type === 'Comparison' ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30" :
-                                          "bg-slate-500/10 text-slate-600 dark:text-slate-300 border-slate-500/30"
-                                        )}>
-                                          {concept.concept_type}
-                                        </span>
-                                      </div>
-
-                                      {/* Summary */}
-                                      {concept.summary && (
-                                        <p className="text-xs text-on-surface-variant leading-relaxed line-clamp-3 mb-3">
-                                          {concept.summary}
-                                        </p>
-                                      )}
-
-                                      {/* Key Terms */}
-                                      {concept.key_terms && concept.key_terms.length > 0 && (
-                                        <div className="flex flex-wrap gap-1 mb-2">
-                                          {concept.key_terms.slice(0, 4).map((term, tIdx) => (
-                                            <span
-                                              key={tIdx}
-                                              className="text-[10px] font-bold px-1.5 py-0.5 bg-surface-container text-on-surface-variant rounded border border-outline-variant/60 uppercase"
-                                            >
-                                              {term}
-                                            </span>
-                                          ))}
-                                          {concept.key_terms.length > 4 && (
-                                            <span className="text-[10px] font-bold px-1 py-0.5 text-on-surface-variant/70">
-                                              +{concept.key_terms.length - 4} more
-                                            </span>
-                                          )}
-                                        </div>
-                                      )}
-                                    </div>
-
-                                    {/* Bottom: Mastery Progress & Drill Action */}
-                                    <div className="pt-2 border-t border-outline-variant/40 flex items-center justify-between gap-2 mt-auto">
-                                      {/* Mastery indicator */}
-                                      <div className="flex items-center gap-2">
-                                        <span className={clsx(
-                                          "text-xs font-bold px-2 py-0.5 rounded border uppercase tracking-wider",
-                                          concept.mastery_status === 'mastered' ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/40" :
-                                          concept.mastery_status === 'developing' ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/40" :
-                                          concept.mastery_status === 'fragile' ? "bg-orange-500/15 text-orange-600 dark:text-orange-400 border-orange-500/40" :
-                                          concept.mastery_status === 'misconception' ? "bg-red-500/15 text-red-600 dark:text-red-400 border-red-500/40" :
-                                          "bg-surface-container text-on-surface-variant border-outline-variant"
-                                        )}>
-                                          {score !== null && score !== undefined
-                                            ? `${score}% ${concept.mastery_status}`
-                                            : "Untested"}
-                                        </span>
-                                      </div>
-
-                                      {/* Drill Button */}
-                                      <button
-                                        onClick={() => {
-                                          setSelectedDrillConcept(concept);
-                                          drillWidgetRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                                          showToast('info', `Focused Socratic Drill on "${concept.name}"`);
-                                        }}
-                                        className={clsx(
-                                          "text-xs font-bold px-3 py-1.5 rounded-lg border-2 border-on-surface shadow-[1.5px_1.5px_0px_0px_#191b23] flex items-center gap-1.5 transition-all active:shadow-none active:translate-x-[1px] active:translate-y-[1px]",
-                                          isTargeted
-                                            ? "bg-secondary text-on-secondary ring-1 ring-secondary"
-                                            : "bg-primary text-on-primary hover:bg-academic-blue"
-                                        )}
-                                      >
-                                        <Target size={13} />
-                                        <span>{isTargeted ? "Active Drill" : "Drill Concept"}</span>
-                                      </button>
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          ) : (
-                            <div className="flex flex-col items-center justify-center p-8 border-2 border-dashed border-outline-variant rounded-xl text-center gap-3 bg-surface-container-low/40">
-                              <div className="w-12 h-12 rounded-full bg-primary/10 border-2 border-primary flex items-center justify-center text-primary">
-                                <Layers size={22} />
-                              </div>
-                              <div className="max-w-md">
-                                <h4 className="font-bold text-sm text-on-surface mb-1">
-                                  No atomic concepts extracted yet
-                                </h4>
-                                <p className="text-xs text-on-surface-variant leading-relaxed">
-                                  Extracting atomic concepts breaks this topic down into core invariants, formulas, and definitions — enabling targeted per-concept Socratic drills with diagnostic grading.
-                                </p>
-                              </div>
-                              <button
-                                onClick={handleProcessTopic}
-                                disabled={activeTopic.status === 'processing'}
-                                className="bg-primary text-on-primary font-bold text-xs px-5 py-2.5 rounded-lg border-2 border-on-surface shadow-[2px_2px_0px_0px_#191b23] flex items-center gap-2 hover:bg-academic-blue active:shadow-none active:translate-x-[1px] active:translate-y-[1px] transition-all disabled:opacity-50 cursor-pointer mt-1"
-                              >
-                                {activeTopic.status === 'processing' ? (
-                                  <>
-                                    <Loader2 size={15} className="animate-spin" />
-                                    <span>Extracting Atomic Concepts...</span>
-                                  </>
-                                ) : (
-                                  <>
-                                    <Zap size={15} />
-                                    <span>Extract Atomic Concepts</span>
-                                  </>
-                                )}
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })()}
-
-
-                {/* Flashcards List */}
-                <div className="flex flex-col flex-1 min-h-[400px] gap-2">
-                  <div className="flex items-center justify-between shrink-0">
-                    <h3 className="text-lg font-black uppercase tracking-tight flex items-center gap-3 text-on-surface">
-                      <span>Topic Flashcards</span>
-                      <span className="bg-primary text-white border-2 border-on-surface px-2.5 py-0.5 text-sm rounded-md shadow-[2px_2px_0px_0px_#191b23]">
-                        {activeTopicCards.length > 0 ? `${currentCardIndex + 1} / ${activeTopicCards.length}` : '0'}
-                      </span>
-                    </h3>
-                    {activeTopicCards.length > 0 && (
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => setCurrentCardIndex(Math.max(0, currentCardIndex - 1))}
-                          disabled={currentCardIndex === 0}
-                          className="bg-surface-container-lowest text-on-surface border-2 border-on-surface rounded-lg p-2 shadow-[2px_2px_0px_0px_#191b23] disabled:opacity-50 active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all"
-                        >
-                          <ChevronLeft size={20} />
-                        </button>
-                        <button
-                          onClick={() => setCurrentCardIndex(Math.min(activeTopicCards.length - 1, currentCardIndex + 1))}
-                          disabled={currentCardIndex === activeTopicCards.length - 1}
-                          className="bg-surface-container-lowest text-on-surface border-2 border-on-surface rounded-lg p-2 shadow-[2px_2px_0px_0px_#191b23] disabled:opacity-50 active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all"
-                        >
-                          <ChevronRight size={20} />
-                        </button>
-                        <button
-                          onClick={() => setIsPracticeModalOpen(true)}
-                          className="bg-primary text-on-primary border-2 border-on-surface rounded-lg px-5 py-2.5 text-sm font-bold flex items-center gap-2 shadow-[4px_4px_0px_0px_#191b23] active:shadow-none active:translate-x-[2px] active:translate-y-[2px] transition-all ml-2"
-                        >
-                          <Play size={16} style={{ fontVariationSettings: "'FILL' 1" }} /> Practice
-                        </button>
-                      </div>
-                    )}
-                  </div>
-
-                  {activeTopicCards.length === 0 ? (
-                    <div className="flex-1 min-h-0 bg-surface-container-lowest border-2 border-dashed border-on-surface/20 rounded-xl flex flex-col items-center justify-center p-8 relative overflow-hidden">
-                      <svg className="absolute inset-0 w-full h-full text-on-surface/5" xmlns="http://www.w3.org/2000/svg">
-                        <defs>
-                          <pattern id="grid-pattern" width="40" height="40" patternUnits="userSpaceOnUse">
-                            <path d="M 40 0 L 0 0 0 40" fill="none" stroke="currentColor" strokeWidth="1" />
-                          </pattern>
-                        </defs>
-                        <rect width="100%" height="100%" fill="url(#grid-pattern)" />
-                      </svg>
-                      <div className="w-20 h-20 rounded-full bg-secondary-container border-2 border-on-surface shadow-[4px_4px_0px_0px_#191b23] flex items-center justify-center relative z-10 animate-[bounce_3s_infinite]">
-                        <Zap size={40} className="text-on-secondary-container" style={{ fontVariationSettings: "'FILL' 1" }} />
-                      </div>
-                      <div className="text-center z-10 relative mt-4">
-                        <h3 className="text-2xl font-bold text-on-surface mb-2">No flashcards generated yet</h3>
-                        <p className="text-sm text-on-surface-variant max-w-md mx-auto">
-                          Click 'Generate Flashcards' above to automatically extract key concepts and definitions from this section.
+                {processingProgress && (
+                  <div className="px-5 mt-2 mb-2">
+                    <div className="bg-amber-500/10 border-2 border-amber-500 text-amber-700 px-4 py-3 rounded-xl shadow-[4px_4px_0px_0px_var(--color-amber-500)] flex items-center gap-3">
+                      <Loader2 className="animate-spin shrink-0" size={20} />
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-bold text-sm truncate">
+                          {processingProgress.stage === 'processing_child'
+                            ? `Extracting Subtopic ${processingProgress.current || 1} of ${processingProgress.total || 1}...`
+                            : (processingProgress.stage === 'parent_decomposition'
+                              ? 'Decomposing Chapter into Subtopics...'
+                              : 'Processing Topic...')}
+                        </h4>
+                        <p className="text-xs font-medium opacity-80 mt-0.5 truncate">
+                          {processingProgress.child_title
+                            ? processingProgress.child_title
+                            : (processingProgress.message || (processingProgress.stage || processingProgress.status || 'processing').replace(/_/g, ' '))}
+                          {processingProgress.progress !== undefined ? ` (${processingProgress.progress}%)` : ''}
                         </p>
                       </div>
                     </div>
-                  ) : (
-                    <div className="flex-1 min-h-0 overflow-y-auto pr-2 pb-6 relative">
-                      {(() => {
-                        const card = activeTopicCards[currentCardIndex];
-                        if (!card) return null;
-                        return (
-                          <div key={card.id} className="bg-surface-container-lowest border-2 border-on-surface rounded-xl shadow-[6px_6px_0px_0px_#191b23] group relative transition-all overflow-hidden flex flex-col mb-4">
-                            {editingCardId === card.id ? (
-                              <div className="p-6 flex flex-col gap-6">
-                                <div className="flex flex-col">
-                                  <div className="inline-block self-start px-3 py-1 bg-secondary text-white text-xs font-bold uppercase tracking-wider rounded-md border-2 border-on-surface mb-2 shadow-[2px_2px_0px_0px_#191b23]">Question</div>
-                                  <textarea
-                                    value={editQuestion}
-                                    onChange={(e) => setEditQuestion(e.target.value)}
-                                    className="w-full min-h-[100px] bg-surface-container-lowest border-2 border-on-surface rounded-lg p-3 text-base font-bold text-on-surface focus:outline-none focus:shadow-[4px_4px_0px_0px_#191b23] transition-all resize-y"
-                                  />
-                                </div>
-                                <div className="flex flex-col">
-                                  <div className="inline-block self-start px-3 py-1 bg-surface-container-lowest text-on-surface text-xs font-bold uppercase tracking-wider rounded-md border-2 border-on-surface mb-2 shadow-[2px_2px_0px_0px_#191b23]">Answer</div>
-                                  <textarea
-                                    value={editAnswer}
-                                    onChange={(e) => setEditAnswer(e.target.value)}
-                                    className="w-full min-h-[150px] bg-primary/5 border-2 border-on-surface rounded-lg p-3 text-base font-medium text-on-surface focus:outline-none focus:shadow-[4px_4px_0px_0px_#191b23] transition-all resize-y"
-                                  />
-                                </div>
-                                <div className="flex justify-end gap-3 pt-2 shrink-0">
-                                  <button
-                                    onClick={() => setEditingCardId(null)}
-                                    className="px-5 py-2.5 text-sm font-bold text-on-surface bg-surface-container-lowest border-2 border-on-surface rounded-lg hover:bg-surface-container shadow-[2px_2px_0px_0px_#191b23] active:shadow-none active:translate-x-[2px] active:translate-y-[2px] transition-all"
-                                  >
-                                    Cancel
-                                  </button>
-                                  <button
-                                    onClick={() => handleSaveCard(card.id)}
-                                    className="px-5 py-2.5 bg-primary text-on-primary font-bold border-2 border-on-surface rounded-lg shadow-[2px_2px_0px_0px_#191b23] active:shadow-none active:translate-x-[2px] active:translate-y-[2px] transition-all text-sm"
-                                  >
-                                    Save Changes
-                                  </button>
-                                </div>
-                              </div>
-                            ) : (
-                              <>
-                                <div className="absolute top-6 right-6 flex items-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                                  <button
-                                    onClick={() => handleStartEdit(card)}
-                                    className="p-2 text-on-surface bg-surface hover:bg-surface-container border-2 border-on-surface rounded-lg shadow-[2px_2px_0px_0px_#191b23] transition-all active:translate-x-[1px] active:translate-y-[1px] active:shadow-none"
-                                  >
-                                    <Edit2 size={16} />
-                                  </button>
-                                  <button
-                                    className="p-2 text-error bg-error/10 hover:bg-error/20 border-2 border-error rounded-lg shadow-[2px_2px_0px_0px_var(--color-error)] transition-all active:translate-x-[1px] active:translate-y-[1px] active:shadow-none"
-                                    onClick={() => handleDeleteCard(card.id)}
-                                  >
-                                    <Trash2 size={16} />
-                                  </button>
-                                </div>
-                                <div className="p-6 bg-surface-container-lowest relative">
-                                  <div className="inline-block px-3 py-1 bg-secondary text-white text-xs font-bold uppercase tracking-wider rounded-md border-2 border-on-surface mb-4 shadow-[2px_2px_0px_0px_#191b23]">
-                                    Question
-                                  </div>
-                                  <div className="text-lg text-on-surface font-bold prose prose-slate max-w-none pr-24 leading-relaxed">
-                                    <MarkdownRenderer content={card.question} />
-                                  </div>
-                                </div>
-                                <div className="p-6 bg-primary/5 border-t-2 border-on-surface">
-                                  <div className="inline-block px-3 py-1 bg-surface-container-lowest text-on-surface text-xs font-bold uppercase tracking-wider rounded-md border-2 border-on-surface mb-4 shadow-[2px_2px_0px_0px_#191b23]">
-                                    Answer
-                                  </div>
-                                  <div className="text-base text-on-surface font-medium prose prose-slate max-w-none leading-relaxed">
-                                    <MarkdownRenderer content={card.answer} />
-                                  </div>
-                                </div>
-                              </>
-                            )}
-                          </div>
-                        );
-                      })()}
-                    </div>
+                  </div>
+                )}
+
+                {topicTab === 'concepts' && (
+                  <div ref={drillWidgetRef} className="px-5 mt-2 animate-in fade-in duration-150">
+                    <SocraticDrillWidget
+                      topicId={activeTopic.id}
+                      topicTitle={activeTopic.title}
+                      targetConcept={selectedDrillConcept}
+                      onClearTargetConcept={() => setSelectedDrillConcept(null)}
+                      hasCachedMarkdown={!!activeTopic.content_md}
+                      onMasteryUpdate={(score, status, conceptName) => {
+                        // Refresh topics to update TOC and concept deck mastery indicators
+                        client.getTopics(bookId).then(setTopics).catch((err: any) => {
+                          console.error(err);
+                          showToast('error', err?.userMessage || 'Failed to refresh topics.', err?.debugDetail);
+                        });
+                      }}
+                    />
+                  </div>
+                )}
+
+                {topicTab === 'flashcards' && (
+                  <div className="px-5 mt-2 animate-in fade-in duration-150">
+                    <FlashcardGenWidget
+                      topicId={activeTopic.id}
+                      topicTitle={activeTopic.title}
+                      hasCachedMarkdown={!!activeTopic.content_md}
+                      atomicConcepts={activeTopicAtomicConcepts}
+                      selectedConceptName={selectedCardScope !== 'all' ? selectedCardScope : ''}
+                      onSelectConceptName={(name) => {
+                        if (name) {
+                          setSelectedCardScope(name);
+                        } else {
+                          setSelectedCardScope('all');
+                        }
+                        setCurrentCardIndex(0);
+                      }}
+                      onSuccess={(generatedConceptName) => {
+                        reloadTopics();
+                        if (generatedConceptName) {
+                          setSelectedCardScope(generatedConceptName);
+                        }
+                        setCurrentCardIndex(0);
+                      }}
+                    />
+                  </div>
+                )}
+
+                {/* Quick Actions Bar */}
+                <div className="px-5 mt-2 flex overflow-x-auto gap-3 pb-1 hide-scrollbar snap-x snap-mandatory items-center">
+                  {(topics.length <= 1 || activeTopic.title === 'Full Document') && (
+                    <button
+                      onClick={async () => {
+                        try {
+                          showToast('info', 'Analyzing handwritten outline with Marker...');
+                          const res = await client.reparseHandwriting(bookId);
+                          const updated = await client.getTopics(bookId);
+                          setTopics(updated);
+                          if (updated.length > 0) {
+                            dispatch(setActiveTopicId(updated[0].id));
+                          }
+                          showToast('success', `Generated ${res.topic_count} topics from handwriting!`);
+                        } catch (e: any) {
+                          showToast('error', e?.userMessage || 'Failed to analyze handwriting.');
+                        }
+                      }}
+                      className="snap-start shrink-0 bg-amber-500/10 border-2 border-amber-600 text-amber-700 dark:text-amber-300 rounded-lg px-3 py-1.5 flex items-center gap-2 hover:bg-amber-500/20 shadow-[2px_2px_0px_0px_#d97706] active:shadow-none active:translate-x-[1px] active:translate-y-[1px] transition-all h-9 font-bold text-xs"
+                      title="Extract structured chapters and topics from handwritten notes using Marker"
+                    >
+                      <Sparkles size={16} className="text-amber-600 dark:text-amber-400" />
+                      <span>Analyze Handwriting Outline</span>
+                    </button>
+                  )}
+                  <button
+                    onClick={() => {
+                      setViewMode('pdf');
+                      setPdfScrollCommand({ page: activeTopic.start_page, ts: Date.now() });
+                    }}
+                    className="snap-start shrink-0 bg-surface-container-lowest border-2 border-on-surface rounded-lg px-3 py-1.5 flex items-center gap-2 hover:bg-surface-container shadow-[2px_2px_0px_0px_#191b23] active:shadow-none active:translate-x-[1px] active:translate-y-[1px] transition-all h-9 text-on-surface"
+                  >
+                    <FileText size={16} />
+                    <span className="font-bold text-xs">View PDF</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setTopicTab('concepts');
+                      setViewMode('topics');
+                    }}
+                    className={clsx(
+                      "snap-start shrink-0 border-2 border-on-surface rounded-lg px-3 py-1.5 flex items-center gap-2 shadow-[2px_2px_0px_0px_#191b23] active:shadow-none active:translate-x-[1px] active:translate-y-[1px] transition-all h-9 cursor-pointer",
+                      viewMode === 'topics' && topicTab === 'concepts'
+                        ? "bg-primary text-on-primary font-bold shadow-[2px_2px_0px_0px_#191b23]"
+                        : "bg-surface-container-lowest text-on-surface hover:bg-surface-container"
+                    )}
+                    title="View extracted concepts and Socratic drills"
+                  >
+                    {activeTopic.status === 'processing' ? (
+                      <Loader2 size={16} className="animate-spin text-current" />
+                    ) : (
+                      <Sparkles size={16} className={viewMode === 'topics' && topicTab === 'concepts' ? "text-on-primary" : "text-primary"} />
+                    )}
+                    <span className="font-bold text-xs">Extract Concepts</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setTopicTab('flashcards');
+                      setViewMode('topics');
+                    }}
+                    className={clsx(
+                      "snap-start shrink-0 border-2 border-on-surface rounded-lg px-3 py-1.5 flex items-center gap-2 shadow-[2px_2px_0px_0px_#191b23] active:shadow-none active:translate-x-[1px] active:translate-y-[1px] transition-all h-9 cursor-pointer",
+                      viewMode === 'topics' && topicTab === 'flashcards'
+                        ? "bg-primary text-on-primary font-bold shadow-[2px_2px_0px_0px_#191b23]"
+                        : "bg-surface-container-lowest text-on-surface hover:bg-surface-container"
+                    )}
+                    title="View and generate flashcards"
+                  >
+                    <Zap size={16} fill={viewMode === 'topics' && topicTab === 'flashcards' ? "currentColor" : "none"} className={viewMode === 'topics' && topicTab === 'flashcards' ? "text-on-primary" : "text-secondary"} />
+                    <span className="font-bold text-xs">
+                      {activeTopicCards.length > 0 ? `Flashcards (${activeTopicCards.length})` : 'Generate Flashcards'}
+                    </span>
+                  </button>
+                  <button
+                    onClick={() => dispatch(setIsNotesOpen(!isNotesOpen))}
+                    className={clsx(
+                      "snap-start shrink-0 bg-surface-container-lowest border-2 border-on-surface rounded-lg px-3 py-1.5 flex items-center gap-2 hover:bg-surface-container shadow-[2px_2px_0px_0px_#191b23] active:shadow-none active:translate-x-[1px] active:translate-y-[1px] transition-all h-9 text-on-surface",
+                      isNotesOpen && "bg-primary/10 text-primary border-primary"
+                    )}
+                  >
+                    <PenTool size={16} />
+                    <span className="font-bold text-xs">Study Notes</span>
+                  </button>
+                  {activeTopic.content_md && (
+                    <button
+                      onClick={() => setViewMode('markdown')}
+                      className={clsx(
+                        "snap-start shrink-0 bg-surface-container-lowest border-2 border-on-surface rounded-lg px-3 py-1.5 flex items-center gap-2 hover:bg-surface-container shadow-[2px_2px_0px_0px_#191b23] active:shadow-none active:translate-x-[1px] active:translate-y-[1px] transition-all h-9 text-on-surface",
+                        viewMode === 'markdown' && "bg-primary/10 text-primary border-primary"
+                      )}
+                    >
+                      <FileText size={16} />
+                      <span className="font-bold text-xs">View Markdown</span>
+                    </button>
                   )}
                 </div>
-              </div>
+
+                <div className="px-5 pb-4 flex flex-col gap-3 flex-1 min-h-0 mt-1">
+
+                  {/* Flashcards Section - Only shows under selection of generate flashcard option */}
+                  {topicTab === 'flashcards' && (
+                    <div className="flex flex-col flex-1 min-h-[420px] gap-2.5 bg-surface-container-lowest border-2 border-on-surface rounded-xl p-5 shadow-[4px_4px_0px_0px_#191b23] animate-in fade-in slide-in-from-top-2 duration-200">
+                      <div className="flex flex-wrap items-center justify-between gap-3 shrink-0 pb-3 border-b-2 border-on-surface/10">
+                        <div className="flex items-center gap-3 flex-wrap">
+                          <h3 className="text-base font-black uppercase tracking-tight flex items-center gap-2 text-on-surface">
+                            <Zap size={18} className="text-secondary" fill="currentColor" />
+                            <span>Topic Flashcards</span>
+                            <span className="bg-primary text-white border-2 border-on-surface px-2 py-0.5 text-xs rounded-md shadow-[1.5px_1.5px_0px_0px_#191b23]">
+                              {filteredCards.length > 0 ? `${safeCardIndex + 1} / ${filteredCards.length}` : '0'}
+                            </span>
+                          </h3>
+
+                          {/* Scope selector tabs */}
+                          {cardScopes.length > 1 && (
+                            <div className="flex items-center gap-1.5 overflow-x-auto hide-scrollbar py-0.5 max-w-md">
+                              <button
+                                onClick={() => { setSelectedCardScope('all'); setCurrentCardIndex(0); }}
+                                className={clsx(
+                                  "px-2.5 py-1 text-xs font-bold rounded-md border-2 transition-all shrink-0 cursor-pointer",
+                                  selectedCardScope === 'all'
+                                    ? "bg-primary text-on-primary border-on-surface shadow-[1.5px_1.5px_0px_0px_#191b23]"
+                                    : "bg-surface-container text-on-surface-variant hover:text-on-surface border-on-surface/20"
+                                )}
+                              >
+                                All ({activeTopicCards.length})
+                              </button>
+                              {cardScopes.map(scope => {
+                                const count = activeTopicCards.filter(c => c.topic_name === scope).length;
+                                const isCurrent = selectedCardScope === scope;
+                                return (
+                                  <button
+                                    key={scope}
+                                    onClick={() => { setSelectedCardScope(scope); setCurrentCardIndex(0); }}
+                                    className={clsx(
+                                      "px-2.5 py-1 text-xs font-bold rounded-md border-2 transition-all shrink-0 flex items-center gap-1.5 cursor-pointer",
+                                      isCurrent
+                                        ? "bg-primary text-on-primary border-on-surface shadow-[1.5px_1.5px_0px_0px_#191b23]"
+                                        : "bg-surface-container text-on-surface-variant hover:text-on-surface border-on-surface/20"
+                                    )}
+                                  >
+                                    <span className="truncate max-w-[130px]">{scope}</span>
+                                    <span className={clsx("text-[10px] px-1 rounded font-bold", isCurrent ? "bg-white/20 text-white" : "bg-surface text-on-surface-variant")}>
+                                      {count}
+                                    </span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          {filteredCards.length > 0 && (
+                            <>
+                              <button
+                                onClick={() => setCurrentCardIndex(Math.max(0, safeCardIndex - 1))}
+                                disabled={safeCardIndex === 0}
+                                className="bg-surface text-on-surface border-2 border-on-surface rounded-lg p-2 shadow-[2px_2px_0px_0px_#191b23] disabled:opacity-40 active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all cursor-pointer"
+                                title="Previous card"
+                              >
+                                <ChevronLeft size={18} />
+                              </button>
+                              <button
+                                onClick={() => setCurrentCardIndex(Math.min(filteredCards.length - 1, safeCardIndex + 1))}
+                                disabled={safeCardIndex >= filteredCards.length - 1}
+                                className="bg-surface text-on-surface border-2 border-on-surface rounded-lg p-2 shadow-[2px_2px_0px_0px_#191b23] disabled:opacity-40 active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all cursor-pointer"
+                                title="Next card"
+                              >
+                                <ChevronRight size={18} />
+                              </button>
+                              <button
+                                onClick={() => setIsPracticeModalOpen(true)}
+                                className="bg-primary text-on-primary border-2 border-on-surface rounded-lg px-4 py-2 text-xs font-bold flex items-center gap-1.5 shadow-[3px_3px_0px_0px_#191b23] active:shadow-none active:translate-x-[1px] active:translate-y-[1px] transition-all cursor-pointer"
+                              >
+                                <Play size={14} style={{ fontVariationSettings: "'FILL' 1" }} /> Practice
+                              </button>
+                            </>
+                          )}
+
+                          <button
+                            onClick={() => setTopicTab('concepts')}
+                            className="px-2.5 py-1.5 text-xs font-bold text-on-surface bg-surface-container hover:bg-surface-container-high rounded-lg border-2 border-on-surface/20 transition-all cursor-pointer flex items-center gap-1.5"
+                            title="Switch to Concepts view"
+                          >
+                            <Layers size={14} />
+                            <span>View Concepts</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {filteredCards.length === 0 ? (
+                        <div className="flex-1 min-h-[240px] bg-surface-container-low/40 border-2 border-dashed border-on-surface/20 rounded-xl flex flex-col items-center justify-center p-6 text-center relative overflow-hidden">
+                          <div className="w-14 h-14 rounded-full bg-secondary-container border-2 border-on-surface shadow-[3px_3px_0px_0px_#191b23] flex items-center justify-center mb-3">
+                            <Zap size={28} className="text-on-secondary-container" fill="currentColor" />
+                          </div>
+                          <h4 className="text-base font-bold text-on-surface mb-1">
+                            {selectedCardScope !== 'all' ? `No flashcards for "${selectedCardScope}"` : 'No flashcards generated yet'}
+                          </h4>
+                          <p className="text-xs text-on-surface-variant max-w-md mx-auto leading-relaxed">
+                            {selectedCardScope !== 'all'
+                              ? `No cards found for "${selectedCardScope}". Use the Flashcard Generator above to create targeted cards for this concept.`
+                              : `Use the Flashcard Generator above to create retrieval practice cards for this chapter.`}
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="flex-1 min-h-0 overflow-y-auto pr-1 pb-2 relative">
+                          {(() => {
+                            const card = filteredCards[safeCardIndex];
+                            if (!card) return null;
+                            return (
+                              <div key={card.id} className="bg-surface border-2 border-on-surface rounded-xl shadow-[4px_4px_0px_0px_#191b23] group relative transition-all overflow-hidden flex flex-col">
+                                {editingCardId === card.id ? (
+                                  <div className="p-5 flex flex-col gap-5">
+                                    <div className="flex flex-col">
+                                      <div className="inline-block self-start px-2.5 py-0.5 bg-secondary text-white text-xs font-bold uppercase tracking-wider rounded-md border-2 border-on-surface mb-2 shadow-[1.5px_1.5px_0px_0px_#191b23]">Question</div>
+                                      <textarea
+                                        value={editQuestion}
+                                        onChange={(e) => setEditQuestion(e.target.value)}
+                                        className="w-full min-h-[90px] bg-surface-container-lowest border-2 border-on-surface rounded-lg p-3 text-sm font-bold text-on-surface focus:outline-none focus:shadow-[3px_3px_0px_0px_#191b23] transition-all resize-y"
+                                      />
+                                    </div>
+                                    <div className="flex flex-col">
+                                      <div className="inline-block self-start px-2.5 py-0.5 bg-surface-container-lowest text-on-surface text-xs font-bold uppercase tracking-wider rounded-md border-2 border-on-surface mb-2 shadow-[1.5px_1.5px_0px_0px_#191b23]">Answer</div>
+                                      <textarea
+                                        value={editAnswer}
+                                        onChange={(e) => setEditAnswer(e.target.value)}
+                                        className="w-full min-h-[130px] bg-primary/5 border-2 border-on-surface rounded-lg p-3 text-sm font-medium text-on-surface focus:outline-none focus:shadow-[3px_3px_0px_0px_#191b23] transition-all resize-y"
+                                      />
+                                    </div>
+                                    <div className="flex justify-end gap-2.5 pt-1 shrink-0">
+                                      <button
+                                        onClick={() => setEditingCardId(null)}
+                                        className="px-4 py-2 text-xs font-bold text-on-surface bg-surface-container-lowest border-2 border-on-surface rounded-lg hover:bg-surface-container shadow-[2px_2px_0px_0px_#191b23] active:shadow-none active:translate-x-[1px] active:translate-y-[1px] transition-all cursor-pointer"
+                                      >
+                                        Cancel
+                                      </button>
+                                      <button
+                                        onClick={() => handleSaveCard(card.id)}
+                                        className="px-4 py-2 bg-primary text-on-primary font-bold border-2 border-on-surface rounded-lg shadow-[2px_2px_0px_0px_#191b23] active:shadow-none active:translate-x-[1px] active:translate-y-[1px] transition-all text-xs cursor-pointer"
+                                      >
+                                        Save Changes
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <>
+                                    <div className="absolute top-4 right-4 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                                      <button
+                                        onClick={() => handleStartEdit(card)}
+                                        className="p-1.5 text-on-surface bg-surface hover:bg-surface-container border-2 border-on-surface rounded-lg shadow-[1.5px_1.5px_0px_0px_#191b23] transition-all active:translate-x-[1px] active:translate-y-[1px] active:shadow-none cursor-pointer"
+                                        title="Edit card"
+                                      >
+                                        <Edit2 size={14} />
+                                      </button>
+                                      <button
+                                        className="p-1.5 text-error bg-error/10 hover:bg-error/20 border-2 border-error rounded-lg shadow-[1.5px_1.5px_0px_0px_var(--color-error)] transition-all active:translate-x-[1px] active:translate-y-[1px] active:shadow-none cursor-pointer"
+                                        onClick={() => handleDeleteCard(card.id)}
+                                        title="Delete card"
+                                      >
+                                        <Trash2 size={14} />
+                                      </button>
+                                    </div>
+                                    <div className="p-5 bg-surface-container-lowest relative">
+                                      <div className="flex items-center gap-2 mb-3 flex-wrap">
+                                        <span className="px-2.5 py-0.5 bg-secondary text-white text-xs font-bold uppercase tracking-wider rounded-md border-2 border-on-surface shadow-[1.5px_1.5px_0px_0px_#191b23]">
+                                          Question
+                                        </span>
+                                        {card.topic_name && card.topic_name !== activeTopic?.title && (
+                                          <span className="text-[11px] font-bold px-2 py-0.5 bg-primary/10 text-primary border border-primary/20 rounded-md">
+                                            {card.topic_name}
+                                          </span>
+                                        )}
+                                        {card.concept_type && (
+                                          <span className="text-[10px] font-bold px-1.5 py-0.5 bg-surface-container text-on-surface-variant border border-outline-variant/60 rounded">
+                                            {card.concept_type}
+                                          </span>
+                                        )}
+                                      </div>
+                                      <div className="text-base text-on-surface font-bold prose prose-slate max-w-none pr-20 leading-relaxed">
+                                        <MarkdownRenderer content={card.question} />
+                                      </div>
+                                    </div>
+                                    <div className="p-5 bg-primary/5 border-t-2 border-on-surface">
+                                      <div className="inline-block px-2.5 py-0.5 bg-surface-container-lowest text-on-surface text-xs font-bold uppercase tracking-wider rounded-md border-2 border-on-surface mb-3 shadow-[1.5px_1.5px_0px_0px_#191b23]">
+                                        Answer
+                                      </div>
+                                      <div className="text-sm text-on-surface font-medium prose prose-slate max-w-none leading-relaxed">
+                                        <MarkdownRenderer content={card.answer} />
+                                      </div>
+                                    </div>
+                                  </>
+                                )}
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Atomic Concepts Deck - Only shown when topicTab is 'concepts' */}
+                  {topicTab === 'concepts' && (() => {
+                    let concepts: AtomicConcept[] = [];
+                    if (activeTopic.atomic_concepts) {
+                      try {
+                        concepts = JSON.parse(activeTopic.atomic_concepts);
+                      } catch {
+                        concepts = [];
+                      }
+                    }
+
+                    const masteredCount = concepts.filter(c => c.mastery_status === 'mastered').length;
+
+                    return (
+                      <div className="bg-surface-container-lowest border-[3px] border-on-background neo-shadow-lg p-6">
+                        <div
+                          className="flex items-center justify-between mb-4 cursor-pointer group select-none"
+                          onClick={() => setIsSummaryCollapsed(!isSummaryCollapsed)}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 border-[3px] border-on-background bg-surface-container-lowest flex items-center justify-center neo-shadow-sm text-primary group-hover:bg-primary/5 transition-colors">
+                              <Layers size={20} />
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2.5">
+                                <h3 className="font-headline-md text-headline-md font-bold text-primary">
+                                  Atomic Concepts ({concepts.length})
+                                </h3>
+                                {concepts.length > 0 && (
+                                  <span className={clsx(
+                                    "text-xs font-bold px-2 py-0.5 rounded border uppercase tracking-wider",
+                                    masteredCount === concepts.length && concepts.length > 0
+                                      ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/30"
+                                      : "bg-surface-container text-on-surface-variant border-outline-variant"
+                                  )}>
+                                    {masteredCount}/{concepts.length} Mastered
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-label-sm font-label-sm font-bold uppercase tracking-wider text-secondary">
+                                Targeted Concept Mastery & Socratic Drills
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleProcessTopic();
+                              }}
+                              disabled={activeTopic.status === 'processing'}
+                              className="bg-primary text-on-primary font-bold text-xs px-3.5 py-1.5 rounded-lg border-2 border-on-surface shadow-[2px_2px_0px_0px_#191b23] flex items-center gap-1.5 hover:bg-academic-blue active:shadow-none active:translate-x-[1px] active:translate-y-[1px] transition-all disabled:opacity-50 cursor-pointer"
+                              title="Extract atomic concepts from this topic"
+                            >
+                              {activeTopic.status === 'processing' ? (
+                                <>
+                                  <Loader2 size={14} className="animate-spin" />
+                                  <span>Extracting...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Sparkles size={14} />
+                                  <span>{concepts.length > 0 ? 'Re-extract Concepts' : 'Extract Concepts'}</span>
+                                </>
+                              )}
+                            </button>
+                            <button className="p-2 text-on-surface-variant group-hover:text-primary group-hover:bg-surface-container rounded-full transition-colors">
+                              <ChevronDown
+                                size={24}
+                                className={clsx("transition-transform duration-200", !isSummaryCollapsed && "rotate-180")}
+                              />
+                            </button>
+                          </div>
+                        </div>
+
+                        {!isSummaryCollapsed && (
+                          <div className="animate-in fade-in slide-in-from-top-2 duration-200 space-y-4">
+                            {concepts.length > 0 ? (
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {concepts.map((concept) => {
+                                  const isTargeted = selectedDrillConcept?.name === concept.name;
+                                  const score = concept.mastery_score;
+
+                                  return (
+                                    <div
+                                      key={concept.id || concept.name}
+                                      className={clsx(
+                                        "border-[2.5px] rounded-xl p-4 flex flex-col justify-between gap-3 transition-all duration-200 shadow-[2px_2px_0px_0px_#191b23] hover:shadow-[4px_4px_0px_0px_#191b23] hover:-translate-y-[1px]",
+                                        isTargeted
+                                          ? "border-secondary bg-secondary/5 ring-2 ring-secondary/30"
+                                          : "border-on-background bg-surface-container-lowest"
+                                      )}
+                                    >
+                                      <div>
+                                        {/* Header: Title & Type Pill */}
+                                        <div className="flex items-start justify-between gap-2 mb-2">
+                                          <h4 className="font-bold text-base text-primary leading-snug">
+                                            {concept.name}
+                                          </h4>
+                                          <span className={clsx(
+                                            "text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded border shrink-0",
+                                            concept.concept_type === 'Formula' ? "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/30" :
+                                              concept.concept_type === 'Definition' ? "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30" :
+                                                concept.concept_type === 'Process Step' ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30" :
+                                                  concept.concept_type === 'Comparison' ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30" :
+                                                    "bg-slate-500/10 text-slate-600 dark:text-slate-300 border-slate-500/30"
+                                          )}>
+                                            {concept.concept_type}
+                                          </span>
+                                        </div>
+
+                                        {/* Summary */}
+                                        {concept.summary && (
+                                          <p className="text-xs text-on-surface-variant leading-relaxed line-clamp-3 mb-3">
+                                            {concept.summary}
+                                          </p>
+                                        )}
+
+                                        {/* Key Terms */}
+                                        {concept.key_terms && concept.key_terms.length > 0 && (
+                                          <div className="flex flex-wrap gap-1 mb-2">
+                                            {concept.key_terms.slice(0, 4).map((term, tIdx) => (
+                                              <span
+                                                key={tIdx}
+                                                className="text-[10px] font-bold px-1.5 py-0.5 bg-surface-container text-on-surface-variant rounded border border-outline-variant/60 uppercase"
+                                              >
+                                                {term}
+                                              </span>
+                                            ))}
+                                            {concept.key_terms.length > 4 && (
+                                              <span className="text-[10px] font-bold px-1 py-0.5 text-on-surface-variant/70">
+                                                +{concept.key_terms.length - 4} more
+                                              </span>
+                                            )}
+                                          </div>
+                                        )}
+                                      </div>
+
+                                      {/* Bottom: Mastery Progress & Drill Action */}
+                                      <div className="pt-2 border-t border-outline-variant/40 flex items-center justify-between gap-2 mt-auto">
+                                        {/* Mastery indicator */}
+                                        <div className="flex items-center gap-2">
+                                          <span className={clsx(
+                                            "text-xs font-bold px-2 py-0.5 rounded border uppercase tracking-wider",
+                                            concept.mastery_status === 'mastered' ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/40" :
+                                              concept.mastery_status === 'developing' ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/40" :
+                                                concept.mastery_status === 'fragile' ? "bg-orange-500/15 text-orange-600 dark:text-orange-400 border-orange-500/40" :
+                                                  concept.mastery_status === 'misconception' ? "bg-red-500/15 text-red-600 dark:text-red-400 border-red-500/40" :
+                                                    "bg-surface-container text-on-surface-variant border-outline-variant"
+                                          )}>
+                                            {score !== null && score !== undefined
+                                              ? `${score}% ${concept.mastery_status}`
+                                              : "Untested"}
+                                          </span>
+                                        </div>
+
+                                        <div className="flex items-center gap-1.5">
+                                          {activeTopicCards.filter(c => c.topic_name === concept.name).length > 0 && (
+                                            <button
+                                              onClick={() => {
+                                                setTopicTab('flashcards');
+                                                setSelectedCardScope(concept.name);
+                                                setCurrentCardIndex(0);
+                                              }}
+                                              className="text-xs font-bold px-2.5 py-1.5 rounded-lg border-2 border-primary/30 bg-primary/10 text-primary hover:bg-primary/20 flex items-center gap-1 transition-all cursor-pointer active:translate-x-[1px] active:translate-y-[1px]"
+                                              title={`View ${activeTopicCards.filter(c => c.topic_name === concept.name).length} flashcards for "${concept.name}"`}
+                                            >
+                                              <Zap size={12} fill="currentColor" />
+                                              <span>{activeTopicCards.filter(c => c.topic_name === concept.name).length} Cards</span>
+                                            </button>
+                                          )}
+
+                                          {/* Drill Button */}
+                                          <button
+                                            onClick={() => {
+                                              setSelectedDrillConcept(concept);
+                                              drillWidgetRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                              showToast('info', `Focused Socratic Drill on "${concept.name}"`);
+                                            }}
+                                            className={clsx(
+                                              "text-xs font-bold px-3 py-1.5 rounded-lg border-2 border-on-surface shadow-[1.5px_1.5px_0px_0px_#191b23] flex items-center gap-1.5 transition-all active:shadow-none active:translate-x-[1px] active:translate-y-[1px] cursor-pointer",
+                                              isTargeted
+                                                ? "bg-secondary text-on-secondary ring-1 ring-secondary"
+                                                : "bg-primary text-on-primary hover:bg-academic-blue"
+                                            )}
+                                          >
+                                            <Target size={13} />
+                                            <span>{isTargeted ? "Active Drill" : "Drill Concept"}</span>
+                                          </button>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            ) : (
+                              <div className="flex flex-col items-center justify-center p-8 border-2 border-dashed border-outline-variant rounded-xl text-center gap-3 bg-surface-container-low/40">
+                                <div className="w-12 h-12 rounded-full bg-primary/10 border-2 border-primary flex items-center justify-center text-primary">
+                                  <Layers size={22} />
+                                </div>
+                                <div className="max-w-md">
+                                  <h4 className="font-bold text-sm text-on-surface mb-1">
+                                    No atomic concepts extracted yet
+                                  </h4>
+                                  <p className="text-xs text-on-surface-variant leading-relaxed">
+                                    Extracting atomic concepts breaks this topic down into core invariants, formulas, and definitions — enabling targeted per-concept Socratic drills with diagnostic grading.
+                                  </p>
+                                </div>
+                                <button
+                                  onClick={handleProcessTopic}
+                                  disabled={activeTopic.status === 'processing'}
+                                  className="bg-primary text-on-primary font-bold text-xs px-5 py-2.5 rounded-lg border-2 border-on-surface shadow-[2px_2px_0px_0px_#191b23] flex items-center gap-2 hover:bg-academic-blue active:shadow-none active:translate-x-[1px] active:translate-y-[1px] transition-all disabled:opacity-50 cursor-pointer mt-1"
+                                >
+                                  {activeTopic.status === 'processing' ? (
+                                    <>
+                                      <Loader2 size={15} className="animate-spin" />
+                                      <span>Extracting Atomic Concepts...</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Zap size={15} />
+                                      <span>Extract Atomic Concepts</span>
+                                    </>
+                                  )}
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </div>
               </div>
             </div>
           </>
         )}
 
 
-              
-              <div className={clsx(
-                "fixed top-[152px] bottom-6 right-6 z-50 transition-all duration-300 transform",
-                isChatOpen ? "translate-x-0 opacity-100" : "translate-x-full opacity-0 pointer-events-none"
-              )}>
-                <AIChatSidebar 
-                  key={activeTopic?.id || 'empty'}
-                  isOpen={isChatOpen} 
-                  onClose={() => setIsChatOpen(false)} 
-                  topicId={activeTopic?.id}
-                  topicName={activeTopic?.title} 
-                  contextMarkdown={activeTopic?.content_md || ''} 
-                  isProcessing={activeTopic?.status === 'processing'}
-                  onProcessTopic={handleProcessTopic}
+
+        {/* Backdrop when Chat is Full Screen */}
+        {isChatOpen && isChatExpanded && (
+          <div
+            className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 animate-in fade-in duration-200"
+            onClick={() => setIsChatExpanded(false)}
+          />
+        )}
+
+        <div className={clsx(
+          isChatExpanded
+            ? "fixed inset-3 md:inset-6 z-50 flex flex-col transition-all duration-200"
+            : "fixed top-[152px] bottom-6 right-6 z-50 transition-all duration-300 transform",
+          isChatOpen ? "translate-x-0 opacity-100" : "translate-x-full opacity-0 pointer-events-none"
+        )}>
+          <AIChatSidebar
+            key={activeTopic?.id || 'empty'}
+            isOpen={isChatOpen}
+            isExpanded={isChatExpanded}
+            onToggleExpand={() => setIsChatExpanded(prev => !prev)}
+            onClose={() => {
+              setIsChatOpen(false);
+              setIsChatExpanded(false);
+            }}
+            topicId={activeTopic?.id}
+            bookId={bookId}
+            topicName={activeTopic?.title}
+            contextMarkdown={activeTopic?.content_md || ''}
+            isProcessing={activeTopic?.status === 'processing'}
+            onProcessTopic={handleProcessTopic}
+            onPracticeTopic={handlePracticeTopic}
+            onPracticeExamScope={handlePracticeExamScope}
+          />
+        </div>
+
+        {/* Floating Chat Button (hidden when Notes panel is open to avoid obscuring note content) */}
+        {!isChatOpen && !isNotesOpen && (
+          <button
+            onClick={() => setIsChatOpen(true)}
+            className="fixed bottom-6 right-6 z-40 w-16 h-16 bg-primary text-white rounded-full flex items-center justify-center shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] border-2 border-on-surface hover:bg-accent-blue transition-colors animate-bounce hover:animate-none"
+          >
+            <Bot size={32} />
+          </button>
+        )}
+
+        {/* Dockable Notes Split Panel */}
+        {isNotesOpen && activeTopic && (
+          <div
+            className={clsx(
+              "border-l-[3px] border-on-background bg-surface-container-lowest flex flex-col transition-all duration-200 shadow-[-4px_0px_0px_0px_rgba(0,0,0,0.1)]",
+              isNotesExpanded
+                ? "absolute inset-0 z-50"
+                : "w-[480px] lg:w-[560px] xl:w-[620px] shrink-0 h-full relative z-30"
+            )}
+          >
+            <ErrorBoundary>
+              <Suspense
+                fallback={
+                  <div className="flex flex-col items-center justify-center h-full">
+                    <Loader2 className="animate-spin text-accent-blue w-8 h-8 mb-4" />
+                    <p className="text-sm font-medium text-on-surface-variant">Loading Study Notes...</p>
+                  </div>
+                }
+              >
+                <NotionNotesEditor
+                  key={activeTopic.id}
+                  topicId={activeTopic.id}
+                  topicTitle={activeTopic.title}
+                  isExpanded={isNotesExpanded}
+                  onToggleExpand={() => setIsNotesExpanded(!isNotesExpanded)}
+                  onClose={() => dispatch(setIsNotesOpen(false))}
+                  onGenerateFlashcards={() => dispatch(setIsCardGenModalOpen(true))}
                 />
-              </div>
-
-              {/* Floating Chat Button (hidden when Notes panel is open to avoid obscuring note content) */}
-              {!isChatOpen && !isNotesOpen && (
-                <button
-                  onClick={() => setIsChatOpen(true)}
-                  aria-label="Open AI Reading Assistant"
-                  title="Open AI Reading Assistant"
-                  className="fixed bottom-6 right-6 z-40 w-13 h-13 bg-primary text-on-primary rounded-full flex items-center justify-center shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 transition-all duration-200 border border-white/20"
-                >
-                  <Bot size={24} />
-                </button>
-              )}
-
-              {/* Dockable Notes Split Panel */}
-              {isNotesOpen && activeTopic && (
-                <div
-                  className={clsx(
-                    "border-l border-border-default bg-surface-container-lowest flex flex-col transition-all duration-200 shadow-lg",
-                    isNotesExpanded 
-                      ? "absolute inset-0 z-50" 
-                      : "w-[360px] md:w-[420px] lg:w-[500px] xl:w-[580px] shrink-0 h-full relative z-30"
-                  )}
-                >
-                  <ErrorBoundary>
-                    <Suspense
-                      fallback={
-                        <div className="flex flex-col items-center justify-center h-full">
-                          <Loader2 className="animate-spin text-accent-blue w-8 h-8 mb-4" />
-                          <p className="text-sm font-medium text-on-surface-variant">Loading Study Notes...</p>
-                        </div>
-                      }
-                    >
-                      <NotionNotesEditor
-                        key={activeTopic.id}
-                        topicId={activeTopic.id}
-                        topicTitle={activeTopic.title}
-                        isExpanded={isNotesExpanded}
-                        onToggleExpand={() => setIsNotesExpanded(!isNotesExpanded)}
-                        onClose={() => dispatch(setIsNotesOpen(false))}
-                        onGenerateFlashcards={() => dispatch(setIsCardGenModalOpen(true))}
-                      />
-                    </Suspense>
-                  </ErrorBoundary>
-                </div>
-              )}
+              </Suspense>
+            </ErrorBoundary>
+          </div>
+        )}
 
       </div>
 
-      <FlashcardGenModal hasCachedMarkdown={!!activeTopic?.content_md} onSuccess={() => reloadTopics()} />
+      <FlashcardGenModal
+        hasCachedMarkdown={!!activeTopic?.content_md}
+        atomicConcepts={activeTopicAtomicConcepts}
+        activeTopicTitle={activeTopic?.title}
+        onSuccess={(generatedConceptName) => {
+          reloadTopics();
+          setTopicTab('flashcards');
+          if (generatedConceptName) {
+            setSelectedCardScope(generatedConceptName);
+          } else {
+            setSelectedCardScope('all');
+          }
+          setCurrentCardIndex(0);
+        }}
+      />
       <RelatedTopicsModal isOpen={isRelatedModalOpen} onClose={() => setIsRelatedModalOpen(false)} />
-      {activeTopic && (
+      {practiceModalConfig?.isOpen && (
+        <TopicPracticeModal
+          isOpen={practiceModalConfig.isOpen}
+          onClose={() => setPracticeModalConfig(null)}
+          topicId={practiceModalConfig.topicId}
+          topicName={practiceModalConfig.topicName}
+          cards={practiceModalConfig.cards}
+        />
+      )}
+      {activeTopic && !practiceModalConfig?.isOpen && (
         <TopicPracticeModal
           isOpen={isPracticeModalOpen}
           onClose={() => setIsPracticeModalOpen(false)}
           topicId={activeTopic.id}
-          topicName={activeTopic.title}
-          cards={activeTopicCards}
+          topicName={selectedCardScope !== 'all' ? `${activeTopic.title} (${selectedCardScope})` : activeTopic.title}
+          cards={filteredCards.length > 0 ? filteredCards : activeTopicCards}
         />
       )}
     </div>

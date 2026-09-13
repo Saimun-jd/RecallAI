@@ -19,6 +19,8 @@ from app.config import settings
 from app.llm_providers.factory import get_llm_provider
 from app.schemas import DiagnosticQuestionSet, DiagnosticEvaluation
 from langfuse import observe
+from app.prompt_manager import get_prompt_template
+from app.errors import RecallError
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +46,7 @@ Rules:
 - Do NOT ask simple definition or recall questions (e.g. "What is X?", "List the steps of Y").
 - Set reference_page to the start_page of the topic if available.
 - Escape any newlines inside your JSON strings as \\n. Do NOT use literal newlines inside strings.
+- For all mathematical expressions and formulas, use standard LaTeX syntax enclosed in $...$ for inline math (e.g. $E=mc^2$) or $$...$$ for display equations. Do NOT use raw parenthesized LaTeX like \\(...\\).
 
 STRICT JSON: Respond ONLY with a valid JSON object matching this schema:
 {{
@@ -72,27 +75,38 @@ Topic Content:
 
 # ─── Prompt: Answer Evaluation ──────────────────────────────────────────
 
-EVALUATION_PROMPT = """You are an expert educational diagnostic evaluator performing Automated Short Answer Grading (ASAG).
+EVALUATION_PROMPT = """You are an expert educational diagnostic evaluator performing Automated Short Answer Grading (ASAG) and exam preparation analysis.
 
 Task: Evaluate the student's answer to a probing question about a textbook topic. Compare their response against the source material (ground truth) and produce a structured diagnostic evaluation.
 
 Evaluation Dimensions:
-1. CORE INVARIANTS COVERAGE: Did the student identify the 2-4 non-negotiable principles?
-2. CAUSAL VALIDITY: Is their chain of reasoning logically sound, or based on surface correlation?
-3. MISCONCEPTION DETECTION: Identify any actively incorrect beliefs. Distinguish between:
-   - "Omission" (they didn't mention it) → goes into diagnosed_gaps
-   - "Active error" (they stated something factually wrong) → goes into misconceptions
+1. CORE INVARIANTS COVERAGE: Did the student identify the non-negotiable principles, mechanisms, and governing relationships?
+2. CAUSAL VALIDITY: Is their chain of reasoning logically sound, or based on surface correlation or faulty assumptions?
+3. KNOWLEDGE GAPS & CONTEXTUAL THEORY:
+   - Identify critical concepts or mechanisms omitted or only partially addressed.
+   - For every gap, you MUST provide:
+     * gap: The specific concept or invariant missed (concise title/summary).
+     * context: The complete theoretical explanation, physical/logical mechanism, and governing equations (written in LaTeX using $...$ or $$...$$). Do NOT just write "Did not mention X". Provide the actual theory from the textbook so the student can study and learn it immediately.
+     * why_it_matters: Why this principle is essential in exams and technical problem-solving.
+4. EXAM MISCONCEPTIONS & PITFALLS:
+   - Identify specific exam pitfalls, traps, or counterfactual errors in the student's answer or common to this topic.
+   - STRICT RULE: Do NOT generate condescending meta-evaluations like "Exhibits complete lack of knowledge", "Student failed to understand", or "No knowledge shown".
+   - A misconception must address what could actually be mistaken in an exam:
+     * pitfall: The specific exam trap, counterfactual error, or false intuition (e.g., "Confusing inductive energy storage with resistive dissipation").
+     * theory: The correct theoretical principles, physical mechanisms, and governing formulas ($...$) that resolve the trap.
+     * exam_tip: Actionable test-taking guidance on how examiners formulate questions around this and how to answer correctly without falling into the trap.
+   - If the student made no active errors or misconceptions, keep misconceptions empty: [].
 
 Scoring Guide:
 - 85-100 (mastered): Correctly identifies all key invariants with sound causal reasoning. Minor omissions only.
-- 60-84 (developing): Gets the core idea right but misses important nuances or secondary mechanisms.
+- 60-84 (developing): Gets the core idea right but misses important nuances, secondary mechanisms, or rigorous formulation.
 - 35-59 (fragile): Partially correct but has significant gaps or shallow understanding.
-- 0-34 (misconception): Contains one or more fundamental conceptual errors.
+- 0-34 (misconception): Contains one or more fundamental conceptual errors, or demonstrates major confusion on foundational invariants.
 
 Flashcard Generation Rules:
 - Generate 0 flashcards if mastery_score >= 85 (the student already knows this).
 - Generate 1 flashcard if mastery_score is 60-84, targeting the most important gap.
-- Generate 1-2 flashcards if mastery_score < 60, targeting the diagnosed misconceptions.
+- Generate 1-2 flashcards if mastery_score < 60, targeting the diagnosed misconceptions or core gaps.
 - Each flashcard question should be specific and test the exact gap identified.
 - Flashcard answers must be concise (under 30 words).
 
@@ -104,15 +118,27 @@ STRICT JSON: Respond ONLY with a valid JSON object matching this schema:
 {{
   "mastery_score": 75,
   "status": "developing",
-  "strengths": ["Correctly identified X", "Good explanation of Y"],
-  "diagnosed_gaps": ["Did not mention Z", "Missed the role of W"],
-  "misconceptions": ["Incorrectly stated that A causes B"],
-  "socratic_nudge": "You explained the basic case well, but what happens when...",
+  "strengths": ["Clear explanation of resistor voltage drop V = IR", "Correctly identified that current cannot change instantaneously"],
+  "diagnosed_gaps": [
+    {{
+      "gap": "Energy balance and conservation in RL circuit",
+      "context": "According to energy conservation, multiplying the loop equation $V = iR + L(di/dt)$ by $i \\cdot dt$ yields $V i \\, dt = i^2 R \\, dt + L i \\, di$. Total energy supplied by the source equals thermal dissipation in the resistor plus magnetic field energy stored in the inductor ($U_B = \\frac{{1}}{{2}} L i^2$).",
+      "why_it_matters": "Essential for exam derivation questions and transient power calculations when switching between $t=0^+$ and steady-state."
+    }}
+  ],
+  "misconceptions": [
+    {{
+      "pitfall": "Treating the inductor as an energy-dissipating element like a resistor",
+      "theory": "An ideal inductor has zero resistance and dissipates zero heat ($P_{{diss}} = 0$). Instead, it stores energy in its magnetic field at rate $P = L i \\frac{{di}}{{dt}}$ during current growth, and returns that energy to the circuit when current collapses.",
+      "exam_tip": "In exam problems asking for total energy dissipated as heat over $0 \\le t < \\infty$, only integrate $i^2 R$. Do not include inductor energy as dissipated loss."
+    }}
+  ],
+  "socratic_nudge": "If the circuit is disconnected from the battery, where does the stored energy 1/2 L I^2 go?",
   "suggested_flashcards": [
     {{
-      "question": "...",
-      "answer": "...",
-      "gap_source": "Student omitted the role of X in Y"
+      "question": "What is the rate of energy storage in an inductor with current $i(t)$?",
+      "answer": "$P = L i \\frac{{di}}{{dt}}$, which integrates to $U = \\frac{{1}}{{2}} L i^2$. It stores magnetic energy rather than dissipating heat.",
+      "gap_source": "Inductor energy storage vs resistive heat dissipation"
     }}
   ]
 }}
@@ -127,12 +153,12 @@ Key Invariants the student should have addressed:
 {key_invariants}
 
 Source Material (Ground Truth):
-<
+<<<
 {topic_content}
 >>>
 
 --- STUDENT'S ANSWER ---
-<
+<<<
 {student_answer}
 >>>
 """
@@ -367,7 +393,10 @@ async def _generate_and_parse(
                 json_schema=schema,
                 temperature=temperature,
                 max_tokens=max_tokens,
+                feature="socratic_drill",
             )
+        except RecallError:
+            raise
         except Exception as e:
             logger.error(f"{context}: LLM provider call failed on attempt {attempt}/{max_attempts}: {e}")
             last_error = e
@@ -439,7 +468,7 @@ CRITICAL CONCEPT FOCUS RULES:
         concept_focus_block = ""
         ground_truth_content = clean_topic_content[:8000]
 
-    prompt = QUESTION_GEN_PROMPT.format(
+    prompt = get_prompt_template("socratic_question_prompt").format(
         topic_title=topic_title,
         breadcrumb=breadcrumb or "N/A",
         start_page=start_page,
@@ -506,7 +535,7 @@ Grade the student's explanation against this specific concept's core principles 
         concept_focus_block = ""
         ground_truth_content = clean_topic_content[:8000]
 
-    prompt = EVALUATION_PROMPT.format(
+    prompt = get_prompt_template("socratic_evaluation_prompt").format(
         question_text=question_text,
         key_invariants=json.dumps(key_invariants),
         concept_focus_block=concept_focus_block,

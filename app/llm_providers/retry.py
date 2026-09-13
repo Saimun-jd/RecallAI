@@ -71,6 +71,21 @@ async def retry_with_backoff(
                 sleep_time = min(delay + random.uniform(0, jitter), max_delay)
                 delay *= backoff_factor
 
+            # For 429 Rate Limits: Do NOT retry if delay is long (> 10s) or quota is exhausted.
+            # Failing fast lets the caller's checkpointing system save progress without freezing.
+            if status == 429:
+                body_str = ""
+                try:
+                    body_str = e.response.text
+                except Exception:
+                    pass
+                if sleep_time > 10.0 or "RESOURCE_EXHAUSTED" in body_str:
+                    logger.warning(
+                        f"[{provider_name}] Rate limit / Quota exhausted (delay: {sleep_time:.1f}s). "
+                        f"Failing fast to preserve checkpoint state and notify user."
+                    )
+                    raise
+
             body_preview = ""
             try:
                 body_preview = e.response.text[:200]

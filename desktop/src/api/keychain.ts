@@ -56,8 +56,8 @@ export const removeApiKey = async (provider: string): Promise<void> => {
       "Native Keyring delete timed out"
     );
   } catch (err) {
-    console.error(`Failed to remove key for ${provider}:`, err);
-    throw err;
+    // If key didn't exist or deletion failed on an empty slot, don't crash save operations
+    console.warn(`[Keychain] Key could not be removed or didn't exist for ${provider}:`, err);
   }
 };
 

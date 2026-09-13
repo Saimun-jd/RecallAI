@@ -88,6 +88,11 @@ export function preprocessMarkdown(text: string | undefined | null): string {
   // 1. Convert escaped newlines to real newlines, but DO NOT match LaTeX commands like \neq, \nabla, \nu, \notin, etc.
   processed = processed.replace(/\\n(?![a-zA-Z])/g, '\n');
 
+  // 1.1 Convert standard LaTeX \( ... \) inline and \[ ... \] display delimiters to $ and $$
+  // Handles both single-backslash \(...\) and double-backslash \\(...\\) from JSON serialization
+  processed = processed.replace(/(?<!\\)(?:\\\\|\\)\[([\s\S]+?)(?<!\\)(?:\\\\|\\)\]/g, (_m, math) => `\n\n$$${math}$$\n\n`);
+  processed = processed.replace(/(?<!\\)(?:\\\\|\\)\(([\s\S]+?)(?<!\\)(?:\\\\|\\)\)/g, (_m, math) => `$${math}$`);
+
   // 1.2 Repair BlockNote asterisk subscript corruption (*{...} -> _{...} and *digit -> _digit)
   processed = processed.replace(/([a-zA-Z0-9\}\)])\*\{([a-zA-Z0-9,+-= \\]+)\}/g, '$1_{$2}');
   processed = processed.replace(/([a-zA-Z0-9\}\)])\*([0-9a-zA-Z])/g, '$1_$2');

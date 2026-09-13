@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { BrainCircuit, Target, X, Loader2, ChevronDown, ChevronRight, CheckCircle2, AlertTriangle, XCircle, Lightbulb, CreditCard, ArrowRight, Save, RotateCcw, PenTool } from 'lucide-react';
 import { client, type AtomicConcept, type DiagnosticQuestion, type DiagnosticQuestionSet, type DiagnosticEvaluation, type SuggestedFlashcard } from '../api/client';
+import { MarkdownRenderer } from './MarkdownRenderer';
 import { useSelector } from 'react-redux';
 import type { RootState } from '../store';
 import clsx from 'clsx';
@@ -145,14 +146,39 @@ export function SocraticDrillWidget({ topicId, topicTitle, targetConcept, onClea
       if (targetConcept?.name) {
         parts.push(`**Target Concept:** ${targetConcept.name}`);
       }
-      if (evaluation.diagnosed_gaps.length > 0) {
-        parts.push('**Knowledge Gaps Identified:**\n' + evaluation.diagnosed_gaps.map(g => `- ${g}`).join('\n'));
-      }
+
       if (evaluation.misconceptions.length > 0) {
-        parts.push('**Misconceptions Corrected:**\n' + evaluation.misconceptions.map(m => `- ${m}`).join('\n'));
+        const misContent = evaluation.misconceptions.map(m => {
+          if (typeof m === 'object' && m !== null) {
+            let itemStr = `#### 🚫 Exam Pitfall: ${m.pitfall}\n\n**Governing Theory & Mechanism:**\n${m.theory}`;
+            if (m.exam_tip) {
+              itemStr += `\n\n💡 **Exam Strategy:** ${m.exam_tip}`;
+            }
+            return itemStr;
+          }
+          return `- 🚫 **Exam Pitfall:** ${m}`;
+        }).join('\n\n---\n\n');
+
+        parts.push(`### ⚠️ Exam Pitfalls & Misconceptions\n\n${misContent}`);
       }
+
+      if (evaluation.diagnosed_gaps.length > 0) {
+        const gapsContent = evaluation.diagnosed_gaps.map(g => {
+          if (typeof g === 'object' && g !== null) {
+            let itemStr = `#### 📌 ${g.gap}\n\n**Theoretical Context & Formulas:**\n${g.context}`;
+            if (g.why_it_matters) {
+              itemStr += `\n\n🎯 **Why It Matters in Exams:** ${g.why_it_matters}`;
+            }
+            return itemStr;
+          }
+          return `- 📌 ${g}`;
+        }).join('\n\n---\n\n');
+
+        parts.push(`### 🔍 Knowledge Gaps & Contextual Theory\n\n${gapsContent}`);
+      }
+
       if (evaluation.socratic_nudge) {
-        parts.push(`**Key Insight / Nudge:**\n> ${evaluation.socratic_nudge}`);
+        parts.push(`### 💡 Key Socratic Insight / Thinking Prompt\n> ${evaluation.socratic_nudge}`);
       }
       
       const content = parts.join('\n\n');
@@ -327,22 +353,25 @@ export function SocraticDrillWidget({ topicId, topicTitle, targetConcept, onClea
 
         <div className="p-6">
           {/* Question */}
-          <p className="font-body-lg text-body-lg text-primary font-medium leading-relaxed mb-6">
-            {currentQuestion.question_text}
-          </p>
+          <div className="font-body-lg text-body-lg text-primary font-medium leading-relaxed mb-6 [&_p]:m-0">
+            <MarkdownRenderer content={currentQuestion.question_text} />
+          </div>
 
           {/* Socratic Hint Accordion */}
           <button
             onClick={() => setHintOpen(!hintOpen)}
-            className="flex items-center gap-2 text-label-sm font-label-sm font-bold text-amber-500 hover:text-amber-600 mb-6 transition-colors uppercase tracking-wider"
+            className="flex items-center gap-2 text-label-sm font-label-sm font-bold text-amber-500 hover:text-amber-600 mb-6 transition-colors uppercase tracking-wider cursor-pointer"
           >
             <Lightbulb size={16} />
             {hintOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
             {hintOpen ? 'Hide Hint' : 'Request Socratic Hint'}
           </button>
           {hintOpen && (
-            <div className="mb-6 p-4 bg-amber-500/10 border-[3px] border-amber-500 text-body-md font-body-md text-amber-700 leading-relaxed italic neo-shadow-sm">
-              💡 {currentQuestion.socratic_hint}
+            <div className="mb-6 p-4 bg-amber-500/10 border-[3px] border-amber-500 text-body-md font-body-md text-amber-700 leading-relaxed italic neo-shadow-sm flex items-start gap-2">
+              <span className="shrink-0 text-base">💡</span>
+              <div className="flex-1 [&_p]:m-0">
+                <MarkdownRenderer content={currentQuestion.socratic_hint} />
+              </div>
             </div>
           )}
 
@@ -442,7 +471,7 @@ export function SocraticDrillWidget({ topicId, topicTitle, targetConcept, onClea
                 {evaluation.strengths.map((s, i) => (
                   <li key={i} className="text-sm text-on-surface flex items-start gap-2">
                     <span className="text-emerald-500 mt-0.5 shrink-0">•</span>
-                    {s}
+                    <div className="flex-1 [&_p]:m-0"><MarkdownRenderer content={s} /></div>
                   </li>
                 ))}
               </ul>
@@ -453,16 +482,46 @@ export function SocraticDrillWidget({ topicId, topicTitle, targetConcept, onClea
           {evaluation.diagnosed_gaps.length > 0 && (
             <div>
               <h4 className="font-label-md text-label-md font-bold text-amber-500 uppercase tracking-wider mb-3 flex items-center gap-2">
-                <AlertTriangle size={16} /> Gaps Identified
+                <AlertTriangle size={16} /> Knowledge Gaps & Underlying Theory
               </h4>
-              <ul className="space-y-1">
-                {evaluation.diagnosed_gaps.map((g, i) => (
-                  <li key={i} className="text-sm text-on-surface flex items-start gap-2">
-                    <span className="text-amber-500 mt-0.5 shrink-0">•</span>
-                    {g}
-                  </li>
-                ))}
-              </ul>
+              <div className="space-y-3">
+                {evaluation.diagnosed_gaps.map((g, i) => {
+                  const isObj = typeof g === 'object' && g !== null;
+                  const gapTitle = isObj ? g.gap : g;
+                  const gapContext = isObj ? g.context : null;
+                  const whyItMatters = isObj ? g.why_it_matters : null;
+
+                  return (
+                    <div
+                      key={i}
+                      className="p-3.5 rounded-lg border border-amber-500/30 bg-amber-500/5 flex flex-col gap-2"
+                    >
+                      <div className="flex items-start gap-2 text-sm font-semibold text-amber-300">
+                        <span className="text-amber-500 mt-0.5 shrink-0">📌</span>
+                        <div className="flex-1 [&_p]:m-0">
+                          <MarkdownRenderer content={gapTitle} />
+                        </div>
+                      </div>
+
+                      {gapContext && (
+                        <div className="pl-6 text-xs text-on-surface leading-relaxed">
+                          <div className="font-bold text-on-surface/70 mb-1 text-[10px] uppercase tracking-wider">
+                            Theoretical Mechanism & Formulas:
+                          </div>
+                          <MarkdownRenderer content={gapContext} />
+                        </div>
+                      )}
+
+                      {whyItMatters && (
+                        <div className="pl-6 pt-1 text-xs text-amber-300/90 flex items-start gap-1.5">
+                          <span className="font-bold shrink-0">🎯 Exam Relevance:</span>
+                          <span className="flex-1">{whyItMatters}</span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
 
@@ -470,16 +529,46 @@ export function SocraticDrillWidget({ topicId, topicTitle, targetConcept, onClea
           {evaluation.misconceptions.length > 0 && (
             <div>
               <h4 className="font-label-md text-label-md font-bold text-red-500 uppercase tracking-wider mb-3 flex items-center gap-2">
-                <XCircle size={16} /> Misconceptions Detected
+                <XCircle size={16} /> Exam Pitfalls & Misconceptions
               </h4>
-              <ul className="space-y-1">
-                {evaluation.misconceptions.map((m, i) => (
-                  <li key={i} className="text-sm text-red-300/90 flex items-start gap-2">
-                    <span className="text-red-500 mt-0.5 shrink-0">✗</span>
-                    {m}
-                  </li>
-                ))}
-              </ul>
+              <div className="space-y-3">
+                {evaluation.misconceptions.map((m, i) => {
+                  const isObj = typeof m === 'object' && m !== null;
+                  const pitfall = isObj ? m.pitfall : m;
+                  const theory = isObj ? m.theory : null;
+                  const examTip = isObj ? m.exam_tip : null;
+
+                  return (
+                    <div
+                      key={i}
+                      className="p-3.5 rounded-lg border border-red-500/30 bg-red-500/5 flex flex-col gap-2.5"
+                    >
+                      <div className="flex items-start gap-2 text-sm font-semibold text-red-400">
+                        <span className="text-red-500 mt-0.5 shrink-0">🚫</span>
+                        <div className="flex-1 [&_p]:m-0">
+                          <MarkdownRenderer content={pitfall} />
+                        </div>
+                      </div>
+
+                      {theory && (
+                        <div className="pl-6 text-xs text-on-surface leading-relaxed bg-surface-container-lowest/70 p-2.5 rounded border border-outline-variant/30">
+                          <div className="font-bold text-emerald-400 mb-1 text-[10px] uppercase tracking-wider flex items-center gap-1">
+                            <CheckCircle2 size={13} /> Governing Theory:
+                          </div>
+                          <MarkdownRenderer content={theory} />
+                        </div>
+                      )}
+
+                      {examTip && (
+                        <div className="pl-6 text-xs text-amber-300/90 flex items-start gap-1.5">
+                          <span className="font-bold shrink-0">💡 Exam Strategy:</span>
+                          <span className="flex-1">{examTip}</span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
 
@@ -519,7 +608,9 @@ export function SocraticDrillWidget({ topicId, topicTitle, targetConcept, onClea
               <p className="font-label-md text-label-md font-bold mb-2 flex items-center gap-2 uppercase tracking-wider">
                 <Lightbulb size={16} /> Think Deeper
               </p>
-              <p className="font-body-md text-body-md leading-relaxed italic">{evaluation.socratic_nudge}</p>
+              <div className="font-body-md text-body-md leading-relaxed italic [&_p]:m-0">
+                <MarkdownRenderer content={evaluation.socratic_nudge} />
+              </div>
             </div>
           )}
 
@@ -533,8 +624,14 @@ export function SocraticDrillWidget({ topicId, topicTitle, targetConcept, onClea
                 {evaluation.suggested_flashcards.map((card, i) => (
                   <div key={i} className="p-4 bg-surface border-[3px] border-on-background neo-shadow-sm">
                     <p className="text-label-sm font-label-sm font-bold uppercase tracking-wider text-on-surface-variant mb-2">Gap: {card.gap_source}</p>
-                    <p className="font-body-md text-body-md text-primary font-bold mb-2">Q: {card.question}</p>
-                    <p className="font-body-md text-body-md text-on-surface mb-4">A: {card.answer}</p>
+                    <div className="font-body-md text-body-md text-primary font-bold mb-2 [&_p]:m-0">
+                      <span className="text-on-surface-variant font-normal mr-1">Q:</span>
+                      <MarkdownRenderer content={card.question} />
+                    </div>
+                    <div className="font-body-md text-body-md text-on-surface mb-4 [&_p]:m-0">
+                      <span className="text-on-surface-variant font-normal mr-1">A:</span>
+                      <MarkdownRenderer content={card.answer} />
+                    </div>
                     <button
                       onClick={() => handleSaveCard(card, i)}
                       disabled={savedCards.has(i)}

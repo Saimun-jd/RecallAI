@@ -3,7 +3,7 @@ import logging
 import os
 import tempfile
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Form, Request, UploadFile
+from fastapi import FastAPI, File, Form, Request, UploadFile
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -245,27 +245,41 @@ async def get_topic_chat_history(topic_id: int):
 async def chat_endpoint(request: ChatRequest):
     try:
         from app.database import get_connection
-        # 1. Save user's question to DB
-        with get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("INSERT INTO chat_messages (topic_id, role, content) VALUES (?, ?, ?)", 
-                           (request.topic_id, "user", request.question))
+        
+        # 0. Resolve book_id if topic_id is given
+        if not request.book_id and request.topic_id:
+            with get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT book_id FROM topics WHERE id = ?", (request.topic_id,))
+                row = cursor.fetchone()
+                if row:
+                    request.book_id = row[0]
+                    
+        # 1. Save user's question to DB if topic_id exists
+        if request.topic_id:
+            with get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("INSERT INTO chat_messages (topic_id, role, content) VALUES (?, ?, ?)", 
+                               (request.topic_id, "user", request.question))
+            request.context_markdown = await ensure_topic_markdown(request.topic_id)
+        else:
+            request.context_markdown = request.context_markdown or ""
         
         # 2. Get answer from LLM
-        # Ensure we have the latest markdown context, regardless of what the frontend sent
-        request.context_markdown = await ensure_topic_markdown(request.topic_id)
         answer = await chat_with_topic(request)
         
-        # 3. Save AI's answer to DB
-        with get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("INSERT INTO chat_messages (topic_id, role, content) VALUES (?, ?, ?)", 
-                           (request.topic_id, "ai", answer))
-                           
+        # 3. Save AI's answer to DB if topic_id exists
+        if request.topic_id:
+            with get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("INSERT INTO chat_messages (topic_id, role, content) VALUES (?, ?, ?)", 
+                               (request.topic_id, "ai", answer))
+                               
         return {"answer": answer}
+                            
     except Exception as e:
         logger.error(f"Chat endpoint error: {e}")
-        return {"answer": "Sorry, an internal error occurred while processing your request."}
+        return error_response(e, include_debug=_is_debug())
 
 @app.post("/chat/stream")
 async def chat_endpoint_stream(request: ChatRequest):
@@ -274,12 +288,24 @@ async def chat_endpoint_stream(request: ChatRequest):
     
     try:
         from app.database import get_connection
-        with get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("INSERT INTO chat_messages (topic_id, role, content) VALUES (?, ?, ?)", 
-                           (request.topic_id, "user", request.question))
-                           
-        request.context_markdown = await ensure_topic_markdown(request.topic_id)
+        
+        # 0. Resolve book_id if topic_id is given
+        if not request.book_id and request.topic_id:
+            with get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT book_id FROM topics WHERE id = ?", (request.topic_id,))
+                row = cursor.fetchone()
+                if row:
+                    request.book_id = row[0]
+                    
+        if request.topic_id:
+            with get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("INSERT INTO chat_messages (topic_id, role, content) VALUES (?, ?, ?)", 
+                               (request.topic_id, "user", request.question))
+            request.context_markdown = await ensure_topic_markdown(request.topic_id)
+        else:
+            request.context_markdown = request.context_markdown or ""
         
         async def event_generator():
             full_answer = ""
@@ -288,13 +314,16 @@ async def chat_endpoint_stream(request: ChatRequest):
                     full_answer += chunk
                     yield f"data: {json.dumps({'chunk': chunk})}\n\n"
                     
-                with get_connection() as conn:
-                    cursor = conn.cursor()
-                    cursor.execute("INSERT INTO chat_messages (topic_id, role, content) VALUES (?, ?, ?)", 
-                                   (request.topic_id, "ai", full_answer))
+                if request.topic_id:
+                    with get_connection() as conn:
+                        cursor = conn.cursor()
+                        cursor.execute("INSERT INTO chat_messages (topic_id, role, content) VALUES (?, ?, ?)", 
+                                       (request.topic_id, "ai", full_answer))
             except Exception as e:
                 logger.error(f"Chat stream error: {e}")
-                yield f"data: {json.dumps({'error': str(e)})}\n\n"
+                err_dict = error_event(e, include_debug=_is_debug())
+                err_dict["error"] = err_dict.get("message")
+                yield f"data: {json.dumps(err_dict)}\n\n"
                 
         return StreamingResponse(event_generator(), media_type="text/event-stream")
     except Exception as e:
@@ -497,7 +526,7 @@ async def upload_and_parse_toc(
             doc = fitz.open(file_path)
             toc = get_toc_entries(doc, pdf_path=file_path)
             total = doc.page_count
-            granular_toc = build_granular_toc(toc, total)
+            granular_toc = build_granular_toc(toc, total, document_title=book_title)
             doc.close()
             return granular_toc
             
@@ -710,8 +739,14 @@ async def process_book_stream(book_id: int, req: ProcessRequest):
 
 from fastapi.responses import HTMLResponse
 
+_latest_oauth_cache = {"code": None, "timestamp": 0.0}
+
 @app.get("/auth-success", response_class=HTMLResponse)
-def auth_success():
+def auth_success(request: Request):
+    global _latest_oauth_cache
+    code = request.query_params.get("code")
+    if code:
+        _latest_oauth_cache = {"code": code, "timestamp": time.time()}
     return """
     <!DOCTYPE html>
     <html>
@@ -737,6 +772,14 @@ def auth_success():
     </body>
     </html>
     """
+
+@app.get("/api/auth/latest-oauth-code")
+def get_latest_oauth_code():
+    global _latest_oauth_cache
+    now = time.time()
+    if _latest_oauth_cache.get("code") and (now - _latest_oauth_cache.get("timestamp", 0.0) < 60.0):
+        return {"code": _latest_oauth_cache["code"]}
+    return {"code": None}
 
 @app.get("/health")
 def health():
@@ -820,6 +863,60 @@ async def verify_ollama(url: str):
             return {"active": True, "error": None}
     except Exception as e:
         return {"active": False, "error": str(e)}
+
+class VerifyKeyRequest(BaseModel):
+    provider: str
+    api_key: str
+
+@app.post("/settings/verify-key")
+async def verify_api_key(req: VerifyKeyRequest):
+    import httpx
+    provider = req.provider.lower().strip()
+    key = req.api_key.strip()
+    if not key:
+        return {"valid": False, "error": "API key cannot be empty."}
+
+    try:
+        if provider == "gemini":
+            url = f"https://generativelanguage.googleapis.com/v1beta/models?key={key}"
+            async with httpx.AsyncClient(timeout=6.0) as client:
+                r = await client.get(url)
+                if r.status_code == 200:
+                    return {"valid": True, "error": None}
+                return {"valid": False, "error": f"Invalid Gemini key (HTTP {r.status_code})"}
+
+        elif provider == "openai":
+            url = "https://api.openai.com/v1/models"
+            headers = {"Authorization": f"Bearer {key}"}
+            async with httpx.AsyncClient(timeout=6.0) as client:
+                r = await client.get(url, headers=headers)
+                if r.status_code == 200:
+                    return {"valid": True, "error": None}
+                return {"valid": False, "error": f"Invalid OpenAI key (HTTP {r.status_code})"}
+
+        elif provider == "groq":
+            url = "https://api.groq.com/openai/v1/models"
+            headers = {"Authorization": f"Bearer {key}"}
+            async with httpx.AsyncClient(timeout=6.0) as client:
+                r = await client.get(url, headers=headers)
+                if r.status_code == 200:
+                    return {"valid": True, "error": None}
+                return {"valid": False, "error": f"Invalid Groq key (HTTP {r.status_code})"}
+
+        elif provider in ("datalab_api_key", "marker_api"):
+            url = "https://www.datalab.to/api/v1/marker"
+            headers = {"X-Api-Key": key}
+            async with httpx.AsyncClient(timeout=6.0) as client:
+                r = await client.get("https://www.datalab.to/api/v1/models", headers=headers)
+                if r.status_code in (200, 404):
+                    return {"valid": True, "error": None}
+                if r.status_code in (401, 403):
+                    return {"valid": False, "error": "Invalid Datalab API key"}
+                return {"valid": True, "error": None}
+
+        return {"valid": True, "error": None}
+    except Exception as e:
+        return {"valid": False, "error": f"Verification failed: {str(e)}"}
 async def ensure_topic_markdown(topic_id: int) -> str:
     """Ensures the topic has extracted markdown content. If missing, runs the extraction pipeline and saves it."""
     from app.database import get_topic_by_id, get_book_by_id, update_topic_content_md
@@ -882,15 +979,17 @@ class FlashcardGenerationRequest(BaseModel):
     custom_prompt: str | None = None
     summary_override: str | None = None
     provider_override: str | None = None
+    concept_name: str | None = None
 
 class ProcessTopicRequest(BaseModel):
     provider_override: str | None = None
+    force_reprocess: bool = False
 
 @app.post("/topics/{topic_id}/process-stream")
 async def process_topic_stream(topic_id: int, req: ProcessTopicRequest):
     from app.database import (
         get_topic_by_id, update_topic_status, get_book_by_id, 
-        update_topic_enrichment, get_child_topics, get_connection
+        update_topic_enrichment, update_topic_content_md, get_child_topics, get_connection
     )
     from app.pdf_extract import extract_raw_text, extract_page_range_chunked
     from app.markdown_slicer import match_concept_to_section_heading
@@ -910,6 +1009,8 @@ async def process_topic_stream(topic_id: int, req: ProcessTopicRequest):
         
     async def event_generator():
         children = []
+        atomic_concepts = []
+        content_md = ""
         try:
             update_topic_status(topic_id, "processing")
             children = get_child_topics(topic_id)
@@ -1040,6 +1141,8 @@ async def process_topic_stream(topic_id: int, req: ProcessTopicRequest):
                 modified_md_text, code_blocks, images = parse_markdown_assets(raw_md, cache_key)
                 sections = detect_headings(modified_md_text, start_page_num)
                 content_md = modified_md_text
+                # Immediate markdown checkpointing so PDF reading is never repeated on retry
+                update_topic_content_md(topic_id, content_md)
             
             if topic.get("title") in ("Full Document", "Untitled") and len(sections) >= 2:
                 from app.topic_subdivider import subdivide_topic_from_markdown
@@ -1059,22 +1162,76 @@ async def process_topic_stream(topic_id: int, req: ProcessTopicRequest):
             heading = topic.get("title") or "Section"
             
             # If document is very long (> 16,000 characters) and has multiple detected sections,
-            # process per section to prevent LLM context/output truncation
+            # batch sections into ~12,000 character chunks to prevent daily quota exhaustion and optimize speed
             atomic_concepts = []
             if len(content_md) > 16000 and len(sections) >= 2:
-                yield f"data: {json.dumps({'stage': 'extracting_topics', 'progress': 25})}\n\n"
-                for s_idx, sec in enumerate(sections, 1):
-                    sec_heading = sec["heading"]
-                    sec_text = sec["text"]
-                    if not sec_text.strip() or len(sec_text.strip()) < 50:
+                valid_sections = [s for s in sections if s.get("text", "").strip() and len(s["text"].strip()) >= 50]
+                batches = []
+                current_batch = []
+                current_chars = 0
+
+                for sec in valid_sections:
+                    sec_len = len(sec["text"])
+                    if current_batch and (current_chars + sec_len > 12000):
+                        batches.append(current_batch)
+                        current_batch = [sec]
+                        current_chars = sec_len
+                    else:
+                        current_batch.append(sec)
+                        current_chars += sec_len
+
+                if current_batch:
+                    batches.append(current_batch)
+
+                total_batches = max(1, len(batches))
+                yield f"data: {json.dumps({'stage': 'extracting_topics', 'progress': 25, 'total_sections': len(valid_sections), 'total_batches': total_batches, 'message': f'Extracting concepts across {len(valid_sections)} sections in {total_batches} batches'})}\n\n"
+
+                # Check for existing checkpointed concepts from a previous partial run
+                existing_concepts = []
+                if not getattr(req, "force_reprocess", False):
+                    existing_raw = topic.get("atomic_concepts")
+                    if existing_raw:
+                        try:
+                            existing_concepts = json.loads(existing_raw) if isinstance(existing_raw, str) else existing_raw
+                        except Exception:
+                            existing_concepts = []
+
+                for b_idx, batch_secs in enumerate(batches, 1):
+                    if len(batch_secs) == 1:
+                        batch_heading = batch_secs[0]["heading"]
+                        batch_text = batch_secs[0]["text"]
+                    else:
+                        batch_heading = f"{batch_secs[0]['heading']} to {batch_secs[-1]['heading']}"
+                        batch_text = "\n\n".join(f"## {s['heading']}\n{s['text']}" for s in batch_secs)
+
+                    pct = int(25 + 65 * ((b_idx - 1) / total_batches))
+
+                    # Check if this batch was already checkpointed in a prior attempt
+                    batch_headings_set = {s["heading"] for s in batch_secs}
+                    existing_batch_concepts = [
+                        c for c in existing_concepts 
+                        if c.get("batch_idx") == b_idx or (c.get("section_heading") and c.get("section_heading") in batch_headings_set)
+                    ]
+
+                    if existing_batch_concepts and not getattr(req, "force_reprocess", False):
+                        logger.info(f"Reusing checkpointed batch {b_idx}/{total_batches} ('{batch_heading}') with {len(existing_batch_concepts)} concepts.")
+                        yield f"data: {json.dumps({'stage': 'extracting_topics', 'progress': pct, 'current_batch': b_idx, 'total_batches': total_batches, 'message': f'Reusing checkpointed batch {b_idx}/{total_batches}: {batch_heading}'})}\n\n"
+                        atomic_concepts.extend(existing_batch_concepts)
                         continue
+
+                    yield f"data: {json.dumps({'stage': 'extracting_topics', 'progress': pct, 'current_batch': b_idx, 'total_batches': total_batches, 'message': f'Processing batch {b_idx}/{total_batches}: {batch_heading}'})}\n\n"
+
                     sec_extraction = await extract_atomic_concepts(
-                        sec_heading, sec_text, code_blocks, images, req.provider_override
+                        batch_heading, batch_text, code_blocks, images, req.provider_override
                     )
                     if hasattr(sec_extraction, 'atomic_topics') and sec_extraction.atomic_topics:
                         for idx, t in enumerate(sec_extraction.atomic_topics):
+                            sec_heading = match_concept_to_section_heading(
+                                batch_secs, t.topic_name, t.summary, t.key_terms
+                            )
                             atomic_concepts.append({
-                                "id": f"c_{s_idx}_{idx + 1}",
+                                "id": f"c_{b_idx}_{idx + 1}",
+                                "batch_idx": b_idx,
                                 "name": t.topic_name,
                                 "concept_type": t.concept_type or "Definition",
                                 "summary": t.summary or "",
@@ -1086,7 +1243,16 @@ async def process_topic_stream(topic_id: int, req: ProcessTopicRequest):
                                 "mastery_status": "untested",
                                 "last_drilled_at": None,
                             })
-                yield f"data: {json.dumps({'stage': 'extracting_topics', 'progress': 90})}\n\n"
+
+                    # Immediate Checkpoint: Persist to SQLite after every single completed batch!
+                    update_topic_enrichment(
+                        topic_id=topic_id,
+                        atomic_concepts=json.dumps(atomic_concepts),
+                        content_md=content_md,
+                        status="processing"
+                    )
+
+                yield f"data: {json.dumps({'stage': 'extracting_topics', 'progress': 90, 'message': 'Finalizing topic enrichment'})}\n\n"
             else:
                 text_content = content_md or (sections[0]["text"] if sections else "")
                 yield f"data: {json.dumps({'stage': 'extracting_topics', 'progress': 50})}\n\n"
@@ -1100,6 +1266,7 @@ async def process_topic_stream(topic_id: int, req: ProcessTopicRequest):
                         )
                         atomic_concepts.append({
                             "id": f"c_{idx + 1}",
+                            "batch_idx": 1,
                             "name": t.topic_name,
                             "concept_type": t.concept_type or "Definition",
                             "summary": t.summary or "",
@@ -1123,10 +1290,30 @@ async def process_topic_stream(topic_id: int, req: ProcessTopicRequest):
             yield f"data: {json.dumps({'stage': 'extracting_topics', 'progress': 100})}\n\n"
             yield f"data: {json.dumps({'status': 'complete', 'topic_id': topic_id})}\n\n"
             
+        except asyncio.CancelledError:
+            logger.warning(f"Client disconnected during topic {topic_id} processing.")
+            if not children and (atomic_concepts or content_md):
+                update_topic_enrichment(
+                    topic_id=topic_id,
+                    atomic_concepts=json.dumps(atomic_concepts) if atomic_concepts else None,
+                    content_md=content_md or None,
+                    status="unprocessed"
+                )
+            raise
         except Exception as e:
             import traceback
             logger.error(f"Error processing topic {topic_id}: {e}\n{traceback.format_exc()}")
-            update_topic_status(topic_id, "unprocessed")
+            
+            # If batch concepts or content_md were extracted for a flat topic, preserve them in SQLite
+            if not children and (atomic_concepts or content_md):
+                update_topic_enrichment(
+                    topic_id=topic_id,
+                    atomic_concepts=json.dumps(atomic_concepts) if atomic_concepts else None,
+                    content_md=content_md or None,
+                    status="unprocessed"
+                )
+            else:
+                update_topic_status(topic_id, "unprocessed")
             
             saved_count = 0
             if children:
@@ -1143,6 +1330,10 @@ async def process_topic_stream(topic_id: int, req: ProcessTopicRequest):
                 err_dict["message"] = f"{base_msg} (Progress checkpointed: {saved_count}/{len(children)} subtopics saved. You can resume safely.)"
                 err_dict["checkpointed_count"] = saved_count
                 err_dict["total_children"] = len(children)
+            elif atomic_concepts and len(atomic_concepts) > 0:
+                base_msg = err_dict.get("message", "")
+                err_dict["message"] = f"{base_msg} (Progress checkpointed: {len(atomic_concepts)} concepts saved across completed batches. You can resume safely.)"
+                err_dict["checkpointed_concepts"] = len(atomic_concepts)
 
             yield f"data: {json.dumps(err_dict)}\n\n"
 
@@ -1256,6 +1447,7 @@ async def drill_evaluate_answer(topic_id: int, req: DrillEvaluateRequest):
 
         # Record attempt in drill_attempts
         try:
+            dumped_result = result.model_dump()
             record_drill_attempt(
                 topic_id=topic_id,
                 question_id=req.question_id,
@@ -1265,9 +1457,9 @@ async def drill_evaluate_answer(topic_id: int, req: DrillEvaluateRequest):
                 student_answer=req.student_answer,
                 mastery_score=result.mastery_score,
                 status=result.status,
-                strengths=result.strengths,
-                diagnosed_gaps=result.diagnosed_gaps,
-                misconceptions=result.misconceptions,
+                strengths=dumped_result.get("strengths", []),
+                diagnosed_gaps=dumped_result.get("diagnosed_gaps", []),
+                misconceptions=dumped_result.get("misconceptions", []),
                 socratic_nudge=result.socratic_nudge,
                 concept_name=req.concept_name,
             )
@@ -1344,7 +1536,7 @@ def clean_book_toc(book_id: int):
 @app.post("/topics/{topic_id}/flashcards")
 @observe(name="generate_topic_flashcards", as_type="span")
 async def generate_topic_flashcards(topic_id: int, req: FlashcardGenerationRequest):
-    from app.database import get_topic_by_id
+    from app.database import get_topic_by_id, save_flashcards
     from app.llm_segment import generate_flashcards_for_topic
     
     topic = get_topic_by_id(topic_id)
@@ -1352,16 +1544,43 @@ async def generate_topic_flashcards(topic_id: int, req: FlashcardGenerationReque
         return JSONResponse(status_code=404, content={"error": "Topic not found"})
         
     summary = req.summary_override or topic.get("summary") or ""
-    
     topic_text = await ensure_topic_markdown(topic_id)
             
+    target_topic_name = topic.get("title", "")
+    target_concept_type = None
+    target_key_terms = []
+    custom_prompt = req.custom_prompt or ""
+
+    if req.concept_name:
+        try:
+            stored_concepts = json.loads(topic.get("atomic_concepts") or "[]")
+            for c in stored_concepts:
+                c_name = c.get("name") or c.get("topic_name")
+                if c_name and c_name.strip().lower() == req.concept_name.strip().lower():
+                    target_topic_name = f"{topic.get('title', '')} → {c_name}"
+                    target_concept_type = c.get("concept_type")
+                    target_key_terms = c.get("key_terms") or []
+                    if c.get("summary"):
+                        summary = c.get("summary")
+                    break
+        except Exception as e:
+            logger.warning(f"Error parsing atomic concepts for topic {topic_id}: {e}")
+
+        # Direct prompt specifically to the target concept
+        concept_instruction = f"- Targeted Atomic Topic: Focus exclusively on '{req.concept_name}'."
+        if target_concept_type:
+            concept_instruction += f" Concept Type: {target_concept_type}."
+        if target_key_terms:
+            concept_instruction += f" Key terms to test: {', '.join(target_key_terms)}."
+        custom_prompt = f"{custom_prompt}\n{concept_instruction}".strip()
+
     flashcard_list = await generate_flashcards_for_topic(
-        topic_name=topic.get("title", ""),
+        topic_name=target_topic_name,
         breadcrumb=topic.get("breadcrumb", ""),
         topic_text=topic_text,
         summary=summary,
         count=req.count,
-        custom_prompt=req.custom_prompt,
+        custom_prompt=custom_prompt,
         provider_override=req.provider_override
     )
     
@@ -1370,9 +1589,11 @@ async def generate_topic_flashcards(topic_id: int, req: FlashcardGenerationReque
     cards_to_save = []
     for fc in flashcard_list.flashcards:
         card_dict = fc.model_dump()
-        card_dict["topic_name"] = topic.get("title", "")
+        card_dict["topic_name"] = req.concept_name if req.concept_name else topic.get("title", "")
         card_dict["breadcrumb"] = topic.get("breadcrumb", "")
         card_dict["source_page"] = topic.get("start_page")
+        if target_concept_type and not card_dict.get("concept_type"):
+            card_dict["concept_type"] = target_concept_type
         cards_to_save.append(card_dict)
         
     inserted = save_flashcards(topic_id, cards_to_save)
@@ -1518,13 +1739,27 @@ def get_books_api(skip: int = 0, limit: int = 100):
     from app.database import get_books
     return get_books(skip, limit)
 
+class ReadingStateRequest(BaseModel):
+    page_number: int | None = None
+    topic_id: int | None = None
+
 @app.get("/books/{book_id}")
 def get_book_by_id_api(book_id: int):
-    from app.database import get_book_by_id
+    from app.database import get_book_by_id, update_book_reading_state
     book = get_book_by_id(book_id)
     if not book:
         return JSONResponse(status_code=404, content={"error": "Book not found"})
-    return book
+    update_book_reading_state(book_id)
+    return get_book_by_id(book_id)
+
+@app.patch("/books/{book_id}/reading-state")
+def update_reading_state_api(book_id: int, req: ReadingStateRequest):
+    from app.database import get_book_by_id, update_book_reading_state
+    book = get_book_by_id(book_id)
+    if not book:
+        return JSONResponse(status_code=404, content={"error": "Book not found"})
+    update_book_reading_state(book_id, req.page_number, req.topic_id)
+    return {"status": "ok", "book_id": book_id, "last_read_page": req.page_number, "last_topic_id": req.topic_id}
 
 @app.get("/books/{book_id}/cover")
 def get_book_cover_api(book_id: int):
@@ -1645,39 +1880,26 @@ async def generate_single_cornell_note(topic: dict, provider_override: str | Non
         except Exception:
             pass
 
-    scaffold_prompt = f"""You are an elite academic tutor creating a high-yield Cornell study note for a university student.
-Topic: {topic.get('title', 'Study Topic')}
-Breadcrumb: {topic.get('breadcrumb', '')}
+    import re
+    diagram_matches = re.findall(r'(!\[.*?\]\(.*?\))', content)
+    diagrams_reference = ""
+    if diagram_matches:
+        diagrams_reference = "Available Diagrams & Figures from Source Document (PRESERVE & EMBED IN NOTES):\n" + "\n".join(
+            f"- {match}" for match in diagram_matches
+        )
 
-{concepts_summary}
-
-Content Reference:
-{content[:8000]}
-
-Generate a comprehensive, beautifully structured study note in Markdown adhering strictly to this Cornell & Active Recall structure:
-
-# 📝 {topic.get('title', 'Study Guide')}
-
-## 🎯 Core Invariants & Definitions
-- List the 3-5 fundamental, non-negotiable principles or definitions.
-- Bold key terms. Format EVERY math equation, variable, or matrix using LaTeX notation ($...$ for inline, $$...$$ for blocks).
-
-## 🧠 Step-by-Step Mechanisms & Derivations
-- Clear, causal explanations of how procedures, algorithms, or derivations function.
-- Include concrete examples or edge-case conditions.
-
-## ⚠️ Common Exam Pitfalls & Misconceptions
-- Highlight 2-3 mistakes students frequently make on tests regarding this topic and why they are wrong.
-
-## 📌 Self-Testing Cue Questions (Active Recall)
-- Provide 3-4 probing questions the student can use to quiz themselves on this topic without looking at the notes.
-
-Format strictly in clean, readable Markdown. Do not include introductory conversational filler.
-"""
+    from app.prompt_manager import get_prompt_template
+    scaffold_prompt = get_prompt_template("cornell_scaffold_prompt").format(
+        topic_title=topic.get('title', 'Study Topic'),
+        breadcrumb=topic.get('breadcrumb', ''),
+        concepts_summary=concepts_summary,
+        content_reference=content[:8000],
+        diagrams_reference=diagrams_reference,
+    )
 
     local_settings = copy(settings)
     provider = get_llm_provider(local_settings, provider_override=provider_override)
-    scaffold_markdown = await provider.generate(scaffold_prompt, json_schema=None, temperature=0.2, max_tokens=3000)
+    scaffold_markdown = await provider.generate(scaffold_prompt, json_schema=None, temperature=0.2, max_tokens=3000, feature="cornell_notes")
     if not scaffold_markdown or not scaffold_markdown.strip():
         raise RuntimeError(f"LLM provider returned empty response for study notes of '{topic.get('title')}'.")
     return scaffold_markdown.strip()
@@ -1738,6 +1960,178 @@ def assemble_master_chapter_guide(parent_topic: dict, child_results: list[tuple[
 class NoteScaffoldRequest(BaseModel):
     provider_override: str | None = None
 
+@app.post("/topics/{topic_id}/notes/scaffold-stream")
+async def generate_note_scaffold_stream_api(topic_id: int, req: NoteScaffoldRequest):
+    """
+    Streaming SSE endpoint for Cornell Study Guide generation.
+    Emits real-time progress events per subtopic, checkpoints each subtopic to SQLite immediately,
+    and supports instant resumption upon retry.
+    """
+    from app.database import get_topic_by_id, get_child_topics, get_note_by_topic, save_note_for_topic
+    from app.config import get_provider_concurrency
+    
+    topic = get_topic_by_id(topic_id)
+    if not topic:
+        return JSONResponse(status_code=404, content={"error": "Topic not found"})
+        
+    children = get_child_topics(topic_id)
+    
+    async def event_generator():
+        try:
+            if children:
+                total_children = len(children)
+                start_payload = {
+                    "stage": "starting",
+                    "status": "generating",
+                    "total": total_children,
+                    "current": 0,
+                    "progress": 0,
+                    "message": f"Synthesizing Master Guide across {total_children} subtopics...",
+                }
+                yield f"data: {json.dumps(start_payload)}\n\n"
+                
+                concurrency = get_provider_concurrency(req.provider_override)
+                sem = asyncio.Semaphore(concurrency)
+                
+                completed_map: dict[int, tuple[dict, str]] = {}
+                pending_children = []
+                
+                # Check for cached notes first
+                for idx, child in enumerate(children, 1):
+                    c_id = child["id"]
+                    existing_note = get_note_by_topic(c_id)
+                    child_title = child.get("title") or f"Subtopic {idx}"
+                    if existing_note and len(existing_note.strip()) > 60:
+                        logger.info(f"Reusing existing note for child topic {c_id} ('{child_title}')")
+                        completed_map[c_id] = (child, existing_note)
+                        pct = int((len(completed_map) / total_children) * 100)
+                        reuse_payload = {
+                            "stage": "reusing_child",
+                            "status": "generating",
+                            "child_id": c_id,
+                            "child_title": child_title,
+                            "current": len(completed_map),
+                            "total": total_children,
+                            "progress": pct,
+                            "message": f"Reusing saved note for {child_title}",
+                        }
+                        yield f"data: {json.dumps(reuse_payload)}\n\n"
+                    else:
+                        pending_children.append((idx, child))
+                
+                # If all children are already cached, assemble and complete!
+                if len(completed_map) == total_children:
+                    ordered_results = [completed_map[c["id"]] for c in children]
+                    master_guide = assemble_master_chapter_guide(topic, ordered_results)
+                    save_note_for_topic(topic_id, master_guide)
+                    complete_payload = {
+                        "status": "complete",
+                        "stage": "complete",
+                        "topic_id": topic_id,
+                        "scaffold": master_guide,
+                        "note": master_guide,
+                        "progress": 100,
+                        "message": "Master Guide ready!",
+                    }
+                    yield f"data: {json.dumps(complete_payload)}\n\n"
+                    return
+
+                # Process remaining children with concurrency semaphore
+                async def process_child(idx: int, child: dict):
+                    c_id = child["id"]
+                    async with sem:
+                        if concurrency <= 2:
+                            await asyncio.sleep(0.5)
+                        c_note = await generate_single_cornell_note(child, req.provider_override)
+                        save_note_for_topic(c_id, c_note)
+                        return c_id, child, c_note
+
+                tasks = [asyncio.create_task(process_child(idx, c)) for idx, c in pending_children]
+                
+                try:
+                    for future in asyncio.as_completed(tasks):
+                        c_id, child, c_note = await future
+                        completed_map[c_id] = (child, c_note)
+                        child_title = child.get("title") or "Subtopic"
+                        
+                        # Incrementally update parent master guide so far
+                        current_ordered = [completed_map[c["id"]] for c in children if c["id"] in completed_map]
+                        if current_ordered:
+                            partial_master = assemble_master_chapter_guide(topic, current_ordered)
+                            save_note_for_topic(topic_id, partial_master)
+                            
+                        pct = int((len(completed_map) / total_children) * 100)
+                        prog_payload = {
+                            "stage": "generating_child",
+                            "status": "generating",
+                            "child_id": c_id,
+                            "child_title": child_title,
+                            "current": len(completed_map),
+                            "total": total_children,
+                            "progress": pct,
+                            "message": f"Completed subtopic {len(completed_map)} of {total_children}: {child_title}",
+                        }
+                        yield f"data: {json.dumps(prog_payload)}\n\n"
+                except Exception as sub_err:
+                    for t in tasks:
+                        if not t.done():
+                            t.cancel()
+                    saved_count = len(completed_map)
+                    logger.warning(f"Error during Cornell generation: {sub_err}. Checkpointed {saved_count}/{total_children} subtopics.")
+                    err_payload = {
+                        "status": "error",
+                        "message": f"{str(sub_err)} (Checkpointed {saved_count} of {total_children} subtopics. Click Cornell to resume)",
+                        "checkpointed": saved_count,
+                    }
+                    yield f"data: {json.dumps(err_payload)}\n\n"
+                    return
+
+                ordered_results = [completed_map[c["id"]] for c in children]
+                master_guide = assemble_master_chapter_guide(topic, ordered_results)
+                save_note_for_topic(topic_id, master_guide)
+                
+                final_payload = {
+                    "status": "complete",
+                    "stage": "complete",
+                    "topic_id": topic_id,
+                    "scaffold": master_guide,
+                    "note": master_guide,
+                    "progress": 100,
+                    "children_count": total_children,
+                }
+                yield f"data: {json.dumps(final_payload)}\n\n"
+            else:
+                t_title = topic.get("title", "Topic")
+                single_start = {
+                    "stage": "generating_note",
+                    "status": "generating",
+                    "current": 1,
+                    "total": 1,
+                    "progress": 40,
+                    "message": f"Synthesizing Cornell Study Guide for {t_title}...",
+                }
+                yield f"data: {json.dumps(single_start)}\n\n"
+                
+                note = await generate_single_cornell_note(topic, req.provider_override)
+                save_note_for_topic(topic_id, note)
+                
+                single_done = {
+                    "status": "complete",
+                    "stage": "complete",
+                    "topic_id": topic_id,
+                    "scaffold": note,
+                    "note": note,
+                    "progress": 100,
+                }
+                yield f"data: {json.dumps(single_done)}\n\n"
+
+        except Exception as e:
+            logger.error(f"Failed to generate note scaffold stream: {e}")
+            yield f"data: {json.dumps(error_event(e, include_debug=_is_debug()))}\n\n"
+            
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+
 @app.post("/topics/{topic_id}/notes/scaffold")
 async def generate_note_scaffold_api(topic_id: int, req: NoteScaffoldRequest):
     """
@@ -1747,6 +2141,7 @@ async def generate_note_scaffold_api(topic_id: int, req: NoteScaffoldRequest):
     Master Chapter Guide with subtopic navigation and a consolidated Master Active Recall Deck.
     """
     from app.database import get_topic_by_id, get_child_topics, get_note_by_topic, save_note_for_topic
+    from app.config import get_provider_concurrency
     
     topic = get_topic_by_id(topic_id)
     if not topic:
@@ -1758,18 +2153,19 @@ async def generate_note_scaffold_api(topic_id: int, req: NoteScaffoldRequest):
         if children:
             logger.info(f"Generating hierarchical Cornell notes for parent topic {topic_id} ({len(children)} children)...")
             
-            # Concurrency semaphore (3 parallel) to avoid burst rate-limits on LLM tiers
-            sem = asyncio.Semaphore(3)
+            concurrency = get_provider_concurrency(req.provider_override)
+            sem = asyncio.Semaphore(concurrency)
             
             async def process_child(child):
                 c_id = child["id"]
                 existing_note = get_note_by_topic(c_id)
-                # Smart reuse: if child already has a substantive note, reuse it!
                 if existing_note and len(existing_note.strip()) > 60:
                     logger.info(f"Reusing existing note for child topic {c_id} ('{child.get('title')}')")
                     return child, existing_note
                     
                 async with sem:
+                    if concurrency <= 2:
+                        await asyncio.sleep(0.5)
                     c_note = await generate_single_cornell_note(child, req.provider_override)
                     save_note_for_topic(c_id, c_note)
                     return child, c_note
@@ -1814,6 +2210,32 @@ def append_topic_notes_api(topic_id: int, req: NoteAppendRequest):
     updated = (existing.rstrip() + append_block).strip()
     save_note_for_topic(topic_id, updated)
     return {"status": "success", "note": updated}
+
+
+@app.post("/notes/upload-image")
+async def upload_note_image_api(file: UploadFile = File(...)):
+    """Uploads an image or diagram to attach to study notes."""
+    import uuid
+    import shutil
+    
+    notes_img_dir = os.path.join(PARSED_DOCS_DIR, "note_images")
+    os.makedirs(notes_img_dir, exist_ok=True)
+    
+    ext = os.path.splitext(file.filename or "")[1].lower()
+    if ext not in (".png", ".jpg", ".jpeg", ".webp", ".svg", ".gif"):
+        ext = ".png"
+    
+    unique_filename = f"note_diagram_{uuid.uuid4().hex[:12]}{ext}"
+    dest_path = os.path.join(notes_img_dir, unique_filename)
+    
+    with open(dest_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+        
+    return {
+        "status": "success",
+        "filename": unique_filename,
+        "url": f"images/{unique_filename}"
+    }
 
 
 @app.get("/flashcards/export")
@@ -2121,11 +2543,19 @@ async def chunk_stream_endpoint(
             
             results = await asyncio.gather(*tasks, return_exceptions=True)
             all_chunks = []
+            first_recall_err = None
             for res in results:
-                if isinstance(res, Exception):
+                if isinstance(res, RecallError):
+                    logger.error(f"Section extraction failed with RecallError: {res}")
+                    if not first_recall_err:
+                        first_recall_err = res
+                elif isinstance(res, Exception):
                     logger.error(f"Section extraction failed: {res}")
                 elif isinstance(res, list):
                     all_chunks.extend(res)
+            
+            if not all_chunks and first_recall_err:
+                raise first_recall_err
             
             chunks_json = [c.model_dump() for c in all_chunks]
             yield f"data: {json.dumps({'stage': 'done', 'chunks': chunks_json})}\n\n"
@@ -2154,3 +2584,97 @@ async def reparse_handwriting_endpoint(book_id: int):
     except Exception as e:
         logger.error(f"Error reparsing book {book_id} with marker: {e}")
         return JSONResponse(status_code=500, content={"error": str(e)})
+
+
+# -----------------------------------------------------------------------------
+# LLM Inspection: System Prompts & Token Usage Endpoints
+# -----------------------------------------------------------------------------
+
+class UpdatePromptRequest(BaseModel):
+    custom_prompt: str
+
+
+@app.get("/api/prompts")
+async def get_all_system_prompts():
+    """Returns all system prompts, their categories, variables, and current custom values."""
+    from app.prompt_manager import get_all_prompts
+    try:
+        return {"prompts": get_all_prompts()}
+    except Exception as e:
+        logger.error(f"Failed to fetch system prompts: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.put("/api/prompts/{key}")
+async def update_system_prompt_endpoint(key: str, req: UpdatePromptRequest):
+    """Updates a system prompt override after validating placeholder syntax."""
+    from app.prompt_manager import update_prompt
+    try:
+        updated = update_prompt(key, req.custom_prompt)
+        return {"prompt": updated}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Failed to update prompt '{key}': {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/prompts/{key}/reset")
+async def reset_system_prompt_endpoint(key: str):
+    """Reverts a system prompt to its factory default."""
+    from app.prompt_manager import reset_prompt
+    try:
+        reset_res = reset_prompt(key)
+        return {"prompt": reset_res}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error(f"Failed to reset prompt '{key}': {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/prompts/reset-all")
+async def reset_all_prompts_endpoint():
+    """Reverts all system prompts to their factory defaults."""
+    from app.prompt_manager import reset_all_prompts, get_all_prompts
+    try:
+        reset_all_prompts()
+        return {"status": "ok", "prompts": get_all_prompts()}
+    except Exception as e:
+        logger.error(f"Failed to reset all prompts: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/token-usage/summary")
+async def get_token_usage_summary_endpoint(days: Optional[int] = None):
+    """Returns aggregated token usage statistics, breakdowns, and timeline."""
+    from app.database import get_token_usage_summary
+    try:
+        return get_token_usage_summary(days=days)
+    except Exception as e:
+        logger.error(f"Failed to fetch token usage summary: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/token-usage/history")
+async def get_token_usage_history_endpoint(limit: int = 100, offset: int = 0):
+    """Returns paginated individual token usage request logs."""
+    from app.database import get_token_usage_logs
+    try:
+        return {"logs": get_token_usage_logs(limit=limit, offset=offset)}
+    except Exception as e:
+        logger.error(f"Failed to fetch token usage logs: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/token-usage")
+async def clear_token_usage_endpoint():
+    """Clears all token usage history."""
+    from app.database import clear_token_usage_logs
+    try:
+        clear_token_usage_logs()
+        return {"status": "ok", "message": "Token usage history cleared"}
+    except Exception as e:
+        logger.error(f"Failed to clear token usage: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
