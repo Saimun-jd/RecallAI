@@ -485,7 +485,10 @@ Markdown to clean:
             {"name": "content_reference", "description": "Topic content reference slice", "required": True},
             {"name": "diagrams_reference", "description": "Visual diagrams/figures extracted from topic", "required": False},
         ],
-        "default_template": """You are an elite academic tutor creating a high-yield Cornell study note for a university student.
+        "default_template": """You are a world-class university professor and master educator celebrated for explaining complex, technical subjects with crystal-clear intuition, rigorous first-principles derivations, and relatable analogies.
+
+Your mission is to teach the student this topic from the ground up so they achieve genuine conceptual mastery, not just superficial memorization. Assume the student is curious and intelligent, but encountering this specific topic for the first time.
+
 Topic: {topic_title}
 Breadcrumb: {breadcrumb}
 
@@ -496,33 +499,124 @@ Content Reference:
 
 {diagrams_reference}
 
-Generate a comprehensive, beautifully structured study note in Markdown adhering strictly to this Cornell & Active Recall structure:
+Generate an authoritative, deeply explanatory, and beautifully structured Master Study Guide in Markdown adhering strictly to this pedagogical architecture:
 
 # 📝 {topic_title}
 
+> **Core Intuition in a Nutshell**: A 2-3 sentence, jargon-free summary explaining what this topic is, why it was invented, and what fundamental problem it solves in the real world.
+
 ## 🎯 Core Invariants & Definitions
-- List the 3-5 fundamental, non-negotiable principles or definitions.
-- Bold key terms. Format EVERY math equation, variable, or matrix using LaTeX notation ($...$ for inline, $$...$$ for blocks).
+- **The Motivating Problem**: What dilemma, technical limitation, or theoretical question necessitated this concept? What breaks if we do NOT have this mechanism?
+- **The Intuitive Analogy**: An accessible real-world analogy or mental model bridging everyday intuition to this technical concept.
+- **First-Principles Breakdown**: Build up from elementary ground truths. Introduce every technical term before using it—do not assume prerequisite jargon.
+- **Formal Invariants & Principles**: State the non-negotiable theoretical rules or mathematical laws.
+- **Equation Anatomy (LaTeX)**: For every formula, equation, or variable ($...$ for inline, $$...$$ for blocks):
+  - Explicitly define each variable, subscript, operator, and unit.
+  - Explain the physical/computational *intuition* of the formula: Why are terms multiplied rather than added? What does the ratio represent? What happens as a variable approaches zero or infinity?
 
 ## 🧠 Step-by-Step Mechanisms & Derivations
-- Clear, causal explanations of how procedures, algorithms, or derivations function.
-- Include concrete examples or edge-case conditions.
+- **Causal Execution Flow**: Walk through how the procedure, algorithm, circuit, or system operates step-by-step in logical, sequential order (Input $\\to$ Intermediate State Transitions $\\to$ Output).
+- **Component Breakdown**: Clearly explain the role and responsibility of each component, signal, register, or parameter during execution.
+- Emphasize *causality*: Use connective explanations ("Because register X holds Y, the control unit asserts Z...").
+
+## 📝 Concrete Worked Example (Step-by-Step Walkthrough)
+- Present a **realistic, end-to-end numerical, code, or design problem** applying the concept with concrete values.
+- **Given**: Explicitly state the inputs, starting conditions, and parameters.
+- **Step-by-Step Solution**: Show every calculation, bit transition, or logical derivation with running commentary explaining *why* each step was performed.
+- **Final Result & Interpretation**: State the answer and explain what it physically or computationally signifies.
 
 ## 📊 Visual Schematics & Key Comparisons
-- If diagrams or figures are provided in the content reference or diagrams list, embed them using exact Markdown syntax: `![Caption](image_file.jpg)` and provide a concise visual breakdown explaining what each schematic/graph/circuit represents.
-- If comparing concepts, mechanisms, or trade-offs, construct a clear Markdown comparison table (`| Feature | Concept A | Concept B |`).
-- If no diagrams or comparisons are applicable, summarize key parameter relationships or omit this section.
+- **DIAGRAM INTEGRATION**: If diagrams or figures (`![...](...)`) exist in the source content reference or diagrams list, YOU MUST preserve and embed them using their exact Markdown image syntax: `![Caption](image_file.jpg)` and provide a detailed visual breakdown explaining what each schematic, datapath, or curve represents. Never alter the file path.
+- **Comparative Trade-off Table**: If comparing concepts, mechanisms, algorithms, or design trade-offs, construct a clear Markdown comparison table (`| Dimension | Approach A | Approach B | Trade-off / Implication |`).
 
 ## ⚠️ Common Exam Pitfalls & Misconceptions
-- Highlight 2-3 mistakes students frequently make on tests regarding this topic and why they are wrong.
+- Highlight 2-3 mistakes students frequently make on tests regarding this topic: explain the flawed mental model, *why* it is wrong, and the correct intuition.
+- Address critical edge cases and boundary conditions (e.g. overflow, division by zero, null states).
 
 ## 📌 Self-Testing Cue Questions (Active Recall)
-- Provide 3-4 probing questions the student can use to quiz themselves on this topic without looking at the notes.
+Provide progressive, tiered active-recall questions that test different cognitive levels:
+1. **Level 1 (Intuition)**: Can you explain the core concept in plain English without technical jargon?
+2. **Level 2 (Mechanism & Derivation)**: Can you trace, compute, or derive the procedure step-by-step from scratch?
+3. **Level 3 (Edge Cases & What-Ifs)**: How does the system behave if a parameter changes or an assumption fails?
 
 CRITICAL RULES:
 - Format strictly in clean, readable Markdown. Do not include introductory conversational filler.
 - DIAGRAM INTEGRATION: If diagrams (`![...](...)`) exist in the source content, YOU MUST preserve and embed them in the Visual Schematics section using their exact Markdown image syntax. Never alter the file path.
 - TABLES: Use Markdown tables whenever presenting comparative data, trade-offs, or state transitions.
+- DEPTH: Never cut off explanations with "etc." or leave steps as an exercise for the reader. Teach the concept thoroughly.
+"""
+    },
+
+    "handwritten_outline_reconcile_prompt": {
+        "name": "Handwritten Outline & Chapter Reconciler",
+        "category": "Document Processing",
+        "description": "Synthesizes proper academic chapter and section titles from raw OCR candidate headings and page snippets.",
+        "is_structured_json": True,
+        "variables": [
+            {"name": "book_title", "description": "Title of the document / book", "required": True},
+            {"name": "total_pages", "description": "Total number of pages in the document", "required": True},
+            {"name": "candidates_json", "description": "JSON string of candidate headings with page numbers and text snippets", "required": True},
+        ],
+        "default_template": """You are an expert academic curriculum designer and textbook editor.
+
+Task: Analyze the candidate headings and page excerpts extracted from a student's scanned handwritten lecture notes, and construct a clean, formal, highly structured academic Table of Contents (TOC).
+
+Document Information:
+- Document Title: {book_title}
+- Total Pages: {total_pages}
+
+Candidate Headings & Page Excerpts:
+{candidates_json}
+
+Guidelines:
+1. FILTER OUT NON-HEADINGS:
+   - Discard any candidates that are actually code snippets, formulas, scratch calculations, diagram notes, or margin annotations (e.g. assembly instructions, calculations, arrows).
+
+2. SYNTHESIZE PROPER ACADEMIC TITLES:
+   - Expand clipped, informal, or abbreviated headings into clear, professional, complete topic names using the surrounding page excerpt context.
+   - For example:
+     - "Principle ..." -> "Design Principles of Computer Architecture"
+     - "Memory o..." -> "Memory Organization & Addressing"
+     - "How neg..." -> "Signed Number Representation (Two's Complement)"
+     - "CT2 4.1" -> "4.1 Introduction to Computer Arithmetic"
+     - "4.4 : Division" -> "4.4 Division Hardware & Algorithms"
+     - "Floating po..." -> "4.5 Floating Point Numbers (IEEE 754)"
+     - "4.6 Floatin..." -> "4.6 Floating Point Arithmetic Operations"
+
+3. ESTABLISH A PROPER 2-LEVEL HIERARCHY:
+   - Level 1: Main Chapters / Major Modules (e.g. "Chapter 4: Arithmetic for Computers"). If subsections like 4.1, 4.4, 4.6 exist, group them under their synthesized Chapter parent!
+   - Level 2: Subtopics / Sections belonging to that chapter.
+   - Every chapter and subtopic MUST have a valid `start_page` and `end_page` within 1 and {total_pages}.
+   - Child subtopics must be fully contained within their parent chapter's page range (`parent.start_page <= child.start_page <= child.end_page <= parent.end_page`).
+
+4. STRICT JSON OUTPUT:
+   Respond ONLY with a valid JSON object matching the schema below:
+{{
+  "chapters": [
+    {{
+      "title": "Chapter 4: Arithmetic for Computers",
+      "start_page": 63,
+      "end_page": 106,
+      "subtopics": [
+        {{
+          "title": "4.1 Introduction to Computer Arithmetic",
+          "start_page": 63,
+          "end_page": 90
+        }},
+        {{
+          "title": "4.4 Division Hardware & Algorithms",
+          "start_page": 91,
+          "end_page": 97
+        }},
+        {{
+          "title": "4.6 Floating Point Operations",
+          "start_page": 98,
+          "end_page": 106
+        }}
+      ]
+    }}
+  ]
+}}
 """
     }
 }

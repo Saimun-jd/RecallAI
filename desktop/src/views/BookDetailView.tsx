@@ -19,6 +19,7 @@ import { Loader2, Zap, PenTool, Link2, BrainCircuit, Play, FileText, ChevronRigh
 import { MarkdownRenderer } from '../components/MarkdownRenderer';
 import clsx from 'clsx';
 import { FlashcardGenModal } from '../components/FlashcardGenModal';
+import { RecallLogo } from '../components/brand';
 import { RelatedTopicsModal } from '../components/RelatedTopicsModal';
 import { AIChatSidebar } from '../components/AIChatSidebar';
 const NotionNotesEditor = lazy(() => import('../components/NotionNotesEditor').then(m => ({ default: m.NotionNotesEditor })));
@@ -46,7 +47,8 @@ export function BookDetailView() {
     isNotesOpen,
     activeTopicCards,
     pdfTheme,
-    examScopeTopicIds
+    examScopeTopicIds,
+    noteGeneration
   } = useSelector((state: RootState) => state.reader);
 
   // Resizable TOC sidebar state
@@ -103,6 +105,7 @@ export function BookDetailView() {
   const [pdfScrollCommand, setPdfScrollCommand] = useState<{ page: number, ts: number } | undefined>();
   const [viewMode, setViewMode] = useState<'topics' | 'pdf' | 'markdown'>('topics');
   const [isMdCopied, setIsMdCopied] = useState(false);
+  const [isAnalyzingHandwriting, setIsAnalyzingHandwriting] = useState(false);
   const hasInitializedScrollRef = useRef(false);
   // pdfTheme is now globally managed by Redux and initialized in App.tsx
 
@@ -185,7 +188,13 @@ export function BookDetailView() {
             setPdfScrollCommand({ page: bookData.last_read_page, ts: Date.now() });
             if (bookData.last_topic_id) {
               dispatch(setActiveTopicId(bookData.last_topic_id));
+            } else if (topicsData.length > 0) {
+              const matched = topicsData.find(t => t.start_page <= bookData.last_read_page! && t.end_page >= bookData.last_read_page!);
+              dispatch(setActiveTopicId(matched ? matched.id : topicsData[0].id));
             }
+          } else if (topicsData.length > 0) {
+            dispatch(setActiveTopicId(topicsData[0].id));
+            setPdfScrollCommand({ page: topicsData[0].start_page, ts: Date.now() });
           }
         }
       } catch (err: any) {
@@ -325,6 +334,79 @@ export function BookDetailView() {
       } else {
         setTopics(prev => prev.map(t => (t.id === activeTopicId || t.parent_id === activeTopicId) ? { ...t, status: 'unprocessed' } : t));
       }
+    }
+  };
+
+  const handleAnalyzeHandwriting = async () => {
+    if (isAnalyzingHandwriting) return;
+    setIsAnalyzingHandwriting(true);
+    setProcessingProgress({
+      stage: 'analyzing_handwriting',
+      status: 'processing',
+      message: 'Reading PDF pages & preparing document slices...',
+      progress: 10,
+    });
+
+    let currentProgress = 10;
+    const ticker = setInterval(() => {
+      currentProgress = Math.min(88, currentProgress + 4);
+      setProcessingProgress((prev) => {
+        if (!prev || prev.stage !== 'analyzing_handwriting') return prev;
+        let msg = prev.message;
+        if (currentProgress >= 25 && currentProgress < 60) {
+          msg = 'Running Marker AI OCR & extracting mathematical formulas...';
+        } else if (currentProgress >= 60 && currentProgress < 80) {
+          msg = 'Detecting heading structures & hierarchical sections...';
+        } else if (currentProgress >= 80) {
+          msg = 'Synthesizing topics & building table of contents...';
+        }
+        return {
+          ...prev,
+          message: msg,
+          progress: currentProgress,
+        };
+      });
+    }, 1500);
+
+    try {
+      showToast('info', 'Analyzing handwritten outline with Marker AI...');
+      const res = await client.reparseHandwritingStream(bookId, (event) => {
+        if (event.progress !== undefined) {
+          currentProgress = Math.max(currentProgress, event.progress);
+        }
+        setProcessingProgress({
+          stage: 'analyzing_handwriting',
+          status: event.status || 'processing',
+          message: event.message || 'Processing handwritten notes...',
+          progress: currentProgress,
+        });
+      });
+
+      clearInterval(ticker);
+
+      setProcessingProgress({
+        stage: 'analyzing_handwriting',
+        status: 'complete',
+        message: `Generated ${res.topic_count} topics from handwriting!`,
+        progress: 100,
+      });
+
+      const updated = await client.getTopics(bookId);
+      setTopics(updated);
+      if (updated.length > 0) {
+        dispatch(setActiveTopicId(updated[0].id));
+      }
+      showToast('success', `Generated ${res.topic_count} topics from handwriting!`);
+
+      setTimeout(() => {
+        setProcessingProgress(null);
+      }, 2500);
+    } catch (e: any) {
+      clearInterval(ticker);
+      setProcessingProgress(null);
+      showToast('error', e?.userMessage || 'Failed to analyze handwriting.');
+    } finally {
+      setIsAnalyzingHandwriting(false);
     }
   };
 
@@ -582,7 +664,9 @@ export function BookDetailView() {
         style={{ width: isTocCollapsed ? 0 : `${tocWidth}px` }}
       >
         <div className="h-16 px-4 flex items-center border-b-2 border-on-surface bg-surface-container-lowest shrink-0 min-w-[240px]">
-          <span className="font-bold text-2xl text-primary tracking-tight">Recall AI</span>
+          <Link to="/app" className="hover:opacity-90 transition-opacity select-none">
+            <RecallLogo size="lg" showAiBadge />
+          </Link>
         </div>
 
         <div className="p-4 border-b border-outline-variant bg-surface-container-lowest shrink-0 min-w-[240px]">
@@ -650,12 +734,76 @@ export function BookDetailView() {
         )}
 
         <div ref={listRef} className="flex-1 overflow-y-auto">
+          {isAnalyzingHandwriting && (
+            <div className="mx-3 my-2.5 p-3 bg-amber-500/10 border-2 border-amber-500 rounded-xl flex flex-col gap-2 text-xs text-amber-700 dark:text-amber-300 shadow-[2px_2px_0px_0px_#d97706] animate-in fade-in">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Loader2 size={15} className="animate-spin text-amber-600 dark:text-amber-400 shrink-0" />
+                  <span className="font-extrabold text-xs truncate">Analyzing Outline...</span>
+                </div>
+                {processingProgress?.progress !== undefined && (
+                  <span className="font-black text-[11px] shrink-0 text-amber-700 dark:text-amber-300">
+                    {processingProgress.progress}%
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] font-medium opacity-85 leading-snug break-words">
+                {processingProgress?.message || "Running Marker AI to extract handwriting, headings & formulas..."}
+              </p>
+              {processingProgress?.progress !== undefined && (
+                <div className="w-full bg-amber-500/20 h-1.5 rounded-full overflow-hidden border border-amber-500/30">
+                  <div
+                    className="bg-amber-600 dark:bg-amber-500 h-full rounded-full transition-all duration-300"
+                    style={{ width: `${Math.max(5, Math.min(100, processingProgress.progress))}%` }}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+          {noteGeneration?.isGenerating && (
+            <div className="mx-3 my-2.5 p-3 bg-amber-500/10 border-2 border-amber-500 rounded-xl flex flex-col gap-2 text-xs text-amber-700 dark:text-amber-300 shadow-[2px_2px_0px_0px_#d97706] animate-in fade-in">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Sparkles size={15} className="text-amber-600 dark:text-amber-400 shrink-0 animate-pulse" />
+                  <span className="font-extrabold text-xs truncate">Generating Study Notes...</span>
+                </div>
+                <span className="font-black text-[11px] shrink-0 text-amber-700 dark:text-amber-300 font-mono">
+                  {noteGeneration.progress ?? 0}%
+                </span>
+              </div>
+              <p className="text-[11px] font-medium opacity-85 leading-snug break-words">
+                {noteGeneration.message || (noteGeneration.childTitle ? `Teaching: ${noteGeneration.childTitle}` : `Synthesizing notes for ${noteGeneration.topicTitle}...`)}
+              </p>
+              <div className="w-full bg-amber-500/20 h-1.5 rounded-full overflow-hidden border border-amber-500/30">
+                <div
+                  className="bg-amber-600 dark:bg-amber-500 h-full rounded-full transition-all duration-300"
+                  style={{ width: `${Math.max(5, Math.min(100, noteGeneration.progress ?? 0))}%` }}
+                />
+              </div>
+            </div>
+          )}
+          {filteredTopics.length === 0 && !isAnalyzingHandwriting && (
+            <div className="p-6 text-center text-on-surface-variant flex flex-col items-center justify-center">
+              <BookOpen size={32} className="opacity-20 mb-2" />
+              <p className="text-xs font-semibold">No topics found</p>
+              {topics.length === 0 && (
+                <button
+                  onClick={handleAnalyzeHandwriting}
+                  className="mt-3 px-3 py-1.5 bg-amber-500/10 border-2 border-amber-600 text-amber-700 dark:text-amber-300 rounded-lg text-xs font-bold flex items-center gap-1.5 hover:bg-amber-500/20"
+                >
+                  <Sparkles size={14} />
+                  <span>Analyze Handwriting</span>
+                </button>
+              )}
+            </div>
+          )}
           <div style={{ height: `${rowVirtualizer.getTotalSize()}px`, width: '100%', position: 'relative' }}>
             {rowVirtualizer.getVirtualItems().map((virtualRow) => {
               const topic = filteredTopics[virtualRow.index];
               const isSelected = activeTopicId === topic.id;
               const hasChildren = topics.some(t => t.parent_id === topic.id);
               const isCollapsed = collapsedParents.has(topic.id);
+              const isTopicGeneratingNotes = !!(noteGeneration?.isGenerating && (noteGeneration.topicId === topic.id || noteGeneration.childTitle === topic.title));
 
               return (
                 <button
@@ -693,6 +841,11 @@ export function BookDetailView() {
                     <div className="truncate text-sm font-medium">{topic.title}</div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
+                    {isTopicGeneratingNotes && (
+                      <span title="Generating study notes...">
+                        <Loader2 size={13} className="animate-spin text-amber-500 shrink-0" />
+                      </span>
+                    )}
                     {topic.mastery_status === 'mastered' ? (
                       <div className="w-2 h-2 rounded-full bg-emerald-500" title="Mastered" />
                     ) : topic.mastery_status === 'developing' ? (
@@ -706,7 +859,7 @@ export function BookDetailView() {
                     ) : (
                       <div className="w-1.5 h-1.5 rounded-full bg-on-background" title="Untested" />
                     )}
-                    <div className="text-[10px] font-bold text-on-surface-variant bg-surface px-2 py-0.5 border-2 border-on-background">p. {topic.start_page}</div>
+                    <span className="text-[11px] font-semibold text-on-surface-variant/70 tabular-nums shrink-0">p. {topic.start_page}</span>
                   </div>
                 </button>
               );
@@ -763,6 +916,14 @@ export function BookDetailView() {
                     <FileText size={16} className="text-accent-blue shrink-0" />
                     <span className="truncate max-w-[200px]">{book?.title || 'Source PDF'}</span>
                   </div>
+                  {isAnalyzingHandwriting && (
+                    <div className="flex items-center gap-2 px-2.5 py-1 bg-amber-500/10 border border-amber-500 text-amber-700 dark:text-amber-300 rounded-lg text-xs font-bold animate-pulse">
+                      <Loader2 size={13} className="animate-spin text-amber-600 dark:text-amber-400 shrink-0" />
+                      <span className="truncate max-w-[220px]">
+                        Analyzing Outline {processingProgress?.progress !== undefined ? `(${processingProgress.progress}%)` : ''}
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-3">
@@ -770,12 +931,20 @@ export function BookDetailView() {
                     onClick={() => dispatch(setIsNotesOpen(!isNotesOpen))}
                     className={clsx(
                       "flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold border-2 border-on-surface rounded-md transition-all shadow-[2px_2px_0px_0px_#191b23] active:shadow-none active:translate-x-[1px] active:translate-y-[1px]",
-                      isNotesOpen ? "bg-amber-500 text-black border-amber-600" : "bg-surface-container-lowest text-on-surface hover:bg-surface-container"
+                      isNotesOpen
+                        ? "bg-amber-500 text-black border-amber-600"
+                        : noteGeneration?.isGenerating
+                        ? "bg-amber-500/20 text-amber-700 dark:text-amber-300 border-amber-500 animate-pulse"
+                        : "bg-surface-container-lowest text-on-surface hover:bg-surface-container"
                     )}
                     title="Toggle Study Notes split screen"
                   >
-                    <PenTool size={14} />
-                    <span>Notes</span>
+                    {noteGeneration?.isGenerating ? (
+                      <Loader2 size={14} className="animate-spin text-amber-600 dark:text-amber-400 shrink-0" />
+                    ) : (
+                      <PenTool size={14} />
+                    )}
+                    <span>Notes{noteGeneration?.isGenerating ? ` (${noteGeneration.progress ?? 0}%)` : ''}</span>
                   </button>
                   <button
                     onClick={togglePdfTheme}
@@ -1021,23 +1190,39 @@ export function BookDetailView() {
                 </div>
 
                 {processingProgress && (
-                  <div className="px-5 mt-2 mb-2">
-                    <div className="bg-amber-500/10 border-2 border-amber-500 text-amber-700 px-4 py-3 rounded-xl shadow-[4px_4px_0px_0px_var(--color-amber-500)] flex items-center gap-3">
-                      <Loader2 className="animate-spin shrink-0" size={20} />
+                  <div className="px-5 mt-2 mb-2 animate-in fade-in duration-150">
+                    <div className="bg-amber-500/10 border-2 border-amber-500 text-amber-700 dark:text-amber-300 px-4 py-3 rounded-xl shadow-[4px_4px_0px_0px_#d97706] flex items-start gap-3">
+                      <Loader2 className="animate-spin shrink-0 mt-0.5" size={20} />
                       <div className="flex-1 min-w-0">
-                        <h4 className="font-bold text-sm truncate">
-                          {processingProgress.stage === 'processing_child'
-                            ? `Extracting Subtopic ${processingProgress.current || 1} of ${processingProgress.total || 1}...`
-                            : (processingProgress.stage === 'parent_decomposition'
-                              ? 'Decomposing Chapter into Subtopics...'
-                              : 'Processing Topic...')}
-                        </h4>
-                        <p className="text-xs font-medium opacity-80 mt-0.5 truncate">
+                        <div className="flex items-center justify-between gap-2">
+                          <h4 className="font-extrabold text-sm truncate">
+                            {processingProgress.stage === 'processing_child'
+                              ? `Extracting Subtopic ${processingProgress.current || 1} of ${processingProgress.total || 1}...`
+                              : (processingProgress.stage === 'parent_decomposition'
+                                ? 'Decomposing Chapter into Subtopics...'
+                                : (processingProgress.stage === 'analyzing_handwriting'
+                                  ? 'Analyzing Handwritten Outline with Marker AI...'
+                                  : 'Processing Topic...'))}
+                          </h4>
+                          {processingProgress.progress !== undefined && (
+                            <span className="text-xs font-black shrink-0">
+                              {processingProgress.progress}%
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs font-medium opacity-85 mt-0.5 truncate">
                           {processingProgress.child_title
                             ? processingProgress.child_title
                             : (processingProgress.message || (processingProgress.stage || processingProgress.status || 'processing').replace(/_/g, ' '))}
-                          {processingProgress.progress !== undefined ? ` (${processingProgress.progress}%)` : ''}
                         </p>
+                        {processingProgress.progress !== undefined && (
+                          <div className="w-full bg-amber-500/20 h-2 rounded-full mt-2.5 overflow-hidden border border-amber-500/30">
+                            <div
+                              className="bg-amber-600 dark:bg-amber-500 h-full rounded-full transition-all duration-300"
+                              style={{ width: `${Math.max(5, Math.min(100, processingProgress.progress))}%` }}
+                            />
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1093,25 +1278,20 @@ export function BookDetailView() {
                 <div className="px-5 mt-2 flex overflow-x-auto gap-3 pb-1 hide-scrollbar snap-x snap-mandatory items-center">
                   {(topics.length <= 1 || activeTopic.title === 'Full Document') && (
                     <button
-                      onClick={async () => {
-                        try {
-                          showToast('info', 'Analyzing handwritten outline with Marker...');
-                          const res = await client.reparseHandwriting(bookId);
-                          const updated = await client.getTopics(bookId);
-                          setTopics(updated);
-                          if (updated.length > 0) {
-                            dispatch(setActiveTopicId(updated[0].id));
-                          }
-                          showToast('success', `Generated ${res.topic_count} topics from handwriting!`);
-                        } catch (e: any) {
-                          showToast('error', e?.userMessage || 'Failed to analyze handwriting.');
-                        }
-                      }}
-                      className="snap-start shrink-0 bg-amber-500/10 border-2 border-amber-600 text-amber-700 dark:text-amber-300 rounded-lg px-3 py-1.5 flex items-center gap-2 hover:bg-amber-500/20 shadow-[2px_2px_0px_0px_#d97706] active:shadow-none active:translate-x-[1px] active:translate-y-[1px] transition-all h-9 font-bold text-xs"
+                      onClick={handleAnalyzeHandwriting}
+                      disabled={isAnalyzingHandwriting}
+                      className={clsx(
+                        "snap-start shrink-0 bg-amber-500/10 border-2 border-amber-600 text-amber-700 dark:text-amber-300 rounded-lg px-3 py-1.5 flex items-center gap-2 shadow-[2px_2px_0px_0px_#d97706] active:shadow-none active:translate-x-[1px] active:translate-y-[1px] transition-all h-9 font-bold text-xs",
+                        isAnalyzingHandwriting ? "opacity-75 cursor-not-allowed" : "hover:bg-amber-500/20 cursor-pointer"
+                      )}
                       title="Extract structured chapters and topics from handwritten notes using Marker"
                     >
-                      <Sparkles size={16} className="text-amber-600 dark:text-amber-400" />
-                      <span>Analyze Handwriting Outline</span>
+                      {isAnalyzingHandwriting ? (
+                        <Loader2 size={16} className="animate-spin text-amber-600 dark:text-amber-400" />
+                      ) : (
+                        <Sparkles size={16} className="text-amber-600 dark:text-amber-400" />
+                      )}
+                      <span>{isAnalyzingHandwriting ? "Analyzing Outline..." : "Analyze Handwriting Outline"}</span>
                     </button>
                   )}
                   <button
@@ -1166,11 +1346,21 @@ export function BookDetailView() {
                     onClick={() => dispatch(setIsNotesOpen(!isNotesOpen))}
                     className={clsx(
                       "snap-start shrink-0 bg-surface-container-lowest border-2 border-on-surface rounded-lg px-3 py-1.5 flex items-center gap-2 hover:bg-surface-container shadow-[2px_2px_0px_0px_#191b23] active:shadow-none active:translate-x-[1px] active:translate-y-[1px] transition-all h-9 text-on-surface",
-                      isNotesOpen && "bg-primary/10 text-primary border-primary"
+                      isNotesOpen
+                        ? "bg-primary/10 text-primary border-primary"
+                        : noteGeneration?.isGenerating
+                        ? "bg-amber-500/20 text-amber-700 dark:text-amber-300 border-amber-500 animate-pulse"
+                        : ""
                     )}
                   >
-                    <PenTool size={16} />
-                    <span className="font-bold text-xs">Study Notes</span>
+                    {noteGeneration?.isGenerating ? (
+                      <Loader2 size={16} className="animate-spin text-amber-600 dark:text-amber-400 shrink-0" />
+                    ) : (
+                      <PenTool size={16} />
+                    )}
+                    <span className="font-bold text-xs">
+                      {noteGeneration?.isGenerating ? `Study Notes (${noteGeneration.progress ?? 0}%)` : 'Study Notes'}
+                    </span>
                   </button>
                   {activeTopic.content_md && (
                     <button
@@ -1367,7 +1557,7 @@ export function BookDetailView() {
                                           </span>
                                         )}
                                       </div>
-                                      <div className="text-base text-on-surface font-bold prose prose-slate max-w-none pr-20 leading-relaxed">
+                                      <div className="text-base text-on-surface font-bold prose prose-slate dark:prose-invert max-w-none pr-20 leading-relaxed prose-strong:text-on-surface prose-strong:font-bold prose-em:text-on-surface prose-li:text-on-surface">
                                         <MarkdownRenderer content={card.question} />
                                       </div>
                                     </div>
@@ -1375,7 +1565,7 @@ export function BookDetailView() {
                                       <div className="inline-block px-2.5 py-0.5 bg-surface-container-lowest text-on-surface text-xs font-bold uppercase tracking-wider rounded-md border-2 border-on-surface mb-3 shadow-[1.5px_1.5px_0px_0px_#191b23]">
                                         Answer
                                       </div>
-                                      <div className="text-sm text-on-surface font-medium prose prose-slate max-w-none leading-relaxed">
+                                      <div className="text-sm text-on-surface font-medium prose prose-slate dark:prose-invert max-w-none leading-relaxed prose-strong:text-on-surface prose-strong:font-bold prose-em:text-on-surface prose-li:text-on-surface">
                                         <MarkdownRenderer content={card.answer} />
                                       </div>
                                     </div>
@@ -1671,6 +1861,34 @@ export function BookDetailView() {
           >
             <Bot size={32} />
           </button>
+        )}
+
+        {/* Floating Mini Banner when Notes are Generating and panel is collapsed */}
+        {!isNotesOpen && noteGeneration?.isGenerating && (
+          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-surface-container-lowest border-2 border-on-surface px-4 py-2.5 rounded-xl shadow-[4px_4px_0px_0px_#191b23] flex items-center gap-3 animate-in slide-in-from-bottom-3 duration-200 max-w-[90vw]">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <Loader2 size={16} className="animate-spin text-amber-500 shrink-0" />
+              <div className="flex flex-col min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-black text-on-surface truncate">
+                    Generating Notes: {noteGeneration.topicTitle}
+                  </span>
+                  <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-700 dark:text-amber-300 shrink-0">
+                    {noteGeneration.progress ?? 0}%
+                  </span>
+                </div>
+                <span className="text-[11px] text-on-surface-variant truncate max-w-[320px]">
+                  {noteGeneration.message || 'Formulating first principles and worked examples...'}
+                </span>
+              </div>
+            </div>
+            <button
+              onClick={() => dispatch(setIsNotesOpen(true))}
+              className="px-3 py-1 text-xs font-bold bg-amber-500 text-black border-2 border-on-surface rounded-md shadow-[1.5px_1.5px_0px_0px_#191b23] active:translate-x-[1px] active:translate-y-[1px] cursor-pointer hover:bg-amber-400 shrink-0 transition-all"
+            >
+              Open Notes
+            </button>
+          </div>
         )}
 
         {/* Dockable Notes Split Panel */}

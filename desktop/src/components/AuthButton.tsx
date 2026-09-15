@@ -4,6 +4,12 @@ import { useAuth } from '../contexts/AuthContext';
 import { cn } from '../lib/utils';
 import { useToast } from '../hooks/useToast';
 import { Link } from 'react-router-dom';
+import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
+import { isTauriEnvironment } from '../api/keychain';
+import { API_BASE } from '../api/client';
+
+const fetchFn = (url: string, options?: any) =>
+  isTauriEnvironment() ? tauriFetch(url, options) : window.fetch(url, options);
 
 export function AuthButton({ isExpanded }: { isExpanded: boolean }) {
   const { user, token, logout } = useAuth();
@@ -22,7 +28,7 @@ export function AuthButton({ isExpanded }: { isExpanded: boolean }) {
     if (!token) return;
     setIsSyncing(true);
     try {
-      const response = await fetch('http://localhost:8000/api/sync', {
+      const response = await fetchFn(`${API_BASE}/api/sync`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

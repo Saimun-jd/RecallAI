@@ -435,6 +435,65 @@ export const client = {
     await this._throwIfError(res, "Failed to analyze handwritten notes");
     return res.json();
   },
+  async reparseHandwritingStream(
+    bookId: number,
+    onProgress: (event: { stage?: string; status?: string; message?: string; progress?: number; topic_count?: number; topics?: any[] }) => void
+  ): Promise<{ book_id: number; topic_count: number; topics: any[] }> {
+    try {
+      const res = await fetch(`${API_BASE}/books/${bookId}/reparse-handwriting-stream`, {
+        method: "POST",
+        headers: { "Accept": "text/event-stream" }
+      });
+      if (!res.ok) throw await parseApiError(res);
+      if (!res.body) throw new Error("No response body");
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let finalResult: any = null;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        let boundary = buffer.indexOf("\n\n");
+        while (boundary !== -1) {
+          const chunk = buffer.slice(0, boundary);
+          buffer = buffer.slice(boundary + 2);
+
+          if (chunk.startsWith("data: ")) {
+            const dataStr = chunk.slice(6);
+            try {
+              const data = JSON.parse(dataStr);
+              onProgress(data);
+              if (data.status === 'error') {
+                throw new Error(data.message || 'Failed to analyze handwriting');
+              }
+              if (data.status === 'complete' || data.stage === 'complete') {
+                finalResult = {
+                  book_id: bookId,
+                  topic_count: data.topic_count || (data.topics ? data.topics.length : 0),
+                  topics: data.topics || []
+                };
+              }
+            } catch (e: any) {
+              if (e?.message && e.message.includes('Failed to analyze')) throw e;
+              console.error("Failed to parse SSE event", e);
+            }
+          }
+          boundary = buffer.indexOf("\n\n");
+        }
+      }
+
+      if (finalResult) return finalResult;
+    } catch (err: any) {
+      console.warn("SSE reparse stream failed, falling back to direct reparse:", err);
+    }
+
+    // Fallback to direct HTTP endpoint
+    return this.reparseHandwriting(bookId);
+  },
   async getTopic(id: number): Promise<Topic> {
     const res = await fetch(`${API_BASE}/topics/${id}`);
     await this._throwIfError(res, "Failed to fetch topic");
@@ -1729,6 +1788,7 @@ export interface DocumentUploadResponse {
   status: string;
   filename: string;
   size_bytes: number;
+  book_id?: number;
 }
 
 export interface DocumentStatusResponse {

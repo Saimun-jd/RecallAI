@@ -172,7 +172,7 @@ export function TopicPracticeModal({ isOpen, onClose, topicId, topicName, cards:
                   </div>
                 </div>
                 <div className="flex-1 flex flex-col justify-center items-center text-center p-8 overflow-y-auto custom-scrollbar">
-                  <div className="prose prose-slate max-w-none prose-p:font-sans prose-p:font-bold prose-p:text-xl prose-p:leading-snug prose-p:text-on-surface prose-headings:font-bold prose-headings:text-on-surface">
+                  <div className="prose prose-slate dark:prose-invert max-w-none prose-p:font-sans prose-p:font-bold prose-p:text-xl prose-p:leading-snug prose-p:text-on-surface prose-headings:font-bold prose-headings:text-on-surface prose-strong:text-on-surface prose-strong:font-bold prose-em:text-on-surface prose-li:text-on-surface prose-code:text-primary dark:prose-code:text-sky-300">
                     <MarkdownRenderer content={currentCard.question} />
                   </div>
                   <div className="mt-8 flex items-center gap-2 text-on-surface-variant animate-pulse opacity-70">
@@ -193,7 +193,7 @@ export function TopicPracticeModal({ isOpen, onClose, topicId, topicName, cards:
                   </span>
                 </div>
                 <div className="flex-1 flex flex-col justify-center items-center text-center p-8 overflow-y-auto custom-scrollbar bg-primary/5">
-                  <div className="prose prose-slate max-w-none prose-p:font-sans prose-p:font-bold prose-p:text-xl prose-p:leading-snug prose-p:text-on-surface prose-headings:font-bold prose-headings:text-on-surface">
+                  <div className="prose prose-slate dark:prose-invert max-w-none prose-p:font-sans prose-p:font-bold prose-p:text-xl prose-p:leading-snug prose-p:text-on-surface prose-headings:font-bold prose-headings:text-on-surface prose-strong:text-on-surface prose-strong:font-bold prose-em:text-on-surface prose-li:text-on-surface prose-code:text-primary dark:prose-code:text-sky-300">
                     <MarkdownRenderer content={currentCard.answer} />
                   </div>
                 </div>

@@ -113,7 +113,7 @@ def test_concept_drill_generate_endpoint(mock_gen):
     )
 
     # Fetch existing topic id
-    topics = database.get_topics()
+    topics = [t for t in database.get_topics() if t.get("atomic_concepts")]
     topic_id = topics[0]["id"]
 
     response = client.post(
@@ -145,7 +145,7 @@ def test_concept_drill_evaluate_endpoint(mock_eval):
         suggested_flashcards=[]
     )
 
-    topics = database.get_topics()
+    topics = [t for t in database.get_topics() if t.get("atomic_concepts")]
     topic_id = topics[0]["id"]
 
     response = client.post(
@@ -197,7 +197,7 @@ def test_structured_misconceptions_and_gaps_evaluation(mock_eval):
         suggested_flashcards=[]
     )
 
-    topics = database.get_topics()
+    topics = [t for t in database.get_topics() if t.get("atomic_concepts")]
     topic_id = topics[0]["id"]
 
     response = client.post(

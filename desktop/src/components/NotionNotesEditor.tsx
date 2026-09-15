@@ -391,6 +391,48 @@ export function NotionNotesEditor({
             >
               {rawMarkdown.trim() ? (
                 <MarkdownRenderer content={rawMarkdown} />
+              ) : isCurrentTopicGenerating ? (
+                <div className="flex flex-col items-center justify-center py-16 px-4 text-center animate-in fade-in duration-300">
+                  <div className="w-16 h-16 rounded-2xl bg-amber-500/15 border-2 border-amber-500/30 flex items-center justify-center mb-4 shadow-[2px_2px_0px_0px_#d97706]">
+                    <Sparkles size={32} className="text-amber-500 animate-pulse" />
+                  </div>
+                  <h3 className="text-xl font-black text-on-surface mb-2 font-handwriting-heading">
+                    Synthesizing Master Study Guide...
+                  </h3>
+                  <p className="text-sm text-on-surface-variant font-medium max-w-md mb-6 leading-relaxed">
+                    {noteGeneration?.message || 'Teaching from first principles: deriving theoretical foundations, formatting equations, and working through step-by-step examples.'}
+                  </p>
+
+                  <div className="w-full max-w-md bg-surface-container-high rounded-full h-2.5 overflow-hidden border border-outline-variant/40 mb-3 shadow-inner">
+                    <div
+                      className="h-full bg-amber-500 rounded-full transition-all duration-300 ease-out"
+                      style={{ width: `${Math.max(8, Math.min(100, noteGeneration?.progress ?? 10))}%` }}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between w-full max-w-md text-xs font-mono font-bold text-on-surface-variant mb-6">
+                    <span>{noteGeneration?.stage || 'Generating'}</span>
+                    <span className="text-amber-600 dark:text-amber-400">{noteGeneration?.progress ?? 0}%</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-w-md w-full text-left text-xs text-on-surface-variant/90 bg-surface-container-low/80 p-3.5 rounded-xl border border-outline-variant/30">
+                    <div className="flex items-center gap-2">
+                      <span className="text-amber-500 font-bold">✓</span>
+                      <span>Intuitive mental model & "Why"</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-amber-500 font-bold">✓</span>
+                      <span>First-principles & LaTeX anatomy</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-amber-500 font-bold">✓</span>
+                      <span>Step-by-step worked example</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-amber-500 font-bold">✓</span>
+                      <span>Tiered active-recall test cues</span>
+                    </div>
+                  </div>
+                </div>
               ) : (
                 <div className="flex flex-col items-center justify-center py-24 text-on-surface-variant text-center">
                   <PenTool size={36} className="mb-3 opacity-30 text-amber-500" />

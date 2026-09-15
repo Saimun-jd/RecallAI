@@ -4,7 +4,7 @@ import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
 import { isTauriEnvironment } from '../api/keychain';
 import { useDispatch } from 'react-redux';
 import { setIngestionProgress } from '../store';
-import { client } from '../api/client';
+import { client, API_BASE } from '../api/client';
 
 const fetchFn = (url: string, options?: any) =>
   isTauriEnvironment() ? tauriFetch(url, options) : window.fetch(url, options);
@@ -19,7 +19,7 @@ export function useAutoSync(token: string | null) {
     
     isSyncing.current = true;
     try {
-      const response = await fetchFn('http://localhost:8000/api/sync', {
+      const response = await fetchFn(`${API_BASE}/api/sync`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

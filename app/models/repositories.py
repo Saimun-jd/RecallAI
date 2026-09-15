@@ -70,6 +70,48 @@ class UserRepository:
             row = cursor.fetchone()
             return dict(row) if row else None
 
+    @staticmethod
+    def ensure_user(
+        user_id: str,
+        email: str,
+        full_name: Optional[str] = None,
+        avatar_url: Optional[str] = None,
+        db_conn: Optional[sqlite3.Connection] = None
+    ) -> Dict[str, Any]:
+        existing = UserRepository.get_by_id(user_id, db_conn=db_conn)
+        if existing:
+            return existing
+        existing_email = UserRepository.get_by_email(email, db_conn=db_conn)
+        if existing_email:
+            return existing_email
+
+        sql = """
+            INSERT INTO users (id, email, password_hash, full_name, avatar_url, is_active)
+            VALUES (?, ?, 'supabase_oauth_user', ?, ?, 1)
+        """
+        params = (user_id, email.strip().lower(), full_name, avatar_url)
+        if db_conn:
+            db_conn.execute(sql, params)
+            user = UserRepository.get_by_id(user_id, db_conn=db_conn)
+        else:
+            with get_db() as conn:
+                conn.execute(sql, params)
+                user = UserRepository.get_by_id(user_id, db_conn=conn)
+
+        # Ensure default preferences exist for user
+        if user:
+            try:
+                PreferencesRepository.create_preferences(
+                    user_id=user["id"],
+                    theme="neo-brutalist",
+                    daily_review_goal=20,
+                    preferred_llm_provider="auto",
+                    db_conn=db_conn
+                )
+            except Exception:
+                pass
+        return user  # type: ignore
+
 
 class WorkspaceRepository:
     @staticmethod

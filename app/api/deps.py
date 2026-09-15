@@ -42,7 +42,20 @@ def get_current_user(
 
     user = UserRepository.get_by_id(user_id)
     if not user:
-        raise AuthenticationError("User account not found or has been removed.")
+        # Auto-provision OAuth / Supabase user if authenticated
+        email = payload.get("email")
+        if email or payload.get("sub"):
+            user_meta = payload.get("user_metadata") or {}
+            full_name = user_meta.get("full_name") or payload.get("name")
+            avatar_url = user_meta.get("avatar_url") or payload.get("picture")
+            user = UserRepository.ensure_user(
+                user_id=user_id,
+                email=email or f"{user_id}@oauth.local",
+                full_name=full_name,
+                avatar_url=avatar_url
+            )
+        else:
+            raise AuthenticationError("User account not found or has been removed.")
 
     if not user.get("is_active"):
         raise AuthenticationError("User account is currently disabled.")

@@ -117,12 +117,20 @@ export function RecentKnowledgeList({
           </div>
         ) : (
           <div className="space-y-2">
-            {documents.slice(0, 5).map((doc) => (
-              <div
-                key={doc.id}
-                onClick={() => navigate(`/books/${doc.id}`)}
-                className="p-3 rounded-xl border border-border-default bg-surface-container-lowest hover:bg-surface-container-low/80 transition-colors flex items-center justify-between gap-3 cursor-pointer group select-none"
-              >
+            {documents.slice(0, 5).map((doc) => {
+              const bookId = doc.metadata?.book_id || (!isNaN(Number(doc.id)) && !doc.id.includes('-') ? Number(doc.id) : null);
+              return (
+                <div
+                  key={doc.id}
+                  onClick={() => {
+                    if (bookId) {
+                      navigate(`/books/${bookId}`);
+                    } else {
+                      navigate(`/documents/${doc.id}`);
+                    }
+                  }}
+                  className="p-3 rounded-xl border border-border-default bg-surface-container-lowest hover:bg-surface-container-low/80 transition-colors flex items-center justify-between gap-3 cursor-pointer group select-none"
+                >
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center border border-border-default shrink-0 group-hover:bg-primary group-hover:text-white transition-colors">
                     <FileText size={16} />
@@ -147,8 +155,9 @@ export function RecentKnowledgeList({
                   />
                 </div>
               </div>
-            ))}
-          </div>
+            );
+          })}
+        </div>
         )}
       </div>
 

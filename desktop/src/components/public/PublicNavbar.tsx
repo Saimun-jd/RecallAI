@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Brain, ArrowRight, Menu, X, ShieldCheck, Sparkles, BookOpen } from 'lucide-react';
+import { ArrowRight, Menu, X, ShieldCheck, Sparkles, BookOpen } from 'lucide-react';
 import { ThemeToggle } from '../../hooks/useTheme';
 import { Button } from '../ui/Button';
 import { useAuth } from '../../contexts/AuthContext';
+import { RecallLogo } from '../brand';
 
 interface PublicNavbarProps {
   onLaunchApp?: () => void;
@@ -31,15 +32,10 @@ export function PublicNavbar({ onLaunchApp }: PublicNavbarProps) {
           className="flex items-center gap-2.5 group focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 rounded-lg py-1"
           aria-label="Recall AI Home"
         >
-          <div className="w-9 h-9 rounded-lg bg-primary text-white flex items-center justify-center border-2 border-border-default shadow-neo-sm group-hover:translate-x-0.5 group-hover:translate-y-0.5 group-hover:shadow-none transition-all">
-            <Brain size={20} className="stroke-[2.5]" />
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="font-extrabold text-lg sm:text-xl tracking-tight text-on-surface">Recall AI</span>
-            <span className="hidden sm:inline-flex items-center px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider bg-surface-container border border-border-default rounded-md text-on-surface-variant">
-              Desktop & Web
-            </span>
-          </div>
+          <RecallLogo size="lg" showAiBadge />
+          <span className="hidden sm:inline-flex items-center px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider bg-surface-container border border-border-default rounded-md text-on-surface-variant">
+            Desktop & Web
+          </span>
         </Link>
 
         {/* Desktop Nav Links */}

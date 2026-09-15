@@ -365,6 +365,8 @@ export default function App() {
           <Route path="/app" element={<DashboardView />} />
           <Route path="/documents" element={<DocumentsView />} />
           <Route path="/app/documents" element={<DocumentsView />} />
+          <Route path="/library" element={<LibraryView />} />
+          <Route path="/app/library" element={<LibraryView />} />
           <Route path="/chat" element={<KnowledgeHubView />} />
           <Route path="/app/chat" element={<KnowledgeHubView />} />
           <Route path="/notes" element={<NotesView />} />

@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Brain, ArrowLeft, Mail, CheckCircle2, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Mail, CheckCircle2, AlertCircle } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { ThemeToggle } from '../../hooks/useTheme';
 import { supabase, isSupabaseConfigured } from '../../lib/supabase';
+import { RecallLogo } from '../../components/brand';
 
 export function ForgotPasswordView() {
   const [email, setEmail] = useState('');
@@ -45,11 +46,8 @@ export function ForgotPasswordView() {
     <div className="min-h-screen flex flex-col bg-background text-on-surface">
       {/* Top Bar with Home link & Theme Toggle */}
       <header className="w-full max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-        <Link to="/" className="flex items-center gap-2.5 group" aria-label="Recall AI Home">
-          <div className="w-8 h-8 rounded-lg bg-primary text-white flex items-center justify-center border-2 border-border-default shadow-neo-sm group-hover:translate-x-0.5 group-hover:translate-y-0.5 group-hover:shadow-none transition-all">
-            <Brain size={18} className="stroke-[2.5]" />
-          </div>
-          <span className="font-extrabold text-lg tracking-tight text-on-surface">Recall AI</span>
+        <Link to="/" className="flex items-center group" aria-label="Recall AI Home">
+          <RecallLogo size="lg" showAiBadge />
         </Link>
         <ThemeToggle />
       </header>

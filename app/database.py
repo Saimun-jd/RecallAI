@@ -765,6 +765,21 @@ def get_child_topics(parent_id: int) -> List[Dict[str, Any]]:
         cursor.execute("SELECT * FROM topics WHERE parent_id = ? ORDER BY sort_order ASC, id ASC", (parent_id,))
         return [dict(row) for row in cursor.fetchall()]
 
+def get_descendant_topics(parent_id: int) -> List[Dict[str, Any]]:
+    """Recursively retrieves all descendant topics (children, grandchildren, etc.) for a given parent topic."""
+    descendants = []
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        queue = [parent_id]
+        while queue:
+            curr = queue.pop(0)
+            cursor.execute("SELECT * FROM topics WHERE parent_id = ? ORDER BY sort_order ASC, id ASC", (curr,))
+            rows = [dict(r) for r in cursor.fetchall()]
+            for r in rows:
+                descendants.append(r)
+                queue.append(r["id"])
+    return descendants
+
 def update_topic_enrichment(
     topic_id: int,
     atomic_concepts: str | None = None,

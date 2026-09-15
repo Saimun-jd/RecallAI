@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { 
   Book, BrainCircuit, Settings, BarChart3, ChevronLeft, ChevronRight, 
-  NotebookPen, LayoutDashboard, MessageSquare, Activity
+  NotebookPen, LayoutDashboard, MessageSquare, Activity, BookOpen
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { AuthButton } from './AuthButton';
@@ -21,6 +21,7 @@ export function Sidebar({ className }: SidebarProps) {
       items: [
         { label: 'Dashboard', path: '/app', icon: LayoutDashboard },
         { label: 'Documents', path: '/documents', icon: Book },
+        { label: 'Library', path: '/library', icon: BookOpen },
         { label: 'Knowledge Hub', path: '/app/chat', icon: MessageSquare },
         { label: 'Notes', path: '/notes', icon: NotebookPen },
       ],
@@ -45,8 +46,11 @@ export function Sidebar({ className }: SidebarProps) {
     if (path === '/app') {
       return location.pathname === '/app';
     }
+    if (path === '/library') {
+      return location.pathname === '/library' || location.pathname.startsWith('/app/library');
+    }
     if (path === '/documents') {
-      return location.pathname === '/documents' || location.pathname.startsWith('/app/documents') || location.pathname.startsWith('/books');
+      return location.pathname === '/documents' || location.pathname.startsWith('/app/documents') || location.pathname.startsWith('/books') || location.pathname.startsWith('/documents');
     }
     if (path === '/app/chat' || path === '/chat') {
       return location.pathname.startsWith('/chat') || location.pathname.startsWith('/app/chat');
@@ -79,7 +83,7 @@ export function Sidebar({ className }: SidebarProps) {
   return (
     <aside
       className={cn(
-        'shrink-0 border-r-2 border-border-default bg-surface flex flex-col h-[calc(100vh-60px)] sticky top-15 overflow-hidden transition-all duration-200 z-30 select-none',
+        'shrink-0 border-r-2 border-border-default bg-surface flex flex-col h-[calc(100vh-60px)] sticky top-[60px] overflow-hidden transition-all duration-200 z-30 select-none',
         isExpanded ? 'w-56 lg:w-60' : 'w-18',
         className
       )}

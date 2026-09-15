@@ -159,8 +159,8 @@ export function FlashcardGenWidget({
           {/* Description */}
           {selectedConcept ? (
             <div className="flex flex-col gap-1">
-              <p className="text-sm text-on-surface-variant max-w-2xl mt-1">
-                The AI will generate targeted retrieval flashcards probing <span className="font-bold text-on-surface bg-surface-variant px-1 rounded">{selectedConcept}</span> in {topicTitle}.
+              <p className="text-sm text-on-surface-variant max-w-2xl mt-1 leading-relaxed">
+                The AI will generate targeted retrieval flashcards probing <span className="font-bold text-on-surface bg-surface-container-high border border-border-default px-1.5 py-0.5 rounded-md text-xs shadow-2xs inline-block">{selectedConcept}</span> in {topicTitle}.
               </p>
               {activeAtomicConcept?.summary && (
                 <p className="text-xs text-on-surface-variant/80 italic line-clamp-2 max-w-2xl">
@@ -169,18 +169,18 @@ export function FlashcardGenWidget({
               )}
               <button
                 onClick={() => handleConceptChange('')}
-                className="text-xs font-bold text-primary hover:underline self-start flex items-center gap-1 mt-1 transition-colors cursor-pointer"
+                className="text-xs font-bold text-primary dark:text-sky-400 hover:underline self-start flex items-center gap-1 mt-1 transition-colors cursor-pointer"
               >
                 <X size={12} /> Clear concept focus (generate for whole topic)
               </button>
             </div>
           ) : (
             <div>
-              <p className="text-sm text-on-surface-variant max-w-2xl mt-1">
-                The AI will extract key invariants, definitions, and questions about <span className="font-bold text-on-surface bg-surface-variant px-1 rounded">{topicTitle}</span> to test your recall and retention.
+              <p className="text-sm text-on-surface-variant max-w-2xl mt-1 leading-relaxed">
+                The AI will extract key invariants, definitions, and questions about <span className="font-bold text-on-surface bg-surface-container-high border border-border-default px-1.5 py-0.5 rounded-md text-xs shadow-2xs inline-block">{topicTitle}</span> to test your recall and retention.
               </p>
-              <p className="text-xs text-on-surface-variant/75 mt-1.5 flex items-center gap-1.5">
-                <span className="font-semibold text-primary">Pro-tip:</span> To generate flashcards for an individual formula or definition, choose an atomic concept from the scope selector below.
+              <p className="text-xs text-on-surface-variant/80 mt-2 flex items-center gap-1.5 flex-wrap">
+                <span className="font-semibold text-primary dark:text-sky-400">Pro-tip:</span> To generate flashcards for an individual formula or definition, choose an atomic concept from the scope selector below.
               </p>
             </div>
           )}

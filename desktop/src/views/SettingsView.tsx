@@ -5,7 +5,7 @@ import { setActiveProvider, setFallbackToCloud, setShowAttributionTags, setConfi
 import { loadSettings, saveSetting, saveSettingsStore } from '../api/settingsStore';
 import { getApiKey, saveApiKey, removeApiKey, saveKeychain } from '../api/keychain';
 import { trackSaveOperation } from '../api/saveCoordinator';
-import { client } from '../api/client';
+import { client, API_BASE } from '../api/client';
 import { supabase } from '../lib/supabase';
 import { Loader2, ChevronDown, RefreshCcw, Eye, EyeOff, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import clsx from 'clsx';
@@ -30,7 +30,7 @@ export function SettingsView() {
     setIsDeleting(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      const res = await fetch('http://localhost:8000/api/delete-all-data', {
+      const res = await fetch(`${API_BASE}/api/delete-all-data`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session?.access_token || ''}`
@@ -252,16 +252,16 @@ export function SettingsView() {
   }
 
   return (
-    <div className="flex-1 overflow-y-hidden bg-surface flex flex-col p-4 md:p-8">
-      <div className="max-w-[1000px] mx-auto flex flex-col w-full h-full gap-6">
+    <div className="flex-1 overflow-y-auto bg-background flex flex-col p-4 md:p-8">
+      <div className="max-w-[1000px] mx-auto flex flex-col w-full h-full min-h-0 gap-6">
         
-        <header className="shrink-0 border-b-[3px] border-black pb-4">
+        <header className="shrink-0 border-b-2 border-border-default pb-4">
           <h2 className="text-3xl font-black uppercase text-primary tracking-tight">Settings</h2>
-          <p className="text-sm font-bold text-on-surface mt-1">Manage your AI preferences, API keys, and account settings.</p>
+          <p className="text-sm font-bold text-on-surface-variant mt-1">Manage your AI preferences, API keys, and account settings.</p>
         </header>
 
         {/* Tabs */}
-        <div className="flex gap-4 shrink-0 overflow-x-auto pb-2 custom-scrollbar">
+        <div className="flex gap-3 shrink-0 overflow-x-auto pb-2 custom-scrollbar">
           {[
             { id: 'general', label: 'General' },
             { id: 'keys', label: 'API Keys' },
@@ -272,10 +272,10 @@ export function SettingsView() {
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
               className={clsx(
-                "px-6 py-2 font-black uppercase text-sm neo-border transition-all whitespace-nowrap",
+                "px-5 py-2 font-black uppercase text-xs sm:text-sm rounded-lg border-2 transition-all whitespace-nowrap cursor-pointer",
                 activeTab === tab.id 
-                  ? "bg-secondary text-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] translate-x-[-2px] translate-y-[-2px]" 
-                  : "bg-white text-black hover:bg-surface-container"
+                  ? "bg-primary text-on-primary border-primary shadow-neo-sm -translate-x-[1px] -translate-y-[1px]" 
+                  : "bg-surface-container-low text-on-surface-variant hover:text-on-surface hover:bg-surface-container border-border-default"
               )}
             >
               {tab.label}
@@ -284,39 +284,39 @@ export function SettingsView() {
         </div>
 
         {/* Tab Content */}
-        <div className="flex-1 bg-white neo-border shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] p-6 md:p-8 overflow-y-auto custom-scrollbar flex flex-col relative">
+        <div className="flex-1 bg-surface-container-lowest border-2 border-border-default rounded-xl shadow-neo p-6 md:p-8 overflow-y-auto custom-scrollbar flex flex-col relative min-h-0">
           
           {activeTab === 'general' && (
             <div className="space-y-8 animate-in fade-in duration-300 flex-1">
               {/* Model Selection */}
               <section>
-                <label className="block text-sm font-black text-black uppercase mb-3">Preferred AI Model</label>
+                <label className="block text-sm font-black text-on-surface uppercase mb-3">Preferred AI Model</label>
                 <div className="relative">
                   <select
                     value={activeProvider}
                     onChange={(e) => dispatch(setActiveProvider(e.target.value as AIProviderId))}
-                    className="w-full appearance-none bg-white neo-border px-4 py-3 text-sm focus:bg-surface-container font-bold cursor-pointer uppercase"
+                    className="w-full appearance-none bg-surface-container-low border-2 border-border-default rounded-lg px-4 py-3 text-sm text-on-surface focus:bg-surface-container focus:border-primary font-bold cursor-pointer uppercase transition-all"
                   >
-                    <option value="ollama">Ollama (Gemma 3) - Local & Free</option>
-                    <option value="gemini">Gemini Flash - Cloud & Fast</option>
-                    <option value="openai">OpenAI (GPT-4o Mini) - High Quality</option>
-                    <option value="groq">Groq (gpt-oss-20b) - Low Latency</option>
+                    <option value="ollama" className="bg-surface text-on-surface">Ollama (Gemma 3) - Local & Free</option>
+                    <option value="gemini" className="bg-surface text-on-surface">Gemini Flash - Cloud & Fast</option>
+                    <option value="openai" className="bg-surface text-on-surface">OpenAI (GPT-4o Mini) - High Quality</option>
+                    <option value="groq" className="bg-surface text-on-surface">Groq (gpt-oss-20b) - Low Latency</option>
                   </select>
-                  <ChevronDown size={20} className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-black font-bold" strokeWidth={3} />
+                  <ChevronDown size={20} className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-on-surface-variant font-bold" strokeWidth={2.5} />
                 </div>
 
                 {activeProvider !== 'ollama' && (!keys[activeProvider] || !keys[activeProvider].trim()) && (
-                  <div className="mt-3 p-3 bg-amber-50 border-2 border-amber-500 rounded flex items-start gap-2.5 text-amber-900 animate-in fade-in">
-                    <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                  <div className="mt-3 p-3.5 bg-amber-500/10 border-2 border-amber-500/40 rounded-lg flex items-start gap-2.5 text-on-surface animate-in fade-in">
+                    <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
                     <div className="text-xs">
-                      <p className="font-black uppercase tracking-wide">API Key Not Configured for {activeProvider.toUpperCase()}</p>
-                      <p className="font-bold text-amber-800 mt-0.5">
+                      <p className="font-black uppercase tracking-wide text-amber-500">API Key Not Configured for {activeProvider.toUpperCase()}</p>
+                      <p className="font-medium text-on-surface-variant mt-0.5">
                         {activeProvider.toUpperCase()} is currently selected, but no API key is saved. LLM requests will fail until an API key is configured.
                       </p>
                       <button
                         type="button"
                         onClick={() => setActiveTab('keys')}
-                        className="mt-2 px-3 py-1 bg-amber-600 text-white font-black uppercase text-[11px] rounded neo-border hover:bg-amber-700 transition-all cursor-pointer"
+                        className="mt-2.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white font-bold uppercase text-[11px] rounded-md transition-all cursor-pointer shadow-xs"
                       >
                         Configure {activeProvider.toUpperCase()} Key →
                       </button>
@@ -327,14 +327,14 @@ export function SettingsView() {
                 {activeProvider === 'ollama' && (
                   <div className="mt-4 flex flex-col gap-2 animate-in fade-in slide-in-from-top-2 duration-300">
                     <div className="flex items-center gap-2">
-                      <label className="text-xs font-black text-black uppercase">Ollama Host URL</label>
-                      {ollamaStatus === 'checking' && <span className="text-[10px] bg-yellow-200 text-yellow-800 px-2 py-0.5 rounded-full font-bold uppercase">Checking...</span>}
-                      {ollamaStatus === 'active' && <span className="text-[10px] bg-green-200 text-green-800 px-2 py-0.5 rounded-full font-bold uppercase">Active</span>}
-                      {ollamaStatus === 'inactive' && <span className="text-[10px] bg-red-200 text-red-800 px-2 py-0.5 rounded-full font-bold uppercase">Not Active</span>}
+                      <label className="text-xs font-black text-on-surface uppercase">Ollama Host URL</label>
+                      {ollamaStatus === 'checking' && <span className="text-[10px] bg-amber-500/20 text-amber-400 border border-amber-500/30 px-2 py-0.5 rounded-full font-bold uppercase">Checking...</span>}
+                      {ollamaStatus === 'active' && <span className="text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full font-bold uppercase">Active</span>}
+                      {ollamaStatus === 'inactive' && <span className="text-[10px] bg-rose-500/20 text-rose-400 border border-rose-500/30 px-2 py-0.5 rounded-full font-bold uppercase">Not Active</span>}
                       <button
                         type="button"
                         onClick={() => verifyOllamaHealth(keys['ollama_host'] ?? 'http://localhost:11434')}
-                        className="ml-auto text-on-surface-variant hover:text-black transition-colors cursor-pointer"
+                        className="ml-auto text-on-surface-variant hover:text-on-surface transition-colors cursor-pointer"
                         title="Verify Connection"
                       >
                         <RefreshCcw size={14} className={ollamaStatus === 'checking' ? 'animate-spin' : ''} />
@@ -346,23 +346,23 @@ export function SettingsView() {
                       onChange={(e) => setKeys(prev => ({ ...prev, ollama_host: e.target.value }))}
                       placeholder="http://localhost:11434"
                       className={clsx(
-                        "w-full bg-white neo-border px-4 py-2 text-sm text-black focus:outline-none focus:ring-0 transition-all font-bold",
-                        ollamaStatus === 'inactive' ? "bg-red-50 border-red-500" : "focus:bg-surface-container"
+                        "w-full bg-surface-container-low border-2 border-border-default rounded-lg px-4 py-2.5 text-sm text-on-surface focus:outline-none focus:border-primary focus:bg-surface-container transition-all font-mono font-medium",
+                        ollamaStatus === 'inactive' && "bg-rose-500/10 border-rose-500"
                       )}
                     />
                     <p className="text-[10px] text-on-surface-variant font-bold leading-tight uppercase">Local or remote Ollama server. Must include http://</p>
                   </div>
                 )}
 
-                <p className="text-xs text-on-surface-variant mt-4 italic font-bold">Higher capability models may consume research tokens faster.</p>
+                <p className="text-xs text-on-surface-variant mt-4 italic font-medium">Higher capability models may consume research tokens faster.</p>
               </section>
 
               {/* Global Settings (Toggles) */}
-              <section className="space-y-6 pt-6 border-t-[3px] border-black">
+              <section className="space-y-6 pt-6 border-t-2 border-border-default">
                 <div className="flex items-center justify-between group">
                   <div className="pr-4">
-                    <p className="text-sm font-black text-black uppercase">Cloud Fallback</p>
-                    <p className="text-xs text-on-surface-variant font-bold">Seamlessly fall back to cloud provider if local Ollama fails.</p>
+                    <p className="text-sm font-black text-on-surface uppercase">Cloud Fallback</p>
+                    <p className="text-xs text-on-surface-variant font-medium">Seamlessly fall back to cloud provider if local Ollama fails.</p>
                   </div>
                   <label className="relative inline-flex items-center cursor-pointer shrink-0">
                     <input
@@ -371,16 +371,26 @@ export function SettingsView() {
                       checked={fallbackToCloudEnabled}
                       onChange={(e) => dispatch(setFallbackToCloud(e.target.checked))}
                     />
-                    <div className={clsx("w-12 h-7 border-[3px] border-black transition-colors flex items-center px-1", fallbackToCloudEnabled ? "bg-secondary" : "bg-white")}>
-                      <div className={clsx("w-3 h-3 transition-all duration-200", fallbackToCloudEnabled ? "bg-white translate-x-[22px]" : "bg-black translate-x-0")}></div>
+                    <div className={clsx(
+                      "w-12 h-6.5 rounded-full border-2 transition-colors flex items-center px-0.5",
+                      fallbackToCloudEnabled 
+                        ? "bg-primary border-primary" 
+                        : "bg-surface-container-high border-border-default"
+                    )}>
+                      <div className={clsx(
+                        "w-5 h-5 rounded-full transition-all duration-200 shadow-xs",
+                        fallbackToCloudEnabled 
+                          ? "bg-on-primary translate-x-[22px]" 
+                          : "bg-on-surface-variant translate-x-0"
+                      )} />
                     </div>
                   </label>
                 </div>
 
                 <div className="flex items-center justify-between group">
                   <div className="pr-4">
-                    <p className="text-sm font-black text-black uppercase">Attribution Tags</p>
-                    <p className="text-xs text-on-surface-variant font-bold">Append metadata indicating which model generated flashcards.</p>
+                    <p className="text-sm font-black text-on-surface uppercase">Attribution Tags</p>
+                    <p className="text-xs text-on-surface-variant font-medium">Append metadata indicating which model generated flashcards.</p>
                   </div>
                   <label className="relative inline-flex items-center cursor-pointer shrink-0">
                     <input
@@ -389,8 +399,18 @@ export function SettingsView() {
                       checked={showAttributionTags}
                       onChange={(e) => dispatch(setShowAttributionTags(e.target.checked))}
                     />
-                    <div className={clsx("w-12 h-7 border-[3px] border-black transition-colors flex items-center px-1", showAttributionTags ? "bg-secondary" : "bg-white")}>
-                      <div className={clsx("w-3 h-3 transition-all duration-200", showAttributionTags ? "bg-white translate-x-[22px]" : "bg-black translate-x-0")}></div>
+                    <div className={clsx(
+                      "w-12 h-6.5 rounded-full border-2 transition-colors flex items-center px-0.5",
+                      showAttributionTags 
+                        ? "bg-primary border-primary" 
+                        : "bg-surface-container-high border-border-default"
+                    )}>
+                      <div className={clsx(
+                        "w-5 h-5 rounded-full transition-all duration-200 shadow-xs",
+                        showAttributionTags 
+                          ? "bg-on-primary translate-x-[22px]" 
+                          : "bg-on-surface-variant translate-x-0"
+                      )} />
                     </div>
                   </label>
                 </div>
@@ -398,34 +418,34 @@ export function SettingsView() {
                 <div className="flex flex-col gap-2">
                   <div className="flex items-center justify-between group">
                     <div className="pr-4">
-                      <p className="text-sm font-black text-black uppercase">PDF Extractor</p>
-                      <p className="text-xs text-on-surface-variant font-bold">Select the backend pipeline used to parse documents.</p>
+                      <p className="text-sm font-black text-on-surface uppercase">PDF Extractor</p>
+                      <p className="text-xs text-on-surface-variant font-medium">Select the backend pipeline used to parse documents.</p>
                     </div>
-                    <div className="relative w-48 shrink-0">
+                    <div className="relative w-52 shrink-0">
                       <select
                         value={pdfExtractor}
                         onChange={(e) => dispatch(setPdfExtractor(e.target.value as any))}
-                        className="w-full appearance-none bg-white neo-border px-3 py-2 text-xs focus:bg-surface-container font-bold cursor-pointer uppercase"
+                        className="w-full appearance-none bg-surface-container-low border-2 border-border-default rounded-lg px-3.5 py-2 text-xs text-on-surface focus:bg-surface-container focus:border-primary font-bold cursor-pointer uppercase transition-all"
                       >
-                        <option value="pymupdf4llm">PyMuPDF4LLM</option>
-                        <option value="marker_api">Marker (API Key)</option>
+                        <option value="pymupdf4llm" className="bg-surface text-on-surface">PyMuPDF4LLM</option>
+                        <option value="marker_api" className="bg-surface text-on-surface">Marker (API Key)</option>
                       </select>
-                      <ChevronDown size={16} className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-black font-bold" strokeWidth={3} />
+                      <ChevronDown size={16} className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-on-surface-variant font-bold" strokeWidth={2.5} />
                     </div>
                   </div>
 
                   {pdfExtractor === 'marker_api' && (!keys['datalab_api_key'] || !keys['datalab_api_key'].trim()) && (
-                    <div className="mt-2 p-3 bg-amber-50 border-2 border-amber-500 rounded flex items-start gap-2.5 text-amber-900 animate-in fade-in">
-                      <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                    <div className="mt-2.5 p-3.5 bg-amber-500/10 border-2 border-amber-500/40 rounded-lg flex items-start gap-2.5 text-on-surface animate-in fade-in">
+                      <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
                       <div className="text-xs">
-                        <p className="font-black uppercase">Datalab Key Missing</p>
-                        <p className="font-bold text-amber-800 mt-0.5">
+                        <p className="font-black uppercase text-amber-500">Datalab Key Missing</p>
+                        <p className="font-medium text-on-surface-variant mt-0.5">
                           Marker API extractor requires a Datalab API key to run.
                         </p>
                         <button
                           type="button"
                           onClick={() => setActiveTab('keys')}
-                          className="mt-1.5 px-2.5 py-0.5 bg-amber-600 text-white font-black uppercase text-[10px] rounded neo-border hover:bg-amber-700 transition-all cursor-pointer"
+                          className="mt-2 px-3 py-1 bg-amber-500 hover:bg-amber-600 text-white font-bold uppercase text-[10px] rounded-md transition-all cursor-pointer shadow-xs"
                         >
                           Configure Datalab Key →
                         </button>
@@ -440,8 +460,8 @@ export function SettingsView() {
           {activeTab === 'keys' && (
             <div className="space-y-6 animate-in fade-in duration-300 flex-1">
               <div className="mb-2">
-                <h3 className="text-xl font-black text-black uppercase mb-1">Secure API Keys</h3>
-                <p className="text-sm text-on-surface-variant font-bold">Keys are stored securely in your OS keychain / encrypted store.</p>
+                <h3 className="text-xl font-black text-on-surface uppercase mb-1">Secure API Keys</h3>
+                <p className="text-sm text-on-surface-variant font-medium">Keys are stored securely in your OS keychain / encrypted store.</p>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {['openai', 'gemini', 'groq', 'datalab_api_key'].map((p) => {
@@ -452,14 +472,14 @@ export function SettingsView() {
                   return (
                     <div key={p} className="flex flex-col gap-2">
                       <div className="flex items-center justify-between">
-                        <label className="text-xs font-black text-black uppercase">{label}</label>
+                        <label className="text-xs font-black text-on-surface uppercase">{label}</label>
                         <div className="flex items-center gap-2">
                           {isConfigured ? (
-                            <span className="text-[10px] bg-green-100 text-green-800 border border-green-400 px-2 py-0.5 rounded font-black uppercase tracking-wider flex items-center gap-1">
-                              <CheckCircle2 size={10} className="text-green-600" /> Configured
+                            <span className="text-[10px] bg-emerald-500/15 text-emerald-500 border border-emerald-500/30 px-2 py-0.5 rounded font-black uppercase tracking-wider flex items-center gap-1">
+                              <CheckCircle2 size={10} className="text-emerald-500" /> Configured
                             </span>
                           ) : (
-                            <span className="text-[10px] bg-zinc-100 text-zinc-500 border border-zinc-300 px-2 py-0.5 rounded font-black uppercase tracking-wider">
+                            <span className="text-[10px] bg-surface-container text-on-surface-variant border border-border-default px-2 py-0.5 rounded font-bold uppercase tracking-wider">
                               Not Configured
                             </span>
                           )}
@@ -468,7 +488,7 @@ export function SettingsView() {
                               type="button"
                               onClick={() => handleVerifyKey(p)}
                               disabled={!isConfigured || isTesting}
-                              className="text-[10px] px-2 py-0.5 font-black uppercase bg-surface-container hover:bg-black hover:text-white border border-black rounded transition-all disabled:opacity-40 disabled:hover:bg-surface-container disabled:hover:text-black cursor-pointer"
+                              className="text-[10px] px-2.5 py-1 font-bold uppercase bg-surface-container hover:bg-primary hover:text-on-primary text-on-surface border border-border-default rounded-md transition-all disabled:opacity-40 disabled:hover:bg-surface-container disabled:hover:text-on-surface cursor-pointer"
                               title="Verify key with provider"
                             >
                               {isTesting ? <Loader2 size={10} className="animate-spin inline mr-1" /> : null}
@@ -485,12 +505,12 @@ export function SettingsView() {
                           placeholder={`Enter ${label.toLowerCase()}`}
                           autoComplete="new-password"
                           spellCheck={false}
-                          className="w-full bg-white neo-border px-4 py-3 pr-12 text-sm text-black focus:outline-none focus:ring-0 focus:bg-surface-container transition-all font-mono font-medium placeholder:font-sans placeholder:text-on-surface-variant"
+                          className="w-full bg-surface-container-low border-2 border-border-default rounded-lg px-4 py-2.5 pr-12 text-sm text-on-surface focus:outline-none focus:border-primary focus:bg-surface-container transition-all font-mono font-medium placeholder:font-sans placeholder:text-on-surface-variant/50"
                         />
                         <button
                           type="button"
                           onClick={() => toggleShowKey(p)}
-                          className="absolute right-3 p-1.5 text-zinc-500 hover:text-black transition-colors cursor-pointer"
+                          className="absolute right-3 p-1.5 text-on-surface-variant hover:text-on-surface transition-colors cursor-pointer"
                           title={isShowing ? "Hide API key" : "Show API key"}
                         >
                           {isShowing ? <EyeOff size={16} /> : <Eye size={16} />}
@@ -506,8 +526,8 @@ export function SettingsView() {
           {activeTab === 'telemetry' && (
             <div className="space-y-6 animate-in fade-in duration-300 flex-1">
               <div className="mb-2">
-                <h3 className="text-xl font-black text-black uppercase mb-1">Langfuse Telemetry</h3>
-                <p className="text-sm text-on-surface-variant font-bold">Track LLM generations, latency, and costs.</p>
+                <h3 className="text-xl font-black text-on-surface uppercase mb-1">Langfuse Telemetry</h3>
+                <p className="text-sm text-on-surface-variant font-medium">Track LLM generations, latency, and costs.</p>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {['langfuse_secret_key', 'langfuse_public_key', 'langfuse_host'].map((p) => {
@@ -518,10 +538,10 @@ export function SettingsView() {
                   return (
                     <div key={p} className={clsx("flex flex-col gap-2", p === 'langfuse_host' && "col-span-1 md:col-span-2")}>
                       <div className="flex items-center justify-between">
-                        <label className="text-xs font-black text-black uppercase">{label}</label>
+                        <label className="text-xs font-black text-on-surface uppercase">{label}</label>
                         {isConfigured && (
-                          <span className="text-[10px] bg-green-100 text-green-800 border border-green-400 px-2 py-0.5 rounded font-black uppercase tracking-wider flex items-center gap-1">
-                            <CheckCircle2 size={10} className="text-green-600" /> Configured
+                          <span className="text-[10px] bg-emerald-500/15 text-emerald-500 border border-emerald-500/30 px-2 py-0.5 rounded font-black uppercase tracking-wider flex items-center gap-1">
+                            <CheckCircle2 size={10} className="text-emerald-500" /> Configured
                           </span>
                         )}
                       </div>
@@ -533,13 +553,13 @@ export function SettingsView() {
                           placeholder={`Enter ${label.toLowerCase()}`}
                           autoComplete="new-password"
                           spellCheck={false}
-                          className="w-full bg-white neo-border px-4 py-3 pr-12 text-sm text-black focus:outline-none focus:ring-0 focus:bg-surface-container transition-all font-mono font-medium placeholder:font-sans placeholder:text-on-surface-variant"
+                          className="w-full bg-surface-container-low border-2 border-border-default rounded-lg px-4 py-2.5 pr-12 text-sm text-on-surface focus:outline-none focus:border-primary focus:bg-surface-container transition-all font-mono font-medium placeholder:font-sans placeholder:text-on-surface-variant/50"
                         />
                         {isSecret && (
                           <button
                             type="button"
                             onClick={() => toggleShowKey(p)}
-                            className="absolute right-3 p-1.5 text-zinc-500 hover:text-black transition-colors cursor-pointer"
+                            className="absolute right-3 p-1.5 text-on-surface-variant hover:text-on-surface transition-colors cursor-pointer"
                             title={isShowing ? "Hide secret" : "Show secret"}
                           >
                             {isShowing ? <EyeOff size={16} /> : <Eye size={16} />}
@@ -556,19 +576,21 @@ export function SettingsView() {
           {activeTab === 'danger' && (
             <div className="space-y-6 animate-in fade-in duration-300 flex-1">
               <div className="mb-2">
-                <h3 className="text-xl font-black text-red-600 uppercase mb-1">Danger Zone</h3>
-                <p className="text-sm text-on-surface-variant font-bold">Irreversible actions for your account.</p>
+                <h3 className="text-xl font-black text-rose-500 uppercase mb-1">Danger Zone</h3>
+                <p className="text-sm text-on-surface-variant font-medium">Irreversible actions for your account.</p>
               </div>
-              <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between p-6 bg-red-50 border-[3px] border-red-600 gap-6">
+              <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between p-6 bg-rose-500/10 border-2 border-rose-500/40 rounded-xl gap-6">
                 <div>
-                  <h4 className="font-black text-black uppercase text-sm mb-2">Delete All Data</h4>
-                  <p className="text-xs text-on-surface-variant font-bold max-w-lg leading-relaxed">Permanently wipe all books, topics, and flashcards from your local device and the cloud. This action cannot be undone.</p>
+                  <h4 className="font-black text-rose-500 uppercase text-sm mb-2">Delete All Data</h4>
+                  <p className="text-xs text-on-surface-variant font-medium max-w-lg leading-relaxed">
+                    Permanently wipe all books, topics, and flashcards from your local device and the cloud. This action cannot be undone.
+                  </p>
                 </div>
                 <button
                   type="button"
                   onClick={handleDeleteAllData}
                   disabled={isDeleting}
-                  className="px-6 py-3 bg-red-600 text-white text-sm font-black uppercase border-[3px] border-red-600 shadow-[4px_4px_0px_0px_rgba(220,38,38,0.5)] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all shrink-0 flex items-center gap-2 disabled:opacity-50"
+                  className="px-6 py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-sm font-black uppercase rounded-lg shadow-neo-sm hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-none transition-all shrink-0 flex items-center gap-2 disabled:opacity-50 cursor-pointer"
                 >
                   {isDeleting && <Loader2 size={16} className="animate-spin" />}
                   Delete Data
@@ -578,17 +600,17 @@ export function SettingsView() {
           )}
 
           {/* Bottom Actions Area inside the card */}
-          <div className="flex justify-end gap-4 pt-6 mt-8 border-t-[3px] border-black shrink-0">
+          <div className="flex justify-end gap-3 pt-6 mt-8 border-t-2 border-border-default shrink-0">
             <button
               onClick={() => window.location.reload()}
-              className="px-6 py-2.5 neo-border bg-white text-black text-sm font-black uppercase hover:bg-surface-container transition-all"
+              className="px-5 py-2.5 rounded-lg border-2 border-border-default bg-surface-container-low text-on-surface text-sm font-bold uppercase hover:bg-surface-container transition-all cursor-pointer"
             >
               Discard
             </button>
             <button
               onClick={handleSave}
               disabled={saving}
-              className="px-6 py-2.5 neo-border bg-primary text-white text-sm font-black uppercase shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all disabled:opacity-50 disabled:hover:translate-x-0 disabled:hover:translate-y-0 disabled:hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex items-center gap-2"
+              className="px-6 py-2.5 rounded-lg border-2 border-primary bg-primary text-on-primary text-sm font-bold uppercase shadow-neo-sm hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-none transition-all disabled:opacity-50 disabled:hover:translate-x-0 disabled:hover:translate-y-0 disabled:hover:shadow-neo-sm flex items-center gap-2 cursor-pointer"
             >
               {saving && <Loader2 size={16} className="animate-spin" />}
               Save Changes

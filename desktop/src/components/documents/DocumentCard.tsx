@@ -155,15 +155,19 @@ export function DocumentCard({
             <button
               type="button"
               onClick={() => onOpen(document.id)}
-              className="inline-flex items-center gap-1 text-xs font-black text-primary hover:underline"
+              className="inline-flex items-center gap-1.5 text-xs font-black text-primary hover:underline"
             >
-              <span>Explore Knowledge</span>
+              <BookOpen size={13} />
+              <span>Open in Reader</span>
               <ArrowRight size={13} />
             </button>
             <button
               type="button"
-              onClick={() => onDeleteClick(document)}
-              className="p-1.5 rounded-lg border border-transparent text-on-surface-variant hover:text-error hover:bg-error/10 hover:border-error/20 transition-all"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDeleteClick(document);
+              }}
+              className="p-1.5 rounded-lg border border-transparent text-on-surface-variant hover:text-error hover:bg-error/10 hover:border-error/20 transition-all cursor-pointer"
               title="Delete document"
               aria-label={`Delete ${document.title}`}
             >
@@ -184,7 +188,10 @@ export function DocumentCard({
             <Button
               variant="outline"
               size="sm"
-              onClick={() => onRetry(document.id)}
+              onClick={(e) => {
+                e.stopPropagation();
+                onRetry(document.id);
+              }}
               className="text-xs h-8 px-2.5 gap-1.5 border-primary/40 text-primary"
             >
               <RefreshCw size={12} />
@@ -192,8 +199,11 @@ export function DocumentCard({
             </Button>
             <button
               type="button"
-              onClick={() => onDeleteClick(document)}
-              className="p-1.5 rounded-lg text-error hover:bg-error/10 transition-colors"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDeleteClick(document);
+              }}
+              className="p-1.5 rounded-lg text-error hover:bg-error/10 transition-colors cursor-pointer"
               title="Delete document"
               aria-label={`Delete ${document.title}`}
             >

@@ -68,7 +68,7 @@ export function StudyCard({ item, isRevealed, onReveal, isRevealing }: StudyCard
             <span className="inline-block text-[10px] font-extrabold uppercase tracking-widest text-emerald-600 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-md">
               Answer
             </span>
-            <div className="text-sm sm:text-base text-on-surface leading-relaxed prose-sm">
+            <div className="text-sm sm:text-base text-on-surface leading-relaxed prose-sm dark:prose-invert prose-strong:text-on-surface prose-strong:font-bold prose-em:text-on-surface prose-code:text-primary dark:prose-code:text-sky-300">
               <MarkdownRenderer content={revealedItem?.back || ''} />
             </div>
             {revealedItem?.explanation && (
@@ -76,7 +76,7 @@ export function StudyCard({ item, isRevealed, onReveal, isRevealing }: StudyCard
                 <span className="text-[10px] font-extrabold uppercase tracking-widest text-on-surface-variant/70">
                   Explanation
                 </span>
-                <div className="text-xs text-on-surface-variant leading-relaxed">
+                <div className="text-xs text-on-surface-variant leading-relaxed prose-xs dark:prose-invert prose-strong:text-on-surface prose-strong:font-bold">
                   <MarkdownRenderer content={revealedItem.explanation} />
                 </div>
               </div>

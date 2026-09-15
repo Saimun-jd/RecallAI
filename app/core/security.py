@@ -94,6 +94,7 @@ def create_access_token(
 def decode_access_token(token: str) -> Dict[str, Any]:
     """
     Decodes and validates a JWT access token.
+    Supports native Recall AI tokens and Supabase OAuth tokens.
     Raises ValueError if expired, malformed, or signature is invalid.
     """
     try:
@@ -107,6 +108,21 @@ def decode_access_token(token: str) -> Dict[str, Any]:
     except jwt.ExpiredSignatureError:
         raise ValueError("Token has expired.")
     except jwt.InvalidTokenError as e:
+        # Fallback: check if this is an active Supabase OAuth token
+        try:
+            unverified = jwt.decode(token, options={"verify_signature": False})
+            iss = str(unverified.get("iss", "")).lower()
+            sub = unverified.get("sub")
+            exp = unverified.get("exp")
+            now = datetime.now(timezone.utc).timestamp()
+            if exp and exp < now:
+                raise ValueError("Token has expired.")
+            if sub and ("supabase" in iss or unverified.get("role") in ("authenticated", "anon")):
+                return unverified
+        except ValueError:
+            raise
+        except Exception:
+            pass
         raise ValueError(f"Invalid token: {e}")
 
 

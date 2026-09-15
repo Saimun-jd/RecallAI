@@ -201,6 +201,16 @@ export const MarkdownRendererImpl: React.FC<MarkdownRendererProps> = ({ content 
           const parsedStyle = typeof nodeStyle === 'string' ? parseStyle(nodeStyle) : style;
           return <span style={parsedStyle} {...props} />;
         },
+        strong: ({ node, children, ...props }: any) => (
+          <strong className="font-bold text-inherit" {...props}>
+            {children}
+          </strong>
+        ),
+        em: ({ node, children, ...props }: any) => (
+          <em className="italic text-inherit" {...props}>
+            {children}
+          </em>
+        ),
         code({ node, inline, className, children, ...props }: any) {
           const match = /language-(\w+)/.exec(className || '');
           const codeStr = String(children).replace(/\n$/, '');
@@ -218,8 +228,8 @@ export const MarkdownRendererImpl: React.FC<MarkdownRendererProps> = ({ content 
               {...props}
               className={
                 className
-                  ? `${className} bg-surface-container-highest border-2 border-primary rounded-sm px-1.5 py-0.5 font-mono text-[0.9em] text-primary`
-                  : 'bg-surface-container-highest border-2 border-primary rounded-sm px-1.5 py-0.5 font-mono text-[0.9em] text-primary'
+                  ? `${className} bg-surface-container-highest/60 border border-outline-variant/40 rounded px-1.5 py-0.5 font-mono text-[0.9em] text-primary dark:text-sky-300 font-medium`
+                  : 'bg-surface-container-highest/60 border border-outline-variant/40 rounded px-1.5 py-0.5 font-mono text-[0.9em] text-primary dark:text-sky-300 font-medium'
               }
             >
               {children}

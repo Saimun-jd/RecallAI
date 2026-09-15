@@ -70,6 +70,10 @@ export function DocumentDetailView() {
       try {
         docRecord = await client.getDocument(docId);
         setDocument(docRecord);
+        if (docRecord.metadata?.book_id) {
+          navigate(`/books/${docRecord.metadata.book_id}`, { replace: true });
+          return;
+        }
       } catch (err: any) {
         if (err?.status === 404 || err?.status === 403) {
           setNotFound(true);
@@ -171,7 +175,32 @@ export function DocumentDetailView() {
   // Delete handler
   const handleConfirmDelete = async () => {
     if (!id) return;
-    await client.deleteDocument(id);
+    const bookId = document?.metadata?.book_id || (!isNaN(Number(id)) && !id.includes('-') ? Number(id) : null);
+
+    if (bookId) {
+      try {
+        await client.deleteBook(bookId);
+      } catch (e) {
+        console.warn('client.deleteBook failed or already removed:', e);
+      }
+    }
+
+    try {
+      await client.deleteDocument(id);
+    } catch (err: any) {
+      const isNotFound =
+        err?.errorCode === 'NOT_FOUND' ||
+        err?.httpStatus === 404 ||
+        err?.status === 404 ||
+        (typeof err?.message === 'string' && err.message.toLowerCase().includes('not found')) ||
+        (typeof err?.userMessage === 'string' && err.userMessage.toLowerCase().includes('not found'));
+
+      if (!isNotFound && !bookId) {
+        throw err;
+      }
+      console.warn('Document was already not found in database, proceeding with navigation:', err);
+    }
+
     showToast('success', 'Document deleted.');
     navigate('/documents');
   };
@@ -264,10 +293,21 @@ export function DocumentDetailView() {
 
             {/* Quick Action Buttons */}
             <div className="flex flex-wrap items-center gap-2.5 self-start md:self-auto shrink-0">
+              {(document.metadata?.book_id || document.source_type === 'pdf') && (
+                <Button
+                  variant="primary"
+                  onClick={() => navigate(`/books/${document.metadata?.book_id || document.id}`)}
+                  className="gap-1.5 shadow-neo-sm text-xs h-9 bg-primary text-white"
+                >
+                  <BookOpen size={14} />
+                  <span>Open in Reader</span>
+                </Button>
+              )}
+
               <Button
-                variant="primary"
+                variant="outline"
                 onClick={() => navigate(`/review?document_id=${document.id}`)}
-                className="gap-1.5 shadow-neo-sm text-xs h-9"
+                className="gap-1.5 text-xs h-9"
               >
                 <BrainCircuit size={14} />
                 <span>Study</span>

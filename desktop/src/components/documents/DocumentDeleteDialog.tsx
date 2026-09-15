@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { AlertTriangle, Loader2, Trash2 } from 'lucide-react';
-import { Dialog } from '../ui/Dialog';
+import { AlertTriangle, Database, FileText, Layers, Sparkles, Trash2 } from 'lucide-react';
+import { Dialog, DialogFooter } from '../ui/Dialog';
 import { Button } from '../ui/Button';
 
 export interface DocumentDeleteDialogProps {
@@ -26,7 +26,17 @@ export function DocumentDeleteDialog({
       await onConfirmDelete();
       onClose();
     } catch (err: any) {
-      setErrorMessage(err?.userMessage || err?.message || 'Failed to delete document. Please try again.');
+      const msg =
+        typeof err?.userMessage === 'string'
+          ? err.userMessage
+          : typeof err?.message === 'string'
+          ? err.message
+          : typeof err?.userMessage?.message === 'string'
+          ? err.userMessage.message
+          : typeof err?.error?.message === 'string'
+          ? err.error.message
+          : 'Failed to delete document. Please try again.';
+      setErrorMessage(msg);
     } finally {
       setIsDeleting(false);
     }
@@ -36,27 +46,64 @@ export function DocumentDeleteDialog({
     <Dialog
       isOpen={isOpen}
       onClose={() => !isDeleting && onClose()}
-      title="Delete Document"
-      maxWidth="sm"
+      title={
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-lg bg-error/10 border border-error/25 flex items-center justify-center shrink-0">
+            <Trash2 size={16} className="text-error" />
+          </div>
+          <span className="text-base font-black text-on-surface">Delete Document</span>
+        </div>
+      }
+      maxWidth="md"
     >
-      <div className="p-6 space-y-4">
-        <div className="flex items-start gap-3.5 p-3.5 rounded-xl border-2 border-error/30 bg-error/10 text-error">
-          <AlertTriangle size={20} className="shrink-0 mt-0.5" />
-          <div className="space-y-1 text-xs">
-            <p className="font-extrabold text-sm">Permanent Action</p>
-            <p className="font-medium text-error/90 leading-relaxed">
-              This will permanently delete <span className="font-bold underline">"{documentTitle}"</span>, including its physical file, extracted semantic chunks, AI-generated summaries, and concepts.
+      <div className="space-y-4">
+        {/* Target Document Preview */}
+        <div className="p-3.5 rounded-xl border border-border-default bg-surface-container-low/60 flex items-start gap-3">
+          <div className="w-8 h-8 rounded-lg bg-primary/10 border border-primary/20 text-primary flex items-center justify-center shrink-0 mt-0.5">
+            <FileText size={16} />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">Document</p>
+            <p className="text-sm font-black text-on-surface truncate mt-0.5" title={documentTitle}>
+              {documentTitle}
             </p>
           </div>
         </div>
 
-        {errorMessage && (
-          <p className="text-xs font-bold text-error bg-error/10 p-2.5 rounded-lg border border-error/30">
-            {errorMessage}
+        {/* Impact Warning Box */}
+        <div className="p-4 rounded-xl border-2 border-error/20 bg-error/5 space-y-2.5">
+          <div className="flex items-center gap-2 text-error font-extrabold text-xs tracking-wide uppercase">
+            <AlertTriangle size={15} />
+            <span>Permanent Action — Cannot be undone</span>
+          </div>
+          <p className="text-xs text-on-surface font-medium leading-relaxed">
+            Deleting this document will permanently remove:
           </p>
+          <ul className="text-xs text-on-surface-variant space-y-1.5 pl-1 font-medium">
+            <li className="flex items-center gap-2">
+              <Database size={13} className="text-error/70 shrink-0" />
+              <span>Physical PDF/source file and cached pages</span>
+            </li>
+            <li className="flex items-center gap-2">
+              <Layers size={13} className="text-error/70 shrink-0" />
+              <span>Extracted semantic chunks and vector embeddings</span>
+            </li>
+            <li className="flex items-center gap-2">
+              <Sparkles size={13} className="text-error/70 shrink-0" />
+              <span>AI-generated summaries, concepts, and linked notes</span>
+            </li>
+          </ul>
+        </div>
+
+        {/* Error message banner */}
+        {errorMessage && (
+          <div className="p-3 rounded-lg border border-error/40 bg-error/10 text-error text-xs font-semibold flex items-center gap-2 animate-in fade-in">
+            <AlertTriangle size={15} className="shrink-0" />
+            <span className="flex-1">{errorMessage}</span>
+          </div>
         )}
 
-        <div className="flex items-center justify-end gap-3 pt-3 border-t border-border-default/70">
+        <DialogFooter className="mt-4 pt-4">
           <Button
             variant="outline"
             onClick={onClose}
@@ -67,21 +114,13 @@ export function DocumentDeleteDialog({
           <Button
             variant="destructive"
             onClick={handleDelete}
-            disabled={isDeleting}
+            isLoading={isDeleting}
+            className="gap-2"
           >
-            {isDeleting ? (
-              <>
-                <Loader2 size={16} className="animate-spin" />
-                <span>Deleting...</span>
-              </>
-            ) : (
-              <>
-                <Trash2 size={16} />
-                <span>Delete Document</span>
-              </>
-            )}
+            <Trash2 size={15} />
+            <span>Delete Document</span>
           </Button>
-        </div>
+        </DialogFooter>
       </div>
     </Dialog>
   );

@@ -56,10 +56,12 @@ class CoreSettings(BaseSettings):
         "http://127.0.0.1:8000",
         "tauri://localhost",
         "https://tauri.localhost",
+        "http://tauri.localhost",
     ]
 
     # Request Limits
-    MAX_REQUEST_BODY_BYTES: int = 10 * 1024 * 1024  # 10 MB default
+    MAX_REQUEST_BODY_BYTES: int = 10 * 1024 * 1024  # 10 MB for standard API requests
+    MAX_UPLOAD_BYTES: int = 55 * 1024 * 1024        # 55 MB for file uploads (50 MB PDF + multipart overhead)
 
     # Supabase (Public & Service)
     SUPABASE_URL: str = ""

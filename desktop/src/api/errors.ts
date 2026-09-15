@@ -83,36 +83,49 @@ export function getErrorMeta(code: string): ErrorCodeMeta {
  * Falls back gracefully if the response doesn't have the expected shape.
  */
 export async function parseApiError(res: Response): Promise<ApiError> {
-  let structured: StructuredError | null = null;
+  let errorCode = 'INTERNAL_ERROR';
+  let message = `Request failed with status ${res.status}`;
+  let debugDetail: string | undefined = undefined;
 
   try {
     const body = await res.json();
-    if (body.error_code && body.message) {
-      structured = body as StructuredError;
+    if (body.error && typeof body.error === 'object') {
+      // Standard FastAPI backend envelope: { error: { code, message, details, metadata } }
+      errorCode = body.error.code || 'INTERNAL_ERROR';
+      message = typeof body.error.message === 'string'
+        ? body.error.message
+        : typeof body.error === 'string'
+        ? body.error
+        : JSON.stringify(body.error);
+      if (body.error.details) {
+        debugDetail = typeof body.error.details === 'string'
+          ? body.error.details
+          : JSON.stringify(body.error.details);
+      }
+    } else if (body.error_code && body.message) {
+      errorCode = body.error_code;
+      message = typeof body.message === 'string' ? body.message : JSON.stringify(body.message);
+      if (body.debug?.detail) {
+        debugDetail = body.debug.detail;
+      }
     } else if (body.error) {
-      // Legacy fallback: old-style { error: "..." } responses
-      structured = {
-        error_code: 'INTERNAL_ERROR',
-        message: body.error,
-      };
+      message = typeof body.error === 'string' ? body.error : JSON.stringify(body.error);
     } else if (body.detail) {
-      // FastAPI HTTPException fallback
-      structured = {
-        error_code: 'INTERNAL_ERROR',
-        message: typeof body.detail === 'string' ? body.detail : JSON.stringify(body.detail),
-      };
+      message = typeof body.detail === 'string' ? body.detail : JSON.stringify(body.detail);
+    } else if (body.message) {
+      message = typeof body.message === 'string' ? body.message : JSON.stringify(body.message);
     }
   } catch {
     // Response body wasn't JSON
   }
 
-  const error = new Error(structured?.message || `Request failed with status ${res.status}`) as ApiError;
-  error.errorCode = structured?.error_code || 'INTERNAL_ERROR';
-  error.userMessage = structured?.message || 'Something went wrong. Please try again.';
+  const error = new Error(message) as ApiError;
+  error.errorCode = errorCode;
+  error.userMessage = message;
   error.httpStatus = res.status;
 
-  if (structured?.debug) {
-    error.debugDetail = structured.debug.detail;
+  if (debugDetail) {
+    error.debugDetail = debugDetail;
   }
 
   return error;
@@ -122,12 +135,22 @@ export async function parseApiError(res: Response): Promise<ApiError> {
  * Parse a structured error from an SSE error event.
  */
 export function parseSSEError(data: Record<string, any>): ApiError {
-  const error = new Error(data.message || data.error || 'Stream error') as ApiError;
-  error.errorCode = data.error_code || 'INTERNAL_ERROR';
-  error.userMessage = data.message || data.error || 'Something went wrong.';
+  const msg = typeof data.message === 'string'
+    ? data.message
+    : typeof data.error === 'string'
+    ? data.error
+    : typeof data.error?.message === 'string'
+    ? data.error.message
+    : 'Stream error';
 
-  if (data.debug) {
+  const error = new Error(msg) as ApiError;
+  error.errorCode = data.error_code || data.error?.code || 'INTERNAL_ERROR';
+  error.userMessage = msg;
+
+  if (data.debug?.detail) {
     error.debugDetail = data.debug.detail;
+  } else if (data.error?.details) {
+    error.debugDetail = typeof data.error.details === 'string' ? data.error.details : JSON.stringify(data.error.details);
   }
 
   return error;

@@ -51,7 +51,12 @@ async def extract_raw_text(pdf_bytes: bytes, start_page: int | None = None, forc
                 from app.database import get_setting
                 fallback_target = "marker_api" if get_setting("datalab_api_key") else "marker"
                 
-                marker_extractor = get_extractor(fallback_target)
+                try:
+                    marker_extractor = get_extractor(fallback_target)
+                except Exception as e:
+                    logger.warning(f"Fallback extractor '{fallback_target}' not available: {e}")
+                    marker_extractor = None
+
                 if marker_extractor and marker_extractor.is_available():
                     logger.info(f"Switching to {fallback_target} dynamically for OCR extraction...")
                     try:

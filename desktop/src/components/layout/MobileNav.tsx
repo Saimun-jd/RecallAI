@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { ThemeToggle } from '../../hooks/useTheme';
 import { useAuth } from '../../contexts/AuthContext';
+import { RecallLogo } from '../brand';
 import { cn } from '../../lib/utils';
 
 export interface MobileNavProps {
@@ -115,12 +116,7 @@ export function MobileNav({ isDrawerOpen, onCloseDrawer, user }: MobileNavProps)
           <div className="relative w-4/5 max-w-xs bg-surface border-r-2 border-border-default h-full shadow-neo-lg flex flex-col z-10 animate-in slide-in-from-left duration-200">
             {/* Drawer Header */}
             <div className="p-4 border-b-2 border-border-default flex items-center justify-between bg-surface-container-low/50">
-              <div className="flex items-center gap-2">
-                <span className="w-7 h-7 rounded-md bg-primary text-on-primary flex items-center justify-center text-xs font-black shadow-neo-sm">
-                  R
-                </span>
-                <span className="font-black text-base text-on-surface">Recall AI</span>
-              </div>
+              <RecallLogo size="md" showAiBadge />
               <button
                 type="button"
                 onClick={onCloseDrawer}

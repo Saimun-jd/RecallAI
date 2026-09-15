@@ -52,8 +52,28 @@ export function DocumentsView() {
 
       // Merge legacy books if running offline/local
       if (booksRes.status === 'fulfilled' && Array.isArray(booksRes.value)) {
-        const legacyItems: DocumentItem[] = booksRes.value
-          .filter((b: any) => !items.some((d) => d.id === b.id.toString()))
+        const booksList = booksRes.value;
+        // Associate book_id with any v1 items that match title or metadata
+        items = items.map((item) => {
+          const matchingBook = booksList.find((b: any) =>
+            b.id.toString() === item.id ||
+            item.metadata?.book_id === b.id ||
+            b.title.toLowerCase().trim() === item.title.toLowerCase().trim()
+          );
+          if (matchingBook) {
+            return {
+              ...item,
+              metadata: {
+                ...item.metadata,
+                book_id: matchingBook.id,
+              },
+            };
+          }
+          return item;
+        });
+
+        const legacyItems: DocumentItem[] = booksList
+          .filter((b: any) => !items.some((d) => d.id === b.id.toString() || d.metadata?.book_id === b.id))
           .map((b: any) => ({
             id: b.id.toString(),
             workspace_id: 'default',
@@ -64,6 +84,7 @@ export function DocumentsView() {
             created_at: b.created_at || new Date().toISOString(),
             updated_at: b.created_at || new Date().toISOString(),
             metadata: {
+              book_id: b.id,
               chunk_count: b.topics_processed || b.total_topics,
             },
           }));
@@ -170,23 +191,21 @@ export function DocumentsView() {
 
   // 4. Action Handlers
   const handleOpenDocument = (docId: string) => {
-    navigate(`/documents/${docId}`);
+    const targetDoc = documents.find((d) => d.id === docId);
+    const bookId = targetDoc?.metadata?.book_id || (!isNaN(Number(docId)) && !docId.includes('-') ? Number(docId) : null);
+    if (bookId) {
+      navigate(`/books/${bookId}`);
+    } else {
+      navigate(`/documents/${docId}`);
+    }
   };
 
   const handleUploadSuccess = (uploaded: DocumentUploadResponse) => {
     showToast('success', `"${uploaded.filename}" uploaded successfully!`);
-    const newDoc: DocumentItem = {
-      id: uploaded.document_id,
-      workspace_id: 'default',
-      title: uploaded.filename.replace(/\.[^/.]+$/, ''),
-      source_type: uploaded.filename.endsWith('.pdf') ? 'pdf' : 'markdown',
-      total_pages: 1,
-      status: 'processing',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-    setDocuments((prev) => [newDoc, ...prev]);
     fetchDocuments();
+    if (uploaded.book_id) {
+      navigate(`/books/${uploaded.book_id}`);
+    }
   };
 
   const handleRetryProcessing = async (docId: string) => {
@@ -212,8 +231,37 @@ export function DocumentsView() {
 
   const handleConfirmDelete = async () => {
     if (!deleteTarget) return;
-    await client.deleteDocument(deleteTarget.id);
-    setDocuments((prev) => prev.filter((d) => d.id !== deleteTarget.id));
+    const docId = deleteTarget.id;
+    const bookId = deleteTarget.metadata?.book_id || (!isNaN(Number(docId)) && !docId.includes('-') ? Number(docId) : null);
+
+    // 1. Delete legacy SQLite book if applicable
+    if (bookId) {
+      try {
+        await client.deleteBook(bookId);
+      } catch (e) {
+        console.warn('client.deleteBook failed or already removed:', e);
+      }
+    }
+
+    // 2. Delete v1 document
+    try {
+      await client.deleteDocument(docId);
+    } catch (err: any) {
+      // If the document is already absent from the DB (404 / NOT_FOUND), treat as already cleaned up
+      const isNotFound =
+        err?.errorCode === 'NOT_FOUND' ||
+        err?.httpStatus === 404 ||
+        err?.status === 404 ||
+        (typeof err?.message === 'string' && err.message.toLowerCase().includes('not found')) ||
+        (typeof err?.userMessage === 'string' && err.userMessage.toLowerCase().includes('not found'));
+
+      if (!isNotFound && !bookId) {
+        throw err;
+      }
+      console.warn('Document was already not found in database, proceeding with UI cleanup:', err);
+    }
+
+    setDocuments((prev) => prev.filter((d) => d.id !== deleteTarget.id && d.metadata?.book_id !== bookId));
     showToast('success', `"${deleteTarget.title}" deleted.`);
     setDeleteTarget(null);
   };

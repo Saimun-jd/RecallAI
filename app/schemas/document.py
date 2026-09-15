@@ -14,6 +14,7 @@ class DocumentUploadResponse(BaseModel):
     status: str = Field(..., description="Current status of the document (uploading/processing)")
     filename: str = Field(..., description="Original filename uploaded")
     size_bytes: int = Field(..., description="Size of uploaded file in bytes")
+    book_id: Optional[int] = Field(default=None, description="Numeric ID in local recall books library if PDF")
 
 
 class DocumentDetailResponse(BaseModel):

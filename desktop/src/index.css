@@ -156,9 +156,12 @@
   --color-surface-container: #1E293B;
   --color-surface-container-high: #273549;
   --color-surface-container-highest: #334155;
+  --color-surface-variant: #1E293B;
   --color-on-background: #F8FAFC;
   --color-on-surface: #F8FAFC;
   --color-on-surface-variant: #94A3B8;
+  --color-inverse-surface: #F8FAFC;
+  --color-inverse-on-surface: #111827;
   --color-border-default: #334155;
   --color-border-hover: #475569;
   --color-border-neo: #475569;
@@ -392,6 +395,70 @@ body .pdf-highlighter-container.theme-dark .Highlight {
 /* Reset Tailwind Typography (prose) line-height for KaTeX math blocks */
 .prose .katex {
   line-height: normal;
+}
+
+/* ─── Typography & Theme Integration ─── */
+.prose {
+  --tw-prose-body: var(--color-on-surface);
+  --tw-prose-headings: var(--color-on-surface);
+  --tw-prose-lead: var(--color-on-surface-variant);
+  --tw-prose-links: var(--color-primary);
+  --tw-prose-bold: var(--color-on-surface);
+  --tw-prose-counters: var(--color-on-surface-variant);
+  --tw-prose-bullets: var(--color-outline);
+  --tw-prose-hr: var(--color-border-default);
+  --tw-prose-quotes: var(--color-on-surface);
+  --tw-prose-quote-borders: var(--color-border-default);
+  --tw-prose-captions: var(--color-on-surface-variant);
+  --tw-prose-code: var(--color-on-surface);
+  --tw-prose-pre-code: var(--color-on-surface);
+  --tw-prose-pre-bg: var(--color-surface-container);
+  --tw-prose-th-borders: var(--color-border-default);
+  --tw-prose-td-borders: var(--color-border-default);
+}
+
+.dark .prose,
+[data-theme="dark"] .prose,
+.dark .prose-slate,
+[data-theme="dark"] .prose-slate,
+.dark.prose,
+[data-theme="dark"].prose {
+  --tw-prose-body: var(--color-on-surface);
+  --tw-prose-headings: var(--color-on-surface);
+  --tw-prose-lead: var(--color-on-surface-variant);
+  --tw-prose-links: var(--color-primary);
+  --tw-prose-bold: var(--color-on-surface);
+  --tw-prose-counters: var(--color-on-surface-variant);
+  --tw-prose-bullets: var(--color-outline);
+  --tw-prose-hr: var(--color-border-default);
+  --tw-prose-quotes: var(--color-on-surface);
+  --tw-prose-quote-borders: var(--color-border-default);
+  --tw-prose-captions: var(--color-on-surface-variant);
+  --tw-prose-code: var(--color-on-surface);
+  --tw-prose-pre-code: var(--color-on-surface);
+  --tw-prose-pre-bg: var(--color-surface-container);
+  --tw-prose-th-borders: var(--color-border-default);
+  --tw-prose-td-borders: var(--color-border-default);
+}
+
+/* Flashcard text color contrast guarantee */
+.flashcard-face strong,
+.flashcard-face b,
+.flashcard-face .prose strong,
+.flashcard-face .prose b {
+  color: var(--color-on-surface) !important;
+  font-weight: 700;
+}
+
+.flashcard-face em,
+.flashcard-face i,
+.flashcard-face .prose em,
+.flashcard-face .prose i {
+  color: var(--color-on-surface) !important;
+}
+
+.flashcard-face .prose {
+  color: var(--color-on-surface);
 }
 
 /* ─── PDF Viewer Layers ─── */

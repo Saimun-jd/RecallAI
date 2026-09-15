@@ -74,7 +74,10 @@ def translate_fks_for_push(table: str, record: dict, mappings: dict):
     # Remove local-only 'id'
     record.pop("id", None)
     
-    if table == "topics":
+    if table == "books":
+        if record.get("last_topic_id"):
+            record["last_topic_id"] = mappings.get("topics", {}).get(record["last_topic_id"])
+    elif table == "topics":
         if record.get("book_id"):
             record["book_id"] = mappings["books"].get(record["book_id"])
         if record.get("parent_id"):
@@ -105,7 +108,10 @@ def translate_fks_for_pull(table: str, record: dict, reverse_mappings: dict) -> 
     if "user_id" in record:
         record.pop("user_id", None)
         
-    if table == "topics":
+    if table == "books":
+        if record.get("last_topic_id"):
+            record["last_topic_id"] = reverse_mappings.get("topics", {}).get(record["last_topic_id"])
+    elif table == "topics":
         if record.get("book_id"):
             local_id = reverse_mappings["books"].get(record["book_id"])
             if not local_id: return False

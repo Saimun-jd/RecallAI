@@ -69,9 +69,21 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const showToast = useCallback((type: ToastType, message: string, detail?: string) => {
+  const showToast = useCallback((type: ToastType, message: any, detail?: any) => {
     const id = `toast-${++toastIdRef.current}-${Date.now()}`;
-    const toast: Toast = { id, type, message, detail, createdAt: Date.now() };
+    const stringMessage = typeof message === 'string'
+      ? message
+      : typeof message?.userMessage === 'string'
+      ? message.userMessage
+      : typeof message?.message === 'string'
+      ? message.message
+      : JSON.stringify(message || 'Notification');
+
+    const stringDetail = typeof detail === 'string'
+      ? detail
+      : detail ? JSON.stringify(detail) : undefined;
+
+    const toast: Toast = { id, type, message: stringMessage, detail: stringDetail, createdAt: Date.now() };
 
     setToasts(prev => {
       const next = [...prev, toast];

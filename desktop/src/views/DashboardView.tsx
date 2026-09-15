@@ -76,27 +76,56 @@ export function DashboardView() {
         setAccountOverview(accRes.value);
       }
 
-      // Check documents from API v1 or fallback to local books
+      // Check documents from API v1 and merge with local books
       let resolvedDocs: DocumentItem[] = [];
       let resolvedTotal = 0;
 
-      if (docsRes.status === 'fulfilled' && docsRes.value.documents.length > 0) {
-        resolvedDocs = docsRes.value.documents;
+      const booksList = booksRes.status === 'fulfilled' && Array.isArray(booksRes.value) ? booksRes.value : [];
+      if (booksList.length > 0) {
+        dispatch(setBooks(booksList));
+      }
+
+      if (docsRes.status === 'fulfilled' && docsRes.value?.documents) {
+        resolvedDocs = docsRes.value.documents.map((item) => {
+          const matchingBook = booksList.find((b: any) =>
+            b.id.toString() === item.id ||
+            item.metadata?.book_id === b.id ||
+            b.title.toLowerCase().trim() === item.title.toLowerCase().trim()
+          );
+          if (matchingBook) {
+            return {
+              ...item,
+              metadata: {
+                ...item.metadata,
+                book_id: matchingBook.id,
+              },
+            };
+          }
+          return item;
+        });
         resolvedTotal = docsRes.value.total;
-      } else if (booksRes.status === 'fulfilled' && booksRes.value.length > 0) {
-        // Map legacy books to DocumentItem contract
-        resolvedDocs = booksRes.value.map((b) => ({
-          id: b.id.toString(),
-          workspace_id: 'default',
-          title: b.title,
-          source_type: 'pdf',
-          total_pages: b.total_pages || 0,
-          status: 'ready',
-          created_at: b.created_at,
-          updated_at: b.created_at,
-        }));
-        resolvedTotal = booksRes.value.length;
-        dispatch(setBooks(booksRes.value));
+      }
+
+      // Merge local books that aren't yet in resolvedDocs
+      if (booksList.length > 0) {
+        const legacyItems: DocumentItem[] = booksList
+          .filter((b: any) => !resolvedDocs.some((d) => d.id === b.id.toString() || d.metadata?.book_id === b.id))
+          .map((b: any) => ({
+            id: b.id.toString(),
+            workspace_id: 'default',
+            title: b.title,
+            source_type: 'pdf',
+            total_pages: b.total_pages || 0,
+            status: 'ready',
+            created_at: b.created_at,
+            updated_at: b.created_at,
+            metadata: {
+              book_id: b.id,
+              chunk_count: b.topics_processed || b.total_topics,
+            },
+          }));
+        resolvedDocs = [...resolvedDocs, ...legacyItems];
+        resolvedTotal = Math.max(resolvedTotal, resolvedDocs.length);
       }
 
       setDocuments(resolvedDocs);
