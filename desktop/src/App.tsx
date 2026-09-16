@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Routes, Route, Outlet } from 'react-router-dom';
+import { Routes, Route, Outlet, Navigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { type RootState } from './store';
 import { client } from './api/client';
@@ -7,15 +7,18 @@ import { DashboardView } from './views/DashboardView';
 import { DocumentsView } from './views/DocumentsView';
 import { DocumentDetailView } from './views/DocumentDetailView';
 import { KnowledgeHubView } from './views/KnowledgeHubView';
-import { LibraryView } from './views/LibraryView';
 import { NotesView } from './views/NotesView';
 import { ReviewView } from './views/ReviewView';
 import { SettingsView } from './views/SettingsView';
 import { BookDetailView } from './views/BookDetailView';
 import { AnalyticsView } from './views/AnalyticsView';
+<<<<<<< HEAD
 import { FlashcardSetsView } from './views/FlashcardSetsView';
 import { FlashcardSetDetailView } from './views/FlashcardSetDetailView';
 import { FlashcardStudyView } from './views/FlashcardStudyView';
+=======
+import { LLMInspectionView } from './views/LLMInspectionView';
+>>>>>>> f160591998c1060293b8837f7fd3e8101a481f02
 import { loadSettings } from './api/settingsStore';
 import { getApiKey } from './api/keychain';
 import { getCurrentWindow } from '@tauri-apps/api/window';
@@ -43,10 +46,35 @@ import {
 import { ProtectedRoute, PublicOnlyRoute } from './components/auth';
 import { useAuth } from './contexts/AuthContext';
 
+function RootRoute() {
+  const { status, onboardingCompleted } = useAuth();
+
+  if (status === 'loading') {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (status === 'authenticated') {
+    if (!onboardingCompleted) {
+      return <Navigate to="/onboarding" replace />;
+    }
+    return <Navigate to="/app" replace />;
+  }
+
+  if (isTauriEnvironment()) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return <LandingView />;
+}
+
 function WorkspaceLayout({ bootTime, sidecarStatus }: { bootTime: number; sidecarStatus: any }) {
-  const { user } = useAuth();
+  const { user, onboardingCompleted } = useAuth();
   const [hasSeenWelcome, setHasSeenWelcome] = useState(() => {
-    return localStorage.getItem('has-seen-welcome') === 'true';
+    return localStorage.getItem('has-seen-welcome') === 'true' || onboardingCompleted;
   });
 
   const handleWelcomeComplete = () => {
@@ -56,7 +84,7 @@ function WorkspaceLayout({ bootTime, sidecarStatus }: { bootTime: number; sideca
 
   return (
     <>
-      {!hasSeenWelcome && <WelcomeScreen onComplete={handleWelcomeComplete} />}
+      {!hasSeenWelcome && !onboardingCompleted && <WelcomeScreen onComplete={handleWelcomeComplete} />}
       <AppShell
         user={user}
         bootTime={bootTime}
@@ -188,11 +216,38 @@ export default function App() {
           console.error("Migration check failed", err);
         }
 
+        const backendKeys: Record<string, string> = {};
         for (const provider of ['openai', 'gemini', 'groq']) {
           const key = await getApiKey(provider);
           if (key) {
             dispatch({ type: 'providers/setConfiguredProvider', payload: { provider, isConfigured: true } });
+            backendKeys[`${provider}_api_key`] = key;
           }
+        }
+        for (const extraKey of ['datalab_api_key', 'langfuse_secret_key', 'langfuse_public_key', 'langfuse_host', 'ollama_host']) {
+          const key = await getApiKey(extraKey);
+          if (key) {
+            backendKeys[extraKey] = key;
+          }
+        }
+        
+        // Sync loaded keys to Python sidecar immediately on boot
+        if (Object.keys(backendKeys).length > 0) {
+          client.saveApiKeys(backendKeys).catch((err) => {
+            console.warn('[App] Non-critical boot key sync error:', err);
+          });
+        }
+
+        // Sync active provider and extractor to Python sidecar
+        if (settings.activeProvider) {
+          client.updateSetting('llm_provider', JSON.stringify({ type: settings.activeProvider })).catch((err) =>
+            console.warn('[App] Non-critical boot provider sync error:', err)
+          );
+        }
+        if (settings.pdfExtractor) {
+          client.updateSetting('pdf_extractor', settings.pdfExtractor).catch((err) =>
+            console.warn('[App] Non-critical boot extractor sync error:', err)
+          );
         }
         console.log('[Keychain] Hydration complete.');
       } catch (e) {
@@ -285,8 +340,8 @@ export default function App() {
   return (
     <>
       <Routes>
-        {/* Public marketing pages */}
-        <Route path="/" element={<LandingView />} />
+        {/* Root entry point: Launches /app if authenticated, /login in desktop Tauri, or LandingView on web */}
+        <Route path="/" element={<RootRoute />} />
         <Route path="/pricing" element={<PricingView />} />
         <Route path="/how-it-works" element={<HowItWorksView />} />
         <Route path="/security" element={<SecurityView />} />
@@ -339,7 +394,8 @@ export default function App() {
         >
           <Route path="/app" element={<DashboardView />} />
           <Route path="/documents" element={<DocumentsView />} />
-          <Route path="/app/documents" element={<DocumentsView />} />
+          <Route path="/library" element={<Navigate to="/documents" replace />} />
+          <Route path="/app/library" element={<Navigate to="/documents" replace />} />
           <Route path="/chat" element={<KnowledgeHubView />} />
           <Route path="/app/chat" element={<KnowledgeHubView />} />
           <Route path="/notes" element={<NotesView />} />
@@ -353,6 +409,8 @@ export default function App() {
           <Route path="/app/flashcards/:setId/study" element={<FlashcardStudyView />} />
           <Route path="/analytics" element={<AnalyticsView />} />
           <Route path="/app/analytics" element={<AnalyticsView />} />
+          <Route path="/llm-inspection" element={<LLMInspectionView />} />
+          <Route path="/app/llm-inspection" element={<LLMInspectionView />} />
           <Route path="/settings" element={<SettingsView />} />
           <Route path="/app/settings" element={<SettingsView />} />
           <Route path="/books/:id" element={<BookDetailView />} />

@@ -164,11 +164,53 @@ export const MarkdownRendererImpl: React.FC<MarkdownRendererProps> = ({ content 
         img: ({ node, src, alt, ...props }: any) => {
           return <DiagramImage src={src} alt={alt} {...props} />;
         },
+        table: ({ node, children, ...props }: any) => (
+          <div className="my-4 w-full overflow-x-auto rounded-xl border border-outline-variant/40 bg-surface-container-low/30 shadow-xs">
+            <table className="w-full text-left text-sm border-collapse" {...props}>
+              {children}
+            </table>
+          </div>
+        ),
+        thead: ({ node, children, ...props }: any) => (
+          <thead className="bg-surface-container-highest/60 border-b border-outline-variant/40 text-xs uppercase tracking-wider font-semibold text-on-surface" {...props}>
+            {children}
+          </thead>
+        ),
+        tbody: ({ node, children, ...props }: any) => (
+          <tbody className="divide-y divide-outline-variant/15 text-on-surface-variant" {...props}>
+            {children}
+          </tbody>
+        ),
+        tr: ({ node, children, ...props }: any) => (
+          <tr className="hover:bg-surface-container-highest/30 transition-colors" {...props}>
+            {children}
+          </tr>
+        ),
+        th: ({ node, children, ...props }: any) => (
+          <th className="px-4 py-2.5 font-semibold text-on-surface border-r border-outline-variant/20 last:border-r-0" {...props}>
+            {children}
+          </th>
+        ),
+        td: ({ node, children, ...props }: any) => (
+          <td className="px-4 py-2 text-on-surface-variant border-r border-outline-variant/20 last:border-r-0" {...props}>
+            {children}
+          </td>
+        ),
         span: ({ node, style, ...props }: any) => {
           const nodeStyle = node?.properties?.style;
           const parsedStyle = typeof nodeStyle === 'string' ? parseStyle(nodeStyle) : style;
           return <span style={parsedStyle} {...props} />;
         },
+        strong: ({ node, children, ...props }: any) => (
+          <strong className="font-bold text-inherit" {...props}>
+            {children}
+          </strong>
+        ),
+        em: ({ node, children, ...props }: any) => (
+          <em className="italic text-inherit" {...props}>
+            {children}
+          </em>
+        ),
         code({ node, inline, className, children, ...props }: any) {
           const match = /language-(\w+)/.exec(className || '');
           const codeStr = String(children).replace(/\n$/, '');
@@ -186,8 +228,8 @@ export const MarkdownRendererImpl: React.FC<MarkdownRendererProps> = ({ content 
               {...props}
               className={
                 className
-                  ? `${className} bg-surface-container-highest border-2 border-primary rounded-sm px-1.5 py-0.5 font-mono text-[0.9em] text-primary`
-                  : 'bg-surface-container-highest border-2 border-primary rounded-sm px-1.5 py-0.5 font-mono text-[0.9em] text-primary'
+                  ? `${className} bg-surface-container-highest/60 border border-outline-variant/40 rounded px-1.5 py-0.5 font-mono text-[0.9em] text-primary dark:text-sky-300 font-medium`
+                  : 'bg-surface-container-highest/60 border border-outline-variant/40 rounded px-1.5 py-0.5 font-mono text-[0.9em] text-primary dark:text-sky-300 font-medium'
               }
             >
               {children}

@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { User, Settings, LogOut, Shield } from 'lucide-react';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuLabel } from '../ui/DropdownMenu';
@@ -16,6 +17,7 @@ export interface AccountMenuProps {
 
 export function AccountMenu({ user, planName = 'Free', className }: AccountMenuProps) {
   const { logout: authLogout } = useAuth();
+  const [avatarError, setAvatarError] = useState(false);
   const email = user?.email || user?.user_metadata?.email || 'Student';
   const name = user?.full_name || user?.user_metadata?.full_name || email.split('@')[0] || 'Learner';
   const avatarUrl = user?.avatar_url || user?.user_metadata?.avatar_url;
@@ -32,17 +34,24 @@ export function AccountMenu({ user, planName = 'Free', className }: AccountMenuP
     <DropdownMenu>
       <DropdownMenuTrigger
         className={cn(
-          'flex items-center gap-2 p-1.5 rounded-lg border border-border-default bg-surface hover:bg-surface-container text-on-surface transition-all active:scale-95 shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
+          'relative flex items-center justify-center w-[34px] h-[34px] rounded-full border-2 border-border-default bg-surface hover:ring-2 hover:ring-primary/20 text-on-surface transition-all active:scale-95 shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary shrink-0 overflow-hidden cursor-pointer',
           className
         )}
+        aria-label={`Account menu for ${name}`}
       >
-        <div className="w-8 h-8 rounded-full border border-border-default bg-primary text-on-primary flex items-center justify-center overflow-hidden shrink-0 font-bold text-xs shadow-xs">
-          {avatarUrl ? (
-            <img src={avatarUrl} alt={name} referrerPolicy="no-referrer" className="w-full h-full object-cover" />
-          ) : (
+        {avatarUrl && !avatarError ? (
+          <img
+            src={avatarUrl}
+            alt={name}
+            referrerPolicy="no-referrer"
+            onError={() => setAvatarError(true)}
+            className="w-full h-full object-cover rounded-full"
+          />
+        ) : (
+          <div className="w-full h-full rounded-full bg-primary text-on-primary flex items-center justify-center font-bold text-xs">
             <span>{name.charAt(0).toUpperCase()}</span>
-          )}
-        </div>
+          </div>
+        )}
       </DropdownMenuTrigger>
 
       <DropdownMenuContent align="end" width="w-64">

@@ -181,7 +181,7 @@ export function ThemeToggle({ className, variant = 'icon' }: { className?: strin
       type="button"
       onClick={toggleTheme}
       className={cn(
-        "w-9 h-9 flex items-center justify-center rounded-lg border border-border-default bg-surface hover:bg-surface-container text-on-surface transition-all active:scale-95 shadow-xs focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none",
+        "w-[34px] h-[34px] flex items-center justify-center rounded-lg border border-border-default bg-surface hover:bg-surface-container text-on-surface transition-all active:scale-95 shadow-xs focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none shrink-0",
         className
       )}
       title={`Switch to ${resolvedTheme === 'dark' ? 'light' : 'dark'} mode`}

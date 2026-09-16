@@ -118,6 +118,27 @@ class TestAuthAPI(unittest.TestCase):
         self.assertEqual(bad_token_res.status_code, 401)
         self.assertEqual(bad_token_res.json()["error"]["code"], "UNAUTHENTICATED")
 
+    def test_oauth_callback_and_polling(self):
+        # Initial state: no code
+        init_res = self.client.get("/api/auth/latest-oauth-code")
+        self.assertEqual(init_res.status_code, 200)
+        self.assertIsNone(init_res.json().get("code"))
+
+        # Hit /auth-success with code query param
+        auth_res = self.client.get("/auth-success?code=mock_pkce_code_123")
+        self.assertEqual(auth_res.status_code, 200)
+        self.assertIn("Login Successful!", auth_res.text)
+
+        # Polling endpoint should return the code
+        poll_res = self.client.get("/api/auth/latest-oauth-code")
+        self.assertEqual(poll_res.status_code, 200)
+        self.assertEqual(poll_res.json().get("code"), "mock_pkce_code_123")
+
+        # Second poll should consume code and return None
+        second_poll = self.client.get("/api/auth/latest-oauth-code")
+        self.assertEqual(second_poll.status_code, 200)
+        self.assertIsNone(second_poll.json().get("code"))
+
 
 if __name__ == "__main__":
     unittest.main()

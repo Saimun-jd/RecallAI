@@ -40,7 +40,7 @@ export function PublicFooter() {
               </li>
               <li>
                 <Link to="/app" className="text-on-surface-variant hover:text-primary transition-colors font-medium flex items-center gap-1">
-                  <span>Open Library</span>
+                  <span>Open Workspace</span>
                   <ArrowUpRight size={13} />
                 </Link>
               </li>

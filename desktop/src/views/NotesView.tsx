@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { client, type NoteItem, type NoteAnnotationItem, type Book, type Topic } from '../api/client';
 import { MarkdownRenderer } from '../components/MarkdownRenderer';
+import { noteGenerationRunner } from '../services/noteGenerationRunner';
 import { useToast } from '../hooks/useToast';
 import type { RootState } from '../store';
 import clsx from 'clsx';
@@ -20,6 +21,7 @@ export function NotesView() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { showToast } = useToast();
   const activeProvider = useSelector((state: RootState) => state.providers.activeProvider);
+  const noteGeneration = useSelector((state: RootState) => state.reader.noteGeneration);
 
   // Core Data
   const [notes, setNotes] = useState<NoteItem[]>([]);
@@ -36,11 +38,14 @@ export function NotesView() {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortOrder, setSortOrder] = useState<'updated_desc' | 'updated_asc' | 'title_asc' | 'book_asc'>('updated_desc');
 
+  // Background Note Generation state tracking
+  const isCurrentTopicGenerating = !!(selectedTopicId && noteGeneration?.isGenerating && noteGeneration?.topicId === selectedTopicId);
+  const isOtherTopicGenerating = !!(noteGeneration?.isGenerating && (!selectedTopicId || noteGeneration?.topicId !== selectedTopicId));
+
   // Workspace Editor State
   const [editorContent, setEditorContent] = useState<string>('');
   const [editorMode, setEditorMode] = useState<'preview' | 'edit'>('preview');
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'error'>('saved');
-  const [isScaffolding, setIsScaffolding] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
   const [paperStyle, setPaperStyle] = useState<'ruled' | 'grid' | 'plain'>(() => {
     return (localStorage.getItem('notebook-paper-style') as 'ruled' | 'grid' | 'plain') || 'ruled';
@@ -112,6 +117,20 @@ export function NotesView() {
     }
   }, [selectedTopicId, selectedType, notes]);
 
+  // Subscribe to background runner completions so notes update live
+  useEffect(() => {
+    const unsubscribe = noteGenerationRunner.subscribe((completedTopicId, combinedNote) => {
+      setNotes(prev => prev.map(n => n.topic_id === completedTopicId ? { ...n, content: combinedNote, updated_at: new Date().toISOString() } : n));
+      if (selectedTopicId === completedTopicId) {
+        setEditorContent(combinedNote);
+        setEditorMode('preview');
+        setSaveStatus('saved');
+        showToast('success', 'Cornell Study Guide generated with LaTeX math!');
+      }
+    });
+    return unsubscribe;
+  }, [selectedTopicId, showToast]);
+
   // Paper style cycling
   const cyclePaperStyle = () => {
     const nextStyle: Record<'ruled' | 'grid' | 'plain', 'ruled' | 'grid' | 'plain'> = {
@@ -145,32 +164,21 @@ export function NotesView() {
     }, 600);
   };
 
-  // Cornell Scaffold Generation
+  // Cornell Scaffold Generation via background runner
   const handleGenerateCornell = async () => {
     if (!selectedTopicId) return;
-    setIsScaffolding(true);
-    showToast('info', 'Synthesizing Cornell Study Guide with AI...');
     try {
-      const res = await client.generateNoteScaffold(selectedTopicId, activeProvider);
-      const scaffoldText = res.scaffold || res.note || "";
-      if (!scaffoldText) throw new Error("AI returned empty study guide.");
-
-      const existing = editorContent.trim();
-      const combined = existing ? `${existing}\n\n---\n\n${scaffoldText}` : scaffoldText;
-
-      setEditorContent(combined);
-      await client.updateNote(selectedTopicId, combined);
-      setSaveStatus('saved');
-      setEditorMode('preview');
-
-      // Update in state
-      setNotes(prev => prev.map(n => n.topic_id === selectedTopicId ? { ...n, content: combined, updated_at: new Date().toISOString() } : n));
-      showToast('success', 'Cornell Study Guide generated successfully!');
+      showToast('info', 'Synthesizing Cornell Study Guide with AI...');
+      const targetTopicTitle = currentNote?.topic_title || 'Study Topic';
+      await noteGenerationRunner.startGeneration(
+        selectedTopicId,
+        targetTopicTitle,
+        activeProvider,
+        editorContent
+      );
     } catch (err: any) {
-      console.error(err);
-      showToast('error', err?.userMessage || 'Failed to generate Cornell note.');
-    } finally {
-      setIsScaffolding(false);
+      console.error("Failed to scaffold note:", err);
+      showToast('error', err?.userMessage || err?.message || 'Failed to generate Cornell note.');
     }
   };
 
@@ -791,12 +799,27 @@ export function NotesView() {
                 {/* AI Cornell Generation */}
                 <button
                   onClick={handleGenerateCornell}
-                  disabled={isScaffolding}
+                  disabled={isCurrentTopicGenerating || isOtherTopicGenerating}
                   className="flex items-center gap-1 px-2.5 py-1 text-xs font-bold bg-amber-500 text-black border-2 border-on-surface hover:bg-amber-400 shadow-[2px_2px_0px_0px_#191b23] active:translate-y-[1px] disabled:opacity-50 transition-all cursor-pointer"
-                  title="Generate or update Cornell active recall guide with AI"
+                  title={
+                    isCurrentTopicGenerating 
+                      ? `Generating notes: ${noteGeneration?.progress ?? 0}%` 
+                      : isOtherTopicGenerating 
+                      ? `Generating notes for another topic: ${noteGeneration?.topicTitle}`
+                      : "Generate or update Cornell active recall guide with AI"
+                  }
                 >
-                  {isScaffolding ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
-                  <span>Cornell</span>
+                  {isCurrentTopicGenerating ? (
+                    <>
+                      <Loader2 size={13} className="animate-spin" />
+                      <span>{noteGeneration?.progress ?? 0}%</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles size={13} />
+                      <span>Cornell</span>
+                    </>
+                  )}
                 </button>
 
                 {/* Copy Markdown */}
@@ -827,6 +850,49 @@ export function NotesView() {
                 </button>
               </div>
             </div>
+
+            {/* Active Topic Note Generation Progress Banner */}
+            {isCurrentTopicGenerating && noteGeneration && (
+              <div className="bg-amber-500/10 border-b-2 border-on-surface px-4 py-2 shrink-0 flex flex-col gap-1.5 animate-in fade-in duration-200">
+                <div className="flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-2 font-bold text-on-surface truncate min-w-0">
+                    <Sparkles size={14} className="text-amber-500 animate-pulse shrink-0" />
+                    <span className="truncate">
+                      {noteGeneration.message || (noteGeneration.childTitle ? `Generating: ${noteGeneration.childTitle}` : 'Synthesizing Cornell Study Guide...')}
+                    </span>
+                    {noteGeneration.current !== undefined && noteGeneration.total !== undefined && (
+                      <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-700 dark:text-amber-300 shrink-0">
+                        {noteGeneration.current} / {noteGeneration.total}
+                      </span>
+                    )}
+                  </div>
+                  <span className="font-mono font-bold text-xs text-amber-600 dark:text-amber-400 shrink-0 ml-2">
+                    {noteGeneration.progress}%
+                  </span>
+                </div>
+                <div className="w-full h-1.5 bg-surface-container-high rounded-full overflow-hidden border border-outline-variant/30">
+                  <div 
+                    className="h-full bg-amber-500 transition-all duration-300 ease-out rounded-full"
+                    style={{ width: `${Math.max(5, Math.min(100, noteGeneration.progress))}%` }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Background Task Indicator if viewing another note while generating */}
+            {!isCurrentTopicGenerating && isOtherTopicGenerating && noteGeneration && (
+              <div className="bg-primary/10 border-b-2 border-on-surface px-4 py-1.5 shrink-0 flex items-center justify-between text-xs">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Loader2 size={13} className="animate-spin text-primary shrink-0" />
+                  <span className="text-on-surface truncate font-medium">
+                    Generating Cornell notes for <strong className="font-bold">{noteGeneration.topicTitle}</strong> in background ({noteGeneration.progress}%)...
+                  </span>
+                </div>
+                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-primary/20 text-primary font-bold shrink-0 ml-2">
+                  Background Active
+                </span>
+              </div>
+            )}
 
             {/* Note Sheet Content Area */}
             <div className="flex-1 overflow-y-auto p-4 sm:p-6 relative bg-surface-container-low/50 custom-scrollbar flex justify-center">
@@ -903,18 +969,18 @@ export function NotesView() {
             <div className="flex-1 overflow-y-auto p-6 flex justify-center bg-surface-container-low/50">
               <div className="w-full max-w-2xl space-y-4">
                 {/* Quoted Text Card */}
-                <div className="p-4 rounded-xl bg-surface-container-lowest border border-border-default shadow-xs space-y-2">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-on-surface-variant">
+                <div className="p-4 rounded-lg bg-surface border-2 border-on-surface shadow-[3px_3px_0px_0px_#191b23] space-y-1">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant font-mono">
                     Referenced Excerpt from Page {currentAnnotation.page_number}
                   </span>
-                  <blockquote className="pl-4 pr-3.5 py-2.5 italic font-serif text-sm text-on-surface bg-surface-container-low/60 rounded-lg border border-border-default/80">
+                  <blockquote className="border-l-4 border-accent-blue pl-3 py-1 italic font-serif text-sm text-on-surface">
                     "{currentAnnotation.selected_text}"
                   </blockquote>
                 </div>
 
                 {/* Sidenote Content */}
-                <div className="p-6 rounded-xl bg-surface-container-lowest border border-border-default shadow-xs space-y-3">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-on-surface-variant">
+                <div className="p-6 rounded-lg bg-surface border-2 border-on-surface shadow-[3px_3px_0px_0px_#191b23] space-y-2">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant font-mono">
                     Study Note / AI Explanation
                   </span>
                   <div className="prose dark:prose-invert max-w-none text-sm text-on-surface">

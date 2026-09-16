@@ -53,7 +53,7 @@ export function FlashcardCardPreview({ card, index }: FlashcardCardPreviewProps)
             <span className="text-[10px] font-extrabold uppercase tracking-widest text-on-surface-variant/70 mb-1 block">
               Answer
             </span>
-            <div className="text-sm text-on-surface leading-relaxed prose-xs">
+            <div className="text-sm text-on-surface leading-relaxed prose-xs dark:prose-invert prose-strong:text-on-surface prose-strong:font-bold prose-em:text-on-surface prose-code:text-primary dark:prose-code:text-sky-300">
               <MarkdownRenderer content={card.back} />
             </div>
           </div>

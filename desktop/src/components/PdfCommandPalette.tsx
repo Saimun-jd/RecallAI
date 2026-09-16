@@ -95,7 +95,7 @@ export function PdfCommandPalette({ selection, position, onCommand, onDismiss, i
       paletteRef.current.style.transform = 'none';
       const rect = paletteRef.current.getBoundingClientRect();
       const overflowBottom = rect.bottom - window.innerHeight;
-      
+
       if (overflowBottom > 0) {
         // Shift it up by the overflow amount plus a little padding (24px)
         setOffsetY(-overflowBottom - 24);
@@ -139,9 +139,9 @@ export function PdfCommandPalette({ selection, position, onCommand, onDismiss, i
 
     setIsProcessing(true);
     try {
-      const res = await onCommand(activeCommand, { 
-        prompt: customPrompt || undefined, 
-        count: flashcardCount, 
+      const res = await onCommand(activeCommand, {
+        prompt: customPrompt || undefined,
+        count: flashcardCount,
         note: sidenoteText.trim(),
         preview: !isSidenote && !isSendToNotes
       });
@@ -161,14 +161,14 @@ export function PdfCommandPalette({ selection, position, onCommand, onDismiss, i
     try {
       let pin_content = undefined;
       if (previewData) {
-        pin_content = activeCommand === 'explain_ai' 
-          ? previewData.content 
+        pin_content = activeCommand === 'explain_ai'
+          ? previewData.content
           : JSON.stringify(previewData.flashcards);
       }
 
-      await onCommand(activeCommand, { 
-        prompt: customPrompt || undefined, 
-        count: flashcardCount, 
+      await onCommand(activeCommand, {
+        prompt: customPrompt || undefined,
+        count: flashcardCount,
         note: sidenoteText.trim(),
         preview: false,
         pin_content
@@ -247,7 +247,7 @@ export function PdfCommandPalette({ selection, position, onCommand, onDismiss, i
             </button>
             <button
               onClick={handlePin}
-              className="px-4 py-1.5 text-xs font-semibold bg-emerald-600 text-white rounded-lg hover:bg-emerald-500 transition-colors shadow-xs"
+              className="px-4 py-1.5 text-xs font-semibold bg-emerald-500 text-zinc-950 rounded-lg hover:bg-emerald-400 transition-colors"
             >
               Pin to PDF
             </button>
@@ -263,11 +263,10 @@ export function PdfCommandPalette({ selection, position, onCommand, onDismiss, i
               key={cmd.type}
               onClick={() => setActiveCommand(cmd.type)}
               onMouseEnter={() => setSelectedIdx(idx)}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all duration-100 ${
-                idx === selectedIdx
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all duration-100 ${idx === selectedIdx
                   ? 'bg-zinc-800 text-zinc-100'
                   : 'text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200'
-              }`}
+                }`}
             >
               <div className={`p-1.5 rounded-md ${cmd.bgColor}`}>
                 <cmd.icon size={15} className={cmd.color} />
@@ -347,7 +346,7 @@ export function PdfCommandPalette({ selection, position, onCommand, onDismiss, i
             </button>
             <button
               onClick={handleSubmit}
-              className="px-4 py-1.5 text-xs font-semibold bg-emerald-600 text-white rounded-lg hover:bg-emerald-500 transition-colors shadow-xs"
+              className="px-4 py-1.5 text-xs font-semibold bg-emerald-500 text-zinc-950 rounded-lg hover:bg-emerald-400 transition-colors"
             >
               Explain
             </button>
@@ -383,7 +382,7 @@ export function PdfCommandPalette({ selection, position, onCommand, onDismiss, i
               <button
                 onClick={handleSubmit}
                 disabled={!sidenoteText.trim()}
-                className="px-4 py-1.5 text-xs font-semibold bg-amber-600 text-white rounded-lg hover:bg-amber-500 transition-colors disabled:opacity-40 disabled:cursor-not-allowed shadow-xs"
+                className="px-4 py-1.5 text-xs font-semibold bg-amber-500 text-zinc-950 rounded-lg hover:bg-amber-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 Save Note
               </button>

@@ -1,6 +1,7 @@
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
 import { parseApiError, parseSSEError, type ApiError } from './errors';
 import { isTauriEnvironment } from './keychain';
+import { MAX_PDF_BYTES, formatFileSize, validateDocumentFile } from '../utils/fileValidation';
 
 const fetch = async (url: string, options?: any) => {
   const fetchFn = isTauriEnvironment() ? tauriFetch : window.fetch.bind(window);
@@ -72,13 +73,113 @@ export interface PdfSyncProgressEvent {
 
 export const API_BASE = "http://127.0.0.1:8000";
 
+export interface PromptVariable {
+  name: string;
+  description: string;
+  required: boolean;
+}
+
+export interface SystemPrompt {
+  key: string;
+  name: string;
+  category: string;
+  title?: string;
+  description: string;
+  default_template: string;
+  custom_template?: string | null;
+  current_template: string;
+  variables: PromptVariable[];
+  is_custom?: boolean;
+  is_customized?: boolean;
+  model_target?: string;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface TokenUsageTotals {
+  total_prompt_tokens: number;
+  total_completion_tokens: number;
+  total_tokens: number;
+  total_estimated_cost?: number;
+  total_cost_usd: number;
+  total_requests: number;
+}
+
+export interface TokenUsageByFeature {
+  feature: string;
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+  estimated_cost?: number;
+  estimated_cost_usd?: number;
+  requests: number;
+}
+
+export interface TokenUsageByProvider {
+  provider: string;
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+  estimated_cost?: number;
+  estimated_cost_usd?: number;
+  requests: number;
+}
+
+export interface TokenUsageByModel {
+  model: string;
+  provider?: string;
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+  estimated_cost?: number;
+  estimated_cost_usd?: number;
+  requests: number;
+}
+
+export interface TokenDailyPoint {
+  date?: string;
+  day?: string;
+  total_tokens: number;
+  estimated_cost?: number;
+  estimated_cost_usd?: number;
+  requests: number;
+}
+
+export interface TokenUsageSummary {
+  totals: TokenUsageTotals;
+  by_feature: TokenUsageByFeature[];
+  by_provider: TokenUsageByProvider[];
+  by_model: TokenUsageByModel[];
+  daily_timeline: TokenDailyPoint[];
+}
+
+export interface TokenLogEntry {
+  id: number;
+  timestamp: string;
+  provider: string;
+  model: string;
+  feature: string;
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+  estimated_cost?: number;
+  estimated_cost_usd: number;
+  execution_time_ms?: number;
+  book_id?: number | null;
+  topic_id?: number | null;
+}
+
 export interface Book {
   id: number;
+  uuid?: string;
   title: string;
   file_path: string;
   file_hash: string;
   total_pages: number;
   created_at: string;
+  last_read_at?: string | null;
+  last_read_page?: number | null;
+  last_topic_id?: number | null;
   total_topics?: number;
   topics_processed?: number;
 }
@@ -241,26 +342,51 @@ export interface SuggestedFlashcard {
   gap_source: string;
 }
 
+export interface ExamMisconception {
+  pitfall: string;
+  theory: string;
+  exam_tip: string;
+}
+
+export interface DiagnosedGap {
+  gap: string;
+  context: string;
+  why_it_matters?: string | null;
+}
+
 export interface DiagnosticEvaluation {
   concept_name?: string | null;
   mastery_score: number;
   status: 'mastered' | 'developing' | 'fragile' | 'misconception';
   strengths: string[];
-  diagnosed_gaps: string[];
-  misconceptions: string[];
-  socratic_nudge: string | null;
+  diagnosed_gaps: DiagnosedGap[];
+  misconceptions: ExamMisconception[];
+  socratic_nudge?: string | null;
   suggested_flashcards: SuggestedFlashcard[];
 }
 
+export interface ExamTopicItem {
+  id: number;
+  title: string;
+  page_start?: number;
+  page_end?: number;
+  flashcards: number;
+  mastery?: 'mastered' | 'developing' | 'fragile' | 'misconception' | 'untested';
+  summary?: string;
+}
+
 export interface ChatMessage {
+  id?: number;
   role: 'user' | 'ai' | 'system' | 'assistant';
   content: string;
+  created_at?: string;
 }
 
 export interface ChatRequest {
-  topic_id: number;
+  topic_id?: number | null;
+  book_id?: number | null;
   topic_name?: string;
-  context_markdown: string;
+  context_markdown?: string;
   question: string;
   history?: ChatMessage[];
   provider_override?: string | null;
@@ -272,6 +398,15 @@ export const client = {
     if (!res.ok) {
       throw await parseApiError(res);
     }
+  },
+
+  async updateReadingState(bookId: number, pageNumber?: number, topicId?: number | null): Promise<void> {
+    const res = await fetch(`${API_BASE}/books/${bookId}/reading-state`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ page_number: pageNumber, topic_id: topicId }),
+    });
+    await this._throwIfError(res, 'Failed to update reading state');
   },
 
   async getBooks(): Promise<Book[]> {
@@ -289,6 +424,15 @@ export const client = {
     await this._throwIfError(res, "Failed to delete book");
     return res.json();
   },
+  async syncWithRemote(token: string): Promise<void> {
+    const res = await fetch(`${API_BASE}/api/sync`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    await this._throwIfError(res, "Failed to synchronize with remote");
+  },
   async getTopics(bookId?: number): Promise<Topic[]> {
     const url = bookId ? `${API_BASE}/topics?book_id=${bookId}` : `${API_BASE}/topics`;
     const res = await fetch(url);
@@ -302,6 +446,65 @@ export const client = {
     await this._throwIfError(res, "Failed to analyze handwritten notes");
     return res.json();
   },
+  async reparseHandwritingStream(
+    bookId: number,
+    onProgress: (event: { stage?: string; status?: string; message?: string; progress?: number; topic_count?: number; topics?: any[] }) => void
+  ): Promise<{ book_id: number; topic_count: number; topics: any[] }> {
+    try {
+      const res = await fetch(`${API_BASE}/books/${bookId}/reparse-handwriting-stream`, {
+        method: "POST",
+        headers: { "Accept": "text/event-stream" }
+      });
+      if (!res.ok) throw await parseApiError(res);
+      if (!res.body) throw new Error("No response body");
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let finalResult: any = null;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        let boundary = buffer.indexOf("\n\n");
+        while (boundary !== -1) {
+          const chunk = buffer.slice(0, boundary);
+          buffer = buffer.slice(boundary + 2);
+
+          if (chunk.startsWith("data: ")) {
+            const dataStr = chunk.slice(6);
+            try {
+              const data = JSON.parse(dataStr);
+              onProgress(data);
+              if (data.status === 'error') {
+                throw new Error(data.message || 'Failed to analyze handwriting');
+              }
+              if (data.status === 'complete' || data.stage === 'complete') {
+                finalResult = {
+                  book_id: bookId,
+                  topic_count: data.topic_count || (data.topics ? data.topics.length : 0),
+                  topics: data.topics || []
+                };
+              }
+            } catch (e: any) {
+              if (e?.message && e.message.includes('Failed to analyze')) throw e;
+              console.error("Failed to parse SSE event", e);
+            }
+          }
+          boundary = buffer.indexOf("\n\n");
+        }
+      }
+
+      if (finalResult) return finalResult;
+    } catch (err: any) {
+      console.warn("SSE reparse stream failed, falling back to direct reparse:", err);
+    }
+
+    // Fallback to direct HTTP endpoint
+    return this.reparseHandwriting(bookId);
+  },
   async getTopic(id: number): Promise<Topic> {
     const res = await fetch(`${API_BASE}/topics/${id}`);
     await this._throwIfError(res, "Failed to fetch topic");
@@ -312,6 +515,7 @@ export const client = {
     await this._throwIfError(res, "Failed to fetch flashcard");
     return res.json();
   },
+<<<<<<< HEAD
   updateFlashcard: (async (
     id: number | string,
     payload: { question: string; answer: string } | { front?: string; back?: string; position?: number }
@@ -329,11 +533,31 @@ export const client = {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
+=======
+  async updateFlashcard(
+    idOrCardId: number | string,
+    dataOrPayload: any
+  ): Promise<any> {
+    if (typeof idOrCardId === 'number') {
+      const res = await fetch(`${API_BASE}/flashcards/${idOrCardId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(dataOrPayload),
+      });
+      await this._throwIfError(res, "Failed to update flashcard");
+      return res.json();
+    } else {
+      const res = await fetch(`${API_BASE}/api/v1/flashcards/cards/${idOrCardId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(dataOrPayload),
+>>>>>>> f160591998c1060293b8837f7fd3e8101a481f02
       });
       if (!res.ok) throw await parseApiError(res);
       const json = await res.json();
       return json.data;
     }
+<<<<<<< HEAD
   }) as {
     (id: number, data: { question: string; answer: string }): Promise<{ message: string; flashcard_id: number }>;
     (cardId: string, payload: { front?: string; back?: string; position?: number }): Promise<FlashcardItem>;
@@ -345,15 +569,29 @@ export const client = {
       return res.json();
     } else {
       const res = await fetch(`${API_BASE}/api/v1/flashcards/cards/${id}`, {
+=======
+  },
+
+  async deleteFlashcard(idOrCardId: number | string): Promise<any> {
+    if (typeof idOrCardId === 'number') {
+      const res = await fetch(`${API_BASE}/flashcards/${idOrCardId}`, { method: "DELETE" });
+      await this._throwIfError(res, "Failed to delete flashcard");
+      return res.json();
+    } else {
+      const res = await fetch(`${API_BASE}/api/v1/flashcards/cards/${idOrCardId}`, {
+>>>>>>> f160591998c1060293b8837f7fd3e8101a481f02
         method: 'DELETE',
       });
       if (!res.ok) throw await parseApiError(res);
       const json = await res.json();
       return json.data;
     }
+<<<<<<< HEAD
   }) as {
     (id: number): Promise<{ message: string }>;
     (cardId: string): Promise<{ success: boolean }>;
+=======
+>>>>>>> f160591998c1060293b8837f7fd3e8101a481f02
   },
   async getSettings(): Promise<Record<string, string>> {
     const res = await fetch(`${API_BASE}/settings`);
@@ -369,7 +607,7 @@ export const client = {
     await this._throwIfError(res, "Failed to update setting");
     return res.json();
   },
-  async saveApiKeys(keys: { gemini_api_key?: string, groq_api_key?: string, openai_api_key?: string, langfuse_secret_key?: string, langfuse_public_key?: string, langfuse_host?: string, ollama_host?: string }): Promise<{ status: string }> {
+  async saveApiKeys(keys: { gemini_api_key?: string, groq_api_key?: string, openai_api_key?: string, datalab_api_key?: string, langfuse_secret_key?: string, langfuse_public_key?: string, langfuse_host?: string, ollama_host?: string }): Promise<{ status: string }> {
     try {
       const res = await fetch(`${API_BASE}/settings/api-keys`, {
         method: "POST",
@@ -385,6 +623,16 @@ export const client = {
       throw error;
     }
   },
+  async verifyApiKey(provider: string, apiKey: string): Promise<{ valid: boolean; provider: string; message: string }> {
+    const res = await fetch(`${API_BASE}/settings/verify-key`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ provider, api_key: apiKey }),
+    });
+    await this._throwIfError(res, "Failed to verify API key");
+    return res.json();
+  },
+
   async verifyOllama(url: string): Promise<{ active: boolean; error?: string }> {
     const res = await fetch(`${API_BASE}/settings/verify-ollama?url=${encodeURIComponent(url)}`);
     return res.json();
@@ -430,8 +678,22 @@ export const client = {
     await this._throwIfError(res, "Backend not healthy");
     return res.json();
   },
-  async uploadPdfAndGetToc(file: File, bookTitle: string, totalPages: number): Promise<UploadResponse> {
-    const fileHash = await Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", await file.arrayBuffer())))
+  async uploadPdfAndGetToc(
+    file: File, 
+    bookTitle: string, 
+    totalPages: number, 
+    existingHash?: string,
+    onUploadProgress?: (percent: number) => void
+  ): Promise<UploadResponse> {
+    if (file.size > MAX_PDF_BYTES) {
+      throw {
+        userMessage: `PDF exceeds maximum allowed size of 50 MB (${formatFileSize(file.size)}).`,
+        message: 'Payload too large',
+        status: 413,
+      };
+    }
+
+    const fileHash = existingHash || Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", await file.arrayBuffer())))
       .map(b => b.toString(16).padStart(2, "0")).join("");
       
     const formData = new FormData();
@@ -440,6 +702,63 @@ export const client = {
     formData.append("file_hash", fileHash);
     formData.append("total_pages", totalPages.toString());
     
+    if (onUploadProgress) {
+      return new Promise<UploadResponse>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("POST", `${API_BASE}/books/upload`, true);
+        
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable) {
+            const percent = Math.round((e.loaded / e.total) * 100);
+            onUploadProgress(percent);
+          }
+        };
+        
+        xhr.onload = () => {
+          try {
+            const body = JSON.parse(xhr.responseText);
+            if (xhr.status >= 200 && xhr.status < 300) {
+              if (typeof window !== 'undefined') {
+                window.dispatchEvent(new Event('trigger-sync'));
+              }
+              resolve(body as UploadResponse);
+            } else {
+              let msg = `Request failed with status ${xhr.status}`;
+              let code = 'INTERNAL_ERROR';
+              let detail: string | undefined;
+              if (body?.error && typeof body.error === 'object') {
+                code = body.error.code || code;
+                msg = body.error.message || msg;
+                detail = body.error.details;
+              } else if (body?.detail) {
+                msg = typeof body.detail === 'string' ? body.detail : JSON.stringify(body.detail);
+              } else if (body?.message) {
+                msg = typeof body.message === 'string' ? body.message : JSON.stringify(body.message);
+              }
+              const err: any = new Error(msg);
+              err.errorCode = code;
+              err.userMessage = msg;
+              err.httpStatus = xhr.status;
+              err.debugDetail = detail;
+              reject(err);
+            }
+          } catch {
+            const err: any = new Error(`Upload failed with status ${xhr.status}`);
+            err.httpStatus = xhr.status;
+            reject(err);
+          }
+        };
+        
+        xhr.onerror = () => {
+          const err: any = new Error("Network error during file upload. Please check your connection.");
+          err.userMessage = "Network error during file upload. Please check your connection.";
+          reject(err);
+        };
+        
+        xhr.send(formData);
+      });
+    }
+
     const res = await fetch(`${API_BASE}/books/upload`, {
       method: "POST",
       body: formData,
@@ -590,6 +909,76 @@ export const client = {
     return res.json();
   },
 
+  async generateNoteScaffoldStream(
+    topicId: number,
+    providerOverride?: string,
+    onEvent?: (event: any) => void
+  ): Promise<{ topic_id?: number; scaffold: string; note: string; children_count?: number }> {
+    const res = await fetch(`${API_BASE}/topics/${topicId}/notes/scaffold-stream`, {
+      method: "POST",
+      headers: { "Accept": "text/event-stream", "Content-Type": "application/json" },
+      body: JSON.stringify({ provider_override: providerOverride || null }),
+    });
+
+    if (!res.ok) throw await parseApiError(res);
+    if (!res.body) throw new Error("No response body");
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let resultPayload: any = null;
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+
+        let boundary = buffer.indexOf("\n\n");
+        while (boundary !== -1) {
+          const chunk = buffer.slice(0, boundary);
+          buffer = buffer.slice(boundary + 2);
+
+          if (chunk.startsWith("data: ")) {
+            const dataStr = chunk.slice(6);
+            try {
+              const data = JSON.parse(dataStr);
+              if (onEvent) onEvent(data);
+
+              if (data.status === 'error') {
+                const apiErr = parseSSEError(data);
+                throw apiErr;
+              }
+              if (data.status === 'complete' || data.stage === 'complete') {
+                resultPayload = data;
+              }
+            } catch (jsonErr: any) {
+              if (jsonErr?.isRecallError) throw jsonErr;
+              console.warn("Failed to parse SSE note chunk:", dataStr);
+            }
+          }
+          boundary = buffer.indexOf("\n\n");
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
+
+    return resultPayload || { scaffold: "", note: "" };
+  },
+
+  async uploadNoteImage(file: File): Promise<{ status: string; filename: string; url: string }> {
+    const formData = new FormData();
+    formData.append("file", file);
+    const res = await fetch(`${API_BASE}/notes/upload-image`, {
+      method: "POST",
+      body: formData,
+    });
+    await this._throwIfError(res, "Failed to upload image");
+    return res.json();
+  },
+
   async appendNote(topicId: number, content: string, sectionTitle?: string): Promise<{ status: string; note: string }> {
     const res = await fetch(`${API_BASE}/topics/${topicId}/notes/append`, {
       method: "POST",
@@ -638,6 +1027,7 @@ export const client = {
     return res.json();
   },
   
+<<<<<<< HEAD
   generateFlashcards: (async (
     arg1: number | FlashcardGenerateRequest,
     arg2?: { count: number; custom_prompt?: string; provider_override?: string }
@@ -649,20 +1039,42 @@ export const client = {
         body: JSON.stringify(arg2 || {}),
       });
       if (!res.ok) throw await parseApiError(res);
+=======
+  async generateFlashcards(
+    topicIdOrPayload: number | FlashcardGenerateRequest,
+    options?: { count: number; custom_prompt?: string, provider_override?: string; concept_name?: string }
+  ): Promise<any> {
+    if (typeof topicIdOrPayload === 'number') {
+      const res = await fetch(`${API_BASE}/topics/${topicIdOrPayload}/flashcards`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(options || {}),
+      });
+      if (!res.ok) {
+        throw await parseApiError(res);
+      }
+>>>>>>> f160591998c1060293b8837f7fd3e8101a481f02
       return res.json();
     } else {
       const res = await fetch(`${API_BASE}/api/v1/flashcards/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+<<<<<<< HEAD
         body: JSON.stringify(arg1),
+=======
+        body: JSON.stringify(topicIdOrPayload),
+>>>>>>> f160591998c1060293b8837f7fd3e8101a481f02
       });
       if (!res.ok) throw await parseApiError(res);
       const json = await res.json();
       return json.data;
     }
+<<<<<<< HEAD
   }) as {
     (topicId: number, options: { count: number; custom_prompt?: string; provider_override?: string }): Promise<{ flashcards: Flashcard[] }>;
     (payload: FlashcardGenerateRequest): Promise<FlashcardSetDetailResponse>;
+=======
+>>>>>>> f160591998c1060293b8837f7fd3e8101a481f02
   },
 
   // ─── PDF Annotation API ───
@@ -868,11 +1280,17 @@ export const client = {
             if (dataStr === "[DONE]") continue;
             try {
               const data = JSON.parse(dataStr);
-              if (data.error) throw new Error(data.error);
+              if (data.error || data.message || data.error_code) {
+                const errMsg = data.message || data.error || data.detail || "Chat stream error";
+                const err: any = new Error(errMsg);
+                err.userMessage = errMsg;
+                err.errorCode = data.error_code;
+                throw err;
+              }
               if (data.chunk) onChunk(data.chunk);
             } catch (e) {
               if (e instanceof Error && e.message !== "Unexpected end of JSON input") {
-                if (dataStr.includes('"error":')) throw e;
+                if (dataStr.includes('"error"') || dataStr.includes('"message"') || dataStr.includes('"error_code"')) throw e;
               }
             }
           }
@@ -970,6 +1388,14 @@ export const client = {
   },
 
   async uploadDocument(file: File): Promise<DocumentUploadResponse> {
+    const validationError = validateDocumentFile(file);
+    if (validationError) {
+      throw {
+        userMessage: validationError,
+        message: 'File validation failed',
+        status: 413,
+      };
+    }
     const formData = new FormData();
     formData.append('file', file);
     const res = await fetch(`${API_BASE}/api/v1/documents/upload`, {
@@ -1292,6 +1718,81 @@ export const client = {
     const json = await res.json();
     return json.data;
   },
+
+  // ─── LLM Inspection (System Prompts & Token Usage) ───
+  async getPrompts(): Promise<{ prompts: SystemPrompt[] }> {
+    const res = await fetch(`${API_BASE}/api/prompts`);
+    if (!res.ok) {
+      const err = await parseApiError(res);
+      throw err;
+    }
+    return res.json();
+  },
+
+  async updatePrompt(key: string, customPrompt: string): Promise<{ prompt: SystemPrompt }> {
+    const res = await fetch(`${API_BASE}/api/prompts/${key}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ custom_prompt: customPrompt }),
+    });
+    if (!res.ok) {
+      const err = await parseApiError(res);
+      throw err;
+    }
+    return res.json();
+  },
+
+  async resetPrompt(key: string): Promise<{ prompt: SystemPrompt }> {
+    const res = await fetch(`${API_BASE}/api/prompts/${key}/reset`, {
+      method: 'POST',
+    });
+    if (!res.ok) {
+      const err = await parseApiError(res);
+      throw err;
+    }
+    return res.json();
+  },
+
+  async resetAllPrompts(): Promise<{ status: string; prompts: SystemPrompt[] }> {
+    const res = await fetch(`${API_BASE}/api/prompts/reset-all`, {
+      method: 'POST',
+    });
+    if (!res.ok) {
+      const err = await parseApiError(res);
+      throw err;
+    }
+    return res.json();
+  },
+
+  async getTokenUsageSummary(days?: number): Promise<TokenUsageSummary> {
+    const url = days ? `${API_BASE}/api/token-usage/summary?days=${days}` : `${API_BASE}/api/token-usage/summary`;
+    const res = await fetch(url);
+    if (!res.ok) {
+      const err = await parseApiError(res);
+      throw err;
+    }
+    return res.json();
+  },
+
+  async getTokenUsageHistory(limit: number = 100, offset: number = 0): Promise<{ logs: TokenLogEntry[] }> {
+    const res = await fetch(`${API_BASE}/api/token-usage/history?limit=${limit}&offset=${offset}`);
+    if (!res.ok) {
+      const err = await parseApiError(res);
+      throw err;
+    }
+    return res.json();
+  },
+
+  async clearTokenUsage(): Promise<{ status: string; message: string }> {
+    const res = await fetch(`${API_BASE}/api/token-usage`, {
+      method: 'DELETE',
+    });
+    if (!res.ok) {
+      const err = await parseApiError(res);
+      throw err;
+    }
+    return res.json();
+  },
 };
 
 export interface ReviewWorkloadStats {
@@ -1441,6 +1942,7 @@ export interface DocumentUploadResponse {
   status: string;
   filename: string;
   size_bytes: number;
+  book_id?: number;
 }
 
 export interface DocumentStatusResponse {

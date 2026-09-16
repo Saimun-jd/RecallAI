@@ -8,7 +8,7 @@ import os
 import uuid
 import logging
 from typing import Any, Dict, Optional
-from fastapi import APIRouter, BackgroundTasks, Depends, File, Query, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Header, Query, UploadFile, status
 
 from app.api.deps import get_current_user, get_current_workspace, require_document_owner
 from app.core.errors import ValidationError, PayloadTooLargeError
@@ -142,13 +142,57 @@ async def upload_document(
     if not doc_title:
         doc_title = "Untitled Document"
 
+    book_id = None
+    actual_pages = 1
+
+    # If this is a PDF, also ingest into core learning workspace (recall.db) and parse TOC
+    if source_type == "pdf":
+        try:
+            import fitz
+            from app.database import DATA_DIR, save_book, get_connection, insert_topics_bulk
+            from app.toc_parser import get_toc_entries, build_granular_toc
+
+            parsed_docs_dir = os.path.join(DATA_DIR, "parsed_docs")
+            os.makedirs(parsed_docs_dir, exist_ok=True)
+            parsed_pdf_path = os.path.join(parsed_docs_dir, f"{sha256}.pdf")
+            if not os.path.exists(parsed_pdf_path):
+                with open(parsed_pdf_path, "wb") as pf:
+                    pf.write(content)
+
+            with fitz.open(stream=content, filetype="pdf") as doc_check:
+                actual_pages = doc_check.page_count
+
+            book_id = save_book(title=doc_title, file_path=parsed_pdf_path, file_hash=sha256, total_pages=actual_pages)
+
+            with get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT COUNT(*) as c FROM topics WHERE book_id = ?", (book_id,))
+                existing_topics = cursor.fetchone()["c"]
+
+            if existing_topics == 0:
+                doc_fitz = fitz.open(parsed_pdf_path)
+                toc = get_toc_entries(doc_fitz, pdf_path=parsed_pdf_path)
+                total = doc_fitz.page_count
+                granular_toc = build_granular_toc(toc, total, document_title=doc_title)
+                doc_fitz.close()
+                insert_topics_bulk(book_id, granular_toc)
+
+        except Exception as e:
+            logger.warning(f"Failed to ingest book/TOC into recall.db during v1 upload: {e}")
+
+    metadata = {}
+    if book_id:
+        metadata["book_id"] = book_id
+
     # Create document record
     DocumentRepository.create_document(
         workspace_id=workspace["id"],
         title=doc_title,
         source_type=source_type,
+        total_pages=actual_pages,
         status="uploading",
         file_id=file_id,
+        metadata=metadata,
         doc_id=doc_id
     )
 
@@ -167,8 +211,8 @@ async def upload_document(
     )
 
     logger.info(
-        "Uploaded document doc_id=%s, file_id=%s, job_id=%s for workspace=%s",
-        doc_id, file_id, job["id"], workspace["id"]
+        "Uploaded document doc_id=%s, file_id=%s, job_id=%s for workspace=%s, book_id=%s",
+        doc_id, file_id, job["id"], workspace["id"], book_id
     )
 
     return ResponseEnvelope(
@@ -177,7 +221,8 @@ async def upload_document(
             job_id=job["id"],
             status="uploading",
             filename=filename,
-            size_bytes=len(content)
+            size_bytes=len(content),
+            book_id=book_id
         )
     )
 
@@ -307,6 +352,7 @@ def get_document_chunks(
 def delete_document(
     document: Dict[str, Any] = Depends(require_document_owner),
     workspace: Dict[str, Any] = Depends(get_current_workspace),
+    authorization: Optional[str] = Header(None),
 ) -> ResponseEnvelope[Dict[str, Any]]:
     """Cascading deletion of document, chunks, processing jobs, and stored physical file."""
     deleted = DocumentRepository.delete_document_cascade(
@@ -319,6 +365,16 @@ def delete_document(
         if file_rec:
             StorageService.delete_file(file_rec["storage_path"])
             FileRepository.delete_file(file_rec["id"])
+
+    # Cascade to legacy SQLite book if linked in metadata
+    meta = (deleted or {}).get("metadata") or document.get("metadata") or {}
+    book_id = meta.get("book_id")
+    if book_id:
+        try:
+            from app.main import delete_book_api
+            delete_book_api(int(book_id), authorization=authorization)
+        except Exception as e:
+            logger.warning("Failed to cascade delete legacy book %s: %s", book_id, e)
 
     logger.info("Deleted document %s from workspace %s", document["id"], workspace["id"])
 

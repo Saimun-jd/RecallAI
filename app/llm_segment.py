@@ -8,6 +8,8 @@ from app.llm_providers.factory import get_llm_provider
 from app.errors import RecallError, ErrorCode, classify_error
 from langfuse import observe
 
+from app.prompt_manager import get_prompt_template
+
 logger = logging.getLogger(__name__)
 
 SEGMENT_PROMPT = """You are an expert educational content parser and AI tutor.
@@ -175,7 +177,7 @@ async def extract_atomic_concepts(heading: str, text: str, code_blocks: dict = N
     if not assets_context:
         assets_context = "None available"
 
-    prompt = SEGMENT_PROMPT.format(
+    prompt = get_prompt_template("segment_prompt").format(
         heading_title=heading, 
         cleaned_section_text=text,
         assets_context=assets_context
@@ -191,6 +193,7 @@ async def extract_atomic_concepts(heading: str, text: str, code_blocks: dict = N
         json_schema=schema,
         temperature=0.1,
         max_tokens=4096,
+        feature="segmentation",
     )
     sanitized_raw = _sanitize_llm_response(raw)
 
@@ -249,7 +252,7 @@ async def generate_flashcards_for_topic(
     from app.schemas import FlashcardList
     
     formatted_custom = f"- User Instructions: {custom_prompt}" if custom_prompt else ""
-    prompt = FLASHCARD_PROMPT.format(
+    prompt = get_prompt_template("flashcard_prompt").format(
         breadcrumb=breadcrumb,
         topic_name=topic_name,
         summary=summary,
@@ -262,7 +265,7 @@ async def generate_flashcards_for_topic(
         from copy import copy
         local_settings = copy(settings)
         llm = get_llm_provider(local_settings, provider_override=provider_override)
-        raw_response = await llm.generate(prompt, json_schema=FlashcardList.model_json_schema())
+        raw_response = await llm.generate(prompt, json_schema=FlashcardList.model_json_schema(), feature="flashcards")
         logger.info(f"Raw flashcard generation response: {raw_response}")
         clean_json_str = _sanitize_llm_response(raw_response)
         
@@ -293,7 +296,7 @@ TOPIC CONTENT:
 
 @observe(name="generate_topic_summary", as_type="span")
 async def generate_topic_summary(heading: str, text: str, provider_override: str = None) -> str:
-    prompt = SUMMARY_PROMPT.format(heading_title=heading, text=text)
+    prompt = get_prompt_template("summary_prompt").format(heading_title=heading, text=text)
     
     from copy import copy
     local_settings = copy(settings)
@@ -303,6 +306,7 @@ async def generate_topic_summary(heading: str, text: str, provider_override: str
         json_schema=TopicSummary.model_json_schema(),
         temperature=0.3,
         max_tokens=4000,
+        feature="summary",
     )
     sanitized_raw = _sanitize_llm_response(raw)
 
@@ -381,7 +385,7 @@ Respond ONLY with a valid JSON object matching this schema:
 @observe(name="explain_selected_text", as_type="span")
 async def explain_selected_text(selected_text: str, custom_prompt: str = None, provider_override: str = None) -> str:
     """Call the LLM with the EXPLAIN_PROMPT and return the raw Markdown response."""
-    prompt = EXPLAIN_PROMPT.format(
+    prompt = get_prompt_template("explain_prompt").format(
         selected_text=selected_text,
         custom_prompt=custom_prompt or "Explain this clearly and in detail."
     )
@@ -396,6 +400,7 @@ async def explain_selected_text(selected_text: str, custom_prompt: str = None, p
         json_schema=None,
         temperature=0.4,
         max_tokens=4000,
+        feature="explain",
     )
     return raw.strip()
 
@@ -403,7 +408,7 @@ async def explain_selected_text(selected_text: str, custom_prompt: str = None, p
 @observe(name="generate_flashcards_from_selection", as_type="span")
 async def generate_flashcards_from_selection(selected_text: str, count: int = 5, custom_prompt: str = None, provider_override: str = None) -> list:
     """Generate flashcards from a highlighted PDF text selection."""
-    prompt = FLASHCARD_FROM_SELECTION_PROMPT.format(
+    prompt = get_prompt_template("selection_flashcard_prompt").format(
         selected_text=selected_text,
         count=count,
         custom_prompt=custom_prompt or "Focus on the key concepts."
@@ -419,6 +424,7 @@ async def generate_flashcards_from_selection(selected_text: str, count: int = 5,
         json_schema=SimpleFlashcardList.model_json_schema(),
         temperature=0.3,
         max_tokens=4000,
+        feature="selection_flashcards",
     )
     sanitized = _sanitize_llm_response(raw)
     
@@ -456,6 +462,39 @@ Respond ONLY with valid Markdown text. Do NOT wrap your answer in a JSON object.
 """
 
 @observe(name="chat_with_topic")
+def _build_document_outline(book_id: int | None) -> str:
+    if not book_id:
+        return "No document outline available."
+    from app.database import get_topics
+    try:
+        book_topics = get_topics(book_id)
+        if not book_topics:
+            return "No topics found in this document."
+        lines = []
+        for t in book_topics:
+            tid = t.get("id")
+            title = t.get("title", "Untitled")
+            p_start = t.get("start_page", 1)
+            p_end = t.get("end_page", p_start)
+            cards = t.get("flashcard_count", 0)
+            mastery = t.get("mastery_status", "untested")
+            lines.append(f"- [ID: {tid}] \"{title}\" | Slides: {p_start}-{p_end} | Flashcards: {cards} | Mastery: {mastery}")
+        return "\n".join(lines)
+    except Exception as err:
+        logger.warning(f"Failed to fetch document outline for book {book_id}: {err}")
+        return "Error loading document outline."
+
+def _extract_diagrams_reference(context_markdown: str | None) -> str:
+    if not context_markdown:
+        return ""
+    import re
+    diagram_matches = re.findall(r'(!\[.*?\]\(.*?\))', context_markdown)
+    if diagram_matches:
+        return "Available Diagrams & Figures from Context (PRESERVE & EMBED IN EXPLANATION):\n" + "\n".join(
+            f"- {match}" for match in diagram_matches
+        )
+    return ""
+
 async def chat_with_topic(request) -> str:
     from app.config import settings
     from copy import copy
@@ -467,10 +506,14 @@ async def chat_with_topic(request) -> str:
         role = "User" if msg.role == "user" else "Onizuka sensei"
         history_str += f"{role}: {msg.content}\n"
         
-    prompt = CHAT_PROMPT.format(
-        context_markdown=request.context_markdown,
+    document_outline = _build_document_outline(request.book_id)
+    diagrams_reference = _extract_diagrams_reference(request.context_markdown)
+    prompt = get_prompt_template("chat_prompt").format(
+        context_markdown=request.context_markdown or "No specific topic selected.",
         chat_history=history_str or "No previous history.",
-        question=request.question
+        question=request.question,
+        document_outline=document_outline,
+        diagrams_reference=diagrams_reference,
     )
     
     local_settings = copy(settings)
@@ -482,6 +525,7 @@ async def chat_with_topic(request) -> str:
             json_schema=None,
             temperature=0.7,
             max_tokens=8192,
+            feature="chat",
         )
         # The AI is now instructed to return raw markdown, so we can just return it.
         # We strip to remove any leading/trailing whitespace or accidental backticks.
@@ -500,10 +544,14 @@ async def chat_with_topic_stream(request):
         role = "User" if msg.role == "user" else "Onizuka sensei"
         history_str += f"{role}: {msg.content}\n"
         
-    prompt = CHAT_PROMPT.format(
-        context_markdown=request.context_markdown,
+    document_outline = _build_document_outline(request.book_id)
+    diagrams_reference = _extract_diagrams_reference(request.context_markdown)
+    prompt = get_prompt_template("chat_prompt").format(
+        context_markdown=request.context_markdown or "No specific topic selected.",
         chat_history=history_str or "No previous history.",
-        question=request.question
+        question=request.question,
+        document_outline=document_outline,
+        diagrams_reference=diagrams_reference,
     )
     
     local_settings = copy(settings)
@@ -514,6 +562,7 @@ async def chat_with_topic_stream(request):
             prompt=prompt,
             temperature=0.7,
             max_tokens=8192,
+            feature="chat",
         ):
             yield chunk
     except Exception as e:

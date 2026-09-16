@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { client } from '../api/client';
+import { useTheme } from '../hooks/useTheme';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   Cell
@@ -8,6 +9,8 @@ import { Book, Layers, Brain, CheckCircle2, Download, Share2, AlertCircle, Trend
 import clsx from 'clsx';
 
 export function AnalyticsView() {
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === 'dark';
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
@@ -98,13 +101,13 @@ export function AnalyticsView() {
         <div className="flex gap-4">
           <button 
             onClick={() => console.log('Download Report')}
-            className="flex items-center gap-2 px-5 py-2.5 bg-surface-container-lowest text-on-surface font-bold uppercase tracking-wide border-2 border-on-surface rounded-xl shadow-[4px_4px_0px_0px_#191b23] hover:bg-yellow-400 transition-colors active:translate-y-[2px] active:translate-x-[2px] active:shadow-none"
+            className="flex items-center gap-2 px-5 py-2.5 bg-surface-container-lowest text-on-surface font-bold uppercase tracking-wide border-2 border-on-surface rounded-xl shadow-[4px_4px_0px_0px_#191b23] dark:shadow-[4px_4px_0px_0px_#000000] hover:bg-yellow-400 transition-colors active:translate-y-[2px] active:translate-x-[2px] active:shadow-none"
           >
             <Download size={18} strokeWidth={2.5} /> Download Report
           </button>
           <button 
             onClick={() => console.log('Share Data')}
-            className="flex items-center gap-2 px-5 py-2.5 bg-surface text-on-surface font-bold uppercase tracking-wide border-2 border-on-surface rounded-xl shadow-[4px_4px_0px_0px_#191b23] hover:bg-surface-container-highest transition-colors active:translate-y-[2px] active:translate-x-[2px] active:shadow-none"
+            className="flex items-center gap-2 px-5 py-2.5 bg-surface text-on-surface font-bold uppercase tracking-wide border-2 border-on-surface rounded-xl shadow-[4px_4px_0px_0px_#191b23] dark:shadow-[4px_4px_0px_0px_#000000] hover:bg-surface-container-highest transition-colors active:translate-y-[2px] active:translate-x-[2px] active:shadow-none"
           >
             <Share2 size={18} strokeWidth={2.5} /> Share Data
           </button>
@@ -140,7 +143,7 @@ export function AnalyticsView() {
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-10">
         {/* Chart Section */}
-        <div className="xl:col-span-2 bg-surface-container-lowest border-2 border-on-surface rounded-2xl shadow-[8px_8px_0px_0px_#191b23] p-6 lg:p-8 flex flex-col">
+        <div className="xl:col-span-2 bg-surface-container-lowest border-2 border-on-surface rounded-2xl shadow-[8px_8px_0px_0px_#191b23] dark:shadow-[8px_8px_0px_0px_#000000] p-6 lg:p-8 flex flex-col">
           <div className="flex items-center gap-3 mb-8 border-b-2 border-on-surface pb-4">
             <TrendingUp size={24} strokeWidth={2.5} className="text-on-surface" />
             <h3 className="text-xl font-black uppercase tracking-wide text-on-surface">7-Day Forecast</h3>
@@ -148,37 +151,48 @@ export function AnalyticsView() {
           <div className="h-[350px] w-full">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={forecast_7d} margin={{ top: 20, right: 10, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="0" stroke="#191b23" vertical={false} strokeWidth={2} opacity={0.2} />
+                <CartesianGrid 
+                  strokeDasharray="3 3" 
+                  stroke={isDark ? '#334155' : '#e2e8f0'} 
+                  vertical={false} 
+                  strokeWidth={1} 
+                  opacity={isDark ? 0.6 : 0.8} 
+                />
                 <XAxis 
                   dataKey="date" 
-                  stroke="#191b23" 
-                  tick={{fill: '#191b23', fontSize: 12, fontWeight: 'bold'}} 
-                  tickLine={{stroke: '#191b23', strokeWidth: 2}}
-                  axisLine={{stroke: '#191b23', strokeWidth: 2}}
+                  stroke={isDark ? '#64748b' : '#94a3b8'} 
+                  tick={{ fill: isDark ? '#cbd5e1' : '#475569', fontSize: 12, fontWeight: 600 }} 
+                  tickLine={{ stroke: isDark ? '#475569' : '#cbd5e1', strokeWidth: 1.5 }}
+                  axisLine={{ stroke: isDark ? '#475569' : '#cbd5e1', strokeWidth: 1.5 }}
                   tickFormatter={(val: string) => {
-                    const [, m, d] = val.split('-');
-                    return `${parseInt(m)}/${parseInt(d)}`;
+                    const parts = val.split('-');
+                    if (parts.length >= 3) {
+                      return `${parseInt(parts[1], 10)}/${parseInt(parts[2], 10)}`;
+                    }
+                    return val;
                   }}
                   dy={10}
                 />
                 <YAxis 
-                  stroke="#191b23" 
-                  tick={{fill: '#191b23', fontSize: 12, fontWeight: 'bold'}} 
-                  tickLine={{stroke: '#191b23', strokeWidth: 2}}
-                  axisLine={{stroke: '#191b23', strokeWidth: 2}}
+                  allowDecimals={false}
+                  domain={[0, (dataMax: number) => Math.max(dataMax, 4)]}
+                  stroke={isDark ? '#64748b' : '#94a3b8'} 
+                  tick={{ fill: isDark ? '#cbd5e1' : '#475569', fontSize: 12, fontWeight: 600 }} 
+                  tickLine={{ stroke: isDark ? '#475569' : '#cbd5e1', strokeWidth: 1.5 }}
+                  axisLine={{ stroke: isDark ? '#475569' : '#cbd5e1', strokeWidth: 1.5 }}
                 />
                 <Tooltip 
-                  cursor={{fill: 'rgba(25,27,35,0.05)'}}
+                  cursor={{ fill: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(25, 27, 35, 0.05)' }}
                   contentStyle={{ 
-                    backgroundColor: '#fff', 
-                    border: '2px solid #191b23', 
-                    boxShadow: '4px 4px 0px 0px #191b23',
+                    backgroundColor: isDark ? '#1e293b' : '#ffffff', 
+                    border: `2px solid ${isDark ? '#475569' : '#191b23'}`, 
+                    boxShadow: isDark ? '4px 4px 0px 0px #000000' : '4px 4px 0px 0px #191b23',
                     borderRadius: '8px',
                     fontWeight: 'bold',
                     padding: '12px'
                   }}
-                  itemStyle={{ color: '#191b23', fontWeight: '900', fontSize: '16px' }}
-                  labelStyle={{ color: '#191b23', marginBottom: '8px', textTransform: 'uppercase', fontSize: '12px' }}
+                  itemStyle={{ color: isDark ? '#60a5fa' : '#2563eb', fontWeight: '900', fontSize: '16px' }}
+                  labelStyle={{ color: isDark ? '#f8fafc' : '#191b23', marginBottom: '8px', textTransform: 'uppercase', fontSize: '12px' }}
                   formatter={(value: any) => [value, 'Due Cards']}
                   labelFormatter={(label: any) => {
                      return new Date(label + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
@@ -186,13 +200,18 @@ export function AnalyticsView() {
                 />
                 <Bar 
                   dataKey="due_count" 
-                  radius={[4, 4, 0, 0]} 
-                  barSize={40}
+                  radius={[6, 6, 0, 0]} 
+                  barSize={36}
                   animationDuration={1000}
                 >
                   {
-                    forecast_7d.map((entry: any, index: number) => (
-                      <Cell key={`cell-${index}`} fill={colors[index % colors.length]} stroke="#191b23" strokeWidth={2} />
+                    forecast_7d.map((_entry: any, index: number) => (
+                      <Cell 
+                        key={`cell-${index}`} 
+                        fill={colors[index % colors.length]} 
+                        stroke={isDark ? '#60a5fa' : '#191b23'} 
+                        strokeWidth={1.5} 
+                      />
                     ))
                   }
                 </Bar>
@@ -202,7 +221,7 @@ export function AnalyticsView() {
         </div>
 
         {/* Queue / Subject Breakdown Section */}
-        <div className="bg-surface-container-lowest border-2 border-on-surface rounded-2xl shadow-[8px_8px_0px_0px_#191b23] p-6 lg:p-8 flex flex-col">
+        <div className="bg-surface-container-lowest border-2 border-on-surface rounded-2xl shadow-[8px_8px_0px_0px_#191b23] dark:shadow-[8px_8px_0px_0px_#000000] p-6 lg:p-8 flex flex-col">
           <div className="mb-8 border-b-2 border-on-surface pb-4">
             <h3 className="text-xl font-black uppercase tracking-wide text-on-surface">Current Queue</h3>
           </div>
@@ -214,11 +233,11 @@ export function AnalyticsView() {
           </div>
           
           <div className="mt-auto">
-            <div className="bg-surface border-2 border-on-surface rounded-xl shadow-[4px_4px_0px_0px_#191b23] p-4 flex items-center justify-between transition-transform hover:-translate-y-1">
+            <div className="bg-surface border-2 border-on-surface rounded-xl shadow-[4px_4px_0px_0px_#191b23] dark:shadow-[4px_4px_0px_0px_#000000] p-4 flex items-center justify-between transition-transform hover:-translate-y-1">
               <div className="text-on-surface font-black uppercase tracking-wide">
                 Due Now
               </div>
-              <span className="text-2xl font-black text-on-background px-3 py-1 bg-[#FFF44F] border-2 border-on-surface rounded-lg shadow-[2px_2px_0px_0px_#191b23]">
+              <span className="text-2xl font-black text-slate-900 px-3 py-1 bg-[#FFF44F] border-2 border-on-surface rounded-lg shadow-[2px_2px_0px_0px_#191b23] dark:shadow-[2px_2px_0px_0px_#000000]">
                 {queue.due_now}
               </span>
             </div>
@@ -227,13 +246,13 @@ export function AnalyticsView() {
       </div>
       
       {/* Algorithm Health / Table replacement */}
-      <div className="bg-surface-container-lowest border-2 border-on-surface rounded-2xl shadow-[8px_8px_0px_0px_#191b23] p-6 lg:p-8">
+      <div className="bg-surface-container-lowest border-2 border-on-surface rounded-2xl shadow-[8px_8px_0px_0px_#191b23] dark:shadow-[8px_8px_0px_0px_#000000] p-6 lg:p-8">
         <h3 className="text-xl font-black uppercase tracking-wide text-on-surface mb-6 border-b-2 border-on-surface pb-4">
           Algorithm Health (FSRS)
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           <div className="flex flex-col md:flex-row gap-6 items-center p-6 bg-surface border-2 border-on-surface rounded-xl hover:bg-surface-container-high transition-colors">
-            <div className="w-16 h-16 bg-[#3b82f6] text-white border-2 border-on-surface shadow-[4px_4px_0px_0px_#191b23] flex items-center justify-center shrink-0 rounded-full">
+            <div className="w-16 h-16 bg-[#3b82f6] text-white border-2 border-on-surface shadow-[4px_4px_0px_0px_#191b23] dark:shadow-[4px_4px_0px_0px_#000000] flex items-center justify-center shrink-0 rounded-full">
               <span className="text-xl font-black">{fsrs_metrics.average_stability_days}d</span>
             </div>
             <div>
@@ -243,7 +262,7 @@ export function AnalyticsView() {
           </div>
           
           <div className="flex flex-col md:flex-row gap-6 items-center p-6 bg-surface border-2 border-on-surface rounded-xl hover:bg-surface-container-high transition-colors">
-            <div className="w-16 h-16 bg-[#8b5cf6] text-white border-2 border-on-surface shadow-[4px_4px_0px_0px_#191b23] flex items-center justify-center shrink-0 rounded-full">
+            <div className="w-16 h-16 bg-[#8b5cf6] text-white border-2 border-on-surface shadow-[4px_4px_0px_0px_#191b23] dark:shadow-[4px_4px_0px_0px_#000000] flex items-center justify-center shrink-0 rounded-full">
               <span className="text-xl font-black">{fsrs_metrics.average_difficulty}<span className="text-sm">/10</span></span>
             </div>
             <div>

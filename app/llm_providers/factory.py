@@ -7,7 +7,7 @@ from app.config import Settings
 from app.database import get_setting
 
 DEFAULT_MODELS = {
-    "gemini": "gemini-3.6-flash",
+    "gemini": "gemini-flash-latest",
     "openai": "gpt-4o-mini",
     "ollama": "gemma2:2b",
     "groq": "openai/gpt-oss-20b",

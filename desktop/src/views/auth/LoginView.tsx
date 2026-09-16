@@ -1,15 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Brain, Eye, EyeOff, ArrowRight, AlertCircle } from 'lucide-react';
+import { Eye, EyeOff, ArrowRight, AlertCircle } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { ThemeToggle } from '../../hooks/useTheme';
 import { getSafeRedirectUrl } from '../../components/auth/PublicOnlyRoute';
 import { isSupabaseConfigured } from '../../lib/supabase';
+import { RecallLogo } from '../../components/brand';
 
 export function LoginView() {
-  const { login, loginWithGoogle } = useAuth();
+  const { status, login, loginWithGoogle, completeOnboarding } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -19,6 +20,25 @@ export function LoginView() {
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Navigate immediately when authenticated
+  useEffect(() => {
+    if (status === 'authenticated') {
+      const target = getSafeRedirectUrl(location.search, '/app');
+      navigate(target, { replace: true });
+    }
+  }, [status, location.search, navigate]);
+
+  // Reset google loading state if user cancels or times out
+  useEffect(() => {
+    let timer: any;
+    if (isGoogleLoading) {
+      timer = setTimeout(() => {
+        setIsGoogleLoading(false);
+      }, 60000);
+    }
+    return () => clearTimeout(timer);
+  }, [isGoogleLoading]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,6 +57,7 @@ export function LoginView() {
     setIsLoading(true);
     try {
       await login({ email: trimmedEmail, password });
+      completeOnboarding();
       const target = getSafeRedirectUrl(location.search, '/app');
       navigate(target, { replace: true });
     } catch (err: any) {
@@ -50,6 +71,7 @@ export function LoginView() {
     setErrorMessage(null);
     setIsGoogleLoading(true);
     try {
+      completeOnboarding();
       await loginWithGoogle();
     } catch (err: any) {
       setErrorMessage(err.message || 'Google authentication failed. Please try email login.');
@@ -61,11 +83,8 @@ export function LoginView() {
     <div className="min-h-screen flex flex-col bg-background text-on-surface">
       {/* Top Bar with Home link & Theme Toggle */}
       <header className="w-full max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-        <Link to="/" className="flex items-center gap-2.5 group" aria-label="Recall AI Home">
-          <div className="w-8 h-8 rounded-lg bg-primary text-white flex items-center justify-center border-2 border-border-default shadow-neo-sm group-hover:translate-x-0.5 group-hover:translate-y-0.5 group-hover:shadow-none transition-all">
-            <Brain size={18} className="stroke-[2.5]" />
-          </div>
-          <span className="font-extrabold text-lg tracking-tight text-on-surface">Recall AI</span>
+        <Link to="/" className="flex items-center group" aria-label="Recall AI Home">
+          <RecallLogo size="lg" showAiBadge />
         </Link>
         <ThemeToggle />
       </header>

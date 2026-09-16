@@ -16,6 +16,7 @@ import type { RootState } from '../store';
 import { setBooks, setCloudUploadState, setIsUploading, setIngestionProgress } from '../store';
 import { supabase } from '../lib/supabase';
 import { IngestionProgressModal } from './IngestionProgressModal';
+import { validatePdfFile } from '../utils/fileValidation';
 import { 
   DashboardHeader, 
   NextActionCard, 
@@ -41,9 +42,19 @@ export function DashboardView() {
   const { user } = useAuth();
   const { showToast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const uploadedBookIdRef = useRef<number | null>(null);
+  const autoNavTimeoutRef = useRef<any>(null);
 
   const { isUploading, ingestionProgress } = useSelector((state: RootState) => state.library);
   const sidecarStatus = useSelector((state: RootState) => state.system.sidecarStatus);
+
+  useEffect(() => {
+    return () => {
+      if (autoNavTimeoutRef.current) {
+        clearTimeout(autoNavTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const [isLoading, setIsLoading] = useState(true);
   const [dashboardData, setDashboardData] = useState<DashboardSummaryResponse | null>(null);
@@ -76,27 +87,56 @@ export function DashboardView() {
         setAccountOverview(accRes.value);
       }
 
-      // Check documents from API v1 or fallback to local books
+      // Check documents from API v1 and merge with local books
       let resolvedDocs: DocumentItem[] = [];
       let resolvedTotal = 0;
 
-      if (docsRes.status === 'fulfilled' && docsRes.value.documents.length > 0) {
-        resolvedDocs = docsRes.value.documents;
+      const booksList = booksRes.status === 'fulfilled' && Array.isArray(booksRes.value) ? booksRes.value : [];
+      if (booksList.length > 0) {
+        dispatch(setBooks(booksList));
+      }
+
+      if (docsRes.status === 'fulfilled' && docsRes.value?.documents) {
+        resolvedDocs = docsRes.value.documents.map((item) => {
+          const matchingBook = booksList.find((b: any) =>
+            b.id.toString() === item.id ||
+            item.metadata?.book_id === b.id ||
+            b.title.toLowerCase().trim() === item.title.toLowerCase().trim()
+          );
+          if (matchingBook) {
+            return {
+              ...item,
+              metadata: {
+                ...item.metadata,
+                book_id: matchingBook.id,
+              },
+            };
+          }
+          return item;
+        });
         resolvedTotal = docsRes.value.total;
-      } else if (booksRes.status === 'fulfilled' && booksRes.value.length > 0) {
-        // Map legacy books to DocumentItem contract
-        resolvedDocs = booksRes.value.map((b) => ({
-          id: b.id.toString(),
-          workspace_id: 'default',
-          title: b.title,
-          source_type: 'pdf',
-          total_pages: b.total_pages || 0,
-          status: 'ready',
-          created_at: b.created_at,
-          updated_at: b.created_at,
-        }));
-        resolvedTotal = booksRes.value.length;
-        dispatch(setBooks(booksRes.value));
+      }
+
+      // Merge local books that aren't yet in resolvedDocs
+      if (booksList.length > 0) {
+        const legacyItems: DocumentItem[] = booksList
+          .filter((b: any) => !resolvedDocs.some((d) => d.id === b.id.toString() || d.metadata?.book_id === b.id))
+          .map((b: any) => ({
+            id: b.id.toString(),
+            workspace_id: 'default',
+            title: b.title,
+            source_type: 'pdf',
+            total_pages: b.total_pages || 0,
+            status: 'ready',
+            created_at: b.created_at,
+            updated_at: b.created_at,
+            metadata: {
+              book_id: b.id,
+              chunk_count: b.topics_processed || b.total_topics,
+            },
+          }));
+        resolvedDocs = [...resolvedDocs, ...legacyItems];
+        resolvedTotal = Math.max(resolvedTotal, resolvedDocs.length);
       }
 
       setDocuments(resolvedDocs);
@@ -112,23 +152,46 @@ export function DashboardView() {
     fetchDashboardData();
   }, [fetchDashboardData]);
 
-  // Upload handler matching existing client pipeline
+  // Upload handler matching existing client pipeline with live progress
   const processFile = async (file: File) => {
-    dispatch(setIsUploading(true));
+    const validationError = validatePdfFile(file);
+    if (validationError) {
+      showToast('error', validationError);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
     try {
       const session = (await supabase.auth.getSession()).data.session;
       if (accountOverview?.usage?.documents?.limit && totalDocuments >= accountOverview.usage.documents.limit) {
         showToast('error', `Upload limit reached. Your plan allows up to ${accountOverview.usage.documents.limit} documents.`);
-        dispatch(setIsUploading(false));
+        if (fileInputRef.current) fileInputRef.current.value = '';
         return;
       }
 
-      const MAX_CLOUD_SIZE = 200 * 1024 * 1024;
-      const isOversized = file.size > MAX_CLOUD_SIZE;
+      dispatch(setIsUploading(true));
+      dispatch(setIngestionProgress({
+        status: 'processing',
+        current: 5,
+        total: 100,
+        topic: `Preparing "${file.name}"...`,
+        percentage: 5,
+        title: 'Ingesting Document',
+        detail: 'Verifying file',
+        detailLabel: 'Status',
+      }));
 
-      if (isOversized) {
-        showToast('warning', 'File is too large for cloud backup. It will only be saved locally.');
-      }
+      // 1. Compute hash once
+      dispatch(setIngestionProgress({
+        status: 'processing',
+        current: 12,
+        total: 100,
+        topic: 'Verifying file integrity and checksum...',
+        percentage: 12,
+        title: 'Ingesting Document',
+        detail: 'Computing hash',
+        detailLabel: 'Status',
+      }));
 
       const fileHash = Array.from(
         new Uint8Array(await crypto.subtle.digest('SHA-256', await file.arrayBuffer()))
@@ -136,13 +199,85 @@ export function DashboardView() {
         .map((b) => b.toString(16).padStart(2, '0'))
         .join('');
 
-      const res = await client.uploadPdfAndGetToc(file, file.name.replace('.pdf', ''), 0);
-      showToast('success', 'Document uploaded successfully. Generating knowledge chunks...');
-      await fetchDashboardData();
-      navigate(`/books/${res.book_id}`);
+      // 2. Upload locally first with live upload progress callback
+      dispatch(setIngestionProgress({
+        status: 'processing',
+        current: 18,
+        total: 100,
+        topic: `Uploading ${file.name} (0%)...`,
+        percentage: 18,
+        title: 'Uploading PDF',
+        detail: '0% sent',
+        detailLabel: 'Status',
+      }));
 
-      // Background cloud upload if session exists
-      if (!isOversized && session) {
+      const res = await client.uploadPdfAndGetToc(
+        file,
+        file.name.replace('.pdf', ''),
+        0,
+        fileHash,
+        (uploadPercent) => {
+          if (uploadPercent >= 100) {
+            dispatch(setIngestionProgress({
+              status: 'processing',
+              current: 78,
+              total: 100,
+              topic: 'Extracting Table of Contents and structuring sections...',
+              percentage: 78,
+              title: 'Analyzing Document',
+              detail: 'Structuring TOC',
+              detailLabel: 'Status',
+            }));
+          } else {
+            const mapped = Math.min(75, Math.round(18 + (uploadPercent * 0.57)));
+            dispatch(setIngestionProgress({
+              status: 'processing',
+              current: mapped,
+              total: 100,
+              topic: `Uploading ${file.name} (${uploadPercent}%)...`,
+              percentage: mapped,
+              title: 'Uploading PDF',
+              detail: `${uploadPercent}% sent`,
+              detailLabel: 'Status',
+            }));
+          }
+        }
+      );
+
+      // 3. Post-upload sync & completion
+      dispatch(setIngestionProgress({
+        status: 'processing',
+        current: 92,
+        total: 100,
+        topic: 'Synchronizing knowledge dashboard...',
+        percentage: 92,
+        title: 'Finalizing Document',
+        detail: 'Syncing',
+        detailLabel: 'Status',
+      }));
+
+      uploadedBookIdRef.current = res.book_id;
+      await fetchDashboardData();
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('trigger-sync-immediate'));
+      }
+
+      const extractedCount = res.topic_count || 0;
+      dispatch(setIngestionProgress({
+        status: 'complete',
+        current: extractedCount || 1,
+        total: extractedCount || 1,
+        topic: `${extractedCount} topics extracted and ready to study!`,
+        percentage: 100,
+        title: 'Processing Complete!',
+        detail: `${extractedCount} topics ready`,
+        detailLabel: 'Topics',
+      }));
+
+      showToast('success', 'Document uploaded successfully. Generating knowledge chunks...');
+
+      // 4. Background cloud upload if session exists
+      if (session) {
         const uploadUrl = `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/user_pdfs/${session.user.id}/${fileHash}.pdf`;
         dispatch(setCloudUploadState({ isUploading: true, progress: 0, fileName: file.name }));
 
@@ -166,9 +301,26 @@ export function DashboardView() {
         };
         xhr.send(file);
       }
+
+      // Auto-navigate after 1.2s or allow instant navigation on clicking "Start Studying"
+      autoNavTimeoutRef.current = setTimeout(() => {
+        handleProgressComplete();
+      }, 1200);
+
     } catch (err: any) {
       console.error('[Dashboard] File upload error:', err);
-      showToast('error', err?.userMessage || 'Failed to upload document.', err?.debugDetail);
+      const errorMsg = err?.userMessage || err?.message || 'Failed to upload document.';
+      dispatch(setIngestionProgress({
+        status: 'error',
+        current: 0,
+        total: 1,
+        topic: 'Upload failed',
+        error: errorMsg,
+        percentage: 0,
+        title: 'Upload Failed',
+        detailLabel: 'Error',
+      }));
+      showToast('error', errorMsg, err?.debugDetail);
     } finally {
       dispatch(setIsUploading(false));
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -196,16 +348,21 @@ export function DashboardView() {
     e.preventDefault();
     setIsDragging(false);
     const file = e.dataTransfer.files?.[0];
-    if (!file || file.type !== 'application/pdf') {
-      showToast('warning', 'Please drop a valid PDF file.');
-      return;
+    if (file) {
+      processFile(file);
     }
-    processFile(file);
   };
 
   const handleProgressComplete = () => {
+    if (autoNavTimeoutRef.current) {
+      clearTimeout(autoNavTimeoutRef.current);
+      autoNavTimeoutRef.current = null;
+    }
+    const targetBookId = uploadedBookIdRef.current;
     dispatch(setIngestionProgress(null));
-    navigate('/review');
+    if (targetBookId) {
+      navigate(`/books/${targetBookId}`);
+    }
   };
 
   if (isLoading) {

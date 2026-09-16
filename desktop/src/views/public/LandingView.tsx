@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import { 
   Brain, 
   ArrowRight, 
@@ -25,9 +25,15 @@ import { Button } from '../../components/ui/Button';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Tag';
 import { PublicLayout } from '../../components/public/PublicLayout';
+import { useAuth } from '../../contexts/AuthContext';
 
 export function LandingView() {
+  const { status, onboardingCompleted } = useAuth();
   const [activeWorkflowTab, setActiveWorkflowTab] = useState<'ingest' | 'concepts' | 'chat' | 'review'>('chat');
+
+  if (status === 'authenticated') {
+    return <Navigate to={onboardingCompleted ? '/app' : '/onboarding'} replace />;
+  }
 
   return (
     <PublicLayout

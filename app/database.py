@@ -179,6 +179,18 @@ def init_db():
             if col_name not in fc_columns:
                 cursor.execute(f"ALTER TABLE flashcards ADD COLUMN {col_name} {col_type}")
         
+        # Migration: Add reading state columns to books if they don't exist
+        cursor.execute("PRAGMA table_info(books)")
+        book_columns = [row['name'] for row in cursor.fetchall()]
+        book_migrations = [
+            ("last_read_at", "TIMESTAMP"),
+            ("last_read_page", "INTEGER DEFAULT 1"),
+            ("last_topic_id", "INTEGER"),
+        ]
+        for col_name, col_type in book_migrations:
+            if col_name not in book_columns:
+                cursor.execute(f"ALTER TABLE books ADD COLUMN {col_name} {col_type}")
+        
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS notes (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -248,6 +260,31 @@ def init_db():
                 FOREIGN KEY (book_id) REFERENCES books (id) ON DELETE CASCADE
             )
         """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS system_prompts (
+                key TEXT PRIMARY KEY,
+                custom_prompt TEXT NOT NULL,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS token_usage_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                provider TEXT NOT NULL,
+                model TEXT NOT NULL,
+                feature TEXT NOT NULL,
+                prompt_tokens INTEGER NOT NULL DEFAULT 0,
+                completion_tokens INTEGER NOT NULL DEFAULT 0,
+                total_tokens INTEGER NOT NULL DEFAULT 0,
+                estimated_cost_usd REAL DEFAULT 0.0
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_usage_timestamp ON token_usage_logs(timestamp)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_usage_feature ON token_usage_logs(feature)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_usage_provider ON token_usage_logs(provider)")
 
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS drill_sessions (
@@ -459,8 +496,8 @@ def save_book(title: str, file_path: str, file_hash: str, total_pages: int) -> i
             
         import uuid
         cursor.execute("""
-            INSERT INTO books (title, file_path, file_hash, total_pages, uuid, updated_at)
-            VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            INSERT INTO books (title, file_path, file_hash, total_pages, uuid, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%d %H:%M:%f', 'now'), CURRENT_TIMESTAMP)
         """, (title, file_path, file_hash, total_pages, str(uuid.uuid4())))
         
         return cursor.lastrowid
@@ -727,6 +764,21 @@ def get_child_topics(parent_id: int) -> List[Dict[str, Any]]:
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM topics WHERE parent_id = ? ORDER BY sort_order ASC, id ASC", (parent_id,))
         return [dict(row) for row in cursor.fetchall()]
+
+def get_descendant_topics(parent_id: int) -> List[Dict[str, Any]]:
+    """Recursively retrieves all descendant topics (children, grandchildren, etc.) for a given parent topic."""
+    descendants = []
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        queue = [parent_id]
+        while queue:
+            curr = queue.pop(0)
+            cursor.execute("SELECT * FROM topics WHERE parent_id = ? ORDER BY sort_order ASC, id ASC", (curr,))
+            rows = [dict(r) for r in cursor.fetchall()]
+            for r in rows:
+                descendants.append(r)
+                queue.append(r["id"])
+    return descendants
 
 def update_topic_enrichment(
     topic_id: int,
@@ -1138,10 +1190,22 @@ def get_books(skip: int = 0, limit: int = 100) -> List[Dict[str, Any]]:
                 (SELECT COUNT(*) FROM topics t WHERE t.book_id = b.id) as total_topics,
                 (SELECT COUNT(*) FROM topics t WHERE t.book_id = b.id AND (t.status = 'processed' OR (SELECT COUNT(*) FROM flashcards f WHERE f.topic_id = t.id) > 0)) as topics_processed
             FROM books b
-            ORDER BY b.created_at DESC 
+            ORDER BY COALESCE(b.last_read_at, b.created_at) DESC, b.id DESC 
             LIMIT ? OFFSET ?
         """, (limit, skip))
         return [dict(row) for row in cursor.fetchall()]
+
+def update_book_reading_state(book_id: int, page_number: Optional[int] = None, topic_id: Optional[int] = None):
+    """Updates the last read position and timestamp for a book."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE books SET
+                last_read_at = strftime('%Y-%m-%d %H:%M:%f', 'now'),
+                last_read_page = COALESCE(?, last_read_page),
+                last_topic_id = COALESCE(?, last_topic_id)
+            WHERE id = ?
+        """, (page_number, topic_id, book_id))
 
 def get_book_by_id(book_id: int) -> Optional[Dict[str, Any]]:
     with get_connection() as conn:
@@ -1153,8 +1217,32 @@ def get_book_by_id(book_id: int) -> Optional[Dict[str, Any]]:
 def delete_book(book_id: int) -> bool:
     with get_connection() as conn:
         cursor = conn.cursor()
+        cursor.execute("SELECT file_path, file_hash FROM books WHERE id = ?", (book_id,))
+        row = cursor.fetchone()
+        file_path = row['file_path'] if row else None
+        file_hash = row['file_hash'] if row else None
+
         cursor.execute("DELETE FROM books WHERE id = ?", (book_id,))
-        return cursor.rowcount > 0
+        success = cursor.rowcount > 0
+
+    if success and file_hash:
+        try:
+            # Clean up parsed document on disk if no other book references this hash
+            if file_path and os.path.exists(file_path):
+                with get_connection() as conn:
+                    c = conn.cursor()
+                    c.execute("SELECT COUNT(*) FROM books WHERE file_hash = ?", (file_hash,))
+                    if c.fetchone()[0] == 0:
+                        os.remove(file_path)
+            # Remove cover file if exists
+            covers_dir = os.path.join(DATA_DIR, "covers")
+            cover_path = os.path.join(covers_dir, f"{file_hash}.png")
+            if os.path.exists(cover_path):
+                os.remove(cover_path)
+        except Exception as e:
+            logger.warning(f"Failed to clean up files for book {book_id}: {e}")
+
+    return success
 
 def get_note_by_topic(topic_id: int) -> str:
     """Retrieves Markdown text from the notes table for a topic."""
@@ -1476,3 +1564,191 @@ def search_all(query: str, limit: int = 20) -> List[Dict[str, Any]]:
         # Combine and sort, prioritizing topics and notes
         results = topic_results + note_results + card_results
         return results[:limit]
+
+
+# -----------------------------------------------------------------------------
+# Token Usage & LLM Telemetry
+# -----------------------------------------------------------------------------
+
+def calculate_token_cost(provider: str, model: str, prompt_tokens: int, completion_tokens: int) -> float:
+    """Estimates the dollar cost ($ USD) for token usage based on model pricing."""
+    p = (provider or "").lower()
+    m = (model or "").lower()
+
+    if p == "ollama":
+        return 0.0
+
+    # Default commercial rates per 1,000,000 tokens
+    input_rate = 0.10
+    output_rate = 0.40
+
+    if "flash" in m:
+        input_rate = 0.075
+        output_rate = 0.30
+    elif "pro" in m:
+        input_rate = 1.25
+        output_rate = 5.00
+    elif "gpt-4o-mini" in m:
+        input_rate = 0.15
+        output_rate = 0.60
+    elif "gpt-4o" in m:
+        input_rate = 2.50
+        output_rate = 10.00
+    elif "groq" in p or "llama" in m:
+        input_rate = 0.05
+        output_rate = 0.08
+
+    cost = (prompt_tokens / 1_000_000.0) * input_rate + (completion_tokens / 1_000_000.0) * output_rate
+    return round(cost, 6)
+
+
+def log_token_usage(
+    provider: str,
+    model: str,
+    feature: str,
+    prompt_tokens: int,
+    completion_tokens: int,
+    total_tokens: Optional[int] = None,
+    cost_usd: Optional[float] = None
+) -> None:
+    """Persists a token usage log record into SQLite."""
+    prompt_tokens = max(0, prompt_tokens or 0)
+    completion_tokens = max(0, completion_tokens or 0)
+
+    if total_tokens is None or total_tokens <= 0:
+        total_tokens = prompt_tokens + completion_tokens
+
+    if total_tokens <= 0:
+        return
+
+    if cost_usd is None:
+        cost_usd = calculate_token_cost(provider, model, prompt_tokens, completion_tokens)
+
+    try:
+        with get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO token_usage_logs (provider, model, feature, prompt_tokens, completion_tokens, total_tokens, estimated_cost_usd)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (provider or "unknown", model or "unknown", feature or "general", prompt_tokens, completion_tokens, total_tokens, cost_usd))
+    except Exception as e:
+        logger.error(f"Failed to log token usage: {e}")
+
+
+def get_token_usage_summary(days: Optional[int] = None) -> Dict[str, Any]:
+    """Computes aggregated token counts, cost, daily timeline, and breakdowns."""
+    time_filter = ""
+    params = []
+    if days and days > 0:
+        time_filter = "WHERE timestamp >= datetime('now', ?)"
+        params.append(f"-{days} days")
+
+    with get_connection() as conn:
+        cursor = conn.cursor()
+
+        # Overall Totals
+        cursor.execute(f"""
+            SELECT 
+                COUNT(*) as total_requests,
+                COALESCE(SUM(prompt_tokens), 0) as total_prompt_tokens,
+                COALESCE(SUM(completion_tokens), 0) as total_completion_tokens,
+                COALESCE(SUM(total_tokens), 0) as total_tokens,
+                COALESCE(SUM(estimated_cost_usd), 0.0) as total_cost_usd
+            FROM token_usage_logs
+            {time_filter}
+        """, tuple(params))
+        totals = dict(cursor.fetchone())
+
+        # Breakdown by Feature
+        cursor.execute(f"""
+            SELECT 
+                feature,
+                COUNT(*) as requests,
+                COALESCE(SUM(prompt_tokens), 0) as prompt_tokens,
+                COALESCE(SUM(completion_tokens), 0) as completion_tokens,
+                COALESCE(SUM(total_tokens), 0) as total_tokens,
+                ROUND(COALESCE(SUM(estimated_cost_usd), 0.0), 4) as estimated_cost_usd
+            FROM token_usage_logs
+            {time_filter}
+            GROUP BY feature
+            ORDER BY total_tokens DESC
+        """, tuple(params))
+        by_feature = [dict(r) for r in cursor.fetchall()]
+
+        # Breakdown by Provider
+        cursor.execute(f"""
+            SELECT 
+                provider,
+                COUNT(*) as requests,
+                COALESCE(SUM(prompt_tokens), 0) as prompt_tokens,
+                COALESCE(SUM(completion_tokens), 0) as completion_tokens,
+                COALESCE(SUM(total_tokens), 0) as total_tokens,
+                ROUND(COALESCE(SUM(estimated_cost_usd), 0.0), 4) as estimated_cost_usd
+            FROM token_usage_logs
+            {time_filter}
+            GROUP BY provider
+            ORDER BY total_tokens DESC
+        """, tuple(params))
+        by_provider = [dict(r) for r in cursor.fetchall()]
+
+        # Breakdown by Model
+        cursor.execute(f"""
+            SELECT 
+                model,
+                provider,
+                COUNT(*) as requests,
+                COALESCE(SUM(total_tokens), 0) as total_tokens,
+                ROUND(COALESCE(SUM(estimated_cost_usd), 0.0), 4) as estimated_cost_usd
+            FROM token_usage_logs
+            {time_filter}
+            GROUP BY model, provider
+            ORDER BY total_tokens DESC
+        """, tuple(params))
+        by_model = [dict(r) for r in cursor.fetchall()]
+
+        # Daily Timeline (last 30 days default or requested days)
+        timeline_days = days if (days and days > 0) else 30
+        cursor.execute("""
+            SELECT 
+                date(timestamp) as day,
+                COUNT(*) as requests,
+                COALESCE(SUM(prompt_tokens), 0) as prompt_tokens,
+                COALESCE(SUM(completion_tokens), 0) as completion_tokens,
+                COALESCE(SUM(total_tokens), 0) as total_tokens,
+                ROUND(COALESCE(SUM(estimated_cost_usd), 0.0), 4) as estimated_cost_usd
+            FROM token_usage_logs
+            WHERE timestamp >= datetime('now', ?)
+            GROUP BY date(timestamp)
+            ORDER BY day ASC
+        """, (f"-{timeline_days} days",))
+        daily_timeline = [dict(r) for r in cursor.fetchall()]
+
+        return {
+            "totals": totals,
+            "by_feature": by_feature,
+            "by_provider": by_provider,
+            "by_model": by_model,
+            "daily_timeline": daily_timeline
+        }
+
+
+def get_token_usage_logs(limit: int = 100, offset: int = 0) -> List[Dict[str, Any]]:
+    """Retrieves recent individual token usage requests."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT id, timestamp, provider, model, feature, prompt_tokens, completion_tokens, total_tokens, estimated_cost_usd
+            FROM token_usage_logs
+            ORDER BY id DESC
+            LIMIT ? OFFSET ?
+        """, (limit, offset))
+        return [dict(r) for r in cursor.fetchall()]
+
+
+def clear_token_usage_logs() -> None:
+    """Purges all token usage log entries."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM token_usage_logs")
+    logger.info("Cleared all token usage logs")
+

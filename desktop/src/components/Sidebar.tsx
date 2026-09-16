@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { 
   Book, BrainCircuit, Settings, BarChart3, ChevronLeft, ChevronRight, 
-  NotebookPen, LayoutDashboard, MessageSquare
+  NotebookPen, LayoutDashboard, MessageSquare, Activity
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { AuthButton } from './AuthButton';
@@ -35,6 +35,7 @@ export function Sidebar({ className }: SidebarProps) {
     {
       title: 'Account',
       items: [
+        { label: 'LLM Inspection', path: '/llm-inspection', icon: Activity },
         { label: 'Settings', path: '/settings', icon: Settings },
       ],
     },
@@ -45,13 +46,18 @@ export function Sidebar({ className }: SidebarProps) {
       return location.pathname === '/app';
     }
     if (path === '/documents') {
-      return location.pathname === '/documents' || location.pathname.startsWith('/app/documents') || location.pathname.startsWith('/books');
+      return location.pathname === '/documents' || location.pathname.startsWith('/app/documents') || location.pathname.startsWith('/books') || location.pathname.startsWith('/documents');
     }
     if (path === '/app/chat' || path === '/chat') {
       return location.pathname.startsWith('/chat') || location.pathname.startsWith('/app/chat');
     }
+<<<<<<< HEAD
     if (path === '/app/flashcards' || path === '/flashcards') {
       return location.pathname.startsWith('/app/flashcards') || location.pathname.startsWith('/flashcards');
+=======
+    if (path === '/llm-inspection') {
+      return location.pathname.startsWith('/llm-inspection');
+>>>>>>> f160591998c1060293b8837f7fd3e8101a481f02
     }
     return location.pathname === path || (path !== '/' && location.pathname.startsWith(path));
   };
@@ -78,7 +84,7 @@ export function Sidebar({ className }: SidebarProps) {
   return (
     <aside
       className={cn(
-        'shrink-0 border-r-2 border-border-default bg-surface flex flex-col h-[calc(100vh-60px)] sticky top-15 overflow-hidden transition-all duration-200 z-30 select-none',
+        'shrink-0 border-r-2 border-border-default bg-surface flex flex-col h-[calc(100vh-60px)] sticky top-[60px] overflow-hidden transition-all duration-200 z-30 select-none',
         isExpanded ? 'w-56 lg:w-60' : 'w-18',
         className
       )}

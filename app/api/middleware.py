@@ -34,10 +34,19 @@ class RequestSizeLimitMiddleware(BaseHTTPMiddleware):
         if content_length:
             try:
                 length = int(content_length)
-                if length > settings.MAX_REQUEST_BODY_BYTES:
+                # Allow higher limit for file uploads (e.g. 50 MB PDFs)
+                content_type = request.headers.get("content-type", "")
+                is_upload = (
+                    content_type.startswith("multipart/form-data") or
+                    request.url.path.endswith("/upload") or
+                    "/upload" in request.url.path
+                )
+                max_bytes = settings.MAX_UPLOAD_BYTES if is_upload else settings.MAX_REQUEST_BODY_BYTES
+
+                if length > max_bytes:
                     return format_error_response(
                         code=ErrorCode.PAYLOAD_TOO_LARGE,
-                        message=f"Payload size ({length} bytes) exceeds maximum permitted limit ({settings.MAX_REQUEST_BODY_BYTES} bytes).",
+                        message=f"Payload size ({length} bytes) exceeds maximum permitted limit ({max_bytes} bytes).",
                         status_code=413
                     )
             except ValueError:

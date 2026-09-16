@@ -5,6 +5,7 @@ import { StatusBar } from '../StatusBar';
 import { AccountMenu } from './AccountMenu';
 import { ThemeToggle } from '../../hooks/useTheme';
 import { setCommandOpen } from '../../store/commandSlice';
+import { RecallLogo } from '../brand';
 import { cn } from '../../lib/utils';
 
 export interface TopBarProps {
@@ -43,7 +44,7 @@ export function TopBar({
   return (
     <header
       className={cn(
-        'sticky top-0 inset-x-0 z-40 h-15 bg-surface/90 backdrop-blur-md border-b-2 border-border-default px-3.5 sm:px-5 flex items-center justify-between gap-3 shrink-0 transition-colors',
+        'sticky top-0 inset-x-0 z-40 h-[60px] bg-surface/90 backdrop-blur-md border-b-2 border-border-default px-3.5 sm:px-5 flex items-center justify-between gap-3 shrink-0 transition-colors',
         className
       )}
     >
@@ -52,7 +53,7 @@ export function TopBar({
         <button
           type="button"
           onClick={onMobileMenuOpen}
-          className="md:hidden w-9 h-9 flex items-center justify-center rounded-lg border border-border-default bg-surface hover:bg-surface-container text-on-surface transition-all shrink-0 active:scale-95"
+          className="md:hidden w-[34px] h-[34px] flex items-center justify-center rounded-lg border border-border-default bg-surface hover:bg-surface-container text-on-surface transition-all shrink-0 active:scale-95"
           aria-label="Open mobile navigation"
         >
           <Menu size={18} />
@@ -61,12 +62,10 @@ export function TopBar({
         <div className="flex items-center gap-2 min-w-0">
           <Link
             to="/app"
-            className="font-black tracking-tight text-base sm:text-lg text-primary flex items-center gap-1.5 shrink-0 hover:opacity-90 transition-opacity"
+            className="flex items-center shrink-0 hover:opacity-90 transition-opacity select-none"
+            aria-label="Recall Home"
           >
-            <span className="w-6 h-6 rounded-md bg-primary text-on-primary flex items-center justify-center text-xs font-black shadow-neo-sm">
-              R
-            </span>
-            <span className="hidden sm:inline">Recall</span>
+            <RecallLogo size="md" />
           </Link>
 
           <span className="text-on-surface-variant/40 text-sm hidden sm:inline">/</span>
@@ -82,7 +81,7 @@ export function TopBar({
         <button
           type="button"
           onClick={() => dispatch(setCommandOpen(true))}
-          className="w-full flex items-center justify-between px-3 py-1.5 rounded-lg border border-border-default bg-surface-container/50 hover:bg-surface-container text-on-surface-variant text-xs font-medium transition-all shadow-xs group cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          className="w-full h-[34px] flex items-center justify-between px-3 rounded-lg border border-border-default bg-surface-container/50 hover:bg-surface-container text-on-surface-variant text-xs font-medium transition-all shadow-xs group cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
         >
           <span className="flex items-center gap-2 truncate">
             <Search size={14} className="text-on-surface-variant group-hover:text-on-surface" />
@@ -100,7 +99,7 @@ export function TopBar({
         <button
           type="button"
           onClick={() => dispatch(setCommandOpen(true))}
-          className="sm:hidden w-9 h-9 flex items-center justify-center rounded-lg border border-border-default bg-surface text-on-surface hover:bg-surface-container transition-all"
+          className="sm:hidden w-[34px] h-[34px] flex items-center justify-center rounded-lg border border-border-default bg-surface text-on-surface hover:bg-surface-container transition-all"
           aria-label="Open search command palette"
         >
           <Search size={16} />
@@ -110,7 +109,7 @@ export function TopBar({
         {!isReviewActive && (
           <Link
             to="/review"
-            className="hidden md:flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold rounded-lg border-2 border-border-default bg-surface hover:bg-surface-container text-on-surface shadow-neo-sm hover:shadow-neo hover:-translate-x-[1px] hover:-translate-y-[1px] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all"
+            className="hidden md:flex items-center gap-1.5 px-2.5 h-[34px] text-xs font-bold rounded-lg border-2 border-border-default bg-surface hover:bg-surface-container text-on-surface shadow-neo-sm hover:shadow-neo hover:-translate-x-[1px] hover:-translate-y-[1px] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all"
             title="Start Spaced Repetition Review"
           >
             <BrainCircuit size={14} className="text-accent-blue" />

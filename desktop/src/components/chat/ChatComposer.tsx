@@ -59,7 +59,7 @@ export function ChatComposer({
             <>
               <Globe2 size={12} className="text-primary shrink-0" />
               <span className="font-bold text-on-surface">
-                Knowledge Scope: <span className="text-primary font-black">All Library Documents</span>
+                Knowledge Scope: <span className="text-primary font-black">All Workspace Documents</span>
               </span>
             </>
           )}

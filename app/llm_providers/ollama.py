@@ -15,6 +15,7 @@ class OllamaProvider(BaseLLMProvider):
         json_schema: Dict[str, Any],
         temperature: float = 0.1,
         max_tokens: int = 4096,
+        feature: str = "general",
     ) -> str:
         langfuse = get_client()
         with langfuse.start_as_current_observation(
@@ -66,6 +67,8 @@ class OllamaProvider(BaseLLMProvider):
             if usage["input"] is not None and usage["output"] is not None:
                 usage["total"] = usage["input"] + usage["output"]
                 generation.update(output=content, usage=usage)
+                from app.database import log_token_usage
+                log_token_usage("ollama", self.model, feature, usage["input"], usage["output"], usage["total"], 0.0)
             else:
                 generation.update(output=content)
                 
@@ -76,6 +79,7 @@ class OllamaProvider(BaseLLMProvider):
         prompt: str,
         temperature: float = 0.7,
         max_tokens: int = 8192,
+        feature: str = "general",
     ):
         langfuse = get_client()
         with langfuse.start_as_current_observation(
@@ -106,6 +110,7 @@ class OllamaProvider(BaseLLMProvider):
                                 raise classify_error(e, provider_hint="ollama")
                                 
                         full_content = ""
+                        stream_usage = None
                         async for line in response.aiter_lines():
                             if line:
                                 try:
@@ -114,9 +119,19 @@ class OllamaProvider(BaseLLMProvider):
                                     if chunk:
                                         full_content += chunk
                                         yield chunk
+                                    if data.get("done"):
+                                        p_eval = data.get("prompt_eval_count")
+                                        eval_cnt = data.get("eval_count")
+                                        if p_eval is not None and eval_cnt is not None:
+                                            stream_usage = {"input": p_eval, "output": eval_cnt, "total": p_eval + eval_cnt}
                                 except json.JSONDecodeError:
                                     pass
-                        generation.update(output=full_content)
+                        if stream_usage:
+                            generation.update(output=full_content, usage=stream_usage)
+                            from app.database import log_token_usage
+                            log_token_usage("ollama", self.model, feature, stream_usage["input"], stream_usage["output"], stream_usage["total"], 0.0)
+                        else:
+                            generation.update(output=full_content)
             except httpx.ConnectError as e:
                 generation.update(level="ERROR", status_message=str(e))
                 raise RecallError(ErrorCode.OLLAMA_UNAVAILABLE, f"Cannot connect to Ollama at {self.host}. Is it running?", e)

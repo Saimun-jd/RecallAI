@@ -67,9 +67,9 @@ export function CommandPalette() {
 
         <Command.Group heading="Navigation">
           <Command.Item 
-            onSelect={() => { navigate('/'); dispatch(setCommandOpen(false)); }}
+            onSelect={() => { navigate('/documents'); dispatch(setCommandOpen(false)); }}
           >
-            <Book className="w-4 h-4" strokeWidth={1.5} /> Go to Library
+            <Book className="w-4 h-4" strokeWidth={1.5} /> Go to Documents
           </Command.Item>
           <Command.Item 
             onSelect={() => { navigate('/notes'); dispatch(setCommandOpen(false)); }}

@@ -69,9 +69,14 @@ class OpenAIProvider(BaseLLMProvider):
         json_schema: Dict[str, Any] = None,
         temperature: float = 0.1,
         max_tokens: int = 4096,
+        feature: str = "general",
     ) -> str:
         if not self.api_key or not self.api_key.strip():
-            raise RecallError(ErrorCode.API_KEY_MISSING, f"No API key configured for OpenAI-compatible provider ({self.base_url}).")
+            provider_name = "Groq" if "groq" in self.base_url.lower() or "groq" in self.model.lower() else "OpenAI"
+            raise RecallError(
+                ErrorCode.API_KEY_MISSING,
+                f"No API key configured for {provider_name}. Please add your {provider_name} API key in Settings → API Keys."
+            )
 
         headers = {
             "Authorization": f"Bearer {self.api_key}",
@@ -189,15 +194,21 @@ class OpenAIProvider(BaseLLMProvider):
             
             # Extract usage if available
             usage = data.get("usage")
+            provider_label = "groq" if "groq" in self.base_url.lower() else "openai"
             if usage:
+                p_tok = usage.get("prompt_tokens", 0)
+                c_tok = usage.get("completion_tokens", 0)
+                t_tok = usage.get("total_tokens", 0)
                 generation.update(
                     output=content,
                     usage={
-                        "input": usage.get("prompt_tokens"),
-                        "output": usage.get("completion_tokens"),
-                        "total": usage.get("total_tokens")
+                        "input": p_tok,
+                        "output": c_tok,
+                        "total": t_tok
                     }
                 )
+                from app.database import log_token_usage
+                log_token_usage(provider_label, self.model, feature, p_tok, c_tok, t_tok)
             else:
                 generation.update(output=content)
                 
@@ -208,9 +219,14 @@ class OpenAIProvider(BaseLLMProvider):
         prompt: str,
         temperature: float = 0.7,
         max_tokens: int = 8192,
+        feature: str = "general",
     ):
         if not self.api_key or not self.api_key.strip():
-            raise RecallError(ErrorCode.API_KEY_MISSING, f"No API key configured for {self.base_url}")
+            provider_name = "Groq" if "groq" in self.base_url.lower() or "groq" in self.model.lower() else "OpenAI"
+            raise RecallError(
+                ErrorCode.API_KEY_MISSING,
+                f"No API key configured for {provider_name}. Please add your {provider_name} API key in Settings → API Keys."
+            )
 
         url = f"{self.base_url}/chat/completions"
         headers = {
@@ -225,7 +241,8 @@ class OpenAIProvider(BaseLLMProvider):
             ],
             "temperature": temperature,
             "max_tokens": max_tokens,
-            "stream": True
+            "stream": True,
+            "stream_options": {"include_usage": True}
         }
         
         langfuse = get_client()
@@ -247,6 +264,7 @@ class OpenAIProvider(BaseLLMProvider):
                                 raise classify_error(e, provider_hint="openai")
                                 
                         full_content = ""
+                        stream_usage = None
                         async for line in response.aiter_lines():
                             if line.startswith("data: "):
                                 data_str = line[6:]
@@ -254,6 +272,8 @@ class OpenAIProvider(BaseLLMProvider):
                                     break
                                 try:
                                     data_json = json.loads(data_str)
+                                    if "usage" in data_json and data_json["usage"]:
+                                        stream_usage = data_json["usage"]
                                     choices = data_json.get("choices", [])
                                     if choices:
                                         delta = choices[0].get("delta", {})
@@ -263,7 +283,19 @@ class OpenAIProvider(BaseLLMProvider):
                                             yield content
                                 except (KeyError, IndexError, json.JSONDecodeError):
                                     pass
-                        generation.update(output=full_content)
+                        provider_label = "groq" if "groq" in self.base_url.lower() else "openai"
+                        if stream_usage:
+                            p_tok = stream_usage.get("prompt_tokens", 0)
+                            c_tok = stream_usage.get("completion_tokens", 0)
+                            t_tok = stream_usage.get("total_tokens", 0)
+                            generation.update(
+                                output=full_content,
+                                usage={"input": p_tok, "output": c_tok, "total": t_tok}
+                            )
+                            from app.database import log_token_usage
+                            log_token_usage(provider_label, self.model, feature, p_tok, c_tok, t_tok)
+                        else:
+                            generation.update(output=full_content)
             except Exception as e:
                 generation.update(level="ERROR", status_message=str(e))
                 raise classify_error(e, provider_hint="openai")
