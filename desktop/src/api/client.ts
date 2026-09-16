@@ -1597,7 +1597,14 @@ export const client = {
     return json.data;
   },
 
-  // ── Review Sessions (FSRS Study) ───────────────────────────────
+  // ── Review Sessions & Spaced Repetition (FSRS) ──────────────────
+
+  async getReviewStatistics(): Promise<ReviewStatistics> {
+    const res = await fetch(`${API_BASE}/api/v1/reviews/statistics`);
+    if (!res.ok) throw await parseApiError(res);
+    const json = await res.json();
+    return json.data;
+  },
 
   async startReviewSession(payload: StartReviewSessionRequest): Promise<ReviewSessionItem> {
     const res = await fetch(`${API_BASE}/api/v1/reviews/sessions`, {
@@ -2255,6 +2262,14 @@ export interface RateReviewResult {
   reviewed_items: number;
   total_items: number;
   session_status: string;
+}
+
+export interface ReviewStatistics {
+  due_count: number;
+  overdue_count: number;
+  reviewed_today: number;
+  correct_rate: number;
+  total_items: number;
 }
 
 // ── Quiz & Assessment Interfaces ──────────────────────────────────

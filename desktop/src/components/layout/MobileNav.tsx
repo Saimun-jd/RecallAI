@@ -2,7 +2,7 @@ import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { 
   LayoutDashboard, BookOpen, BrainCircuit, MessageSquare, 
-  BarChart3, Settings, X, LogOut, NotebookPen, Layers, HelpCircle
+  BarChart3, Settings, X, LogOut, NotebookPen, Layers, HelpCircle, RotateCcw
 } from 'lucide-react';
 import { ThemeToggle } from '../../hooks/useTheme';
 import { useAuth } from '../../contexts/AuthContext';
@@ -38,6 +38,7 @@ export function MobileNav({ isDrawerOpen, onCloseDrawer, user }: MobileNavProps)
     { label: 'Documents', path: '/documents', icon: BookOpen },
     { label: 'Knowledge Hub', path: '/app/chat', icon: MessageSquare },
     { label: 'Notes', path: '/notes', icon: NotebookPen },
+    { label: 'Review', path: '/app/review', icon: RotateCcw },
     { label: 'Flashcards', path: '/app/flashcards', icon: BrainCircuit },
     { label: 'Quizzes', path: '/app/quizzes', icon: HelpCircle },
     { label: 'Analytics', path: '/analytics', icon: BarChart3 },
@@ -62,6 +63,9 @@ export function MobileNav({ isDrawerOpen, onCloseDrawer, user }: MobileNavProps)
     }
     if (path === '/app/chat' || path === '/chat') {
       return location.pathname.startsWith('/chat') || location.pathname.startsWith('/app/chat');
+    }
+    if (path === '/app/review' || path === '/review') {
+      return location.pathname.startsWith('/review') || location.pathname.startsWith('/app/review');
     }
     if (path === '/app/flashcards' || path === '/flashcards') {
       return location.pathname.startsWith('/app/flashcards') || location.pathname.startsWith('/flashcards');

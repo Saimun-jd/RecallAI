@@ -164,7 +164,7 @@ export function NextActionCard({
 
           <div className="flex items-center gap-3 shrink-0">
             <Link
-              to="/review"
+              to="/app/review"
               className="inline-flex items-center gap-2 px-5 py-3 rounded-xl border-2 border-border-default bg-primary text-white font-extrabold text-sm shadow-neo-sm hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-none transition-all active:translate-x-1 active:translate-y-1"
             >
               <BrainCircuit size={16} />

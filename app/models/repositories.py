@@ -2415,6 +2415,34 @@ class QuizQuestionRepository:
         return res
 
     @staticmethod
+    def get_by_id(
+        question_id: str,
+        db_conn: Optional[sqlite3.Connection] = None
+    ) -> Optional[Dict[str, Any]]:
+        sql = "SELECT * FROM quiz_questions WHERE id = ?"
+        params = (question_id,)
+        if db_conn:
+            cursor = db_conn.cursor()
+            cursor.execute(sql, params)
+            row = cursor.fetchone()
+        else:
+            with get_db() as conn:
+                cursor = conn.cursor()
+                cursor.execute(sql, params)
+                row = cursor.fetchone()
+
+        if not row:
+            return None
+        res = dict(row)
+        for json_field in ("options", "source_metadata"):
+            if isinstance(res.get(json_field), str):
+                try:
+                    res[json_field] = json.loads(res[json_field])
+                except Exception:
+                    res[json_field] = []
+        return res
+
+    @staticmethod
     def update_question(
         question_id: str,
         question: Optional[str] = None,

@@ -188,11 +188,12 @@ class ReviewSessionService:
         elif content_type == "quiz_question":
             question = QuizQuestionRepository.get_by_id(content_id)
             if question:
-                front = question.get("question_text", "")
+                front = question.get("question") or question.get("question_text") or "Quiz Question"
                 options = question.get("options", [])
                 source_metadata = question.get("source_metadata", [])
             else:
-                front = learning_item.get("source_reference", {}).get("question_text", "Quiz Question")
+                ref = learning_item.get("source_reference") or {}
+                front = ref.get("question") or ref.get("question_text") or ref.get("front") or "Quiz Question"
         else:
             front = str(learning_item.get("source_reference", {}).get("front", "Study Concept"))
 
@@ -266,14 +267,15 @@ class ReviewSessionService:
         elif content_type == "quiz_question":
             question = QuizQuestionRepository.get_by_id(content_id)
             if question:
-                front = question.get("question_text", "")
+                front = question.get("question") or question.get("question_text") or "Quiz Question"
                 back = question.get("correct_answer", "")
                 explanation = question.get("explanation")
                 options = question.get("options", [])
                 source_metadata = question.get("source_metadata", [])
             else:
-                front = learning_item.get("source_reference", {}).get("question_text", "Quiz Question")
-                back = "Correct Answer"
+                ref = learning_item.get("source_reference") or {}
+                front = ref.get("question") or ref.get("question_text") or ref.get("front") or "Quiz Question"
+                back = ref.get("correct_answer") or "Correct Answer"
         else:
             front = "Study Concept"
             back = "Concept Definition"

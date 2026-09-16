@@ -1,315 +1,375 @@
-import { useEffect, useState } from 'react';
-import { client, type Flashcard } from '../api/client';
-import { Loader2, Brain, Check, Undo2, TrendingUp } from 'lucide-react';
-import clsx from 'clsx';
-import { MarkdownRenderer } from '../components/MarkdownRenderer';
+import React, { useEffect, useState, useCallback } from 'react';
+import { Loader2, AlertCircle, RotateCcw } from 'lucide-react';
+import {
+  client,
+  type ReviewQueueItem,
+  type ReviewSessionItem,
+  type ReviewStatistics,
+  type MaskedReviewItem,
+  type RevealedReviewItem,
+  type ReviewRating,
+} from '../api/client';
 import { useToast } from '../hooks/useToast';
-import type { ApiError } from '../api/errors';
+import { Button } from '../components/ui/Button';
+import {
+  ReviewQueueSummary,
+  ReviewEmptyState,
+  ReviewActiveSession,
+  ReviewCompletion,
+} from '../components/review';
 
-type ReviewState = 'loading' | 'question' | 'answer' | 'done';
+type ReviewViewMode = 'loading' | 'landing' | 'session' | 'completed' | 'error';
+
+const SESSION_STORAGE_KEY = 'recall_active_review_session_id';
 
 export function ReviewView() {
-  const [cards, setCards] = useState<Flashcard[]>([]);
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [state, setState] = useState<ReviewState>('loading');
   const { showToast } = useToast();
-  
-  const [sessionCount, setSessionCount] = useState(0);
-  const [lastReviewedCardId, setLastReviewedCardId] = useState<number | null>(null);
-  const [undoLoading, setUndoLoading] = useState(false);
 
-  const fetchDueCards = async () => {
-    setState('loading');
+  const [viewMode, setViewMode] = useState<ReviewViewMode>('loading');
+  const [queue, setQueue] = useState<ReviewQueueItem[]>([]);
+  const [statistics, setStatistics] = useState<ReviewStatistics | null>(null);
+  const [activeSession, setActiveSession] = useState<ReviewSessionItem | null>(null);
+  const [currentItem, setCurrentItem] = useState<MaskedReviewItem | RevealedReviewItem | null>(null);
+  const [isRevealed, setIsRevealed] = useState(false);
+
+  const [isStarting, setIsStarting] = useState(false);
+  const [isRevealing, setIsRevealing] = useState(false);
+  const [isRating, setIsRating] = useState(false);
+  const [isAbandoning, setIsAbandoning] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [ratingError, setRatingError] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // ── 1. Fetch Due Queue & Statistics ─────────────────────────────
+  const loadReviewData = useCallback(async (isSilent = false) => {
+    if (!isSilent) setViewMode('loading');
+    setErrorMessage(null);
+
     try {
-      const due = await client.getDueCards(20);
-      setCards(due);
-      setCurrentIndex(0);
-      if (due.length > 0) {
-        setState('question');
-      } else {
-        setState('done');
-      }
-    } catch (err: any) {
-      console.error(err);
-      showToast('error', err?.userMessage || 'Failed to fetch due cards.', err?.debugDetail);
-      setState('done');
-    }
-  };
+      const [queueData, statsData] = await Promise.all([
+        client.getReviewQueue(50),
+        client.getReviewStatistics(),
+      ]);
 
-  useEffect(() => {
-    fetchDueCards();
-  }, []);
+      setQueue(queueData || []);
+      setStatistics(statsData || null);
 
-  const handleShowAnswer = () => {
-    if (state === 'question') {
-      setState('answer');
-    } else if (state === 'answer') {
-      setState('question');
-    }
-  };
-
-  const handleRate = async (rating: number) => {
-    const currentCard = cards[currentIndex];
-    if (!currentCard) return;
-    setLastReviewedCardId(currentCard.id);
-    
-    try {
-      await client.submitReview(currentCard.id, rating);
-      setSessionCount(prev => prev + 1);
-      
-      if (currentIndex + 1 < cards.length) {
-        setCurrentIndex(currentIndex + 1);
-        setState('question');
-      } else {
-        fetchDueCards();
-      }
-    } catch (err: any) {
-      console.error("Failed to submit review", err);
-      showToast('error', err?.userMessage || 'Failed to submit review.', err?.debugDetail);
-    }
-  };
-
-  const handleUndo = async () => {
-    if (!lastReviewedCardId || undoLoading) return;
-    setUndoLoading(true);
-    try {
-      await client.undoReview(lastReviewedCardId);
-      setLastReviewedCardId(null);
-      setSessionCount(prev => Math.max(0, prev - 1));
-      await fetchDueCards(); // Refetch to get the undone card back
-    } catch (err: any) {
-      console.error("Failed to undo review", err);
-      showToast('error', err?.userMessage || 'Failed to undo review.', err?.debugDetail);
-    } finally {
-      setUndoLoading(false);
-    }
-  };
-
-  // Keyboard shortcut for spacebar
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't trigger if user is typing in an input (though there shouldn't be one here)
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
-        return;
-      }
-      
-      if (e.code === 'Space') {
-        e.preventDefault();
-        if (state === 'question' || state === 'answer') {
-          handleShowAnswer();
+      // Check for an active session stored in sessionStorage
+      const savedSessionId = sessionStorage.getItem(SESSION_STORAGE_KEY);
+      if (savedSessionId) {
+        try {
+          const sessionDetails = await client.getReviewSession(savedSessionId);
+          if (sessionDetails && sessionDetails.status === 'active') {
+            setActiveSession(sessionDetails);
+          } else {
+            sessionStorage.removeItem(SESSION_STORAGE_KEY);
+            setActiveSession(null);
+          }
+        } catch {
+          sessionStorage.removeItem(SESSION_STORAGE_KEY);
+          setActiveSession(null);
         }
       }
 
-      if (state === 'answer') {
-        if (e.key === '1') handleRate(1);
-        if (e.key === '2') handleRate(2);
-        if (e.key === '3') handleRate(3);
-        if (e.key === '4') handleRate(4);
+      setViewMode('landing');
+    } catch (err: any) {
+      console.error('[ReviewView] Failed to load review queue or stats:', err);
+      const msg = err?.userMessage || 'Failed to load spaced repetition review queue.';
+      setErrorMessage(msg);
+      setViewMode('error');
+      showToast('error', msg, err?.debugDetail);
+    }
+  }, [showToast]);
+
+  useEffect(() => {
+    loadReviewData();
+  }, [loadReviewData]);
+
+  // ── 2. Start Review Session ─────────────────────────────────────
+  const handleStartReview = async (limit: number) => {
+    setIsStarting(true);
+    setRatingError(null);
+
+    try {
+      const session = await client.startReviewSession({
+        limit,
+      });
+
+      if (!session || session.status === 'completed' || session.total_items === 0) {
+        showToast('info', 'No due cards available for review in this session.');
+        await loadReviewData(true);
+        return;
       }
-    };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [state, currentIndex, cards]); // Need dependencies for handleRate closure
+      sessionStorage.setItem(SESSION_STORAGE_KEY, session.id);
+      setActiveSession(session);
 
-  if (state === 'loading') {
-    return (
-      <div className="flex-1 flex justify-center items-center bg-surface">
-        <Loader2 className="animate-spin text-primary w-12 h-12" strokeWidth={2.5} />
-      </div>
-    );
-  }
+      // Fetch the first masked card from the authoritative backend
+      const nextCard = await client.getNextReviewItem(session.id);
+      if (nextCard) {
+        setCurrentItem(nextCard);
+        setIsRevealed(false);
+        setViewMode('session');
+      } else {
+        // Session has no pending items
+        await client.completeReviewSession(session.id);
+        sessionStorage.removeItem(SESSION_STORAGE_KEY);
+        setViewMode('completed');
+      }
+    } catch (err: any) {
+      console.error('[ReviewView] Failed to start review session:', err);
+      showToast('error', err?.userMessage || 'Failed to start review session.', err?.debugDetail);
+    } finally {
+      setIsStarting(false);
+    }
+  };
 
-  if (state === 'done') {
+  // ── 3. Resume Active Session ────────────────────────────────────
+  const handleResumeSession = async () => {
+    if (!activeSession) return;
+    setIsStarting(true);
+    setRatingError(null);
+
+    try {
+      const nextCard = await client.getNextReviewItem(activeSession.id);
+      if (nextCard) {
+        setCurrentItem(nextCard);
+        setIsRevealed(false);
+        setViewMode('session');
+      } else {
+        // Active session is actually finished
+        const completed = await client.completeReviewSession(activeSession.id);
+        setActiveSession(completed);
+        sessionStorage.removeItem(SESSION_STORAGE_KEY);
+        setViewMode('completed');
+      }
+    } catch (err: any) {
+      console.error('[ReviewView] Failed to resume session:', err);
+      showToast('error', err?.userMessage || 'Failed to resume session.', err?.debugDetail);
+    } finally {
+      setIsStarting(false);
+    }
+  };
+
+  // ── 4. Abandon Session ──────────────────────────────────────────
+  const handleAbandonSession = async () => {
+    if (!activeSession) return;
+    setIsAbandoning(true);
+
+    try {
+      await client.abandonReviewSession(activeSession.id);
+      sessionStorage.removeItem(SESSION_STORAGE_KEY);
+      setActiveSession(null);
+      showToast('info', 'Review session abandoned. Progress was preserved.');
+      await loadReviewData(true);
+      setViewMode('landing');
+    } catch (err: any) {
+      console.error('[ReviewView] Failed to abandon session:', err);
+      showToast('error', err?.userMessage || 'Failed to abandon review session.', err?.debugDetail);
+    } finally {
+      setIsAbandoning(false);
+    }
+  };
+
+  // ── 5. Complete Session Early ───────────────────────────────────
+  const handleCompleteEarly = async () => {
+    if (!activeSession) return;
+    try {
+      const completed = await client.completeReviewSession(activeSession.id);
+      setActiveSession(completed);
+      sessionStorage.removeItem(SESSION_STORAGE_KEY);
+      setViewMode('completed');
+    } catch (err: any) {
+      console.error('[ReviewView] Failed to complete session early:', err);
+      showToast('error', err?.userMessage || 'Failed to complete review session.', err?.debugDetail);
+    }
+  };
+
+  // ── 6. Reveal Card Answer ───────────────────────────────────────
+  const handleReveal = async () => {
+    if (!currentItem || isRevealing || isRevealed) return;
+    setIsRevealing(true);
+
+    try {
+      const revealed = await client.revealReviewItem(currentItem.review_id);
+      setCurrentItem(revealed);
+      setIsRevealed(true);
+    } catch (err: any) {
+      console.error('[ReviewView] Failed to reveal answer:', err);
+      showToast('error', err?.userMessage || 'Failed to reveal answer.', err?.debugDetail);
+    } finally {
+      setIsRevealing(false);
+    }
+  };
+
+  // ── 7. Rate Card (FSRS Controlled Rating) ───────────────────────
+  const handleRate = async (rating: ReviewRating) => {
+    if (!currentItem || !activeSession || isRating) return;
+    setIsRating(true);
+    setRatingError(null);
+
+    try {
+      const rateResult = await client.rateReviewItem(currentItem.review_id, rating);
+
+      // Update local session metrics directly from server response
+      const updatedSession: ReviewSessionItem = {
+        ...activeSession,
+        reviewed_items: rateResult.reviewed_items,
+        total_items: rateResult.total_items,
+        status: rateResult.session_status,
+      };
+      setActiveSession(updatedSession);
+
+      // Check if session finished according to the backend
+      if (rateResult.session_status === 'completed' || rateResult.reviewed_items >= rateResult.total_items) {
+        sessionStorage.removeItem(SESSION_STORAGE_KEY);
+        setViewMode('completed');
+        return;
+      }
+
+      // Fetch next card from backend
+      const nextCard = await client.getNextReviewItem(activeSession.id);
+      if (nextCard) {
+        setCurrentItem(nextCard);
+        setIsRevealed(false);
+      } else {
+        // No more cards in session
+        const finished = await client.completeReviewSession(activeSession.id);
+        setActiveSession(finished);
+        sessionStorage.removeItem(SESSION_STORAGE_KEY);
+        setViewMode('completed');
+      }
+    } catch (err: any) {
+      console.error('[ReviewView] Rating failed:', err);
+      const msg = err?.userMessage || 'Failed to record recall rating. Please retry.';
+      setRatingError(msg);
+      showToast('error', msg, err?.debugDetail);
+    } finally {
+      setIsRating(false);
+    }
+  };
+
+  // ── 8. Return to Review Queue after Completion ──────────────────
+  const handleReturnToQueue = async () => {
+    setCurrentItem(null);
+    setIsRevealed(false);
+    setActiveSession(null);
+    sessionStorage.removeItem(SESSION_STORAGE_KEY);
+    await loadReviewData();
+  };
+
+  // ── 9. Refresh Queue Button in Empty State ──────────────────────
+  const handleRefreshQueue = async () => {
+    setIsRefreshing(true);
+    try {
+      await loadReviewData(true);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  // ── Loading Skeleton ────────────────────────────────────────────
+  if (viewMode === 'loading') {
     return (
       <div className="flex-1 flex flex-col items-center justify-center p-8 bg-surface">
-        <div className="w-full max-w-md bg-surface-container-lowest border border-border-default rounded-2xl p-8 text-center shadow-lg flex flex-col items-center gap-5">
-          <div className="w-16 h-16 bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 rounded-full flex items-center justify-center shadow-xs">
-            <Check size={32} strokeWidth={2.5} />
-          </div>
-          <div>
-            <h2 className="text-2xl font-bold text-on-surface tracking-tight">You're all caught up!</h2>
-            <p className="text-on-surface-variant text-sm mt-1">
-              No more cards due for review in this session.
-            </p>
-          </div>
-          
-          <div className="w-full p-4 border border-border-default rounded-xl bg-surface-container-low/60 text-on-surface flex justify-between items-center shadow-2xs">
-            <span className="font-semibold text-xs text-on-surface-variant uppercase tracking-wider">Session Progress</span>
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-on-surface-variant">Cards Reviewed:</span>
-              <span className="bg-primary text-on-primary px-2.5 py-0.5 font-bold text-xs rounded-md shadow-2xs">{sessionCount}</span>
-            </div>
-          </div>
-          
-          <button 
-            onClick={fetchDueCards}
-            className="w-full py-3 bg-primary text-on-primary font-semibold text-sm rounded-xl shadow-sm hover:bg-primary/90 hover:shadow transition-all"
-          >
-            Check for Due Cards
-          </button>
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="animate-spin text-primary w-10 h-10" strokeWidth={2.5} />
+          <p className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">
+            Loading spaced review queue...
+          </p>
         </div>
       </div>
     );
   }
 
-  const currentCard = cards[currentIndex];
-  const isFlipped = state === 'answer';
-
-  return (
-    <div className="flex-1 flex flex-col h-full overflow-hidden bg-surface">
-      {/* Header */}
-      <header className="h-16 border-b border-border-default flex items-center justify-between px-6 bg-surface-container-lowest z-10 shrink-0">
-        <div className="flex items-center gap-4">
-          <h2 className="text-lg font-bold text-on-surface tracking-tight">Study Center</h2>
-          <div className="h-4 w-px bg-border-default"></div>
-          <div className="flex items-center gap-2 px-3 py-1 bg-surface-container-low rounded-full border border-border-default shadow-2xs">
-            <span className="w-2 h-2 rounded-full bg-accent-blue animate-pulse"></span>
-            <span className="text-xs font-medium text-on-surface-variant">Focus Mode Active</span>
+  // ── Error State ─────────────────────────────────────────────────
+  if (viewMode === 'error') {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center p-8 bg-surface">
+        <div className="w-full max-w-md bg-surface border-2 border-border-default rounded-2xl p-8 text-center shadow-neo flex flex-col items-center gap-4">
+          <div className="w-12 h-12 bg-error/10 text-error border border-error/20 rounded-xl flex items-center justify-center">
+            <AlertCircle size={26} strokeWidth={2.5} />
           </div>
-        </div>
-        
-        <div className="flex items-center gap-3">
-          {lastReviewedCardId && sessionCount > 0 && (
-             <button 
-               onClick={handleUndo}
-               disabled={undoLoading}
-               className="flex items-center gap-1.5 px-3 py-1.5 border border-border-default rounded-lg bg-surface-container-lowest text-xs font-semibold text-on-surface shadow-xs hover:bg-surface-container active:scale-98 transition-all disabled:opacity-50"
-             >
-               {undoLoading ? <Loader2 size={13} className="animate-spin" /> : <Undo2 size={13} />}
-               <span>Undo Last</span>
-             </button>
-          )}
-          <div className="px-3 py-1.5 bg-primary/10 border border-primary/20 rounded-lg text-xs font-semibold text-primary flex items-center gap-1.5 shadow-2xs">
-            <TrendingUp size={13} />
-            <span>Stability: {currentCard.stability.toFixed(1)}d</span>
+          <div>
+            <h2 className="text-lg font-black text-on-surface">Unable to load Review Queue</h2>
+            <p className="text-xs text-on-surface-variant mt-1">
+              {errorMessage || 'Failed to communicate with the review scheduler.'}
+            </p>
           </div>
-        </div>
-      </header>
-
-      {/* Main Study Zone */}
-      <div className="flex-1 overflow-y-auto flex flex-col items-center justify-center p-6 lg:p-8">
-        
-        {/* Progress Header */}
-        <div className="w-full max-w-2xl flex justify-between items-end mb-4 shrink-0">
-          <div className="flex flex-col gap-1">
-            <span className="text-xs font-semibold uppercase tracking-wider text-on-surface-variant">Card Progress</span>
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-2xl font-bold text-on-surface">{currentIndex + 1}</span>
-              <span className="text-on-surface-variant text-sm font-medium">of {cards.length}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* 3D Flashcard Container */}
-        <div className="relative w-full max-w-2xl min-h-[320px] h-[45vh] max-h-[450px] group mb-8 shrink-0">
-          <div className={clsx(
-            "flashcard-inner w-full h-full relative cursor-pointer",
-            isFlipped && "flashcard-flipped"
-          )} onClick={handleShowAnswer}>
-            
-            {/* Front of Card */}
-            <div className="flashcard-face absolute inset-0 bg-surface-container-lowest border border-border-default shadow-lg hover:shadow-xl rounded-2xl flex flex-col overflow-hidden transition-shadow">
-              <div className="px-6 py-3.5 flex justify-between items-center border-b border-border-default bg-surface-container-low/60">
-                <span className="text-xs font-semibold text-on-surface flex items-center gap-2">
-                  <Brain size={16} className="text-primary" />
-                  <span className="truncate max-w-[240px]">{currentCard.topic_name}</span>
-                </span>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-medium bg-surface-container-lowest text-on-surface-variant px-2.5 py-0.5 border border-border-default rounded-md shadow-2xs">
-                    {currentCard.concept_type}
-                  </span>
-                  <span className="text-xs font-medium bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 px-2.5 py-0.5 border border-emerald-200 dark:border-emerald-800 rounded-md">
-                    {['New', 'Learning', 'Review', 'Relearning'][currentCard.state] || 'Review'}
-                  </span>
-                </div>
-              </div>
-              <div className="flex-1 flex flex-col justify-center items-center text-center p-8 overflow-y-auto custom-scrollbar">
-                <div className="prose prose-slate dark:prose-invert max-w-none prose-p:font-sans prose-p:font-semibold prose-p:text-xl prose-p:leading-snug prose-p:text-on-surface prose-headings:font-bold prose-headings:text-on-surface prose-strong:text-on-surface prose-strong:font-bold prose-em:text-on-surface prose-li:text-on-surface prose-code:text-primary dark:prose-code:text-sky-300">
-                  <MarkdownRenderer content={currentCard.question} />
-                </div>
-                <div className="mt-6 flex items-center gap-2 text-on-surface-variant text-xs opacity-75">
-                  <kbd className="px-2 py-0.5 bg-surface-container border border-border-default rounded font-mono text-[11px] font-semibold">SPACE</kbd>
-                  <span>or click card to reveal answer</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Back of Card */}
-            <div className="flashcard-face flashcard-back absolute inset-0 bg-surface-container-lowest border border-border-default shadow-lg hover:shadow-xl rounded-2xl flex flex-col overflow-hidden transition-shadow">
-              <div className="px-6 py-3.5 flex justify-between items-center border-b border-border-default bg-primary/5">
-                <span className="text-xs font-semibold text-primary flex items-center gap-2">
-                  Answer
-                </span>
-                <span className="text-xs text-on-surface-variant font-medium">
-                  Rate your recall below
-                </span>
-              </div>
-              <div className="flex-1 flex flex-col justify-center items-center text-center p-8 overflow-y-auto custom-scrollbar">
-                <div className="prose prose-slate dark:prose-invert max-w-none prose-p:font-sans prose-p:font-semibold prose-p:text-xl prose-p:leading-snug prose-p:text-on-surface prose-headings:font-bold prose-headings:text-on-surface prose-strong:text-on-surface prose-strong:font-bold prose-em:text-on-surface prose-li:text-on-surface prose-code:text-primary dark:prose-code:text-sky-300">
-                  <MarkdownRenderer content={currentCard.answer} />
-                </div>
-              </div>
-            </div>
-
-          </div>
-        </div>
-
-        {/* Study Controls */}
-        <div className={clsx(
-          "w-full max-w-2xl grid grid-cols-4 gap-3.5 transition-all duration-300 shrink-0",
-          !isFlipped && "opacity-20 pointer-events-none grayscale"
-        )}>
-          <button 
-            onClick={() => handleRate(1)}
-            disabled={!isFlipped}
-            className="flex flex-col items-center justify-center gap-1.5 py-3.5 bg-surface-container-lowest hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-600 border border-border-default hover:border-rose-300 rounded-xl shadow-xs hover:shadow transition-all cursor-pointer group active:scale-98"
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => loadReviewData()}
+            className="gap-2 font-black text-xs shadow-neo-sm mt-2"
           >
-            <div className="flex items-center gap-1.5">
-              <kbd className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-surface-container border border-border-default/80 text-on-surface-variant">1</kbd>
-              <span className="text-sm font-bold">Again</span>
-            </div>
-            <span className="text-xs opacity-70 group-hover:opacity-100">&lt; 1m</span>
-          </button>
-
-          <button 
-            onClick={() => handleRate(2)}
-            disabled={!isFlipped}
-            className="flex flex-col items-center justify-center gap-1.5 py-3.5 bg-surface-container-lowest hover:bg-amber-50 dark:hover:bg-amber-950/40 text-amber-600 border border-border-default hover:border-amber-300 rounded-xl shadow-xs hover:shadow transition-all cursor-pointer group active:scale-98"
-          >
-            <div className="flex items-center gap-1.5">
-              <kbd className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-surface-container border border-border-default/80 text-on-surface-variant">2</kbd>
-              <span className="text-sm font-bold">Hard</span>
-            </div>
-            <span className="text-xs opacity-70 group-hover:opacity-100">~ 5m</span>
-          </button>
-
-          <button 
-            onClick={() => handleRate(3)}
-            disabled={!isFlipped}
-            className="flex flex-col items-center justify-center gap-1.5 py-3.5 bg-surface-container-lowest hover:bg-blue-50 dark:hover:bg-blue-950/40 text-accent-blue border border-border-default hover:border-blue-300 rounded-xl shadow-xs hover:shadow transition-all cursor-pointer group active:scale-98"
-          >
-            <div className="flex items-center gap-1.5">
-              <kbd className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-surface-container border border-border-default/80 text-on-surface-variant">3</kbd>
-              <span className="text-sm font-bold">Good</span>
-            </div>
-            <span className="text-xs opacity-70 group-hover:opacity-100">~ 10m</span>
-          </button>
-
-          <button 
-            onClick={() => handleRate(4)}
-            disabled={!isFlipped}
-            className="flex flex-col items-center justify-center gap-1.5 py-3.5 bg-surface-container-lowest hover:bg-emerald-50 dark:hover:bg-emerald-950/40 text-emerald-600 border border-border-default hover:border-emerald-300 rounded-xl shadow-xs hover:shadow transition-all cursor-pointer group active:scale-98"
-          >
-            <div className="flex items-center gap-1.5">
-              <kbd className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-surface-container border border-border-default/80 text-on-surface-variant">4</kbd>
-              <span className="text-sm font-bold">Easy</span>
-            </div>
-            <span className="text-xs opacity-70 group-hover:opacity-100">~ 4d</span>
-          </button>
+            <RotateCcw size={14} />
+            Retry Connection
+          </Button>
         </div>
-
       </div>
+    );
+  }
+
+  // ── Active Session State ────────────────────────────────────────
+  if (viewMode === 'session' && activeSession && currentItem) {
+    return (
+      <div className="flex-1 overflow-y-auto bg-surface p-4 sm:p-8">
+        <ReviewActiveSession
+          session={activeSession}
+          currentItem={currentItem}
+          isRevealed={isRevealed}
+          onReveal={handleReveal}
+          onRate={handleRate}
+          onCompleteEarly={handleCompleteEarly}
+          onAbandon={handleAbandonSession}
+          isRevealing={isRevealing}
+          isRating={isRating}
+          ratingError={ratingError}
+        />
+      </div>
+    );
+  }
+
+  // ── Session Completion State ────────────────────────────────────
+  if (viewMode === 'completed' && activeSession) {
+    return (
+      <div className="flex-1 overflow-y-auto bg-surface p-4 sm:p-8">
+        <ReviewCompletion
+          session={activeSession}
+          onReturnToQueue={handleReturnToQueue}
+        />
+      </div>
+    );
+  }
+
+  // ── Landing State: Caught Up (Empty Queue) ──────────────────────
+  const isCaughtUp = queue.length === 0 && (!statistics || statistics.due_count === 0);
+
+  if (isCaughtUp && (!activeSession || activeSession.status !== 'active')) {
+    return (
+      <div className="flex-1 overflow-y-auto bg-surface p-4 sm:p-8">
+        <ReviewEmptyState
+          statistics={statistics}
+          onRefreshQueue={handleRefreshQueue}
+          isRefreshing={isRefreshing}
+        />
+      </div>
+    );
+  }
+
+  // ── Landing State: Due Cards Queue Summary ──────────────────────
+  return (
+    <div className="flex-1 overflow-y-auto bg-surface p-4 sm:p-8">
+      <ReviewQueueSummary
+        queue={queue}
+        statistics={statistics}
+        onStartReview={handleStartReview}
+        activeSession={activeSession}
+        onResumeSession={handleResumeSession}
+        onAbandonSession={handleAbandonSession}
+        isStarting={isStarting}
+        isAbandoning={isAbandoning}
+      />
     </div>
   );
 }

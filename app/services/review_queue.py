@@ -50,8 +50,8 @@ class ReviewQueueService:
             source_ref = it.get("source_reference") or {}
             if isinstance(source_ref, dict) and source_ref.get("front"):
                 front_text = source_ref.get("front")
-            elif isinstance(source_ref, dict) and source_ref.get("question_text"):
-                front_text = source_ref.get("question_text")
+            elif isinstance(source_ref, dict) and (source_ref.get("question") or source_ref.get("question_text")):
+                front_text = source_ref.get("question") or source_ref.get("question_text")
 
             results.append(
                 ReviewQueueItemResponse(

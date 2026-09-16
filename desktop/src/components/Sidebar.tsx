@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { 
   Book, BrainCircuit, Settings, BarChart3, ChevronLeft, ChevronRight, 
-  NotebookPen, LayoutDashboard, MessageSquare, Activity, HelpCircle
+  NotebookPen, LayoutDashboard, MessageSquare, Activity, HelpCircle, RotateCcw
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { AuthButton } from './AuthButton';
@@ -28,6 +28,7 @@ export function Sidebar({ className }: SidebarProps) {
     {
       title: 'Study & Review',
       items: [
+        { label: 'Review', path: '/app/review', icon: RotateCcw },
         { label: 'Flashcards', path: '/app/flashcards', icon: BrainCircuit },
         { label: 'Quizzes', path: '/app/quizzes', icon: HelpCircle },
         { label: 'Analytics', path: '/analytics', icon: BarChart3 },
@@ -51,6 +52,9 @@ export function Sidebar({ className }: SidebarProps) {
     }
     if (path === '/app/chat' || path === '/chat') {
       return location.pathname.startsWith('/chat') || location.pathname.startsWith('/app/chat');
+    }
+    if (path === '/app/review' || path === '/review') {
+      return location.pathname.startsWith('/review') || location.pathname.startsWith('/app/review');
     }
     if (path === '/app/flashcards' || path === '/flashcards') {
       return location.pathname.startsWith('/app/flashcards') || location.pathname.startsWith('/flashcards');
