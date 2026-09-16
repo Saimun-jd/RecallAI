@@ -515,13 +515,12 @@ export const client = {
     await this._throwIfError(res, "Failed to fetch flashcard");
     return res.json();
   },
-<<<<<<< HEAD
   updateFlashcard: (async (
-    id: number | string,
-    payload: { question: string; answer: string } | { front?: string; back?: string; position?: number }
+    idOrCardId: number | string,
+    payload: any
   ): Promise<any> => {
-    if (typeof id === 'number') {
-      const res = await fetch(`${API_BASE}/flashcards/${id}`, {
+    if (typeof idOrCardId === 'number') {
+      const res = await fetch(`${API_BASE}/flashcards/${idOrCardId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -529,69 +528,36 @@ export const client = {
       if (!res.ok) throw await parseApiError(res);
       return res.json();
     } else {
-      const res = await fetch(`${API_BASE}/api/v1/flashcards/cards/${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-=======
-  async updateFlashcard(
-    idOrCardId: number | string,
-    dataOrPayload: any
-  ): Promise<any> {
-    if (typeof idOrCardId === 'number') {
-      const res = await fetch(`${API_BASE}/flashcards/${idOrCardId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(dataOrPayload),
-      });
-      await this._throwIfError(res, "Failed to update flashcard");
-      return res.json();
-    } else {
       const res = await fetch(`${API_BASE}/api/v1/flashcards/cards/${idOrCardId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(dataOrPayload),
->>>>>>> f160591998c1060293b8837f7fd3e8101a481f02
+        body: JSON.stringify(payload),
       });
       if (!res.ok) throw await parseApiError(res);
       const json = await res.json();
       return json.data;
     }
-<<<<<<< HEAD
   }) as {
     (id: number, data: { question: string; answer: string }): Promise<{ message: string; flashcard_id: number }>;
     (cardId: string, payload: { front?: string; back?: string; position?: number }): Promise<FlashcardItem>;
   },
-  deleteFlashcard: (async (id: number | string): Promise<any> => {
-    if (typeof id === 'number') {
-      const res = await fetch(`${API_BASE}/flashcards/${id}`, { method: "DELETE" });
+
+  deleteFlashcard: (async (idOrCardId: number | string): Promise<any> => {
+    if (typeof idOrCardId === 'number') {
+      const res = await fetch(`${API_BASE}/flashcards/${idOrCardId}`, { method: "DELETE" });
       if (!res.ok) throw await parseApiError(res);
       return res.json();
     } else {
-      const res = await fetch(`${API_BASE}/api/v1/flashcards/cards/${id}`, {
-=======
-  },
-
-  async deleteFlashcard(idOrCardId: number | string): Promise<any> {
-    if (typeof idOrCardId === 'number') {
-      const res = await fetch(`${API_BASE}/flashcards/${idOrCardId}`, { method: "DELETE" });
-      await this._throwIfError(res, "Failed to delete flashcard");
-      return res.json();
-    } else {
       const res = await fetch(`${API_BASE}/api/v1/flashcards/cards/${idOrCardId}`, {
->>>>>>> f160591998c1060293b8837f7fd3e8101a481f02
         method: 'DELETE',
       });
       if (!res.ok) throw await parseApiError(res);
       const json = await res.json();
       return json.data;
     }
-<<<<<<< HEAD
   }) as {
     (id: number): Promise<{ message: string }>;
     (cardId: string): Promise<{ success: boolean }>;
-=======
->>>>>>> f160591998c1060293b8837f7fd3e8101a481f02
   },
   async getSettings(): Promise<Record<string, string>> {
     const res = await fetch(`${API_BASE}/settings`);
@@ -1027,54 +993,31 @@ export const client = {
     return res.json();
   },
   
-<<<<<<< HEAD
   generateFlashcards: (async (
-    arg1: number | FlashcardGenerateRequest,
-    arg2?: { count: number; custom_prompt?: string; provider_override?: string }
-  ): Promise<any> => {
-    if (typeof arg1 === 'number') {
-      const res = await fetch(`${API_BASE}/topics/${arg1}/flashcards`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(arg2 || {}),
-      });
-      if (!res.ok) throw await parseApiError(res);
-=======
-  async generateFlashcards(
     topicIdOrPayload: number | FlashcardGenerateRequest,
-    options?: { count: number; custom_prompt?: string, provider_override?: string; concept_name?: string }
-  ): Promise<any> {
+    options?: { count: number; custom_prompt?: string; provider_override?: string; concept_name?: string }
+  ): Promise<any> => {
     if (typeof topicIdOrPayload === 'number') {
       const res = await fetch(`${API_BASE}/topics/${topicIdOrPayload}/flashcards`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(options || {}),
       });
-      if (!res.ok) {
-        throw await parseApiError(res);
-      }
->>>>>>> f160591998c1060293b8837f7fd3e8101a481f02
+      if (!res.ok) throw await parseApiError(res);
       return res.json();
     } else {
       const res = await fetch(`${API_BASE}/api/v1/flashcards/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-<<<<<<< HEAD
-        body: JSON.stringify(arg1),
-=======
         body: JSON.stringify(topicIdOrPayload),
->>>>>>> f160591998c1060293b8837f7fd3e8101a481f02
       });
       if (!res.ok) throw await parseApiError(res);
       const json = await res.json();
       return json.data;
     }
-<<<<<<< HEAD
   }) as {
-    (topicId: number, options: { count: number; custom_prompt?: string; provider_override?: string }): Promise<{ flashcards: Flashcard[] }>;
+    (topicId: number, options?: { count: number; custom_prompt?: string; provider_override?: string; concept_name?: string }): Promise<{ flashcards: Flashcard[] }>;
     (payload: FlashcardGenerateRequest): Promise<FlashcardSetDetailResponse>;
-=======
->>>>>>> f160591998c1060293b8837f7fd3e8101a481f02
   },
 
   // ─── PDF Annotation API ───
@@ -1719,6 +1662,106 @@ export const client = {
     return json.data;
   },
 
+  // ── Quizzes & Assessments ───────────────────────────────────────
+
+  async listQuizzes(limit: number = 50, offset: number = 0): Promise<QuizListResponse> {
+    const params = new URLSearchParams({ limit: limit.toString(), offset: offset.toString() });
+    const res = await fetch(`${API_BASE}/api/v1/quizzes?${params.toString()}`);
+    if (!res.ok) throw await parseApiError(res);
+    const json = await res.json();
+    return json.data;
+  },
+
+  async getQuiz(quizId: string): Promise<QuizDetailResponse> {
+    const res = await fetch(`${API_BASE}/api/v1/quizzes/${quizId}`);
+    if (!res.ok) throw await parseApiError(res);
+    const json = await res.json();
+    return json.data;
+  },
+
+  async generateQuiz(payload: QuizGenerateRequest): Promise<QuizDetailResponse> {
+    const res = await fetch(`${API_BASE}/api/v1/quizzes/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw await parseApiError(res);
+    const json = await res.json();
+    return json.data;
+  },
+
+  async updateQuiz(quizId: string, payload: QuizUpdateRequest): Promise<QuizResponse> {
+    const res = await fetch(`${API_BASE}/api/v1/quizzes/${quizId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw await parseApiError(res);
+    const json = await res.json();
+    return json.data;
+  },
+
+  async deleteQuiz(quizId: string): Promise<void> {
+    const res = await fetch(`${API_BASE}/api/v1/quizzes/${quizId}`, {
+      method: 'DELETE',
+    });
+    if (!res.ok) throw await parseApiError(res);
+  },
+
+  async startQuizAttempt(quizId: string): Promise<QuizAttemptStartResponse> {
+    const res = await fetch(`${API_BASE}/api/v1/quizzes/${quizId}/attempts`, {
+      method: 'POST',
+    });
+    if (!res.ok) throw await parseApiError(res);
+    const json = await res.json();
+    return json.data;
+  },
+
+  async listQuizAttempts(quizId: string, limit: number = 20, offset: number = 0): Promise<QuizAttemptSummaryResponse[]> {
+    const params = new URLSearchParams({ limit: limit.toString(), offset: offset.toString() });
+    const res = await fetch(`${API_BASE}/api/v1/quizzes/${quizId}/attempts?${params.toString()}`);
+    if (!res.ok) throw await parseApiError(res);
+    const json = await res.json();
+    return json.data;
+  },
+
+  async getQuizAttempt(attemptId: string): Promise<QuizAttemptStartResponse | QuizAttemptResultResponse> {
+    const res = await fetch(`${API_BASE}/api/v1/quiz-attempts/${attemptId}`);
+    if (!res.ok) throw await parseApiError(res);
+    const json = await res.json();
+    return json.data;
+  },
+
+  async recordQuizAnswer(
+    attemptId: string,
+    questionIdOrPayload: string | SubmitAnswerItem,
+    selectedAnswer?: string
+  ): Promise<{ status: string; question_id: string }> {
+    const payload =
+      typeof questionIdOrPayload === 'string'
+        ? { question_id: questionIdOrPayload, selected_answer: selectedAnswer! }
+        : questionIdOrPayload;
+    const res = await fetch(`${API_BASE}/api/v1/quiz-attempts/${attemptId}/answers`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw await parseApiError(res);
+    const json = await res.json();
+    return json.data;
+  },
+
+  async submitQuizAttempt(attemptId: string, answers?: SubmitAnswerItem[]): Promise<QuizAttemptResultResponse> {
+    const res = await fetch(`${API_BASE}/api/v1/quiz-attempts/${attemptId}/submit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ answers: answers || [] }),
+    });
+    if (!res.ok) throw await parseApiError(res);
+    const json = await res.json();
+    return json.data;
+  },
+
   // ─── LLM Inspection (System Prompts & Token Usage) ───
   async getPrompts(): Promise<{ prompts: SystemPrompt[] }> {
     const res = await fetch(`${API_BASE}/api/prompts`);
@@ -2213,3 +2256,136 @@ export interface RateReviewResult {
   total_items: number;
   session_status: string;
 }
+
+// ── Quiz & Assessment Interfaces ──────────────────────────────────
+
+export interface QuizResponse {
+  id: string;
+  workspace_id?: string;
+  user_id: string;
+  title: string;
+  description?: string | null;
+  source_document_ids: string[];
+  question_count: number;
+  difficulty: 'easy' | 'medium' | 'hard' | string;
+  created_at: string;
+  updated_at: string;
+  topic?: string | null;
+}
+
+export interface QuizListResponse {
+  quizzes: QuizResponse[];
+  total: number;
+}
+
+export interface QuizQuestionResponse {
+  id: string;
+  quiz_id: string;
+  type: 'multiple_choice' | 'true_false' | string;
+  question: string;
+  options: string[];
+  correct_answer: string;
+  explanation: string;
+  source_metadata: Array<Record<string, any>>;
+  position: number;
+  created_at: string;
+  updated_at: string;
+  question_text?: string;
+  question_type?: string;
+  order_index?: number;
+}
+
+export interface QuizDetailResponse extends QuizResponse {
+  questions: QuizQuestionResponse[];
+}
+
+export interface QuizGenerateRequest {
+  document_ids?: string[] | null;
+  title?: string | null;
+  topic?: string | null;
+  question_count?: number;
+  question_types?: string[];
+  difficulty?: 'easy' | 'medium' | 'hard' | string;
+  provider?: string | null;
+}
+
+export interface QuizUpdateRequest {
+  title?: string;
+  description?: string;
+}
+
+export interface MaskedQuizQuestion {
+  id: string;
+  type: 'multiple_choice' | 'true_false' | string;
+  question: string;
+  options: string[];
+  position: number;
+  question_text?: string;
+  question_type?: string;
+  order_index?: number;
+}
+
+export interface QuizAttemptStartResponse {
+  id: string;
+  quiz_id: string;
+  status: 'in_progress' | 'submitted' | string;
+  started_at: string;
+  total_questions: number;
+  questions: MaskedQuizQuestion[];
+  completed_at?: string | null;
+  score?: number | null;
+}
+
+export interface SubmitAnswerItem {
+  question_id: string;
+  selected_answer: string;
+}
+
+export interface QuestionEvaluationResult {
+  question_id: string;
+  type: string;
+  question: string;
+  options: string[];
+  selected_answer: string;
+  correct_answer: string;
+  is_correct: boolean;
+  explanation: string;
+  source_metadata: Array<Record<string, any>>;
+  user_answer?: string | null;
+  question_text?: string;
+  question_type?: string;
+  page_number?: number | null;
+  source_quote?: string | null;
+}
+
+export interface QuizAttemptResultResponse {
+  id: string;
+  quiz_id: string;
+  status: string;
+  started_at: string;
+  submitted_at?: string | null;
+  completed_at?: string | null;
+  score: number;
+  percentage: number;
+  total_questions: number;
+  correct_answers: number;
+  incorrect_answers: number;
+  unanswered: number;
+  duration_seconds?: number | null;
+  question_results: QuestionEvaluationResult[];
+  evaluation?: QuestionEvaluationResult[];
+}
+
+export interface QuizAttemptSummaryResponse {
+  id: string;
+  quiz_id: string;
+  status: string;
+  started_at: string;
+  submitted_at?: string | null;
+  completed_at?: string | null;
+  score: number;
+  percentage: number;
+  total_questions: number;
+  correct_answers: number;
+}
+

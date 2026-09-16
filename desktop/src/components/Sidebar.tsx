@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { 
   Book, BrainCircuit, Settings, BarChart3, ChevronLeft, ChevronRight, 
-  NotebookPen, LayoutDashboard, MessageSquare, Activity
+  NotebookPen, LayoutDashboard, MessageSquare, Activity, HelpCircle
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { AuthButton } from './AuthButton';
@@ -29,6 +29,7 @@ export function Sidebar({ className }: SidebarProps) {
       title: 'Study & Review',
       items: [
         { label: 'Flashcards', path: '/app/flashcards', icon: BrainCircuit },
+        { label: 'Quizzes', path: '/app/quizzes', icon: HelpCircle },
         { label: 'Analytics', path: '/analytics', icon: BarChart3 },
       ],
     },
@@ -51,13 +52,14 @@ export function Sidebar({ className }: SidebarProps) {
     if (path === '/app/chat' || path === '/chat') {
       return location.pathname.startsWith('/chat') || location.pathname.startsWith('/app/chat');
     }
-<<<<<<< HEAD
     if (path === '/app/flashcards' || path === '/flashcards') {
       return location.pathname.startsWith('/app/flashcards') || location.pathname.startsWith('/flashcards');
-=======
+    }
+    if (path === '/app/quizzes' || path === '/quizzes') {
+      return location.pathname.startsWith('/app/quizzes') || location.pathname.startsWith('/quizzes');
+    }
     if (path === '/llm-inspection') {
       return location.pathname.startsWith('/llm-inspection');
->>>>>>> f160591998c1060293b8837f7fd3e8101a481f02
     }
     return location.pathname === path || (path !== '/' && location.pathname.startsWith(path));
   };

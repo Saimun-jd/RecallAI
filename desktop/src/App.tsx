@@ -12,13 +12,14 @@ import { ReviewView } from './views/ReviewView';
 import { SettingsView } from './views/SettingsView';
 import { BookDetailView } from './views/BookDetailView';
 import { AnalyticsView } from './views/AnalyticsView';
-<<<<<<< HEAD
 import { FlashcardSetsView } from './views/FlashcardSetsView';
 import { FlashcardSetDetailView } from './views/FlashcardSetDetailView';
 import { FlashcardStudyView } from './views/FlashcardStudyView';
-=======
+import { QuizzesView } from './views/QuizzesView';
+import { QuizDetailView } from './views/QuizDetailView';
+import { QuizAttemptView } from './views/QuizAttemptView';
+import { QuizResultsView } from './views/QuizResultsView';
 import { LLMInspectionView } from './views/LLMInspectionView';
->>>>>>> f160591998c1060293b8837f7fd3e8101a481f02
 import { loadSettings } from './api/settingsStore';
 import { getApiKey } from './api/keychain';
 import { getCurrentWindow } from '@tauri-apps/api/window';
@@ -407,6 +408,14 @@ export default function App() {
           <Route path="/app/flashcards/:setId" element={<FlashcardSetDetailView />} />
           <Route path="/flashcards/:setId/study" element={<FlashcardStudyView />} />
           <Route path="/app/flashcards/:setId/study" element={<FlashcardStudyView />} />
+          <Route path="/quizzes" element={<QuizzesView />} />
+          <Route path="/app/quizzes" element={<QuizzesView />} />
+          <Route path="/quizzes/:quizId" element={<QuizDetailView />} />
+          <Route path="/app/quizzes/:quizId" element={<QuizDetailView />} />
+          <Route path="/quizzes/:quizId/attempt" element={<QuizAttemptView />} />
+          <Route path="/app/quizzes/:quizId/attempt" element={<QuizAttemptView />} />
+          <Route path="/quizzes/:quizId/results/:attemptId" element={<QuizResultsView />} />
+          <Route path="/app/quizzes/:quizId/results/:attemptId" element={<QuizResultsView />} />
           <Route path="/analytics" element={<AnalyticsView />} />
           <Route path="/app/analytics" element={<AnalyticsView />} />
           <Route path="/llm-inspection" element={<LLMInspectionView />} />

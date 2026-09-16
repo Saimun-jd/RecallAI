@@ -2,7 +2,7 @@ import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { 
   LayoutDashboard, BookOpen, BrainCircuit, MessageSquare, 
-  BarChart3, Settings, X, LogOut, NotebookPen, Layers
+  BarChart3, Settings, X, LogOut, NotebookPen, Layers, HelpCircle
 } from 'lucide-react';
 import { ThemeToggle } from '../../hooks/useTheme';
 import { useAuth } from '../../contexts/AuthContext';
@@ -19,8 +19,11 @@ export function MobileNav({ isDrawerOpen, onCloseDrawer, user }: MobileNavProps)
   const location = useLocation();
   const { logout } = useAuth();
 
-  // Hide mobile bottom bar during active review session for distraction-free study
-  const isDistractionFree = location.pathname.startsWith('/review') || location.pathname.includes('/study');
+  // Hide mobile bottom bar during active review session or quiz attempt for distraction-free study
+  const isDistractionFree =
+    location.pathname.startsWith('/review') ||
+    location.pathname.includes('/study') ||
+    location.pathname.includes('/attempt');
 
   const navItems = [
     { label: 'Home', path: '/app', icon: LayoutDashboard },
@@ -36,6 +39,7 @@ export function MobileNav({ isDrawerOpen, onCloseDrawer, user }: MobileNavProps)
     { label: 'Knowledge Hub', path: '/app/chat', icon: MessageSquare },
     { label: 'Notes', path: '/notes', icon: NotebookPen },
     { label: 'Flashcards', path: '/app/flashcards', icon: BrainCircuit },
+    { label: 'Quizzes', path: '/app/quizzes', icon: HelpCircle },
     { label: 'Analytics', path: '/analytics', icon: BarChart3 },
     { label: 'Settings', path: '/settings', icon: Settings },
   ];
@@ -61,6 +65,9 @@ export function MobileNav({ isDrawerOpen, onCloseDrawer, user }: MobileNavProps)
     }
     if (path === '/app/flashcards' || path === '/flashcards') {
       return location.pathname.startsWith('/app/flashcards') || location.pathname.startsWith('/flashcards');
+    }
+    if (path === '/app/quizzes' || path === '/quizzes') {
+      return location.pathname.startsWith('/app/quizzes') || location.pathname.startsWith('/quizzes');
     }
     return location.pathname === path || (path !== '/' && location.pathname.startsWith(path));
   };

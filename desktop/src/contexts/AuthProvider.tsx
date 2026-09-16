@@ -3,6 +3,7 @@ import { authApi, type User, type Workspace, type LoginPayload, type RegisterPay
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { isTauriEnvironment } from '../api/keychain';
 import { open as tauriOpen } from '@tauri-apps/plugin-shell';
+import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
 import { API_BASE } from '../api/client';
 import { AuthContext, type AuthStatus } from './AuthContext';
 

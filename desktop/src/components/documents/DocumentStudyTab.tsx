@@ -66,9 +66,9 @@ export function DocumentStudyTab({ document }: DocumentStudyTabProps) {
           </div>
 
           <Button
-            variant="outline"
-            onClick={() => navigate(`/review?quiz=true&document_id=${document.id}`)}
-            className="w-full justify-center gap-2 border-border-default hover:border-amber-500/50 hover:bg-amber-500/5"
+            variant="primary"
+            onClick={() => navigate(`/app/quizzes?generate=true&document_id=${document.id}`)}
+            className="w-full justify-center gap-2"
           >
             <span>Generate Quiz</span>
             <ArrowRight size={14} />
