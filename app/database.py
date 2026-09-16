@@ -1217,8 +1217,32 @@ def get_book_by_id(book_id: int) -> Optional[Dict[str, Any]]:
 def delete_book(book_id: int) -> bool:
     with get_connection() as conn:
         cursor = conn.cursor()
+        cursor.execute("SELECT file_path, file_hash FROM books WHERE id = ?", (book_id,))
+        row = cursor.fetchone()
+        file_path = row['file_path'] if row else None
+        file_hash = row['file_hash'] if row else None
+
         cursor.execute("DELETE FROM books WHERE id = ?", (book_id,))
-        return cursor.rowcount > 0
+        success = cursor.rowcount > 0
+
+    if success and file_hash:
+        try:
+            # Clean up parsed document on disk if no other book references this hash
+            if file_path and os.path.exists(file_path):
+                with get_connection() as conn:
+                    c = conn.cursor()
+                    c.execute("SELECT COUNT(*) FROM books WHERE file_hash = ?", (file_hash,))
+                    if c.fetchone()[0] == 0:
+                        os.remove(file_path)
+            # Remove cover file if exists
+            covers_dir = os.path.join(DATA_DIR, "covers")
+            cover_path = os.path.join(covers_dir, f"{file_hash}.png")
+            if os.path.exists(cover_path):
+                os.remove(cover_path)
+        except Exception as e:
+            logger.warning(f"Failed to clean up files for book {book_id}: {e}")
+
+    return success
 
 def get_note_by_topic(topic_id: int) -> str:
     """Retrieves Markdown text from the notes table for a topic."""

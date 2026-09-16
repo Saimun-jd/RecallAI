@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { 
   Book, BrainCircuit, Settings, BarChart3, ChevronLeft, ChevronRight, 
-  NotebookPen, LayoutDashboard, MessageSquare, Activity, BookOpen
+  NotebookPen, LayoutDashboard, MessageSquare, Activity
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { AuthButton } from './AuthButton';
@@ -21,7 +21,6 @@ export function Sidebar({ className }: SidebarProps) {
       items: [
         { label: 'Dashboard', path: '/app', icon: LayoutDashboard },
         { label: 'Documents', path: '/documents', icon: Book },
-        { label: 'Library', path: '/library', icon: BookOpen },
         { label: 'Knowledge Hub', path: '/app/chat', icon: MessageSquare },
         { label: 'Notes', path: '/notes', icon: NotebookPen },
       ],
@@ -45,9 +44,6 @@ export function Sidebar({ className }: SidebarProps) {
   const isItemActive = (path: string) => {
     if (path === '/app') {
       return location.pathname === '/app';
-    }
-    if (path === '/library') {
-      return location.pathname === '/library' || location.pathname.startsWith('/app/library');
     }
     if (path === '/documents') {
       return location.pathname === '/documents' || location.pathname.startsWith('/app/documents') || location.pathname.startsWith('/books') || location.pathname.startsWith('/documents');

@@ -45,7 +45,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setUser(profile.user);
             setWorkspace(profile.workspace);
             setStatus('authenticated');
+            setOnboardingCompleted(true);
+            localStorage.setItem(ONBOARDING_KEY, 'true');
+            localStorage.setItem('has-seen-welcome', 'true');
             await authApi.setBackendUser(profile.user.id, storedToken);
+
+            if (isSupabaseConfigured) {
+              try {
+                await supabase.auth.setSession({
+                  access_token: storedToken,
+                  refresh_token: '',
+                });
+              } catch (e) {
+                console.warn('[Auth] Failed to set Supabase session from stored JWT:', e);
+              }
+            }
           }
           return;
         } catch (err) {
@@ -75,6 +89,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setWorkspace(mappedWorkspace);
             saveToken(session.access_token);
             setStatus('authenticated');
+            setOnboardingCompleted(true);
+            localStorage.setItem(ONBOARDING_KEY, 'true');
+            localStorage.setItem('has-seen-welcome', 'true');
             await authApi.setBackendUser(session.user.id, session.access_token);
             return;
           }
@@ -134,6 +151,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setWorkspace(mappedWorkspace);
           saveToken(session.access_token);
           setStatus('authenticated');
+          setOnboardingCompleted(true);
+          localStorage.setItem(ONBOARDING_KEY, 'true');
+          localStorage.setItem('has-seen-welcome', 'true');
           await authApi.setBackendUser(session.user.id, session.access_token);
         }
       } catch (err) {
@@ -164,6 +184,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setWorkspace(mappedWorkspace);
         saveToken(session.access_token);
         setStatus('authenticated');
+        setOnboardingCompleted(true);
+        localStorage.setItem(ONBOARDING_KEY, 'true');
+        localStorage.setItem('has-seen-welcome', 'true');
         await authApi.setBackendUser(session.user.id, session.access_token);
       }
     });
@@ -343,6 +366,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = async (): Promise<void> => {
     const currentToken = token;
+
+    // Flush any pending sync changes to Supabase before tearing down session
+    if (currentToken) {
+      try {
+        const fetchFn = isTauriEnvironment() ? tauriFetch : window.fetch.bind(window);
+        await fetchFn(`${API_BASE}/api/sync`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${currentToken}`,
+          },
+        });
+      } catch (syncErr) {
+        console.warn('[Auth] Pre-logout sync flush error:', syncErr);
+      }
+    }
+
     saveToken(null);
     setUser(null);
     setWorkspace(null);
@@ -359,6 +398,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const completeOnboarding = () => {
     setOnboardingCompleted(true);
     localStorage.setItem(ONBOARDING_KEY, 'true');
+    localStorage.setItem('has-seen-welcome', 'true');
   };
 
   const resetOnboarding = () => {

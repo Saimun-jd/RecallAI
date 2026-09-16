@@ -83,7 +83,7 @@ export function OnboardingView() {
             onClick={handleFinish}
             className="text-xs font-bold text-on-surface-variant hover:text-on-surface hover:underline px-2 py-1 focus:outline-none"
           >
-            Skip to Library
+            Skip to Dashboard
           </button>
         </div>
       </header>
@@ -188,7 +188,7 @@ export function OnboardingView() {
                       </p>
                     </div>
                     <span className="inline-block px-3 py-1 rounded-full text-[11px] font-bold bg-surface border border-border-default text-on-surface">
-                      Opens document importer in Library
+                      Opens document importer in Documents
                     </span>
                   </div>
 
@@ -236,7 +236,7 @@ export function OnboardingView() {
                     onClick={handleFinish}
                     className="font-extrabold shadow-neo"
                   >
-                    <span>Enter Library</span>
+                    <span>Enter Dashboard</span>
                     <ArrowRight size={16} className="ml-2 stroke-[2.5]" />
                   </Button>
                 </div>

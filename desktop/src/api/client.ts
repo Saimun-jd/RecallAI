@@ -1,6 +1,7 @@
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
 import { parseApiError, parseSSEError, type ApiError } from './errors';
 import { isTauriEnvironment } from './keychain';
+import { MAX_PDF_BYTES, formatFileSize, validateDocumentFile } from '../utils/fileValidation';
 
 const fetch = async (url: string, options?: any) => {
   const fetchFn = isTauriEnvironment() ? tauriFetch : window.fetch.bind(window);
@@ -170,6 +171,7 @@ export interface TokenLogEntry {
 
 export interface Book {
   id: number;
+  uuid?: string;
   title: string;
   file_path: string;
   file_hash: string;
@@ -422,6 +424,15 @@ export const client = {
     await this._throwIfError(res, "Failed to delete book");
     return res.json();
   },
+  async syncWithRemote(token: string): Promise<void> {
+    const res = await fetch(`${API_BASE}/api/sync`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    await this._throwIfError(res, "Failed to synchronize with remote");
+  },
   async getTopics(bookId?: number): Promise<Topic[]> {
     const url = bookId ? `${API_BASE}/topics?book_id=${bookId}` : `${API_BASE}/topics`;
     const res = await fetch(url);
@@ -627,8 +638,22 @@ export const client = {
     await this._throwIfError(res, "Backend not healthy");
     return res.json();
   },
-  async uploadPdfAndGetToc(file: File, bookTitle: string, totalPages: number): Promise<UploadResponse> {
-    const fileHash = await Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", await file.arrayBuffer())))
+  async uploadPdfAndGetToc(
+    file: File, 
+    bookTitle: string, 
+    totalPages: number, 
+    existingHash?: string,
+    onUploadProgress?: (percent: number) => void
+  ): Promise<UploadResponse> {
+    if (file.size > MAX_PDF_BYTES) {
+      throw {
+        userMessage: `PDF exceeds maximum allowed size of 50 MB (${formatFileSize(file.size)}).`,
+        message: 'Payload too large',
+        status: 413,
+      };
+    }
+
+    const fileHash = existingHash || Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", await file.arrayBuffer())))
       .map(b => b.toString(16).padStart(2, "0")).join("");
       
     const formData = new FormData();
@@ -637,6 +662,63 @@ export const client = {
     formData.append("file_hash", fileHash);
     formData.append("total_pages", totalPages.toString());
     
+    if (onUploadProgress) {
+      return new Promise<UploadResponse>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("POST", `${API_BASE}/books/upload`, true);
+        
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable) {
+            const percent = Math.round((e.loaded / e.total) * 100);
+            onUploadProgress(percent);
+          }
+        };
+        
+        xhr.onload = () => {
+          try {
+            const body = JSON.parse(xhr.responseText);
+            if (xhr.status >= 200 && xhr.status < 300) {
+              if (typeof window !== 'undefined') {
+                window.dispatchEvent(new Event('trigger-sync'));
+              }
+              resolve(body as UploadResponse);
+            } else {
+              let msg = `Request failed with status ${xhr.status}`;
+              let code = 'INTERNAL_ERROR';
+              let detail: string | undefined;
+              if (body?.error && typeof body.error === 'object') {
+                code = body.error.code || code;
+                msg = body.error.message || msg;
+                detail = body.error.details;
+              } else if (body?.detail) {
+                msg = typeof body.detail === 'string' ? body.detail : JSON.stringify(body.detail);
+              } else if (body?.message) {
+                msg = typeof body.message === 'string' ? body.message : JSON.stringify(body.message);
+              }
+              const err: any = new Error(msg);
+              err.errorCode = code;
+              err.userMessage = msg;
+              err.httpStatus = xhr.status;
+              err.debugDetail = detail;
+              reject(err);
+            }
+          } catch {
+            const err: any = new Error(`Upload failed with status ${xhr.status}`);
+            err.httpStatus = xhr.status;
+            reject(err);
+          }
+        };
+        
+        xhr.onerror = () => {
+          const err: any = new Error("Network error during file upload. Please check your connection.");
+          err.userMessage = "Network error during file upload. Please check your connection.";
+          reject(err);
+        };
+        
+        xhr.send(formData);
+      });
+    }
+
     const res = await fetch(`${API_BASE}/books/upload`, {
       method: "POST",
       body: formData,
@@ -1242,6 +1324,14 @@ export const client = {
   },
 
   async uploadDocument(file: File): Promise<DocumentUploadResponse> {
+    const validationError = validateDocumentFile(file);
+    if (validationError) {
+      throw {
+        userMessage: validationError,
+        message: 'File validation failed',
+        status: 413,
+      };
+    }
     const formData = new FormData();
     formData.append('file', file);
     const res = await fetch(`${API_BASE}/api/v1/documents/upload`, {

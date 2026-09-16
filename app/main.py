@@ -380,7 +380,10 @@ async def set_active_user(req: SetUserRequest):
                 if not os.path.exists(new_db_path):
                     # First login: rename the offline db to claim it
                     set_active_db_path(new_db_path)
-                    os.rename(default_db_path, new_db_path)
+                    try:
+                        os.rename(default_db_path, new_db_path)
+                    except Exception as ren_err:
+                        logger.warning(f"Could not rename default db: {ren_err}")
                 else:
                     # Merge offline data to cloud via push
                     if req.token:
@@ -394,14 +397,20 @@ async def set_active_user(req: SetUserRequest):
                         
                         set_active_db_path(new_db_path)
                         if os.path.exists(default_db_path):
-                            os.remove(default_db_path)
+                            try:
+                                os.remove(default_db_path)
+                            except Exception as rem_err:
+                                logger.warning(f"Could not remove default db: {rem_err}")
                     else:
                         set_active_db_path(new_db_path)
                         
             else:
                 set_active_db_path(new_db_path)
                 if os.path.exists(default_db_path):
-                    os.remove(default_db_path)
+                    try:
+                        os.remove(default_db_path)
+                    except Exception as rem_err:
+                        logger.warning(f"Could not remove default db: {rem_err}")
                     
             init_db()
     else:
@@ -426,6 +435,17 @@ async def delete_all_data(authorization: str = Header(None)):
                 except Exception:
                     pass
         update_last_sync_time("1970-01-01 00:00:00")
+        
+        # Also clear Foundation DB (recall_saas.db) documents if any
+        try:
+            from app.models.database import get_db
+            with get_db() as f_conn:
+                f_conn.execute("DELETE FROM document_chunks")
+                f_conn.execute("DELETE FROM processing_jobs")
+                f_conn.execute("DELETE FROM documents")
+        except Exception as e:
+            logger.warning(f"Failed to clear Foundation database in delete_all_data: {e}")
+            
     except Exception as e:
         logger.error(f"Failed to clear local data: {e}")
         raise HTTPException(status_code=500, detail="Failed to clear local data")
@@ -438,11 +458,11 @@ async def delete_all_data(authorization: str = Header(None)):
                 supabase = get_supabase_client(token)
                 for table in reversed(SYNC_TABLES):
                     # We can't delete without a filter, so we filter by a known condition (all user records)
-                    # For RLS, user_id = auth.uid() is implicit. We just need a truthy condition.
-                    supabase.table(table).delete().neq("id", -1).execute()
+                    # For RLS, user_id = auth.uid() is implicit. In Supabase, the primary key column is 'uuid'.
+                    supabase.table(table).delete().neq("uuid", "00000000-0000-0000-0000-000000000000").execute()
                 
                 try:
-                    supabase.table("sync_tombstones").delete().neq("id", -1).execute()
+                    supabase.table("sync_tombstones").delete().neq("uuid", "00000000-0000-0000-0000-000000000000").execute()
                 except Exception as e:
                     logger.error(f"Failed to delete sync_tombstones on Supabase: {e}")
                     
@@ -461,9 +481,15 @@ async def upload_and_parse_toc(
     book_title: str = Form(...),
     total_pages: int = Form(default=0)
 ) -> dict:
+    pdf_bytes = await file.read()
+    if len(pdf_bytes) > core_settings.MAX_PDF_BYTES:
+        raise AppException(
+            code=CoreErrorCode.PAYLOAD_TOO_LARGE,
+            message=f"PDF document exceeds maximum allowed size of 50 MB (received {len(pdf_bytes) / (1024 * 1024):.1f} MB).",
+            status_code=413,
+        )
+
     try:
-        pdf_bytes = await file.read()
-        
         # Save file to disk
         file_path = os.path.join(PARSED_DOCS_DIR, f"{file_hash}.pdf")
         with open(file_path, "wb") as f:
@@ -1879,11 +1905,84 @@ def get_book_cover_api(book_id: int):
     return FileResponse(cover_path, media_type="image/png")
 
 @app.delete("/books/{book_id}")
-def delete_book_api(book_id: int):
-    from app.database import delete_book
+def delete_book_api(book_id: int, authorization: Optional[str] = Header(None)):
+    from app.database import delete_book, get_connection
+    
+    # 1. Fetch book metadata (uuid, file_hash) before deletion
+    book_uuid = None
+    file_hash = None
+    try:
+        with get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT uuid, file_hash FROM books WHERE id = ?", (book_id,))
+            row = cursor.fetchone()
+            if row:
+                book_uuid = row["uuid"]
+                file_hash = row["file_hash"]
+    except Exception as e:
+        logger.warning(f"Failed to fetch book uuid/file_hash before delete: {e}")
+
+    # 2. Local SQLite deletion and trigger-based local tombstone
     success = delete_book(book_id)
     if not success:
         return JSONResponse(status_code=404, content={"error": "Book not found"})
+        
+    # 3. Synchronous Supabase cleanup if authenticated
+    if isinstance(authorization, str) and authorization.startswith("Bearer "):
+        token = authorization.replace("Bearer ", "").strip()
+        try:
+            from datetime import datetime, timezone
+            from app.sync_service import get_supabase_client, extract_user_id_from_token
+            supabase = get_supabase_client(token)
+            user_id = extract_user_id_from_token(token)
+            if not user_id:
+                try:
+                    user_response = supabase.auth.get_user()
+                    user_id = user_response.user.id if user_response and user_response.user else None
+                except Exception:
+                    pass
+
+            if book_uuid:
+                try:
+                    supabase.table("pdf_annotations").delete().eq("book_id", book_uuid).execute()
+                except Exception:
+                    pass
+                try:
+                    supabase.table("books").delete().eq("uuid", book_uuid).execute()
+                except Exception as del_err:
+                    logger.warning(f"Failed to delete book {book_uuid} from Supabase: {del_err}")
+
+                if user_id:
+                    now_ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+                    try:
+                        supabase.table("sync_tombstones").upsert([{
+                            "uuid": book_uuid,
+                            "table_name": "books",
+                            "deleted_at": now_ts,
+                            "user_id": user_id
+                        }], on_conflict="uuid").execute()
+                    except Exception as tomb_err:
+                        logger.warning(f"Failed to upsert tombstone on Supabase: {tomb_err}")
+
+            if file_hash and user_id:
+                try:
+                    supabase.storage.from_("user_pdfs").remove([f"{user_id}/{file_hash}.pdf"])
+                except Exception as storage_err:
+                    logger.warning(f"Failed to delete pdf from Supabase storage: {storage_err}")
+        except Exception as e:
+            logger.warning(f"Failed to perform remote Supabase deletion during delete_book: {e}")
+
+    # 4. Cascade to DocumentRepository
+    try:
+        from app.models.repositories import DocumentRepository
+        docs = DocumentRepository.list_by_workspace(workspace_id="default", limit=500)
+        for doc in docs:
+            meta = doc.get("metadata") or {}
+            if meta.get("book_id") == book_id or str(meta.get("book_id")) == str(book_id) or doc.get("id") == str(book_id):
+                DocumentRepository.delete_document_cascade(doc["id"], "default")
+    except Exception as e:
+        logger.warning(f"Failed to cascade delete to DocumentRepository: {e}")
+
     return {"status": "success"}
 
 @app.get("/topics")

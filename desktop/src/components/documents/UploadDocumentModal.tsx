@@ -4,15 +4,13 @@ import { Upload, FileText, AlertCircle, Loader2, X } from 'lucide-react';
 import { Dialog } from '../ui/Dialog';
 import { Button } from '../ui/Button';
 import { client, API_BASE, type DocumentUploadResponse } from '../../api/client';
+import { validateDocumentFile } from '../../utils/fileValidation';
 
 export interface UploadDocumentModalProps {
   isOpen: boolean;
   onClose: () => void;
   onUploadSuccess: (uploaded: DocumentUploadResponse) => void;
 }
-
-const MAX_PDF_BYTES = 50 * 1024 * 1024;   // 50 MB
-const MAX_TEXT_BYTES = 10 * 1024 * 1024;  // 10 MB
 
 export function UploadDocumentModal({
   isOpen,
@@ -46,25 +44,7 @@ export function UploadDocumentModal({
   };
 
   const validateFile = (file: File): string | null => {
-    const ext = file.name.slice(file.name.lastIndexOf('.')).toLowerCase();
-    const allowed = ['.pdf', '.txt', '.md', '.markdown'];
-    if (!allowed.includes(ext)) {
-      return `Unsupported file format "${ext}". Allowed formats: .pdf, .txt, .md`;
-    }
-
-    if (file.size === 0) {
-      return 'Selected file is empty (0 bytes).';
-    }
-
-    if (ext === '.pdf' && file.size > MAX_PDF_BYTES) {
-      return `PDF exceeds maximum allowed size of 50 MB (${(file.size / (1024 * 1024)).toFixed(1)} MB).`;
-    }
-
-    if (['.txt', '.md', '.markdown'].includes(ext) && file.size > MAX_TEXT_BYTES) {
-      return `Text/Markdown file exceeds maximum allowed size of 10 MB (${(file.size / (1024 * 1024)).toFixed(1)} MB).`;
-    }
-
-    return null;
+    return validateDocumentFile(file);
   };
 
   const handleFileSelect = (file: File) => {
@@ -105,13 +85,26 @@ export function UploadDocumentModal({
     // For PDFs: Execute core book & TOC outline extraction pipeline
     if (ext === '.pdf') {
       setIsUploading(true);
-      setUploadProgress(20);
-      setUploadStatus('Extracting Table of Contents and document structure...');
+      setUploadProgress(10);
+      setUploadStatus('Uploading PDF document...');
       try {
         const bookTitle = selectedFile.name.replace(/\.[^/.]+$/, '');
-        const res = await client.uploadPdfAndGetToc(selectedFile, bookTitle, 0);
+        const res = await client.uploadPdfAndGetToc(
+          selectedFile, 
+          bookTitle, 
+          0, 
+          undefined, 
+          (percent) => {
+            setUploadProgress(Math.min(75, Math.round(10 + (percent * 0.65))));
+            if (percent >= 100) {
+              setUploadStatus('Extracting Table of Contents and document structure...');
+            } else {
+              setUploadStatus(`Uploading PDF document (${percent}%)...`);
+            }
+          }
+        );
 
-        setUploadProgress(80);
+        setUploadProgress(90);
         setUploadStatus('Document and Table of Contents parsed! Opening reader...');
 
         // Also trigger background v1 sync for SaaS RAG indexing if desired
@@ -138,6 +131,9 @@ export function UploadDocumentModal({
         };
 
         setUploadProgress(100);
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new Event('trigger-sync-immediate'));
+        }
         setTimeout(() => {
           onUploadSuccess(uploadData);
           resetState();

@@ -57,6 +57,7 @@ export function LoginView() {
     setIsLoading(true);
     try {
       await login({ email: trimmedEmail, password });
+      completeOnboarding();
       const target = getSafeRedirectUrl(location.search, '/app');
       navigate(target, { replace: true });
     } catch (err: any) {

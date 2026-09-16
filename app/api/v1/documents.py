@@ -8,7 +8,7 @@ import os
 import uuid
 import logging
 from typing import Any, Dict, Optional
-from fastapi import APIRouter, BackgroundTasks, Depends, File, Query, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Header, Query, UploadFile, status
 
 from app.api.deps import get_current_user, get_current_workspace, require_document_owner
 from app.core.errors import ValidationError, PayloadTooLargeError
@@ -352,6 +352,7 @@ def get_document_chunks(
 def delete_document(
     document: Dict[str, Any] = Depends(require_document_owner),
     workspace: Dict[str, Any] = Depends(get_current_workspace),
+    authorization: Optional[str] = Header(None),
 ) -> ResponseEnvelope[Dict[str, Any]]:
     """Cascading deletion of document, chunks, processing jobs, and stored physical file."""
     deleted = DocumentRepository.delete_document_cascade(
@@ -370,8 +371,8 @@ def delete_document(
     book_id = meta.get("book_id")
     if book_id:
         try:
-            from app.database import delete_book
-            delete_book(int(book_id))
+            from app.main import delete_book_api
+            delete_book_api(int(book_id), authorization=authorization)
         except Exception as e:
             logger.warning("Failed to cascade delete legacy book %s: %s", book_id, e)
 

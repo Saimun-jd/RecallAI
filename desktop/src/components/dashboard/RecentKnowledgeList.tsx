@@ -167,7 +167,7 @@ export function RecentKnowledgeList({
             to="/documents"
             className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl border border-border-default bg-surface text-on-surface font-bold text-xs hover:bg-surface-container transition-all"
           >
-            <span>Open Knowledge Library ({totalDocuments})</span>
+            <span>View All Documents ({totalDocuments})</span>
             <ArrowRight size={14} />
           </Link>
         </div>

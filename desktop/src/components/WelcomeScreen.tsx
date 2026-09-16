@@ -19,7 +19,10 @@ export function WelcomeScreen({ onComplete }: WelcomeScreenProps) {
 
   const handleGetStarted = () => {
     setIsClosing(true);
-    setTimeout(onComplete, 300);
+    setTimeout(() => {
+      onComplete();
+      navigate('/app');
+    }, 300);
   };
 
   const handleConfigureKeys = () => {
@@ -116,7 +119,7 @@ export function WelcomeScreen({ onComplete }: WelcomeScreenProps) {
             onClick={handleGetStarted}
             className="inline-flex items-center gap-2 bg-primary text-on-primary font-semibold text-sm px-6 py-2.5 rounded-lg shadow-sm hover:bg-primary/90 hover:shadow transition-all"
           >
-            <span>Open Library</span>
+            <span>Launch Dashboard</span>
             <ArrowRight size={16} />
           </button>
         </div>

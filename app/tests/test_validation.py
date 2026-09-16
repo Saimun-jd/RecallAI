@@ -56,6 +56,23 @@ class TestValidationAndErrors(unittest.TestCase):
         error = res.json()["error"]
         self.assertEqual(error["code"], "VALIDATION_ERROR")
 
+    def test_books_upload_oversized_rejected(self):
+        from app.core.config import settings as core_settings
+        original_limit = core_settings.MAX_PDF_BYTES
+        try:
+            core_settings.MAX_PDF_BYTES = 100
+            res = self.client.post(
+                "/books/upload",
+                data={"book_title": "Test Book", "file_hash": "abc", "total_pages": "1"},
+                files={"file": ("test.pdf", b"x" * 200, "application/pdf")}
+            )
+            self.assertEqual(res.status_code, 413)
+            error = res.json()["error"]
+            self.assertEqual(error["code"], "PAYLOAD_TOO_LARGE")
+            self.assertIn("exceeds maximum allowed size", error["message"])
+        finally:
+            core_settings.MAX_PDF_BYTES = original_limit
+
 
 if __name__ == "__main__":
     unittest.main()

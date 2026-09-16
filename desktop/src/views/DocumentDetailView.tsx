@@ -26,6 +26,7 @@ import {
   DocumentDeleteDialog 
 } from '../components/documents';
 import { BookDetailView } from './BookDetailView';
+import { supabase } from '../lib/supabase';
 
 export function DocumentDetailView() {
   const { id } = useParams<{ id: string }>();
@@ -177,6 +178,21 @@ export function DocumentDetailView() {
     if (!id) return;
     const bookId = document?.metadata?.book_id || (!isNaN(Number(id)) && !id.includes('-') ? Number(id) : null);
 
+    let bookUuid: string | null = null;
+    let fileHash: string | null = (document?.metadata as any)?.file_hash || null;
+    if (bookId) {
+      try {
+        const books = await client.getBooks();
+        const b = books.find((x: any) => x.id === bookId);
+        if (b) {
+          bookUuid = b.uuid || null;
+          if (b.file_hash) fileHash = b.file_hash;
+        }
+      } catch (e) {
+        console.warn('Failed to fetch book details before delete:', e);
+      }
+    }
+
     if (bookId) {
       try {
         await client.deleteBook(bookId);
@@ -200,6 +216,33 @@ export function DocumentDetailView() {
       }
       console.warn('Document was already not found in database, proceeding with navigation:', err);
     }
+
+    // Remote cleanup if authenticated (fallback)
+    try {
+      const session = (await supabase.auth.getSession()).data.session;
+      if (session) {
+        if (fileHash) {
+          await supabase.storage.from('user_pdfs').remove([`${session.user.id}/${fileHash}.pdf`]);
+        }
+        if (bookUuid) {
+          await supabase.from('books').delete().eq('uuid', bookUuid);
+        }
+      }
+    } catch (remoteErr) {
+      console.warn('Failed to clean up remote Supabase record/storage:', remoteErr);
+    }
+
+    // Synchronously await remote sync so tombstones are flushed before navigation
+    const token = localStorage.getItem('recall_token');
+    if (token) {
+      try {
+        await client.syncWithRemote(token);
+      } catch (syncErr) {
+        console.warn('Post-delete sync error:', syncErr);
+      }
+    }
+
+    window.dispatchEvent(new Event('trigger-sync-immediate'));
 
     showToast('success', 'Document deleted.');
     navigate('/documents');

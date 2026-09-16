@@ -79,11 +79,17 @@ export function useAutoSync(token: string | null) {
       setTimeout(() => triggerSync(true), 2000);
     };
 
+    const handleImmediateSync = () => {
+      triggerSync(true);
+    };
+
     window.addEventListener('trigger-sync', handleMutationSync);
+    window.addEventListener('trigger-sync-immediate', handleImmediateSync);
 
     return () => {
       clearInterval(interval);
       window.removeEventListener('trigger-sync', handleMutationSync);
+      window.removeEventListener('trigger-sync-immediate', handleImmediateSync);
     };
   }, [token, triggerSync]);
 

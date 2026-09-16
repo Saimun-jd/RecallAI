@@ -644,8 +644,8 @@ export function BookDetailView() {
     return (
       <div className="flex-1 flex flex-col items-center justify-center bg-surface">
         <p className="text-red-400 mb-4 font-medium">{error || "Book not found."}</p>
-        <Link to="/" className="text-accent-blue hover:text-accent-blue inline-flex items-center gap-2 bg-active-bg px-4 py-2 rounded-lg">
-          <ArrowLeft size={16} /> Back to Library
+        <Link to="/documents" className="text-accent-blue hover:text-accent-blue inline-flex items-center gap-2 bg-active-bg px-4 py-2 rounded-lg">
+          <ArrowLeft size={16} /> Back to Documents
         </Link>
       </div>
     );

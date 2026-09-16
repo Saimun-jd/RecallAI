@@ -18,6 +18,7 @@ import {
   DocumentListSkeleton, 
   UploadDocumentModal 
 } from '../components/documents';
+import { supabase } from '../lib/supabase';
 
 export function DocumentsView() {
   const navigate = useNavigate();
@@ -86,6 +87,7 @@ export function DocumentsView() {
             metadata: {
               book_id: b.id,
               chunk_count: b.topics_processed || b.total_topics,
+              file_hash: b.file_hash,
             },
           }));
         items = [...items, ...legacyItems];
@@ -234,7 +236,22 @@ export function DocumentsView() {
     const docId = deleteTarget.id;
     const bookId = deleteTarget.metadata?.book_id || (!isNaN(Number(docId)) && !docId.includes('-') ? Number(docId) : null);
 
-    // 1. Delete legacy SQLite book if applicable
+    let bookUuid: string | null = null;
+    let fileHash: string | null = (deleteTarget.metadata as any)?.file_hash || null;
+    if (bookId) {
+      try {
+        const books = await client.getBooks();
+        const b = books.find((x: any) => x.id === bookId);
+        if (b) {
+          bookUuid = b.uuid || null;
+          if (b.file_hash) fileHash = b.file_hash;
+        }
+      } catch (e) {
+        console.warn('Failed to fetch book details before delete:', e);
+      }
+    }
+
+    // 1. Delete legacy SQLite book (backend will also synchronously delete from Supabase if authenticated)
     if (bookId) {
       try {
         await client.deleteBook(bookId);
@@ -247,7 +264,6 @@ export function DocumentsView() {
     try {
       await client.deleteDocument(docId);
     } catch (err: any) {
-      // If the document is already absent from the DB (404 / NOT_FOUND), treat as already cleaned up
       const isNotFound =
         err?.errorCode === 'NOT_FOUND' ||
         err?.httpStatus === 404 ||
@@ -260,6 +276,33 @@ export function DocumentsView() {
       }
       console.warn('Document was already not found in database, proceeding with UI cleanup:', err);
     }
+
+    // 3. Fallback direct remote cleanup if authenticated
+    try {
+      const session = (await supabase.auth.getSession()).data.session;
+      if (session) {
+        if (fileHash) {
+          await supabase.storage.from('user_pdfs').remove([`${session.user.id}/${fileHash}.pdf`]);
+        }
+        if (bookUuid) {
+          await supabase.from('books').delete().eq('uuid', bookUuid);
+        }
+      }
+    } catch (remoteErr) {
+      console.warn('Failed to clean up remote Supabase record/storage:', remoteErr);
+    }
+
+    // 4. Synchronously await remote sync so tombstones are flushed before modal closes
+    const token = localStorage.getItem('recall_token');
+    if (token) {
+      try {
+        await client.syncWithRemote(token);
+      } catch (syncErr) {
+        console.warn('Post-delete sync error:', syncErr);
+      }
+    }
+
+    window.dispatchEvent(new Event('trigger-sync-immediate'));
 
     setDocuments((prev) => prev.filter((d) => d.id !== deleteTarget.id && d.metadata?.book_id !== bookId));
     showToast('success', `"${deleteTarget.title}" deleted.`);
