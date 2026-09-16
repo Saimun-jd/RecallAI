@@ -19,13 +19,13 @@ export function MobileNav({ isDrawerOpen, onCloseDrawer, user }: MobileNavProps)
   const { logout } = useAuth();
 
   // Hide mobile bottom bar during active review session for distraction-free study
-  const isDistractionFree = location.pathname.startsWith('/review');
+  const isDistractionFree = location.pathname.startsWith('/review') || location.pathname.includes('/study');
 
   const navItems = [
     { label: 'Home', path: '/app', icon: LayoutDashboard },
     { label: 'Docs', path: '/documents', icon: BookOpen },
     { label: 'Chat', path: '/app/chat', icon: MessageSquare },
-    { label: 'Review', path: '/review', icon: BrainCircuit },
+    { label: 'Flashcards', path: '/app/flashcards', icon: BrainCircuit },
     { label: 'Analytics', path: '/analytics', icon: BarChart3 },
   ];
 
@@ -34,7 +34,7 @@ export function MobileNav({ isDrawerOpen, onCloseDrawer, user }: MobileNavProps)
     { label: 'Documents', path: '/documents', icon: BookOpen },
     { label: 'Knowledge Hub', path: '/app/chat', icon: MessageSquare },
     { label: 'Notes', path: '/notes', icon: NotebookPen },
-    { label: 'Review', path: '/review', icon: BrainCircuit },
+    { label: 'Flashcards', path: '/app/flashcards', icon: BrainCircuit },
     { label: 'Analytics', path: '/analytics', icon: BarChart3 },
     { label: 'Settings', path: '/settings', icon: Settings },
   ];
@@ -57,6 +57,9 @@ export function MobileNav({ isDrawerOpen, onCloseDrawer, user }: MobileNavProps)
     }
     if (path === '/app/chat' || path === '/chat') {
       return location.pathname.startsWith('/chat') || location.pathname.startsWith('/app/chat');
+    }
+    if (path === '/app/flashcards' || path === '/flashcards') {
+      return location.pathname.startsWith('/app/flashcards') || location.pathname.startsWith('/flashcards');
     }
     return location.pathname === path || (path !== '/' && location.pathname.startsWith(path));
   };

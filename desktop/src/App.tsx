@@ -13,6 +13,9 @@ import { ReviewView } from './views/ReviewView';
 import { SettingsView } from './views/SettingsView';
 import { BookDetailView } from './views/BookDetailView';
 import { AnalyticsView } from './views/AnalyticsView';
+import { FlashcardSetsView } from './views/FlashcardSetsView';
+import { FlashcardSetDetailView } from './views/FlashcardSetDetailView';
+import { FlashcardStudyView } from './views/FlashcardStudyView';
 import { loadSettings } from './api/settingsStore';
 import { getApiKey } from './api/keychain';
 import { getCurrentWindow } from '@tauri-apps/api/window';
@@ -342,6 +345,12 @@ export default function App() {
           <Route path="/notes" element={<NotesView />} />
           <Route path="/review" element={<ReviewView />} />
           <Route path="/app/review" element={<ReviewView />} />
+          <Route path="/flashcards" element={<FlashcardSetsView />} />
+          <Route path="/app/flashcards" element={<FlashcardSetsView />} />
+          <Route path="/flashcards/:setId" element={<FlashcardSetDetailView />} />
+          <Route path="/app/flashcards/:setId" element={<FlashcardSetDetailView />} />
+          <Route path="/flashcards/:setId/study" element={<FlashcardStudyView />} />
+          <Route path="/app/flashcards/:setId/study" element={<FlashcardStudyView />} />
           <Route path="/analytics" element={<AnalyticsView />} />
           <Route path="/app/analytics" element={<AnalyticsView />} />
           <Route path="/settings" element={<SettingsView />} />

@@ -43,7 +43,7 @@ export function DocumentStudyTab({ document }: DocumentStudyTabProps) {
 
           <Button
             variant="primary"
-            onClick={() => navigate(`/review?document_id=${document.id}`)}
+            onClick={() => navigate(`/app/flashcards?generate=true&document_id=${document.id}`)}
             className="w-full justify-center gap-2"
           >
             <span>Study Flashcards</span>

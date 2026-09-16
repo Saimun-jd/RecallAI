@@ -312,19 +312,48 @@ export const client = {
     await this._throwIfError(res, "Failed to fetch flashcard");
     return res.json();
   },
-  async updateFlashcard(id: number, data: { question: string; answer: string }): Promise<{ message: string; flashcard_id: number }> {
-    const res = await fetch(`${API_BASE}/flashcards/${id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
-    await this._throwIfError(res, "Failed to update flashcard");
-    return res.json();
+  updateFlashcard: (async (
+    id: number | string,
+    payload: { question: string; answer: string } | { front?: string; back?: string; position?: number }
+  ): Promise<any> => {
+    if (typeof id === 'number') {
+      const res = await fetch(`${API_BASE}/flashcards/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw await parseApiError(res);
+      return res.json();
+    } else {
+      const res = await fetch(`${API_BASE}/api/v1/flashcards/cards/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw await parseApiError(res);
+      const json = await res.json();
+      return json.data;
+    }
+  }) as {
+    (id: number, data: { question: string; answer: string }): Promise<{ message: string; flashcard_id: number }>;
+    (cardId: string, payload: { front?: string; back?: string; position?: number }): Promise<FlashcardItem>;
   },
-  async deleteFlashcard(id: number): Promise<{ message: string }> {
-    const res = await fetch(`${API_BASE}/flashcards/${id}`, { method: "DELETE" });
-    await this._throwIfError(res, "Failed to delete flashcard");
-    return res.json();
+  deleteFlashcard: (async (id: number | string): Promise<any> => {
+    if (typeof id === 'number') {
+      const res = await fetch(`${API_BASE}/flashcards/${id}`, { method: "DELETE" });
+      if (!res.ok) throw await parseApiError(res);
+      return res.json();
+    } else {
+      const res = await fetch(`${API_BASE}/api/v1/flashcards/cards/${id}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) throw await parseApiError(res);
+      const json = await res.json();
+      return json.data;
+    }
+  }) as {
+    (id: number): Promise<{ message: string }>;
+    (cardId: string): Promise<{ success: boolean }>;
   },
   async getSettings(): Promise<Record<string, string>> {
     const res = await fetch(`${API_BASE}/settings`);
@@ -609,16 +638,31 @@ export const client = {
     return res.json();
   },
   
-  async generateFlashcards(topicId: number, options: { count: number; custom_prompt?: string, provider_override?: string }): Promise<{ flashcards: Flashcard[] }> {
-    const res = await fetch(`${API_BASE}/topics/${topicId}/flashcards`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(options),
-    });
-    if (!res.ok) {
-      throw await parseApiError(res);
+  generateFlashcards: (async (
+    arg1: number | FlashcardGenerateRequest,
+    arg2?: { count: number; custom_prompt?: string; provider_override?: string }
+  ): Promise<any> => {
+    if (typeof arg1 === 'number') {
+      const res = await fetch(`${API_BASE}/topics/${arg1}/flashcards`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(arg2 || {}),
+      });
+      if (!res.ok) throw await parseApiError(res);
+      return res.json();
+    } else {
+      const res = await fetch(`${API_BASE}/api/v1/flashcards/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(arg1),
+      });
+      if (!res.ok) throw await parseApiError(res);
+      const json = await res.json();
+      return json.data;
     }
-    return res.json();
+  }) as {
+    (topicId: number, options: { count: number; custom_prompt?: string; provider_override?: string }): Promise<{ flashcards: Flashcard[] }>;
+    (payload: FlashcardGenerateRequest): Promise<FlashcardSetDetailResponse>;
   },
 
   // ─── PDF Annotation API ───
@@ -1164,17 +1208,6 @@ export const client = {
     return json.data;
   },
 
-  async generateFlashcards(payload: FlashcardGenerateRequest): Promise<FlashcardSetDetailResponse> {
-    const res = await fetch(`${API_BASE}/api/v1/flashcards/generate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    if (!res.ok) throw await parseApiError(res);
-    const json = await res.json();
-    return json.data;
-  },
-
   async updateFlashcardSet(setId: string, payload: { title?: string; description?: string }): Promise<FlashcardSetItem> {
     const res = await fetch(`${API_BASE}/api/v1/flashcards/sets/${setId}`, {
       method: 'PATCH',
@@ -1188,26 +1221,6 @@ export const client = {
 
   async deleteFlashcardSet(setId: string): Promise<{ success: boolean }> {
     const res = await fetch(`${API_BASE}/api/v1/flashcards/sets/${setId}`, {
-      method: 'DELETE',
-    });
-    if (!res.ok) throw await parseApiError(res);
-    const json = await res.json();
-    return json.data;
-  },
-
-  async updateFlashcard(cardId: string, payload: { front?: string; back?: string; position?: number }): Promise<FlashcardItem> {
-    const res = await fetch(`${API_BASE}/api/v1/flashcards/cards/${cardId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    if (!res.ok) throw await parseApiError(res);
-    const json = await res.json();
-    return json.data;
-  },
-
-  async deleteFlashcard(cardId: string): Promise<{ success: boolean }> {
-    const res = await fetch(`${API_BASE}/api/v1/flashcards/cards/${cardId}`, {
       method: 'DELETE',
     });
     if (!res.ok) throw await parseApiError(res);

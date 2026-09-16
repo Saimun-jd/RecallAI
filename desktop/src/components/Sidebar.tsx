@@ -28,7 +28,7 @@ export function Sidebar({ className }: SidebarProps) {
     {
       title: 'Study & Review',
       items: [
-        { label: 'Flashcards', path: '/review', icon: BrainCircuit },
+        { label: 'Flashcards', path: '/app/flashcards', icon: BrainCircuit },
         { label: 'Analytics', path: '/analytics', icon: BarChart3 },
       ],
     },
@@ -49,6 +49,9 @@ export function Sidebar({ className }: SidebarProps) {
     }
     if (path === '/app/chat' || path === '/chat') {
       return location.pathname.startsWith('/chat') || location.pathname.startsWith('/app/chat');
+    }
+    if (path === '/app/flashcards' || path === '/flashcards') {
+      return location.pathname.startsWith('/app/flashcards') || location.pathname.startsWith('/flashcards');
     }
     return location.pathname === path || (path !== '/' && location.pathname.startsWith(path));
   };

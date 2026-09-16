@@ -4,7 +4,12 @@ import { BrainCircuit, BookOpen, MoreVertical, Trash2, Pencil, Play } from 'luci
 import { Card } from '../ui/Card';
 import { Tag } from '../ui/Tag';
 import { Button } from '../ui/Button';
-import { DropdownMenu } from '../ui/DropdownMenu';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from '../ui/DropdownMenu';
 import type { FlashcardSetItem } from '../../api/client';
 
 export interface FlashcardSetCardProps {
@@ -15,20 +20,6 @@ export interface FlashcardSetCardProps {
 
 export function FlashcardSetCard({ set, onRename, onDelete }: FlashcardSetCardProps) {
   const navigate = useNavigate();
-
-  const menuItems = [
-    {
-      label: 'Rename',
-      icon: Pencil,
-      onClick: () => onRename(set.id),
-    },
-    {
-      label: 'Delete',
-      icon: Trash2,
-      onClick: () => onDelete(set.id),
-      variant: 'destructive' as const,
-    },
-  ];
 
   const formattedDate = new Date(set.updated_at).toLocaleDateString('en-US', {
     month: 'short',
@@ -54,8 +45,8 @@ export function FlashcardSetCard({ set, onRename, onDelete }: FlashcardSetCardPr
             onClick={(e) => e.stopPropagation()}
             className="shrink-0"
           >
-            <DropdownMenu
-              trigger={
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
                 <button
                   type="button"
                   className="p-1.5 rounded-lg border border-transparent hover:border-border-default hover:bg-surface-container text-on-surface-variant hover:text-on-surface transition-all opacity-0 group-hover:opacity-100 focus:opacity-100"
@@ -63,9 +54,16 @@ export function FlashcardSetCard({ set, onRename, onDelete }: FlashcardSetCardPr
                 >
                   <MoreVertical size={14} />
                 </button>
-              }
-              items={menuItems}
-            />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" width="w-36">
+                <DropdownMenuItem onClick={() => onRename(set.id)} icon={<Pencil size={13} />}>
+                  Rename
+                </DropdownMenuItem>
+                <DropdownMenuItem destructive onClick={() => onDelete(set.id)} icon={<Trash2 size={13} />}>
+                  Delete
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 
