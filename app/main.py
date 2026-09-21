@@ -443,7 +443,7 @@ async def delete_all_data(authorization: str = Header(None)):
         
         # Also clear Foundation DB (recall_saas.db) documents if any
         try:
-            from app.models.database import get_db
+            from app.core.database import get_db
             with get_db() as f_conn:
                 f_conn.execute("DELETE FROM document_chunks")
                 f_conn.execute("DELETE FROM processing_jobs")
