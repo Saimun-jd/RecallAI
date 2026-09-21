@@ -4,7 +4,6 @@ import { client, type AtomicConcept } from '../api/client';
 import type { RootState } from '../store';
 import { setIsCardGenModalOpen, setActiveTopicCards } from '../store/readerSlice';
 import { X, Loader2, Zap, CheckCircle2, Target } from 'lucide-react';
-import clsx from 'clsx';
 import { useToast } from '../hooks/useToast';
 import type { ApiError } from '../api/errors';
 

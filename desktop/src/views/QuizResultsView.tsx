@@ -21,6 +21,8 @@ import {
 } from '../api/client';
 import { QuestionReviewCard } from '../components/quizzes';
 import { Button } from '../components/ui/Button';
+import { Breadcrumbs } from '../components/ui/Breadcrumbs';
+import { LoadingState, ErrorState } from '../components/shared';
 import { Tag } from '../components/ui/Tag';
 
 export function QuizResultsView() {
@@ -28,6 +30,7 @@ export function QuizResultsView() {
   const navigate = useNavigate();
 
   const [result, setResult] = useState<QuizAttemptResultResponse | null>(null);
+  const [quizTitle, setQuizTitle] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -39,13 +42,19 @@ export function QuizResultsView() {
     setLoading(true);
     setError(null);
     try {
-      const data = (await client.getQuizAttempt(attemptId)) as QuizAttemptResultResponse;
+      const [data, quizData] = await Promise.all([
+        client.getQuizAttempt(attemptId) as Promise<QuizAttemptResultResponse>,
+        quizId ? client.getQuiz(quizId).catch(() => null) : Promise.resolve(null),
+      ]);
       if (data.status !== 'submitted') {
         // Attempt is still in progress, redirect to attempt view
         navigate(`/app/quizzes/${quizId}/attempt`, { replace: true });
         return;
       }
       setResult(data);
+      if (quizData?.title) {
+        setQuizTitle(quizData.title);
+      }
     } catch (err: any) {
       setError(err?.userMessage || 'Failed to load assessment results.');
     } finally {
@@ -59,31 +68,34 @@ export function QuizResultsView() {
 
   if (loading) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center p-6 text-center gap-4">
-        <Loader2 size={36} className="animate-spin text-primary" />
-        <p className="text-sm font-bold text-on-surface">Compiling assessment results...</p>
+      <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
+        <LoadingState
+          variant="page"
+          message="Compiling assessment results..."
+          description="Evaluating response accuracy and benchmark metrics..."
+        />
       </div>
     );
   }
 
   if (error || !result) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center p-6 text-center gap-4">
-        <div className="w-14 h-14 rounded-2xl bg-error/10 text-error border-2 border-error/20 flex items-center justify-center">
-          <AlertCircle size={24} />
-        </div>
-        <div className="space-y-1">
-          <h2 className="text-lg font-black text-on-surface">Unable to load results</h2>
-          <p className="text-sm text-on-surface-variant max-w-sm">{error || 'Results not found.'}</p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="secondary" size="sm" onClick={() => navigate(`/app/quizzes/${quizId}`)} className="gap-1.5">
-            <ArrowLeft size={14} /> Back to Quiz
-          </Button>
-          <Button variant="primary" size="sm" onClick={fetchResults} className="gap-1.5">
-            <RotateCcw size={14} /> Retry
-          </Button>
-        </div>
+      <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
+        <ErrorState
+          title="Unable to load results"
+          message={error || 'Results not found.'}
+          onRetry={fetchResults}
+          action={
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate(`/app/quizzes/${quizId}`)}
+              className="gap-1.5"
+            >
+              <ArrowLeft size={14} /> Back to Quiz
+            </Button>
+          }
+        />
       </div>
     );
   }
@@ -132,26 +144,23 @@ export function QuizResultsView() {
 
   return (
     <div className="flex-1 overflow-y-auto">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
-        {/* Navigation Breadcrumb */}
-        <div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigate(`/app/quizzes/${quizId}`)}
-            className="gap-1.5 text-xs text-on-surface-variant hover:text-on-surface font-bold p-0"
-          >
-            <ArrowLeft size={14} /> Back to Quiz Overview
-          </Button>
-        </div>
+      <div className="max-w-4xl mx-auto px-3 sm:px-6 py-5 sm:py-8 space-y-5 sm:space-y-6">
+        {/* Standard Breadcrumb Navigation */}
+        <Breadcrumbs
+          items={[
+            { label: 'Quizzes', href: '/app/quizzes' },
+            { label: quizTitle || 'Quiz Details', href: `/app/quizzes/${quizId}` },
+            { label: 'Results' },
+          ]}
+        />
 
         {/* Score Hero Summary Card */}
-        <div className="p-6 sm:p-8 rounded-2xl border-2 border-border-default bg-surface-container shadow-neo space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
-            <div className="flex items-center gap-5">
+        <div className="p-4 sm:p-8 rounded-2xl border-2 border-border-default bg-surface-container shadow-neo space-y-5 sm:space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-5 sm:gap-6">
+            <div className="flex items-center gap-4 sm:gap-5">
               {/* Circular Score Badge */}
               <div
-                className={`w-20 h-20 sm:w-24 sm:h-24 rounded-2xl border-2 flex flex-col items-center justify-center shadow-neo shrink-0 ${
+                className={`w-18 h-18 sm:w-24 sm:h-24 rounded-2xl border-2 flex flex-col items-center justify-center shadow-neo shrink-0 ${
                   scorePercent >= 80
                     ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 border-emerald-500'
                     : scorePercent >= 60
@@ -159,17 +168,17 @@ export function QuizResultsView() {
                     : 'bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 border-rose-500'
                 }`}
               >
-                <span className="text-2xl sm:text-3xl font-black">{scorePercent}%</span>
-                <span className="text-[10px] font-black uppercase tracking-wider">Score</span>
+                <span className="text-xl sm:text-3xl font-black">{scorePercent}%</span>
+                <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider">Score</span>
               </div>
 
-              <div className="space-y-1.5">
+              <div className="space-y-1">
                 <div className="flex items-center gap-2">
                   <Tag variant={feedbackBadgeVariant} size="sm">
                     {feedbackTitle}
                   </Tag>
                 </div>
-                <h1 className="text-lg sm:text-xl font-black text-on-surface">
+                <h1 className="text-base sm:text-xl font-black text-on-surface">
                   {correctCount} of {result.total_questions} Correct
                 </h1>
                 <p className="text-xs text-on-surface-variant font-medium max-w-md">
@@ -179,28 +188,28 @@ export function QuizResultsView() {
             </div>
 
             {/* Quick CTAs */}
-            <div className="flex flex-wrap sm:flex-col gap-2 shrink-0">
+            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto shrink-0">
               <Button
                 variant="ai"
                 size="sm"
                 onClick={() => navigate(`/app/quizzes/${quizId}/attempt`)}
-                className="gap-1.5 text-xs font-bold"
+                className="gap-1.5 text-xs font-bold w-full sm:w-auto min-h-[40px] justify-center"
               >
-                <RotateCcw size={13} /> Retake Quiz
+                <RotateCcw size={14} /> Retake Quiz
               </Button>
               <Button
                 variant="secondary"
                 size="sm"
                 onClick={() => navigate('/app/flashcards')}
-                className="gap-1.5 text-xs font-bold"
+                className="gap-1.5 text-xs font-bold w-full sm:w-auto min-h-[40px] justify-center"
               >
-                <BrainCircuit size={13} /> Study Flashcards
+                <BrainCircuit size={14} /> Study Flashcards
               </Button>
             </div>
           </div>
 
           {/* Stats Breakdown Strip */}
-          <div className="grid grid-cols-3 gap-3 pt-4 border-t-2 border-border-default/60">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3 pt-4 border-t-2 border-border-default/60">
             <div className="p-3 rounded-xl bg-surface-container-low border border-border-default flex items-center gap-3">
               <div className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-500 flex items-center justify-center shrink-0">
                 <CheckCircle2 size={18} />
@@ -237,17 +246,17 @@ export function QuizResultsView() {
         <div className="space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-2">
-              <BookOpen size={18} className="text-primary" />
+              <BookOpen size={18} className="text-primary shrink-0" />
               <h2 className="text-base font-black text-on-surface">Question-by-Question Review</h2>
             </div>
 
             {/* Filter Tabs */}
-            <div className="flex items-center gap-1.5 p-1 rounded-xl bg-surface-container border-2 border-border-default self-start sm:self-auto">
+            <div className="flex items-center gap-1.5 p-1 rounded-xl bg-surface-container border-2 border-border-default w-full sm:w-auto overflow-x-auto hide-scrollbar">
               <button
                 onClick={() => setFilter('all')}
-                className={`px-3 py-1 text-xs font-bold rounded-lg transition-colors ${
+                className={`px-3 py-1.5 min-h-[34px] text-xs font-bold rounded-lg transition-colors flex-1 sm:flex-initial text-center ${
                   filter === 'all'
-                    ? 'bg-primary text-on-primary shadow-neo-sm'
+                    ? 'bg-primary text-on-primary shadow-neo-sm font-black'
                     : 'text-on-surface-variant hover:text-on-surface'
                 }`}
               >
@@ -255,9 +264,9 @@ export function QuizResultsView() {
               </button>
               <button
                 onClick={() => setFilter('incorrect')}
-                className={`px-3 py-1 text-xs font-bold rounded-lg transition-colors ${
+                className={`px-3 py-1.5 min-h-[34px] text-xs font-bold rounded-lg transition-colors flex-1 sm:flex-initial text-center ${
                   filter === 'incorrect'
-                    ? 'bg-rose-500 text-white shadow-neo-sm'
+                    ? 'bg-rose-500 text-white shadow-neo-sm font-black'
                     : 'text-on-surface-variant hover:text-on-surface'
                 }`}
               >

@@ -317,7 +317,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     const redirectTo = isTauriEnvironment()
-      ? 'http://localhost:8000/auth-success'
+      ? `${API_BASE}/auth-success`
       : `${window.location.origin}/`;
 
     const { data, error } = await supabase.auth.signInWithOAuth({

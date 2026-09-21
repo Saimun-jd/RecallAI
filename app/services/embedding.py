@@ -103,9 +103,11 @@ class EmbeddingService:
                     res.raise_for_status()
                     data = res.json()
                     vec = data.get("embedding", {}).get("values", [])
-                    # Pad or interpolate to target dimension if needed
+                    # Pad or interpolate to target dimension if needed, guaranteeing unit L2 norm
                     if len(vec) == 768:
                         vec = vec + vec  # 768 -> 1536
+                        norm = math.sqrt(sum(v * v for v in vec)) or 1.0
+                        vec = [round(v / norm, 6) for v in vec]
                     return vec if vec else self._generate_deterministic_embedding(text)
                 except Exception as e:
                     logger.error(f"Gemini embedding error: {e}. Falling back to deterministic vector.")

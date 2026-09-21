@@ -93,3 +93,29 @@ class EntitlementCheckResponse(BaseModel):
     used: Optional[Union[int, float]] = None
     remaining: Optional[Union[int, float]] = None
     reason: Optional[str] = None
+
+
+class ProviderCredentialResponse(BaseModel):
+    id: str
+    workspace_id: str
+    provider: str
+    key_hint: str
+    is_valid: bool = True
+    last_tested_at: Optional[str] = None
+    created_at: str
+
+
+class SaveCredentialRequest(BaseModel):
+    provider: str = Field(description="Target provider: gemini, openai, groq, or ollama")
+    api_key: str = Field(min_length=1, max_length=512, description="Provider API Key")
+
+
+class TestProviderRequest(BaseModel):
+    provider: str = Field(description="Target provider: gemini, openai, groq, or ollama")
+    api_key: Optional[str] = Field(default=None, description="Optional plaintext key to test before saving")
+
+
+class TestProviderResponse(BaseModel):
+    valid: bool
+    provider: str
+    error: Optional[str] = None

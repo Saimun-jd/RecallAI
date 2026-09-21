@@ -8,7 +8,7 @@ import os
 import sys
 from typing import List, Literal
 from platformdirs import user_data_dir
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 if hasattr(sys, '_MEIPASS'):
@@ -112,6 +112,18 @@ class CoreSettings(BaseSettings):
         except ValueError as e:
             raise ValueError(f"Invalid BYOK_ENCRYPTION_KEY format: {e}")
         return v_clean
+
+    @model_validator(mode="after")
+    def validate_production_security(self) -> "CoreSettings":
+        if self.ENVIRONMENT == "production":
+            if (
+                "dev-secret" in self.SECRET_KEY.lower()
+                or self.SECRET_KEY == "recall-ai-dev-secret-key-at-least-32-chars-long!"
+            ):
+                raise ValueError("Production mode requires a secure, non-default SECRET_KEY.")
+            if self.BYOK_ENCRYPTION_KEY == "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef":
+                raise ValueError("Production mode requires a unique, secure BYOK_ENCRYPTION_KEY.")
+        return self
 
 
 settings = CoreSettings()

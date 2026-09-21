@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { BrainCircuit, Sparkles, Plus, AlertCircle, RotateCcw, Loader2 } from 'lucide-react';
+import { BrainCircuit, Sparkles } from 'lucide-react';
 import {
   client,
   type FlashcardSetItem,
@@ -12,6 +12,8 @@ import {
   FlashcardSetDeleteDialog,
 } from '../components/flashcards';
 import { Button } from '../components/ui/Button';
+import { PageHeader } from '../components/layout/PageHeader';
+import { EmptyState, ErrorState } from '../components/shared';
 import { useToast } from '../hooks/useToast';
 
 export function FlashcardSetsView() {
@@ -98,31 +100,28 @@ export function FlashcardSetsView() {
   };
 
   return (
-    <div className="flex-1 overflow-y-auto">
+    <div className="w-full flex-1">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary border-2 border-primary/20 flex items-center justify-center shadow-neo-sm">
-              <BrainCircuit size={20} />
-            </div>
-            <div>
-              <h1 className="text-lg sm:text-xl font-black text-on-surface">Flashcards</h1>
-              <p className="text-xs text-on-surface-variant font-medium">
-                {sets.length > 0 ? `${sets.length} ${sets.length === 1 ? 'set' : 'sets'}` : 'Generate study sets from your documents'}
-              </p>
-            </div>
-          </div>
-          <Button
-            variant="ai"
-            size="md"
-            onClick={() => setIsGenerateOpen(true)}
-            className="gap-2"
-          >
-            <Sparkles size={15} />
-            Generate Flashcards
-          </Button>
-        </div>
+        {/* Standard Page Header */}
+        <PageHeader
+          title="Flashcards"
+          description={
+            sets.length > 0
+              ? `${sets.length} ${sets.length === 1 ? 'set' : 'sets'} available for active recall practice`
+              : 'Generate and manage study sets from your knowledge documents'
+          }
+          actions={
+            <Button
+              variant="ai"
+              size="md"
+              onClick={() => setIsGenerateOpen(true)}
+              className="gap-2 w-full sm:w-auto min-h-[40px]"
+            >
+              <Sparkles size={15} />
+              <span>Generate Flashcards</span>
+            </Button>
+          }
+        />
 
         {/* Content */}
         {loading ? (
@@ -135,31 +134,28 @@ export function FlashcardSetsView() {
             ))}
           </div>
         ) : error ? (
-          <div className="flex flex-col items-center justify-center py-16 gap-4 text-center">
-            <div className="w-14 h-14 rounded-2xl bg-error/10 text-error border-2 border-error/20 flex items-center justify-center">
-              <AlertCircle size={24} />
-            </div>
-            <p className="text-sm font-bold text-on-surface">{error}</p>
-            <Button variant="secondary" size="sm" onClick={fetchSets} className="gap-1.5">
-              <RotateCcw size={13} /> Retry
-            </Button>
-          </div>
+          <ErrorState
+            title="Unable to load flashcard sets"
+            message={error}
+            onRetry={fetchSets}
+          />
         ) : sets.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 gap-5 text-center">
-            <div className="w-16 h-16 rounded-2xl bg-primary/10 text-primary border-2 border-primary/20 flex items-center justify-center shadow-neo">
-              <BrainCircuit size={32} />
-            </div>
-            <div className="space-y-1.5">
-              <h2 className="text-lg font-black text-on-surface">No flashcard sets yet</h2>
-              <p className="text-sm text-on-surface-variant font-medium max-w-sm">
-                Generate your first set of AI-powered flashcards from your study documents to begin active recall practice.
-              </p>
-            </div>
-            <Button variant="ai" size="md" onClick={() => setIsGenerateOpen(true)} className="gap-2">
-              <Sparkles size={15} />
-              Generate Your First Set
-            </Button>
-          </div>
+          <EmptyState
+            icon={<BrainCircuit size={28} />}
+            title="No flashcard sets yet"
+            description="Generate your first set of AI-powered flashcards from your study documents to begin active recall practice."
+            action={
+              <Button
+                variant="ai"
+                size="md"
+                onClick={() => setIsGenerateOpen(true)}
+                className="gap-2"
+              >
+                <Sparkles size={15} />
+                <span>Generate Your First Set</span>
+              </Button>
+            }
+          />
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {sets.map((set) => (

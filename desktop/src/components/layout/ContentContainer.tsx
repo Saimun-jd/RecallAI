@@ -25,7 +25,7 @@ export function ContentContainer({
     <div
       className={cn(
         'w-full flex-1 min-w-0',
-        padding && 'px-4 sm:px-6 lg:px-8 py-6 sm:py-8',
+        padding && 'px-3 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8',
         maxWidthClasses,
         className
       )}

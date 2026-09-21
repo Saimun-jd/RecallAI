@@ -4,9 +4,9 @@ import { client, type AtomicConcept, type DiagnosticQuestion, type DiagnosticQue
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { useSelector } from 'react-redux';
 import type { RootState } from '../store';
-import clsx from 'clsx';
 import { useToast } from '../hooks/useToast';
 import type { ApiError } from '../api/errors';
+import { cn } from '../lib/utils';
 
 const TIER_LABELS: Record<string, { label: string; color: string; bg: string }> = {
   causal_mechanism: { label: 'Causal Mechanism', color: 'text-blue-400', bg: 'bg-blue-500/10' },
@@ -221,18 +221,18 @@ export function SocraticDrillWidget({ topicId, topicTitle, targetConcept, onClea
   // ─── Idle State ─────────────────────────────────────────────────────
   if (phase === 'idle') {
     return (
-      <div className={clsx(
-        "w-full border-2 rounded-xl shadow-[2px_2px_0px_0px_#191b23] p-4 flex flex-col gap-3 relative overflow-hidden group hover:-translate-y-[1px] hover:shadow-[4px_4px_0px_0px_#191b23] transition-all duration-300",
+      <div className={cn(
+        "w-full border-2 rounded-xl shadow-[2px_2px_0px_0px_#191b23] p-4 flex flex-col gap-3 relative overflow-hidden group hover:-translate-y-px hover:shadow-[4px_4px_0px_0px_#191b23] transition-all duration-300",
         targetConcept ? "border-secondary/50 bg-secondary/5" : "border-outline-variant bg-surface-container-lowest"
       )}>
-        <div className={clsx(
+        <div className={cn(
           "absolute -right-12 -top-12 w-48 h-48 rounded-full blur-2xl transition-colors pointer-events-none",
           targetConcept ? "bg-secondary/10 group-hover:bg-secondary/20" : "bg-primary/5 group-hover:bg-primary/10"
         )}></div>
         <div className="flex items-start justify-between z-10">
           <div className="flex flex-col gap-1">
             <div className="flex items-center gap-2 mb-1 flex-wrap">
-              <div className={clsx(
+              <div className={cn(
                 "w-6 h-6 rounded-full flex items-center justify-center border-2 border-on-surface shadow-[2px_2px_0px_0px_#191b23]",
                 targetConcept ? "bg-secondary text-on-secondary" : "bg-primary text-on-primary"
               )}>
@@ -287,8 +287,8 @@ export function SocraticDrillWidget({ topicId, topicTitle, targetConcept, onClea
         <div className="flex items-center justify-between mt-2 z-10">
           <button
             onClick={handleStartDrill}
-            className={clsx(
-              "font-bold text-sm px-6 py-2.5 rounded-lg border-2 border-on-surface shadow-[2px_2px_0px_0px_#191b23] flex items-center gap-2 active:shadow-none active:translate-x-[1px] active:translate-y-[1px] transition-all whitespace-nowrap",
+            className={cn(
+              "font-bold text-sm px-6 py-2.5 rounded-lg border-2 border-on-surface shadow-[2px_2px_0px_0px_#191b23] flex items-center gap-2 active:shadow-none active:translate-x-px active:translate-y-px transition-all whitespace-nowrap",
               targetConcept ? "bg-secondary text-on-secondary hover:brightness-110" : "bg-primary text-on-primary hover:bg-academic-blue"
             )}
           >
@@ -305,20 +305,20 @@ export function SocraticDrillWidget({ topicId, topicTitle, targetConcept, onClea
     return (
       <div className="bg-surface-container-lowest border-[3px] border-on-background neo-shadow-lg p-8 flex flex-col items-center gap-4">
         <Loader2 size={32} className="animate-spin text-primary" />
-        <p className="font-label-md text-label-md font-bold text-on-surface-variant uppercase tracking-wider text-center">
+        <p className="text-label-md font-bold text-on-surface-variant uppercase tracking-wider text-center">
           {targetConcept 
             ? `Analyzing and generating diagnostic questions for "${targetConcept.name}"…`
             : "Analyzing topic and generating diagnostic questions…"}
         </p>
         
         {hasCachedMarkdown ? (
-          <p className="font-body-sm text-body-sm text-emerald-600 font-bold italic mt-2 text-center max-w-sm flex items-center justify-center gap-1">
-            <CheckCircle2 size={14} /> Using cached markdown to generate
+          <p className="text-body-sm text-emerald-600 font-bold italic mt-2 text-center max-w-sm flex items-center justify-center gap-1">
+            <CheckCircle2 size={15} /> Using cached markdown
           </p>
         ) : (
           pdfExtractor === 'marker' && (
-            <p className="font-body-sm text-body-sm text-amber-600 font-medium italic mt-2 text-center max-w-sm">
-              Marker (ML) is currently extracting text for this section. This may take a few minutes if models are downloading.
+            <p className="text-body-sm text-amber-600 font-medium italic mt-2 text-center max-w-sm">
+              Marker (ML) is extracting this section's text.
             </p>
           )
         )}
@@ -334,18 +334,18 @@ export function SocraticDrillWidget({ topicId, topicTitle, targetConcept, onClea
         <div className="px-6 py-4 border-b-[3px] border-on-background flex items-center justify-between bg-surface-container-low">
           <div className="flex items-center gap-3 flex-wrap">
             <BrainCircuit size={20} className="text-primary" />
-            <span className="font-headline-sm text-headline-sm font-bold text-primary">Socratic Drill</span>
+            <span className="text-headline-sm font-bold text-primary">Socratic Drill</span>
             {targetConcept && (
-              <span className="text-label-sm font-label-sm font-bold uppercase tracking-wider bg-secondary/10 text-secondary px-2.5 py-1 border-[2px] border-secondary/40 neo-shadow-xs">
+              <span className="text-label-sm font-bold uppercase tracking-wider bg-secondary/10 text-secondary px-2.5 py-1 border-2 border-secondary/40 neo-shadow-xs">
                 Target: {targetConcept.name}
               </span>
             )}
-            <span className="text-label-sm font-label-sm font-bold text-on-surface-variant uppercase tracking-wider bg-surface px-2 py-1 border-[3px] border-primary">
+            <span className="text-label-sm font-bold text-on-surface-variant uppercase tracking-wider bg-surface px-2 py-1 border-[3px] border-primary">
               Q{currentQIdx + 1} of {questions.length}
             </span>
           </div>
           {tierInfo && (
-            <span className={clsx("text-label-sm font-label-sm font-bold uppercase tracking-wider px-3 py-1 border-[3px] border-primary neo-shadow-sm", tierInfo.bg, tierInfo.color)}>
+            <span className={cn("text-label-sm font-bold uppercase tracking-wider px-3 py-1 border-[3px] border-primary neo-shadow-sm", tierInfo.bg, tierInfo.color)}>
               {tierInfo.label}
             </span>
           )}
@@ -353,21 +353,21 @@ export function SocraticDrillWidget({ topicId, topicTitle, targetConcept, onClea
 
         <div className="p-6">
           {/* Question */}
-          <div className="font-body-lg text-body-lg text-primary font-medium leading-relaxed mb-6 [&_p]:m-0">
+          <div className="text-body-lg text-primary font-medium leading-relaxed mb-6 [&_p]:m-0">
             <MarkdownRenderer content={currentQuestion.question_text} />
           </div>
 
           {/* Socratic Hint Accordion */}
           <button
             onClick={() => setHintOpen(!hintOpen)}
-            className="flex items-center gap-2 text-label-sm font-label-sm font-bold text-amber-500 hover:text-amber-600 mb-6 transition-colors uppercase tracking-wider cursor-pointer"
+            className="flex items-center gap-2 text-label-sm font-bold text-amber-500 hover:text-amber-600 mb-6 transition-colors uppercase tracking-wider cursor-pointer"
           >
             <Lightbulb size={16} />
             {hintOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
             {hintOpen ? 'Hide Hint' : 'Request Socratic Hint'}
           </button>
           {hintOpen && (
-            <div className="mb-6 p-4 bg-amber-500/10 border-[3px] border-amber-500 text-body-md font-body-md text-amber-700 leading-relaxed italic neo-shadow-sm flex items-start gap-2">
+            <div className="mb-6 p-4 bg-amber-500/10 border-[3px] border-amber-500 text-body-md text-amber-700 leading-relaxed italic neo-shadow-sm flex items-start gap-2">
               <span className="shrink-0 text-base">💡</span>
               <div className="flex-1 [&_p]:m-0">
                 <MarkdownRenderer content={currentQuestion.socratic_hint} />
@@ -377,7 +377,7 @@ export function SocraticDrillWidget({ topicId, topicTitle, targetConcept, onClea
 
           {/* Answer Textarea */}
           <div className="mb-6">
-            <label className="text-label-sm font-label-sm font-bold uppercase tracking-wider text-on-surface-variant block mb-2">
+            <label className="text-label-sm font-bold uppercase tracking-wider text-on-surface-variant block mb-2">
               Your Explanation
             </label>
             <textarea
@@ -386,10 +386,10 @@ export function SocraticDrillWidget({ topicId, topicTitle, targetConcept, onClea
               onChange={(e) => setAnswer(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Explain your understanding... (bullet points or paragraph)"
-              className="w-full bg-surface border-[3px] border-on-background p-4 text-label-md font-label-md text-primary placeholder:text-on-surface-variant focus:outline-none focus:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all resize-none min-h-[140px]"
+              className="w-full bg-surface border-[3px] border-on-background p-4 text-label-md font-medium text-primary placeholder:text-on-surface-variant focus:outline-none focus:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all resize-none min-h-35"
               rows={5}
             />
-            <p className="text-label-sm font-label-sm text-on-surface-variant mt-2 font-bold uppercase">Press Ctrl+Enter to submit</p>
+            <p className="text-label-sm text-on-surface-variant mt-2 font-bold uppercase">Press Ctrl+Enter to submit</p>
           </div>
 
           <button
@@ -410,7 +410,7 @@ export function SocraticDrillWidget({ topicId, topicTitle, targetConcept, onClea
     return (
       <div className="bg-surface-container-lowest border-[3px] border-on-background neo-shadow-lg p-8 flex flex-col items-center gap-4">
         <Loader2 size={32} className="animate-spin text-primary" />
-        <p className="font-label-md text-label-md font-bold text-on-surface-variant uppercase tracking-wider">
+        <p className="text-label-md font-bold text-on-surface-variant uppercase tracking-wider">
           {targetConcept
             ? `Evaluating your answer against "${targetConcept.name}"…`
             : "Analyzing your answer against the source material…"}
@@ -431,11 +431,11 @@ export function SocraticDrillWidget({ topicId, topicTitle, targetConcept, onClea
         <div className="px-6 py-4 border-b-[3px] border-on-background flex items-center justify-between bg-surface-container-low">
           <div className="flex items-center gap-3">
             <BrainCircuit size={20} className="text-primary" />
-            <span className="font-headline-sm text-headline-sm font-bold text-primary">
+            <span className="text-headline-sm font-bold text-primary">
               {targetConcept ? `Diagnostic: ${targetConcept.name}` : "Diagnostic Results"}
             </span>
           </div>
-          <div className={clsx("flex items-center gap-2 font-label-md text-label-md font-bold px-3 py-1 border-[3px] border-primary neo-shadow-sm", statusInfo?.bg, statusInfo?.color)}>
+          <div className={cn("flex items-center gap-2 text-label-md font-bold px-3 py-1 border-[3px] border-primary neo-shadow-sm", statusInfo?.bg, statusInfo?.color)}>
             <StatusIcon size={16} />
             {evaluation.mastery_score}/100 — {statusInfo?.label}
           </div>
@@ -444,13 +444,13 @@ export function SocraticDrillWidget({ topicId, topicTitle, targetConcept, onClea
         <div className="p-6 space-y-6">
           {/* Mastery Bar */}
           <div>
-            <div className="flex items-center justify-between font-label-md text-label-md font-bold text-on-surface-variant mb-2 uppercase tracking-wider">
+            <div className="flex items-center justify-between text-label-md font-bold text-on-surface-variant mb-2 uppercase tracking-wider">
               <span>Mastery Level</span>
               <span className="font-mono">{evaluation.mastery_score}%</span>
             </div>
             <div className="w-full h-4 bg-surface-container border-[3px] border-on-background overflow-hidden">
               <div
-                className={clsx(
+                className={cn(
                   "h-full transition-all duration-700",
                   evaluation.mastery_score >= 85 ? "bg-emerald-500" :
                   evaluation.mastery_score >= 60 ? "bg-amber-500" :
@@ -464,7 +464,7 @@ export function SocraticDrillWidget({ topicId, topicTitle, targetConcept, onClea
           {/* Strengths */}
           {evaluation.strengths.length > 0 && (
             <div>
-              <h4 className="font-label-md text-label-md font-bold text-emerald-500 uppercase tracking-wider mb-3 flex items-center gap-2">
+              <h4 className="text-label-md font-bold text-emerald-500 uppercase tracking-wider mb-3 flex items-center gap-2">
                 <CheckCircle2 size={16} /> What You Mastered
               </h4>
               <ul className="space-y-1">
@@ -481,7 +481,7 @@ export function SocraticDrillWidget({ topicId, topicTitle, targetConcept, onClea
           {/* Gaps */}
           {evaluation.diagnosed_gaps.length > 0 && (
             <div>
-              <h4 className="font-label-md text-label-md font-bold text-amber-500 uppercase tracking-wider mb-3 flex items-center gap-2">
+              <h4 className="text-label-md font-bold text-amber-500 uppercase tracking-wider mb-3 flex items-center gap-2">
                 <AlertTriangle size={16} /> Knowledge Gaps & Underlying Theory
               </h4>
               <div className="space-y-3">
@@ -528,7 +528,7 @@ export function SocraticDrillWidget({ topicId, topicTitle, targetConcept, onClea
           {/* Misconceptions */}
           {evaluation.misconceptions.length > 0 && (
             <div>
-              <h4 className="font-label-md text-label-md font-bold text-red-500 uppercase tracking-wider mb-3 flex items-center gap-2">
+              <h4 className="text-label-md font-bold text-red-500 uppercase tracking-wider mb-3 flex items-center gap-2">
                 <XCircle size={16} /> Exam Pitfalls & Misconceptions
               </h4>
               <div className="space-y-3">
@@ -578,7 +578,7 @@ export function SocraticDrillWidget({ topicId, topicTitle, targetConcept, onClea
               <button
                 onClick={handlePinGapsToNotes}
                 disabled={isPinningGaps || gapsPinned}
-                className={clsx(
+                className={cn(
                   "flex items-center gap-2 px-4 py-2 font-bold text-xs border-[3px] border-primary transition-all cursor-pointer",
                   gapsPinned
                     ? "bg-emerald-500/10 text-emerald-500 border-emerald-500 cursor-default"
@@ -605,10 +605,10 @@ export function SocraticDrillWidget({ topicId, topicTitle, targetConcept, onClea
           {/* Socratic Nudge */}
           {evaluation.socratic_nudge && (
             <div className="p-4 bg-primary-container text-on-primary-container border-[3px] border-primary neo-shadow-sm">
-              <p className="font-label-md text-label-md font-bold mb-2 flex items-center gap-2 uppercase tracking-wider">
+              <p className="text-label-md font-bold mb-2 flex items-center gap-2 uppercase tracking-wider">
                 <Lightbulb size={16} /> Think Deeper
               </p>
-              <div className="font-body-md text-body-md leading-relaxed italic [&_p]:m-0">
+              <div className="text-body-md leading-relaxed italic [&_p]:m-0">
                 <MarkdownRenderer content={evaluation.socratic_nudge} />
               </div>
             </div>
@@ -617,25 +617,25 @@ export function SocraticDrillWidget({ topicId, topicTitle, targetConcept, onClea
           {/* Targeted Flashcards */}
           {evaluation.suggested_flashcards.length > 0 && (
             <div>
-              <h4 className="font-label-md text-label-md font-bold text-primary uppercase tracking-wider mb-3 flex items-center gap-2">
+              <h4 className="text-label-md font-bold text-primary uppercase tracking-wider mb-3 flex items-center gap-2">
                 <CreditCard size={16} /> Targeted Flashcards ({evaluation.suggested_flashcards.length})
               </h4>
               <div className="space-y-4">
                 {evaluation.suggested_flashcards.map((card, i) => (
                   <div key={i} className="p-4 bg-surface border-[3px] border-on-background neo-shadow-sm">
-                    <p className="text-label-sm font-label-sm font-bold uppercase tracking-wider text-on-surface-variant mb-2">Gap: {card.gap_source}</p>
-                    <div className="font-body-md text-body-md text-primary font-bold mb-2 [&_p]:m-0">
+                    <p className="text-label-sm font-bold uppercase tracking-wider text-on-surface-variant mb-2">Gap: {card.gap_source}</p>
+                    <div className="text-body-md text-primary font-bold mb-2 [&_p]:m-0">
                       <span className="text-on-surface-variant font-normal mr-1">Q:</span>
                       <MarkdownRenderer content={card.question} />
                     </div>
-                    <div className="font-body-md text-body-md text-on-surface mb-4 [&_p]:m-0">
+                    <div className="text-body-md text-on-surface mb-4 [&_p]:m-0">
                       <span className="text-on-surface-variant font-normal mr-1">A:</span>
                       <MarkdownRenderer content={card.answer} />
                     </div>
                     <button
                       onClick={() => handleSaveCard(card, i)}
                       disabled={savedCards.has(i)}
-                      className={clsx(
+                      className={cn(
                         "flex items-center gap-2 px-4 py-2 text-label-md font-bold transition-colors",
                         savedCards.has(i)
                           ? "bg-emerald-500/10 text-emerald-500 cursor-default"

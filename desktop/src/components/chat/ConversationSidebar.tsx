@@ -38,6 +38,23 @@ export function ConversationSidebar({
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // Body scroll locking and Escape listener for mobile drawer
+  React.useEffect(() => {
+    if (!isMobileDrawerOpen) return;
+    const orig = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && onCloseMobileDrawer) {
+        onCloseMobileDrawer();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.body.style.overflow = orig;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isMobileDrawerOpen, onCloseMobileDrawer]);
+
   // Filter conversations by title query
   const filteredConversations = useMemo(() => {
     if (!searchQuery.trim()) return conversations;
@@ -108,9 +125,9 @@ export function ConversationSidebar({
             onNewChat();
             if (onCloseMobileDrawer) onCloseMobileDrawer();
           }}
-          className="w-full justify-center gap-2 text-xs shadow-neo-sm hover:shadow-neo"
+          className="w-full justify-center gap-2 text-xs shadow-neo-sm hover:shadow-neo min-h-[44px]"
         >
-          <Plus size={15} strokeWidth={2.5} />
+          <Plus size={16} strokeWidth={2.5} />
           <span>New Chat</span>
         </Button>
 
@@ -334,10 +351,10 @@ export function ConversationSidebar({
               <button
                 type="button"
                 onClick={onCloseMobileDrawer}
-                className="p-1 rounded-lg border border-border-default text-on-surface"
+                className="w-10 h-10 min-w-[40px] min-h-[40px] flex items-center justify-center rounded-lg border-2 border-border-default text-on-surface hover:bg-surface-container transition-colors"
                 aria-label="Close conversation drawer"
               >
-                <X size={15} />
+                <X size={18} />
               </button>
             </div>
             <div className="flex-1 overflow-hidden">{sidebarContent}</div>

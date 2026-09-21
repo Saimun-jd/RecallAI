@@ -30,10 +30,10 @@ export function PageHeader({
         <Breadcrumbs items={breadcrumbs} className="mb-1" />
       )}
 
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="space-y-1 min-w-0">
-          <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-on-surface truncate">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+        <div className="space-y-1 min-w-0 flex-1">
+          <div className="flex items-center gap-2.5 sm:gap-3 flex-wrap">
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-black tracking-tight text-on-surface break-words">
               {title}
             </h1>
             {badge && <div className="shrink-0">{badge}</div>}
@@ -46,7 +46,7 @@ export function PageHeader({
         </div>
 
         {actions && (
-          <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
+          <div className="flex items-center gap-2 sm:gap-2.5 shrink-0 flex-wrap w-full sm:w-auto">
             {actions}
           </div>
         )}

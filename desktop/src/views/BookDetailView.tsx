@@ -14,10 +14,10 @@ import {
   setPdfTheme,
   clearExamScope
 } from '../store/readerSlice';
-import { client, type Book, type Topic, type Flashcard, type PdfAnnotation, type AtomicConcept } from '../api/client';
+import { client, API_BASE, type Book, type Topic, type Flashcard, type PdfAnnotation, type AtomicConcept } from '../api/client';
 import { Loader2, Zap, PenTool, Link2, BrainCircuit, Play, FileText, ChevronRight, ChevronLeft, CheckCircle2, Circle, Clock, Check, X, Edit2, Trash2, BookOpen, ArrowLeft, LayoutList, ChevronDown, Search, Save, Sun, Moon, MoreHorizontal, Bot, Copy, Target, Sparkles, Layers, ChevronsDownUp, ChevronsUpDown, GraduationCap } from 'lucide-react';
 import { MarkdownRenderer } from '../components/MarkdownRenderer';
-import clsx from 'clsx';
+import { cn } from '../lib/utils';
 import { FlashcardGenModal } from '../components/FlashcardGenModal';
 import { RecallLogo } from '../components/brand';
 import { RelatedTopicsModal } from '../components/RelatedTopicsModal';
@@ -51,12 +51,32 @@ export function BookDetailView() {
     noteGeneration
   } = useSelector((state: RootState) => state.reader);
 
-  // Resizable TOC sidebar state
-  const [isTocCollapsed, setIsTocCollapsed] = useState(false);
+  // Mobile awareness & TOC sidebar state
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 768);
+  const [isTocCollapsed, setIsTocCollapsed] = useState(() => typeof window !== 'undefined' && window.innerWidth < 768);
   const [tocWidth, setTocWidth] = useState(320); // default 320px (80 * 4);
   const [isResizing, setIsResizing] = useState(false);
   const MIN_TOC_WIDTH = 240; // min 240px (60 * 4)
   const MAX_TOC_WIDTH = 480; // max 480px (120 * 4)
+
+  useEffect(() => {
+    const handleResize = () => {
+      const mobile = window.innerWidth < 768;
+      setIsMobile(mobile);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Escape key dismiss on mobile TOC drawer
+  useEffect(() => {
+    if (!isMobile || isTocCollapsed) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsTocCollapsed(true);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isMobile, isTocCollapsed]);
 
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [isChatExpanded, setIsChatExpanded] = useState(false);
@@ -654,22 +674,35 @@ export function BookDetailView() {
   return (
     <div className="flex-1 flex overflow-hidden bg-surface h-full w-full relative">
 
-      {/* Left Sidebar: TOC - Resizable */}
+      {/* Mobile Backdrop for TOC drawer */}
+      {!isTocCollapsed && isMobile && (
+        <div
+          className="fixed inset-0 bg-black/60 backdrop-blur-xs z-40 md:hidden animate-in fade-in duration-150"
+          onClick={() => setIsTocCollapsed(true)}
+          aria-hidden="true"
+        />
+      )}
+
+      {/* Left Sidebar: TOC - Resizable on Desktop, Slide-over Drawer on Mobile */}
       <aside
         id="toc-sidebar"
-        className={clsx(
-          "shrink-0 min-w-0 border-r-2 border-on-surface bg-surface-container-lowest flex flex-col h-[calc(100vh-64px)] sticky top-0 overflow-hidden z-10 transition-[width] duration-200 ease-out",
-          isTocCollapsed && "border-r-0"
+        className={cn(
+          "bg-surface-container-lowest flex flex-col h-full overflow-hidden transition-[transform,width] duration-200 ease-out",
+          isMobile
+            ? "fixed inset-y-0 left-0 z-50 w-4/5 max-w-xs border-r-2 border-on-surface shadow-neo-lg"
+            : "shrink-0 min-w-0 border-r-2 border-on-surface z-10",
+          isMobile && (isTocCollapsed ? "-translate-x-full" : "translate-x-0"),
+          !isMobile && (isTocCollapsed && "border-r-0")
         )}
-        style={{ width: isTocCollapsed ? 0 : `${tocWidth}px` }}
+        style={{ width: isMobile ? undefined : (isTocCollapsed ? 0 : `${tocWidth}px`) }}
       >
-        <div className="h-16 px-4 flex items-center border-b-2 border-on-surface bg-surface-container-lowest shrink-0 min-w-[240px]">
+        <div className="h-16 px-4 flex items-center border-b-2 border-on-surface bg-surface-container-lowest shrink-0 min-w-60">
           <Link to="/app" className="hover:opacity-90 transition-opacity select-none">
             <RecallLogo size="lg" showAiBadge />
           </Link>
         </div>
 
-        <div className="p-4 border-b border-outline-variant bg-surface-container-lowest shrink-0 min-w-[240px]">
+        <div className="p-4 border-b border-outline-variant bg-surface-container-lowest shrink-0 min-w-60">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-xl font-bold text-on-surface">Topics</h2>
             <div className="flex items-center gap-1 shrink-0">
@@ -747,7 +780,7 @@ export function BookDetailView() {
                   </span>
                 )}
               </div>
-              <p className="text-[11px] font-medium opacity-85 leading-snug break-words">
+              <p className="text-[11px] font-medium opacity-85 leading-snug wrap-break-word">
                 {processingProgress?.message || "Running Marker AI to extract handwriting, headings & formulas..."}
               </p>
               {processingProgress?.progress !== undefined && (
@@ -771,7 +804,7 @@ export function BookDetailView() {
                   {noteGeneration.progress ?? 0}%
                 </span>
               </div>
-              <p className="text-[11px] font-medium opacity-85 leading-snug break-words">
+              <p className="text-[11px] font-medium opacity-85 leading-snug wrap-break-word">
                 {noteGeneration.message || (noteGeneration.childTitle ? `Teaching: ${noteGeneration.childTitle}` : `Synthesizing notes for ${noteGeneration.topicTitle}...`)}
               </p>
               <div className="w-full bg-amber-500/20 h-1.5 rounded-full overflow-hidden border border-amber-500/30">
@@ -813,8 +846,9 @@ export function BookDetailView() {
                     setIsChatOpen(false);
                     setPdfScrollCommand({ page: topic.start_page, ts: Date.now() });
                     setViewMode('topics');
+                    if (isMobile) setIsTocCollapsed(true);
                   }}
-                  className={clsx(
+                  className={cn(
                     "absolute top-0 left-0 w-full flex items-center text-left transition-colors group",
                     isSelected
                       ? "bg-primary/10 border-l-4 border-primary text-primary font-bold z-10"
@@ -869,9 +903,9 @@ export function BookDetailView() {
       </aside>
 
       {/* Resize Handle */}
-      {!isTocCollapsed && (
+      {!isTocCollapsed && !isMobile && (
         <div
-          className={clsx(
+          className={cn(
             "w-1 cursor-col-resize hover:bg-accent-blue/50 active:bg-accent-blue transition-colors duration-150 relative z-20",
             isResizing && "bg-accent-blue"
           )}
@@ -893,7 +927,7 @@ export function BookDetailView() {
         ) : (
           <>
             <div
-              className={clsx(
+              className={cn(
                 "flex flex-col bg-surface",
                 viewMode === 'pdf'
                   ? "flex-1 relative h-full"
@@ -914,12 +948,12 @@ export function BookDetailView() {
                   <div className="w-px h-4 bg-surface-container-high mx-1"></div>
                   <div className="text-sm font-medium text-primary flex items-center gap-2">
                     <FileText size={16} className="text-accent-blue shrink-0" />
-                    <span className="truncate max-w-[200px]">{book?.title || 'Source PDF'}</span>
+                    <span className="truncate max-w-50">{book?.title || 'Source PDF'}</span>
                   </div>
                   {isAnalyzingHandwriting && (
                     <div className="flex items-center gap-2 px-2.5 py-1 bg-amber-500/10 border border-amber-500 text-amber-700 dark:text-amber-300 rounded-lg text-xs font-bold animate-pulse">
                       <Loader2 size={13} className="animate-spin text-amber-600 dark:text-amber-400 shrink-0" />
-                      <span className="truncate max-w-[220px]">
+                      <span className="truncate max-w-55">
                         Analyzing Outline {processingProgress?.progress !== undefined ? `(${processingProgress.progress}%)` : ''}
                       </span>
                     </div>
@@ -929,8 +963,8 @@ export function BookDetailView() {
                 <div className="flex items-center gap-3">
                   <button
                     onClick={() => dispatch(setIsNotesOpen(!isNotesOpen))}
-                    className={clsx(
-                      "flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold border-2 border-on-surface rounded-md transition-all shadow-[2px_2px_0px_0px_#191b23] active:shadow-none active:translate-x-[1px] active:translate-y-[1px]",
+                    className={cn(
+                      "flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold border-2 border-on-surface rounded-md transition-all shadow-[2px_2px_0px_0px_#191b23] active:shadow-none active:translate-x-px active:translate-y-px",
                       isNotesOpen
                         ? "bg-amber-500 text-black border-amber-600"
                         : noteGeneration?.isGenerating
@@ -955,7 +989,7 @@ export function BookDetailView() {
                   </button>
                   {annotations.length > 0 && (
                     <button
-                      onClick={() => window.open(`http://127.0.0.1:8000/books/${bookId}/export-annotated`, '_blank')}
+                      onClick={() => window.open(`${API_BASE}/books/${bookId}/export-annotated`, '_blank')}
                       className="text-label-sm font-bold text-primary bg-tertiary-fixed px-3 py-1.5 transition-colors border-[3px] border-primary neo-shadow-sm active-neo-press"
                     >
                       Export PDF
@@ -972,7 +1006,7 @@ export function BookDetailView() {
                   <Suspense fallback={<div className="flex flex-col items-center justify-center h-full"><Loader2 className="animate-spin text-accent-blue w-8 h-8 mb-4" /><p className="text-sm font-medium text-on-surface-variant">Loading PDF Viewer...</p></div>}>
                     <PdfViewer
                       theme={pdfTheme}
-                      url={`http://127.0.0.1:8000/books/${bookId}/pdf`}
+                      url={`${API_BASE}/books/${bookId}/pdf`}
                       scrollCommand={pdfScrollCommand}
                       annotations={annotations}
                       onLoadSuccess={(num) => {
@@ -1096,7 +1130,7 @@ export function BookDetailView() {
             </div>
             {/* Markdown Viewer */}
             <div
-              className={clsx(
+              className={cn(
                 "flex flex-col bg-surface",
                 viewMode === 'markdown'
                   ? "flex-1 relative h-full"
@@ -1116,14 +1150,14 @@ export function BookDetailView() {
                   <div className="w-px h-4 bg-surface-container-high mx-1"></div>
                   <div className="text-sm font-medium text-primary flex items-center gap-2">
                     <FileText size={16} className="text-accent-blue shrink-0" />
-                    <span className="truncate max-w-[200px]">Extracted Markdown</span>
+                    <span className="truncate max-w-50">Extracted Markdown</span>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
                   <button
                     onClick={() => dispatch(setIsNotesOpen(!isNotesOpen))}
-                    className={clsx(
-                      "flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold border-2 border-on-surface rounded-md transition-all shadow-[2px_2px_0px_0px_#191b23] active:shadow-none active:translate-x-[1px] active:translate-y-[1px]",
+                    className={cn(
+                      "flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold border-2 border-on-surface rounded-md transition-all shadow-[2px_2px_0px_0px_#191b23] active:shadow-none active:translate-x-px active:translate-y-px",
                       isNotesOpen ? "bg-amber-500 text-black border-amber-600" : "bg-surface-container-lowest text-on-surface hover:bg-surface-container"
                     )}
                     title="Toggle Study Notes split screen"
@@ -1142,7 +1176,7 @@ export function BookDetailView() {
                       title="Copy markdown to clipboard"
                     >
                       {isMdCopied ? <Check size={16} className="text-green-500" /> : <Copy size={16} />}
-                      <span className={clsx("text-sm font-medium", isMdCopied && "text-green-500")}>
+                      <span className={cn("text-sm font-medium", isMdCopied && "text-green-500")}>
                         {isMdCopied ? "Copied!" : "Copy"}
                       </span>
                     </button>
@@ -1161,7 +1195,7 @@ export function BookDetailView() {
                 </div>
               </div>
             </div>
-            <div className={clsx("flex-1 flex justify-center h-full overflow-y-auto custom-scrollbar", viewMode !== 'topics' && "hidden")}>
+            <div className={cn("flex-1 flex justify-center h-full overflow-y-auto custom-scrollbar", viewMode !== 'topics' && "hidden")}>
               <div className="w-full max-w-5xl flex flex-col min-h-full">
                 {/* Header */}
                 <div className="px-5 pt-3 flex items-center justify-between text-sm text-outline">
@@ -1169,15 +1203,15 @@ export function BookDetailView() {
                     {isTocCollapsed && (
                       <button
                         onClick={() => setIsTocCollapsed(false)}
-                        className="bg-surface-container-lowest border-2 border-on-surface rounded-md p-1.5 hover:bg-surface-container shadow-[2px_2px_0px_0px_#191b23] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none text-on-surface mr-3 flex items-center justify-center shrink-0 transition-all"
+                        className="bg-surface-container-lowest border-2 border-on-surface rounded-md p-1.5 hover:bg-surface-container shadow-[2px_2px_0px_0px_#191b23] active:translate-x-px active:translate-y-px active:shadow-none text-on-surface mr-3 flex items-center justify-center shrink-0 transition-all"
                         title="Show Outline"
                       >
                         <LayoutList size={20} />
                       </button>
                     )}
-                    <Link to="/" className="hover:text-primary transition-colors truncate max-w-[200px]">{book.title}</Link>
+                    <Link to="/" className="hover:text-primary transition-colors truncate max-w-50">{book.title}</Link>
                     <ChevronRight size={16} />
-                    <span className="truncate max-w-[200px]">{activeTopic.breadcrumb || 'Chapter'}</span>
+                    <span className="truncate max-w-50">{activeTopic.breadcrumb || 'Chapter'}</span>
                   </div>
                   <div className="flex items-center gap-3">
                     <span className="px-3 py-1 bg-surface-container rounded-full border border-outline-variant font-bold text-on-surface">
@@ -1280,8 +1314,8 @@ export function BookDetailView() {
                     <button
                       onClick={handleAnalyzeHandwriting}
                       disabled={isAnalyzingHandwriting}
-                      className={clsx(
-                        "snap-start shrink-0 bg-amber-500/10 border-2 border-amber-600 text-amber-700 dark:text-amber-300 rounded-lg px-3 py-1.5 flex items-center gap-2 shadow-[2px_2px_0px_0px_#d97706] active:shadow-none active:translate-x-[1px] active:translate-y-[1px] transition-all h-9 font-bold text-xs",
+                      className={cn(
+                        "snap-start shrink-0 bg-amber-500/10 border-2 border-amber-600 text-amber-700 dark:text-amber-300 rounded-lg px-3 py-1.5 flex items-center gap-2 shadow-[2px_2px_0px_0px_#d97706] active:shadow-none active:translate-x-px active:translate-y-px transition-all h-9 font-bold text-xs",
                         isAnalyzingHandwriting ? "opacity-75 cursor-not-allowed" : "hover:bg-amber-500/20 cursor-pointer"
                       )}
                       title="Extract structured chapters and topics from handwritten notes using Marker"
@@ -1299,7 +1333,7 @@ export function BookDetailView() {
                       setViewMode('pdf');
                       setPdfScrollCommand({ page: activeTopic.start_page, ts: Date.now() });
                     }}
-                    className="snap-start shrink-0 bg-surface-container-lowest border-2 border-on-surface rounded-lg px-3 py-1.5 flex items-center gap-2 hover:bg-surface-container shadow-[2px_2px_0px_0px_#191b23] active:shadow-none active:translate-x-[1px] active:translate-y-[1px] transition-all h-9 text-on-surface"
+                    className="snap-start shrink-0 bg-surface-container-lowest border-2 border-on-surface rounded-lg px-3 py-1.5 flex items-center gap-2 hover:bg-surface-container shadow-[2px_2px_0px_0px_#191b23] active:shadow-none active:translate-x-px active:translate-y-px transition-all h-9 text-on-surface"
                   >
                     <FileText size={16} />
                     <span className="font-bold text-xs">View PDF</span>
@@ -1309,8 +1343,8 @@ export function BookDetailView() {
                       setTopicTab('concepts');
                       setViewMode('topics');
                     }}
-                    className={clsx(
-                      "snap-start shrink-0 border-2 border-on-surface rounded-lg px-3 py-1.5 flex items-center gap-2 shadow-[2px_2px_0px_0px_#191b23] active:shadow-none active:translate-x-[1px] active:translate-y-[1px] transition-all h-9 cursor-pointer",
+                    className={cn(
+                      "snap-start shrink-0 border-2 border-on-surface rounded-lg px-3 py-1.5 flex items-center gap-2 shadow-[2px_2px_0px_0px_#191b23] active:shadow-none active:translate-x-px active:translate-y-px transition-all h-9 cursor-pointer",
                       viewMode === 'topics' && topicTab === 'concepts'
                         ? "bg-primary text-on-primary font-bold shadow-[2px_2px_0px_0px_#191b23]"
                         : "bg-surface-container-lowest text-on-surface hover:bg-surface-container"
@@ -1329,8 +1363,8 @@ export function BookDetailView() {
                       setTopicTab('flashcards');
                       setViewMode('topics');
                     }}
-                    className={clsx(
-                      "snap-start shrink-0 border-2 border-on-surface rounded-lg px-3 py-1.5 flex items-center gap-2 shadow-[2px_2px_0px_0px_#191b23] active:shadow-none active:translate-x-[1px] active:translate-y-[1px] transition-all h-9 cursor-pointer",
+                    className={cn(
+                      "snap-start shrink-0 border-2 border-on-surface rounded-lg px-3 py-1.5 flex items-center gap-2 shadow-[2px_2px_0px_0px_#191b23] active:shadow-none active:translate-x-px active:translate-y-px transition-all h-9 cursor-pointer",
                       viewMode === 'topics' && topicTab === 'flashcards'
                         ? "bg-primary text-on-primary font-bold shadow-[2px_2px_0px_0px_#191b23]"
                         : "bg-surface-container-lowest text-on-surface hover:bg-surface-container"
@@ -1344,8 +1378,8 @@ export function BookDetailView() {
                   </button>
                   <button
                     onClick={() => dispatch(setIsNotesOpen(!isNotesOpen))}
-                    className={clsx(
-                      "snap-start shrink-0 bg-surface-container-lowest border-2 border-on-surface rounded-lg px-3 py-1.5 flex items-center gap-2 hover:bg-surface-container shadow-[2px_2px_0px_0px_#191b23] active:shadow-none active:translate-x-[1px] active:translate-y-[1px] transition-all h-9 text-on-surface",
+                    className={cn(
+                      "snap-start shrink-0 bg-surface-container-lowest border-2 border-on-surface rounded-lg px-3 py-1.5 flex items-center gap-2 hover:bg-surface-container shadow-[2px_2px_0px_0px_#191b23] active:shadow-none active:translate-x-px active:translate-y-px transition-all h-9 text-on-surface",
                       isNotesOpen
                         ? "bg-primary/10 text-primary border-primary"
                         : noteGeneration?.isGenerating
@@ -1365,8 +1399,8 @@ export function BookDetailView() {
                   {activeTopic.content_md && (
                     <button
                       onClick={() => setViewMode('markdown')}
-                      className={clsx(
-                        "snap-start shrink-0 bg-surface-container-lowest border-2 border-on-surface rounded-lg px-3 py-1.5 flex items-center gap-2 hover:bg-surface-container shadow-[2px_2px_0px_0px_#191b23] active:shadow-none active:translate-x-[1px] active:translate-y-[1px] transition-all h-9 text-on-surface",
+                      className={cn(
+                        "snap-start shrink-0 bg-surface-container-lowest border-2 border-on-surface rounded-lg px-3 py-1.5 flex items-center gap-2 hover:bg-surface-container shadow-[2px_2px_0px_0px_#191b23] active:shadow-none active:translate-x-px active:translate-y-px transition-all h-9 text-on-surface",
                         viewMode === 'markdown' && "bg-primary/10 text-primary border-primary"
                       )}
                     >
@@ -1380,7 +1414,7 @@ export function BookDetailView() {
 
                   {/* Flashcards Section - Only shows under selection of generate flashcard option */}
                   {topicTab === 'flashcards' && (
-                    <div className="flex flex-col flex-1 min-h-[420px] gap-2.5 bg-surface-container-lowest border-2 border-on-surface rounded-xl p-5 shadow-[4px_4px_0px_0px_#191b23] animate-in fade-in slide-in-from-top-2 duration-200">
+                    <div className="flex flex-col flex-1 min-h-105 gap-2.5 bg-surface-container-lowest border-2 border-on-surface rounded-xl p-5 shadow-[4px_4px_0px_0px_#191b23] animate-in fade-in slide-in-from-top-2 duration-200">
                       <div className="flex flex-wrap items-center justify-between gap-3 shrink-0 pb-3 border-b-2 border-on-surface/10">
                         <div className="flex items-center gap-3 flex-wrap">
                           <h3 className="text-base font-black uppercase tracking-tight flex items-center gap-2 text-on-surface">
@@ -1396,7 +1430,7 @@ export function BookDetailView() {
                             <div className="flex items-center gap-1.5 overflow-x-auto hide-scrollbar py-0.5 max-w-md">
                               <button
                                 onClick={() => { setSelectedCardScope('all'); setCurrentCardIndex(0); }}
-                                className={clsx(
+                                className={cn(
                                   "px-2.5 py-1 text-xs font-bold rounded-md border-2 transition-all shrink-0 cursor-pointer",
                                   selectedCardScope === 'all'
                                     ? "bg-primary text-on-primary border-on-surface shadow-[1.5px_1.5px_0px_0px_#191b23]"
@@ -1412,15 +1446,15 @@ export function BookDetailView() {
                                   <button
                                     key={scope}
                                     onClick={() => { setSelectedCardScope(scope); setCurrentCardIndex(0); }}
-                                    className={clsx(
+                                    className={cn(
                                       "px-2.5 py-1 text-xs font-bold rounded-md border-2 transition-all shrink-0 flex items-center gap-1.5 cursor-pointer",
                                       isCurrent
                                         ? "bg-primary text-on-primary border-on-surface shadow-[1.5px_1.5px_0px_0px_#191b23]"
                                         : "bg-surface-container text-on-surface-variant hover:text-on-surface border-on-surface/20"
                                     )}
                                   >
-                                    <span className="truncate max-w-[130px]">{scope}</span>
-                                    <span className={clsx("text-[10px] px-1 rounded font-bold", isCurrent ? "bg-white/20 text-white" : "bg-surface text-on-surface-variant")}>
+                                    <span className="truncate max-w-32.5">{scope}</span>
+                                    <span className={cn("text-[10px] px-1 rounded font-bold", isCurrent ? "bg-white/20 text-white" : "bg-surface text-on-surface-variant")}>
                                       {count}
                                     </span>
                                   </button>
@@ -1436,7 +1470,7 @@ export function BookDetailView() {
                               <button
                                 onClick={() => setCurrentCardIndex(Math.max(0, safeCardIndex - 1))}
                                 disabled={safeCardIndex === 0}
-                                className="bg-surface text-on-surface border-2 border-on-surface rounded-lg p-2 shadow-[2px_2px_0px_0px_#191b23] disabled:opacity-40 active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all cursor-pointer"
+                                className="bg-surface text-on-surface border-2 border-on-surface rounded-lg p-2 shadow-[2px_2px_0px_0px_#191b23] disabled:opacity-40 active:translate-x-px active:translate-y-px active:shadow-none transition-all cursor-pointer"
                                 title="Previous card"
                               >
                                 <ChevronLeft size={18} />
@@ -1444,14 +1478,14 @@ export function BookDetailView() {
                               <button
                                 onClick={() => setCurrentCardIndex(Math.min(filteredCards.length - 1, safeCardIndex + 1))}
                                 disabled={safeCardIndex >= filteredCards.length - 1}
-                                className="bg-surface text-on-surface border-2 border-on-surface rounded-lg p-2 shadow-[2px_2px_0px_0px_#191b23] disabled:opacity-40 active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all cursor-pointer"
+                                className="bg-surface text-on-surface border-2 border-on-surface rounded-lg p-2 shadow-[2px_2px_0px_0px_#191b23] disabled:opacity-40 active:translate-x-px active:translate-y-px active:shadow-none transition-all cursor-pointer"
                                 title="Next card"
                               >
                                 <ChevronRight size={18} />
                               </button>
                               <button
                                 onClick={() => setIsPracticeModalOpen(true)}
-                                className="bg-primary text-on-primary border-2 border-on-surface rounded-lg px-4 py-2 text-xs font-bold flex items-center gap-1.5 shadow-[3px_3px_0px_0px_#191b23] active:shadow-none active:translate-x-[1px] active:translate-y-[1px] transition-all cursor-pointer"
+                                className="bg-primary text-on-primary border-2 border-on-surface rounded-lg px-4 py-2 text-xs font-bold flex items-center gap-1.5 shadow-[3px_3px_0px_0px_#191b23] active:shadow-none active:translate-x-px active:translate-y-px transition-all cursor-pointer"
                               >
                                 <Play size={14} style={{ fontVariationSettings: "'FILL' 1" }} /> Practice
                               </button>
@@ -1470,7 +1504,7 @@ export function BookDetailView() {
                       </div>
 
                       {filteredCards.length === 0 ? (
-                        <div className="flex-1 min-h-[240px] bg-surface-container-low/40 border-2 border-dashed border-on-surface/20 rounded-xl flex flex-col items-center justify-center p-6 text-center relative overflow-hidden">
+                        <div className="flex-1 min-h-60 bg-surface-container-low/40 border-2 border-dashed border-on-surface/20 rounded-xl flex flex-col items-center justify-center p-6 text-center relative overflow-hidden">
                           <div className="w-14 h-14 rounded-full bg-secondary-container border-2 border-on-surface shadow-[3px_3px_0px_0px_#191b23] flex items-center justify-center mb-3">
                             <Zap size={28} className="text-on-secondary-container" fill="currentColor" />
                           </div>
@@ -1497,7 +1531,7 @@ export function BookDetailView() {
                                       <textarea
                                         value={editQuestion}
                                         onChange={(e) => setEditQuestion(e.target.value)}
-                                        className="w-full min-h-[90px] bg-surface-container-lowest border-2 border-on-surface rounded-lg p-3 text-sm font-bold text-on-surface focus:outline-none focus:shadow-[3px_3px_0px_0px_#191b23] transition-all resize-y"
+                                        className="w-full min-h-22.5 bg-surface-container-lowest border-2 border-on-surface rounded-lg p-3 text-sm font-bold text-on-surface focus:outline-none focus:shadow-[3px_3px_0px_0px_#191b23] transition-all resize-y"
                                       />
                                     </div>
                                     <div className="flex flex-col">
@@ -1505,19 +1539,19 @@ export function BookDetailView() {
                                       <textarea
                                         value={editAnswer}
                                         onChange={(e) => setEditAnswer(e.target.value)}
-                                        className="w-full min-h-[130px] bg-primary/5 border-2 border-on-surface rounded-lg p-3 text-sm font-medium text-on-surface focus:outline-none focus:shadow-[3px_3px_0px_0px_#191b23] transition-all resize-y"
+                                        className="w-full min-h-32.5 bg-primary/5 border-2 border-on-surface rounded-lg p-3 text-sm font-medium text-on-surface focus:outline-none focus:shadow-[3px_3px_0px_0px_#191b23] transition-all resize-y"
                                       />
                                     </div>
                                     <div className="flex justify-end gap-2.5 pt-1 shrink-0">
                                       <button
                                         onClick={() => setEditingCardId(null)}
-                                        className="px-4 py-2 text-xs font-bold text-on-surface bg-surface-container-lowest border-2 border-on-surface rounded-lg hover:bg-surface-container shadow-[2px_2px_0px_0px_#191b23] active:shadow-none active:translate-x-[1px] active:translate-y-[1px] transition-all cursor-pointer"
+                                        className="px-4 py-2 text-xs font-bold text-on-surface bg-surface-container-lowest border-2 border-on-surface rounded-lg hover:bg-surface-container shadow-[2px_2px_0px_0px_#191b23] active:shadow-none active:translate-x-px active:translate-y-px transition-all cursor-pointer"
                                       >
                                         Cancel
                                       </button>
                                       <button
                                         onClick={() => handleSaveCard(card.id)}
-                                        className="px-4 py-2 bg-primary text-on-primary font-bold border-2 border-on-surface rounded-lg shadow-[2px_2px_0px_0px_#191b23] active:shadow-none active:translate-x-[1px] active:translate-y-[1px] transition-all text-xs cursor-pointer"
+                                        className="px-4 py-2 bg-primary text-on-primary font-bold border-2 border-on-surface rounded-lg shadow-[2px_2px_0px_0px_#191b23] active:shadow-none active:translate-x-px active:translate-y-px transition-all text-xs cursor-pointer"
                                       >
                                         Save Changes
                                       </button>
@@ -1528,13 +1562,13 @@ export function BookDetailView() {
                                     <div className="absolute top-4 right-4 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
                                       <button
                                         onClick={() => handleStartEdit(card)}
-                                        className="p-1.5 text-on-surface bg-surface hover:bg-surface-container border-2 border-on-surface rounded-lg shadow-[1.5px_1.5px_0px_0px_#191b23] transition-all active:translate-x-[1px] active:translate-y-[1px] active:shadow-none cursor-pointer"
+                                        className="p-1.5 text-on-surface bg-surface hover:bg-surface-container border-2 border-on-surface rounded-lg shadow-[1.5px_1.5px_0px_0px_#191b23] transition-all active:translate-x-px active:translate-y-px active:shadow-none cursor-pointer"
                                         title="Edit card"
                                       >
                                         <Edit2 size={14} />
                                       </button>
                                       <button
-                                        className="p-1.5 text-error bg-error/10 hover:bg-error/20 border-2 border-error rounded-lg shadow-[1.5px_1.5px_0px_0px_var(--color-error)] transition-all active:translate-x-[1px] active:translate-y-[1px] active:shadow-none cursor-pointer"
+                                        className="p-1.5 text-error bg-error/10 hover:bg-error/20 border-2 border-error rounded-lg shadow-[1.5px_1.5px_0px_0px_var(--color-error)] transition-all active:translate-x-px active:translate-y-px active:shadow-none cursor-pointer"
                                         onClick={() => handleDeleteCard(card.id)}
                                         title="Delete card"
                                       >
@@ -1604,11 +1638,11 @@ export function BookDetailView() {
                             </div>
                             <div>
                               <div className="flex items-center gap-2.5">
-                                <h3 className="font-headline-md text-headline-md font-bold text-primary">
+                                <h3 className="text-headline-md font-bold text-primary">
                                   Atomic Concepts ({concepts.length})
                                 </h3>
                                 {concepts.length > 0 && (
-                                  <span className={clsx(
+                                  <span className={cn(
                                     "text-xs font-bold px-2 py-0.5 rounded border uppercase tracking-wider",
                                     masteredCount === concepts.length && concepts.length > 0
                                       ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/30"
@@ -1618,7 +1652,7 @@ export function BookDetailView() {
                                   </span>
                                 )}
                               </div>
-                              <p className="text-label-sm font-label-sm font-bold uppercase tracking-wider text-secondary">
+                              <p className="text-label-sm font-bold uppercase tracking-wider text-secondary">
                                 Targeted Concept Mastery & Socratic Drills
                               </p>
                             </div>
@@ -1630,7 +1664,7 @@ export function BookDetailView() {
                                 handleProcessTopic();
                               }}
                               disabled={activeTopic.status === 'processing'}
-                              className="bg-primary text-on-primary font-bold text-xs px-3.5 py-1.5 rounded-lg border-2 border-on-surface shadow-[2px_2px_0px_0px_#191b23] flex items-center gap-1.5 hover:bg-academic-blue active:shadow-none active:translate-x-[1px] active:translate-y-[1px] transition-all disabled:opacity-50 cursor-pointer"
+                              className="bg-primary text-on-primary font-bold text-xs px-3.5 py-1.5 rounded-lg border-2 border-on-surface shadow-[2px_2px_0px_0px_#191b23] flex items-center gap-1.5 hover:bg-academic-blue active:shadow-none active:translate-x-px active:translate-y-px transition-all disabled:opacity-50 cursor-pointer"
                               title="Extract atomic concepts from this topic"
                             >
                               {activeTopic.status === 'processing' ? (
@@ -1648,7 +1682,7 @@ export function BookDetailView() {
                             <button className="p-2 text-on-surface-variant group-hover:text-primary group-hover:bg-surface-container rounded-full transition-colors">
                               <ChevronDown
                                 size={24}
-                                className={clsx("transition-transform duration-200", !isSummaryCollapsed && "rotate-180")}
+                                className={cn("transition-transform duration-200", !isSummaryCollapsed && "rotate-180")}
                               />
                             </button>
                           </div>
@@ -1665,8 +1699,8 @@ export function BookDetailView() {
                                   return (
                                     <div
                                       key={concept.id || concept.name}
-                                      className={clsx(
-                                        "border-[2.5px] rounded-xl p-4 flex flex-col justify-between gap-3 transition-all duration-200 shadow-[2px_2px_0px_0px_#191b23] hover:shadow-[4px_4px_0px_0px_#191b23] hover:-translate-y-[1px]",
+                                      className={cn(
+                                        "border-[2.5px] rounded-xl p-4 flex flex-col justify-between gap-3 transition-all duration-200 shadow-[2px_2px_0px_0px_#191b23] hover:shadow-[4px_4px_0px_0px_#191b23] hover:-translate-y-px",
                                         isTargeted
                                           ? "border-secondary bg-secondary/5 ring-2 ring-secondary/30"
                                           : "border-on-background bg-surface-container-lowest"
@@ -1678,7 +1712,7 @@ export function BookDetailView() {
                                           <h4 className="font-bold text-base text-primary leading-snug">
                                             {concept.name}
                                           </h4>
-                                          <span className={clsx(
+                                          <span className={cn(
                                             "text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded border shrink-0",
                                             concept.concept_type === 'Formula' ? "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/30" :
                                               concept.concept_type === 'Definition' ? "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30" :
@@ -1721,7 +1755,7 @@ export function BookDetailView() {
                                       <div className="pt-2 border-t border-outline-variant/40 flex items-center justify-between gap-2 mt-auto">
                                         {/* Mastery indicator */}
                                         <div className="flex items-center gap-2">
-                                          <span className={clsx(
+                                          <span className={cn(
                                             "text-xs font-bold px-2 py-0.5 rounded border uppercase tracking-wider",
                                             concept.mastery_status === 'mastered' ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/40" :
                                               concept.mastery_status === 'developing' ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/40" :
@@ -1743,7 +1777,7 @@ export function BookDetailView() {
                                                 setSelectedCardScope(concept.name);
                                                 setCurrentCardIndex(0);
                                               }}
-                                              className="text-xs font-bold px-2.5 py-1.5 rounded-lg border-2 border-primary/30 bg-primary/10 text-primary hover:bg-primary/20 flex items-center gap-1 transition-all cursor-pointer active:translate-x-[1px] active:translate-y-[1px]"
+                                              className="text-xs font-bold px-2.5 py-1.5 rounded-lg border-2 border-primary/30 bg-primary/10 text-primary hover:bg-primary/20 flex items-center gap-1 transition-all cursor-pointer active:translate-x-px active:translate-y-px"
                                               title={`View ${activeTopicCards.filter(c => c.topic_name === concept.name).length} flashcards for "${concept.name}"`}
                                             >
                                               <Zap size={12} fill="currentColor" />
@@ -1758,8 +1792,8 @@ export function BookDetailView() {
                                               drillWidgetRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
                                               showToast('info', `Focused Socratic Drill on "${concept.name}"`);
                                             }}
-                                            className={clsx(
-                                              "text-xs font-bold px-3 py-1.5 rounded-lg border-2 border-on-surface shadow-[1.5px_1.5px_0px_0px_#191b23] flex items-center gap-1.5 transition-all active:shadow-none active:translate-x-[1px] active:translate-y-[1px] cursor-pointer",
+                                            className={cn(
+                                              "text-xs font-bold px-3 py-1.5 rounded-lg border-2 border-on-surface shadow-[1.5px_1.5px_0px_0px_#191b23] flex items-center gap-1.5 transition-all active:shadow-none active:translate-x-px active:translate-y-px cursor-pointer",
                                               isTargeted
                                                 ? "bg-secondary text-on-secondary ring-1 ring-secondary"
                                                 : "bg-primary text-on-primary hover:bg-academic-blue"
@@ -1790,7 +1824,7 @@ export function BookDetailView() {
                                 <button
                                   onClick={handleProcessTopic}
                                   disabled={activeTopic.status === 'processing'}
-                                  className="bg-primary text-on-primary font-bold text-xs px-5 py-2.5 rounded-lg border-2 border-on-surface shadow-[2px_2px_0px_0px_#191b23] flex items-center gap-2 hover:bg-academic-blue active:shadow-none active:translate-x-[1px] active:translate-y-[1px] transition-all disabled:opacity-50 cursor-pointer mt-1"
+                                  className="bg-primary text-on-primary font-bold text-xs px-5 py-2.5 rounded-lg border-2 border-on-surface shadow-[2px_2px_0px_0px_#191b23] flex items-center gap-2 hover:bg-academic-blue active:shadow-none active:translate-x-px active:translate-y-px transition-all disabled:opacity-50 cursor-pointer mt-1"
                                 >
                                   {activeTopic.status === 'processing' ? (
                                     <>
@@ -1827,10 +1861,10 @@ export function BookDetailView() {
           />
         )}
 
-        <div className={clsx(
+        <div className={cn(
           isChatExpanded
             ? "fixed inset-3 md:inset-6 z-50 flex flex-col transition-all duration-200"
-            : "fixed top-[152px] bottom-6 right-6 z-50 transition-all duration-300 transform",
+            : "fixed top-38 bottom-6 right-6 z-50 transition-all duration-300 transform",
           isChatOpen ? "translate-x-0 opacity-100" : "translate-x-full opacity-0 pointer-events-none"
         )}>
           <AIChatSidebar
@@ -1884,7 +1918,7 @@ export function BookDetailView() {
             </div>
             <button
               onClick={() => dispatch(setIsNotesOpen(true))}
-              className="px-3 py-1 text-xs font-bold bg-amber-500 text-black border-2 border-on-surface rounded-md shadow-[1.5px_1.5px_0px_0px_#191b23] active:translate-x-[1px] active:translate-y-[1px] cursor-pointer hover:bg-amber-400 shrink-0 transition-all"
+              className="px-3 py-1 text-xs font-bold bg-amber-500 text-black border-2 border-on-surface rounded-md shadow-[1.5px_1.5px_0px_0px_#191b23] active:translate-x-px active:translate-y-px cursor-pointer hover:bg-amber-400 shrink-0 transition-all"
             >
               Open Notes
             </button>
@@ -1894,11 +1928,11 @@ export function BookDetailView() {
         {/* Dockable Notes Split Panel */}
         {isNotesOpen && activeTopic && (
           <div
-            className={clsx(
+            className={cn(
               "border-l-[3px] border-on-background bg-surface-container-lowest flex flex-col transition-all duration-200 shadow-[-4px_0px_0px_0px_rgba(0,0,0,0.1)]",
               isNotesExpanded
                 ? "absolute inset-0 z-50"
-                : "w-[480px] lg:w-[560px] xl:w-[620px] shrink-0 h-full relative z-30"
+                : "w-120 lg:w-140 xl:w-155 shrink-0 h-full relative z-30"
             )}
           >
             <ErrorBoundary>

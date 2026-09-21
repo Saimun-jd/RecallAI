@@ -5,7 +5,7 @@ import { X, Bot, Send, User, Loader2, AlertTriangle, Maximize2, Minimize2 } from
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { ExamTopicCardList } from './ExamTopicCardList';
 import { client, type ChatMessage, type ExamTopicItem } from '../api/client';
-import clsx from 'clsx';
+import { cn } from '../lib/utils';
 
 interface AIChatSidebarProps {
   isOpen: boolean;
@@ -261,11 +261,11 @@ export function AIChatSidebar({
   };
 
   return (
-    <div className={clsx(
+    <div className={cn(
       "bg-surface border-2 border-on-surface rounded-2xl flex flex-col overflow-hidden transition-all duration-200",
       isExpanded
         ? "w-full h-full max-w-6xl mx-auto shadow-[12px_12px_0px_0px_rgba(0,0,0,1)]"
-        : "w-[420px] h-[calc(100vh-176px)] shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] animate-in fade-in slide-in-from-right-4 duration-200"
+        : "w-105 h-[calc(100vh-176px)] shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] animate-in fade-in slide-in-from-right-4 duration-200"
     )}>
 
       {/* Header */}
@@ -287,7 +287,7 @@ export function AIChatSidebar({
           <select
             value={provider}
             onChange={(e) => setProvider(e.target.value)}
-            className="bg-surface text-on-surface text-xs font-bold px-2 py-1 rounded border-2 border-on-surface shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] outline-none cursor-pointer max-w-[120px] truncate shrink-0"
+            className="bg-surface text-on-surface text-xs font-bold px-2 py-1 rounded border-2 border-on-surface shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] outline-none cursor-pointer max-w-30 truncate shrink-0"
             title="Select AI Provider"
           >
             <option value="">Default Provider</option>
@@ -324,11 +324,11 @@ export function AIChatSidebar({
       {/* Messages Area */}
       <div className="flex-1 overflow-y-auto flex flex-col bg-surface custom-scrollbar">
         {messages.map((msg, idx) => (
-          <div key={idx} className={clsx(
+          <div key={idx} className={cn(
             "flex flex-col gap-3 px-5 py-6 border-b-2 border-on-surface/5",
             msg.role === 'user' ? "bg-surface" : "bg-surface-container-lowest"
           )}>
-            <div className={clsx("flex flex-col gap-3 w-full", isExpanded && "max-w-4xl mx-auto")}>
+            <div className={cn("flex flex-col gap-3 w-full", isExpanded && "max-w-4xl mx-auto")}>
               {/* Header: Avatar + Name */}
               <div className="flex items-center gap-3">
                 <div className="shrink-0">
@@ -390,7 +390,7 @@ export function AIChatSidebar({
 
       {/* Input Area */}
       <div className="p-4 bg-surface shrink-0 border-t-2 border-on-surface/10">
-        <div className={clsx(
+        <div className={cn(
           "flex items-center bg-surface-container-lowest border-2 border-on-surface rounded-xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] focus-within:border-primary transition-colors",
           isExpanded && "max-w-4xl mx-auto"
         )}>
@@ -413,7 +413,7 @@ export function AIChatSidebar({
             </button>
           </div>
         </div>
-        <p className={clsx(
+        <p className={cn(
           "text-[10px] text-on-surface-variant text-center mt-3 font-bold uppercase tracking-widest",
           isExpanded && "max-w-4xl mx-auto"
         )}>

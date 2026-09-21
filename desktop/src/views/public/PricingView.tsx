@@ -217,7 +217,7 @@ export function PricingView() {
           <h3 className="text-2xl font-black text-on-surface mb-6 text-center">Feature Comparison</h3>
           
           <div className="rounded-2xl border-2 border-border-default bg-surface shadow-neo overflow-x-auto">
-            <table className="w-full text-left text-xs sm:text-sm">
+            <table className="w-full min-w-[460px] text-left text-xs sm:text-sm">
               <thead className="bg-surface-container-high border-b-2 border-border-default text-on-surface font-black uppercase tracking-wider text-[11px]">
                 <tr>
                   <th className="py-3 px-4 sm:px-6">Feature</th>

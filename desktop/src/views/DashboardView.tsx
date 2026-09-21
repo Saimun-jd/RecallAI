@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
+import { motion, AnimatePresence } from 'framer-motion';
+import { usePrefersReducedMotion } from '../components/ui/motion';
 import { Upload, Loader2, Sparkles, Plus, BookOpen, BrainCircuit } from 'lucide-react';
 import { 
   client, 
@@ -41,6 +43,7 @@ export function DashboardView() {
   const dispatch = useDispatch();
   const { user } = useAuth();
   const { showToast } = useToast();
+  const shouldReduceMotion = usePrefersReducedMotion();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const uploadedBookIdRef = useRef<number | null>(null);
   const autoNavTimeoutRef = useRef<any>(null);
@@ -375,7 +378,7 @@ export function DashboardView() {
 
   return (
     <div
-      className={`flex-1 overflow-y-auto bg-surface text-on-surface transition-colors ${
+      className={`w-full flex-1 bg-surface text-on-surface transition-colors ${
         isDragging
           ? 'bg-primary/5 outline-dashed outline-4 outline-primary outline-offset-[-16px]'
           : ''
@@ -385,19 +388,33 @@ export function DashboardView() {
       onDrop={handleDrop}
     >
       {/* Drag & Drop Visual Overlay */}
-      {isDragging && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs pointer-events-none">
-          <div className="p-8 rounded-2xl border-2 border-border-default bg-surface shadow-neo-lg text-center space-y-3 animate-in zoom-in-95">
-            <div className="w-14 h-14 rounded-2xl bg-primary text-white flex items-center justify-center mx-auto border-2 border-border-default shadow-neo-sm">
-              <Upload size={28} className="stroke-[2.5]" />
-            </div>
-            <h2 className="text-xl font-black text-on-surface">Drop PDF to Ingest</h2>
-            <p className="text-xs text-on-surface-variant max-w-xs">
-              Recall AI will automatically parse sections, extract concepts, and generate study cards.
-            </p>
-          </div>
-        </div>
-      )}
+      <AnimatePresence>
+        {isDragging && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs pointer-events-none"
+          >
+            <motion.div 
+              initial={shouldReduceMotion ? { opacity: 0 } : { scale: 0.95, y: 8 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={shouldReduceMotion ? { opacity: 0 } : { scale: 0.95, y: 8 }}
+              transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+              className="p-8 rounded-2xl border-2 border-border-default bg-surface shadow-neo-lg text-center space-y-3"
+            >
+              <div className="w-14 h-14 rounded-2xl bg-primary text-white flex items-center justify-center mx-auto border-2 border-border-default shadow-neo-sm">
+                <Upload size={28} className="stroke-[2.5]" />
+              </div>
+              <h2 className="text-xl font-black text-on-surface">Drop PDF to Ingest</h2>
+              <p className="text-xs text-on-surface-variant max-w-xs">
+                Recall AI will automatically parse sections, extract concepts, and generate study cards.
+              </p>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Hidden File Input */}
       <input
@@ -409,7 +426,12 @@ export function DashboardView() {
       />
 
       {/* Main Dashboard Layout */}
-      <div className="p-5 sm:p-8 space-y-6 max-w-7xl mx-auto">
+      <motion.div 
+        initial={shouldReduceMotion ? { opacity: 1 } : { opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+        className="p-3.5 sm:p-6 lg:p-8 space-y-5 sm:space-y-6 max-w-7xl mx-auto"
+      >
         {/* 1. Dashboard Context Header */}
         <DashboardHeader
           userName={user?.full_name}
@@ -450,7 +472,7 @@ export function DashboardView() {
           <ProgressSnapshot activityData={activityData} />
           <UsageQuotaCard overview={accountOverview} />
         </div>
-      </div>
+      </motion.div>
 
       {/* Ingestion Modal */}
       <IngestionProgressModal

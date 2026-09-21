@@ -36,7 +36,7 @@ export function DashboardHeader({
           <Calendar size={13} className="text-primary" />
           <span>{formattedDate}</span>
         </div>
-        <h1 className="text-2xl sm:text-3xl font-black text-on-surface tracking-tight">
+        <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-on-surface tracking-tight break-words">
           {getGreeting()}, {displayName}!
         </h1>
         <p className="text-xs sm:text-sm text-on-surface-variant max-w-xl">
@@ -44,10 +44,10 @@ export function DashboardHeader({
         </p>
       </div>
 
-      <div className="flex items-center gap-3 shrink-0">
+      <div className="flex items-center gap-2.5 sm:gap-3 shrink-0 flex-wrap w-full sm:w-auto">
         <Link
           to="/review"
-          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 border-border-default bg-primary text-white font-extrabold text-xs sm:text-sm shadow-neo-sm hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-none transition-all active:translate-x-1 active:translate-y-1"
+          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 min-h-[44px] rounded-lg border-2 border-border-default bg-primary text-white font-extrabold text-xs sm:text-sm shadow-neo-sm hover:-translate-x-[1px] hover:-translate-y-[1px] hover:shadow-neo transition-all active:translate-x-[1px] active:translate-y-[1px] active:shadow-none flex-1 sm:flex-initial"
         >
           <Zap size={16} className="fill-white/20" />
           <span>Start Review</span>
@@ -61,7 +61,7 @@ export function DashboardHeader({
         <button
           type="button"
           onClick={onUploadClick}
-          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 border-border-default bg-surface text-on-surface font-extrabold text-xs sm:text-sm shadow-neo-sm hover:bg-surface-container hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-none transition-all active:translate-x-1 active:translate-y-1"
+          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 min-h-[44px] rounded-lg border-2 border-border-default bg-surface text-on-surface font-extrabold text-xs sm:text-sm shadow-neo-sm hover:bg-surface-container hover:-translate-x-[1px] hover:-translate-y-[1px] hover:shadow-neo transition-all active:translate-x-[1px] active:translate-y-[1px] active:shadow-none flex-1 sm:flex-initial cursor-pointer"
         >
           <Plus size={16} />
           <span>Add Knowledge</span>

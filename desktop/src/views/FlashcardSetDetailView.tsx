@@ -24,6 +24,8 @@ import {
   FlashcardSetDeleteDialog,
 } from '../components/flashcards';
 import { Button } from '../components/ui/Button';
+import { Breadcrumbs } from '../components/ui/Breadcrumbs';
+import { ErrorState } from '../components/shared';
 import { Tag } from '../components/ui/Tag';
 import { useToast } from '../hooks/useToast';
 
@@ -119,20 +121,21 @@ export function FlashcardSetDetailView() {
   if (error || !set) {
     return (
       <div className="flex-1 overflow-y-auto flex items-center justify-center p-6">
-        <div className="flex flex-col items-center justify-center py-16 gap-4 text-center max-w-md">
-          <div className="w-14 h-14 rounded-2xl bg-error/10 text-error border-2 border-error/20 flex items-center justify-center">
-            <AlertCircle size={24} />
-          </div>
-          <p className="text-sm font-bold text-on-surface">{error || 'Flashcard set not found'}</p>
-          <div className="flex gap-2">
-            <Button variant="secondary" size="sm" onClick={fetchSetDetail} className="gap-1.5">
-              <RotateCcw size={13} /> Retry
+        <ErrorState
+          title="Flashcard Set Not Found"
+          message={error || 'The requested flashcard set could not be loaded.'}
+          onRetry={fetchSetDetail}
+          action={
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate('/app/flashcards')}
+              className="gap-1.5"
+            >
+              <ArrowLeft size={14} /> Back to Sets
             </Button>
-            <Button variant="outline" size="sm" onClick={() => navigate('/app/flashcards')} className="gap-1.5">
-              <ArrowLeft size={13} /> Back to Sets
-            </Button>
-          </div>
-        </div>
+          }
+        />
       </div>
     );
   }
@@ -147,18 +150,15 @@ export function FlashcardSetDetailView() {
     <div className="flex-1 overflow-y-auto">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
         {/* Navigation Breadcrumb */}
-        <div className="flex items-center justify-between gap-4">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigate('/app/flashcards')}
-            className="gap-1.5 text-on-surface-variant hover:text-on-surface"
-          >
-            <ArrowLeft size={15} />
-            <span>All Flashcards</span>
-          </Button>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <Breadcrumbs
+            items={[
+              { label: 'Flashcards', href: '/app/flashcards' },
+              { label: set.title },
+            ]}
+          />
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 self-start sm:self-auto">
             <Button
               variant="outline"
               size="sm"

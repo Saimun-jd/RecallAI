@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BookOpen, Sparkles, Brain, ArrowRight, Upload, Key, ShieldCheck } from 'lucide-react';
-import clsx from 'clsx';
+import { cn } from '../lib/utils';
 
 interface WelcomeScreenProps {
   onComplete: () => void;
@@ -53,13 +53,13 @@ export function WelcomeScreen({ onComplete }: WelcomeScreenProps) {
 
   return (
     <div 
-      className={clsx(
+      className={cn(
         "fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm transition-all duration-300",
         isVisible && !isClosing ? "opacity-100" : "opacity-0 pointer-events-none"
       )}
     >
       <div 
-        className={clsx(
+        className={cn(
           "bg-surface-container-lowest border border-border-default shadow-xl rounded-2xl max-w-3xl w-full mx-4 p-8 max-h-[90vh] overflow-y-auto custom-scrollbar transition-all duration-300 transform",
           isVisible && !isClosing ? "translate-y-0 scale-100" : "translate-y-6 scale-98"
         )}

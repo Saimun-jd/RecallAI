@@ -10,7 +10,7 @@ import {
   Tooltip 
 } from 'recharts';
 import { useToast } from '../hooks/useToast';
-import clsx from 'clsx';
+import { cn } from '../lib/utils';
 
 // Friendly metadata mapping for the 10 prompts
 const PROMPT_METADATA: Record<string, { icon: React.ComponentType<{ size?: number; className?: string }>; friendlyName: string; category: string; description: string }> = {
@@ -306,7 +306,7 @@ export function LLMInspectionView() {
           <div className="flex items-center gap-1.5 p-1 bg-surface-container border-2 border-on-surface rounded-xl shadow-[2px_2px_0px_0px_#191b23] shrink-0 self-start sm:self-auto">
             <button
               onClick={() => setActiveTab('prompts')}
-              className={clsx(
+              className={cn(
                 "flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer",
                 activeTab === 'prompts'
                   ? "bg-primary text-white border-2 border-on-surface shadow-[1.5px_1.5px_0px_0px_#191b23]"
@@ -323,7 +323,7 @@ export function LLMInspectionView() {
             </button>
             <button
               onClick={() => setActiveTab('tokens')}
-              className={clsx(
+              className={cn(
                 "flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer",
                 activeTab === 'tokens'
                   ? "bg-primary text-white border-2 border-on-surface shadow-[1.5px_1.5px_0px_0px_#191b23]"
@@ -350,7 +350,7 @@ export function LLMInspectionView() {
                   <button
                     key={cat}
                     onClick={() => setSelectedCategory(cat)}
-                    className={clsx(
+                    className={cn(
                       "px-3 py-1.5 rounded-lg text-xs font-bold border-2 transition-all cursor-pointer",
                       selectedCategory === cat
                         ? "bg-primary text-white border-on-surface shadow-[1.5px_1.5px_0px_0px_#191b23]"
@@ -400,7 +400,7 @@ export function LLMInspectionView() {
                   return (
                     <div
                       key={prompt.key}
-                      className={clsx(
+                      className={cn(
                         "bg-surface border-2 border-on-surface rounded-xl transition-all overflow-hidden",
                         isExpanded 
                           ? "shadow-[4px_4px_0px_0px_#191b23]" 
@@ -414,7 +414,7 @@ export function LLMInspectionView() {
                         className="w-full text-left p-4 sm:p-5 flex items-start sm:items-center justify-between gap-4 cursor-pointer hover:bg-surface-container-low/50 transition-colors"
                       >
                         <div className="flex items-start sm:items-center gap-3.5 min-w-0">
-                          <div className={clsx(
+                          <div className={cn(
                             "p-2.5 rounded-lg border-2 border-on-surface shrink-0 transition-colors",
                             prompt.is_customized 
                               ? "bg-amber-400 text-black shadow-[1px_1px_0px_0px_#191b23]" 
@@ -518,7 +518,7 @@ export function LLMInspectionView() {
                                 type="button"
                                 onClick={() => handleSavePrompt(prompt)}
                                 disabled={savingPrompt || !isDirty}
-                                className={clsx(
+                                className={cn(
                                   "px-5 py-2 rounded-lg text-xs font-bold border-2 border-on-surface flex items-center gap-2 transition-all cursor-pointer",
                                   isDirty
                                     ? "bg-primary text-white shadow-[2px_2px_0px_0px_#191b23] hover:translate-y-[-1px] active:translate-y-[1px]"
@@ -573,7 +573,7 @@ export function LLMInspectionView() {
                   <button
                     key={item.label}
                     onClick={() => setTimeRangeDays(item.val)}
-                    className={clsx(
+                    className={cn(
                       "px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer",
                       timeRangeDays === item.val
                         ? "bg-primary text-white border-2 border-on-surface shadow-[1px_1px_0px_0px_#191b23]"

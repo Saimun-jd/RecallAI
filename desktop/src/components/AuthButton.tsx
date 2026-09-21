@@ -56,26 +56,26 @@ export function AuthButton({ isExpanded }: { isExpanded: boolean }) {
 
   if (!user) {
     return (
-      <div className="flex flex-col gap-2 p-3 mt-auto border-t-2 border-border-default shrink-0">
+      <div className="flex flex-col gap-1 p-2 shrink-0">
         <Link to="/login" className={buttonClass} title={!isExpanded ? "Sign in" : undefined}>
-          <LogIn size={20} strokeWidth={2.5} className={iconClass} />
-          <span className={cn("font-bold text-sm", !isExpanded && "hidden")}>Sign in</span>
+          <LogIn size={18} strokeWidth={2} className={iconClass} />
+          <span className={cn("font-bold text-xs sm:text-sm", !isExpanded && "hidden")}>Sign in</span>
         </Link>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col gap-2 p-3 mt-auto border-t-2 border-border-default shrink-0">
+    <div className="flex flex-col gap-1 p-2 shrink-0">
       <button onClick={handleSync} disabled={isSyncing} className={buttonClass} title={!isExpanded ? "Sync Data" : undefined}>
-        <RefreshCw size={20} strokeWidth={2.5} className={cn(iconClass, isSyncing && "animate-spin")} />
-        <span className={cn("font-bold text-sm", !isExpanded && "hidden")}>
+        <RefreshCw size={18} strokeWidth={2} className={cn(iconClass, isSyncing && "animate-spin")} />
+        <span className={cn("font-bold text-xs sm:text-sm", !isExpanded && "hidden")}>
           {isSyncing ? "Syncing..." : "Sync"}
         </span>
       </button>
       <button onClick={handleLogout} className={buttonClass} title={!isExpanded ? "Logout" : undefined}>
-        <LogOut size={20} strokeWidth={2.5} className={iconClass} />
-        <span className={cn("font-bold text-sm text-error", !isExpanded && "hidden")}>Sign out</span>
+        <LogOut size={18} strokeWidth={2} className="shrink-0 text-on-surface-variant group-hover:text-error transition-colors" />
+        <span className={cn("font-bold text-xs sm:text-sm text-on-surface-variant group-hover:text-error transition-colors", !isExpanded && "hidden")}>Sign out</span>
       </button>
     </div>
   );

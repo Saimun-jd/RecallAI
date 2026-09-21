@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { 
-  Book, BrainCircuit, Settings, BarChart3, ChevronLeft, ChevronRight, 
-  NotebookPen, LayoutDashboard, MessageSquare, Activity, HelpCircle, RotateCcw
+  BookOpen, BrainCircuit, Settings, ChevronLeft, ChevronRight, 
+  NotebookPen, LayoutDashboard, MessageSquare, Activity, HelpCircle, RotateCcw, TrendingUp
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { AuthButton } from './AuthButton';
@@ -20,7 +20,7 @@ export function Sidebar({ className }: SidebarProps) {
       title: 'Knowledge',
       items: [
         { label: 'Dashboard', path: '/app', icon: LayoutDashboard },
-        { label: 'Documents', path: '/documents', icon: Book },
+        { label: 'Documents', path: '/documents', icon: BookOpen },
         { label: 'Knowledge Hub', path: '/app/chat', icon: MessageSquare },
         { label: 'Notes', path: '/notes', icon: NotebookPen },
       ],
@@ -31,7 +31,12 @@ export function Sidebar({ className }: SidebarProps) {
         { label: 'Review', path: '/app/review', icon: RotateCcw },
         { label: 'Flashcards', path: '/app/flashcards', icon: BrainCircuit },
         { label: 'Quizzes', path: '/app/quizzes', icon: HelpCircle },
-        { label: 'Analytics', path: '/analytics', icon: BarChart3 },
+      ],
+    },
+    {
+      title: 'Insights',
+      items: [
+        { label: 'Progress', path: '/app/progress', icon: TrendingUp },
       ],
     },
     {
@@ -62,6 +67,9 @@ export function Sidebar({ className }: SidebarProps) {
     if (path === '/app/quizzes' || path === '/quizzes') {
       return location.pathname.startsWith('/app/quizzes') || location.pathname.startsWith('/quizzes');
     }
+    if (path === '/app/progress' || path === '/progress' || path === '/analytics') {
+      return location.pathname.startsWith('/progress') || location.pathname.startsWith('/app/progress') || location.pathname.startsWith('/analytics') || location.pathname.startsWith('/app/analytics');
+    }
     if (path === '/llm-inspection') {
       return location.pathname.startsWith('/llm-inspection');
     }
@@ -90,8 +98,8 @@ export function Sidebar({ className }: SidebarProps) {
   return (
     <aside
       className={cn(
-        'shrink-0 border-r-2 border-border-default bg-surface flex flex-col h-[calc(100vh-60px)] sticky top-[60px] overflow-hidden transition-all duration-200 z-30 select-none',
-        isExpanded ? 'w-56 lg:w-60' : 'w-18',
+        'shrink-0 border-r-2 border-border-default bg-surface flex flex-col h-full overflow-hidden transition-all duration-200 z-30 select-none',
+        isExpanded ? 'w-64' : 'w-18',
         className
       )}
     >
@@ -124,31 +132,32 @@ export function Sidebar({ className }: SidebarProps) {
         ))}
       </div>
 
-      {/* Collapse / Expand Toggle Button */}
-      <div className="p-2.5 border-t-2 border-border-default/70 flex items-center justify-between bg-surface-container-low/30 shrink-0">
-        <button
-          type="button"
-          onClick={() => setIsExpanded(!isExpanded)}
-          className={cn(
-            'flex items-center justify-center rounded-lg hover:bg-surface-container text-on-surface-variant hover:text-on-surface transition-colors shrink-0 text-xs font-bold gap-2',
-            isExpanded ? 'w-full py-1.5 px-2 justify-between' : 'w-9 h-9 mx-auto'
-          )}
-          title={isExpanded ? 'Collapse sidebar' : 'Expand sidebar'}
-          aria-label={isExpanded ? 'Collapse sidebar' : 'Expand sidebar'}
-        >
-          {isExpanded ? (
-            <>
-              <span className="text-xs">Collapse</span>
-              <ChevronLeft size={16} />
-            </>
-          ) : (
-            <ChevronRight size={16} />
-          )}
-        </button>
-      </div>
+      {/* Unified Footer: Collapse Toggle & Auth Integration */}
+      <div className="border-t-2 border-border-default bg-surface shrink-0 flex flex-col">
+        <div className="p-2 border-b border-border-default/40 flex items-center justify-between">
+          <button
+            type="button"
+            onClick={() => setIsExpanded(!isExpanded)}
+            className={cn(
+              'flex items-center justify-center rounded-lg hover:bg-surface-container text-on-surface-variant hover:text-on-surface transition-colors shrink-0 text-xs font-bold gap-2',
+              isExpanded ? 'w-full py-1.5 px-2 justify-between' : 'w-9 h-9 mx-auto'
+            )}
+            title={isExpanded ? 'Collapse sidebar' : 'Expand sidebar'}
+            aria-label={isExpanded ? 'Collapse sidebar' : 'Expand sidebar'}
+          >
+            {isExpanded ? (
+              <>
+                <span className="text-xs">Collapse sidebar</span>
+                <ChevronLeft size={16} />
+              </>
+            ) : (
+              <ChevronRight size={16} />
+            )}
+          </button>
+        </div>
 
-      {/* Legacy Auth button integration at bottom */}
-      <AuthButton isExpanded={isExpanded} />
+        <AuthButton isExpanded={isExpanded} />
+      </div>
     </aside>
   );
 }

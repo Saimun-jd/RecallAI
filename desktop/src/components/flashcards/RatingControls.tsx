@@ -74,11 +74,11 @@ export function RatingControls({ onRate, disabled, isSubmitting }: RatingControl
           type="button"
           onClick={() => onRate(r.value)}
           disabled={disabled || isSubmitting}
-          className={`flex flex-col items-center justify-center gap-1 py-3 sm:py-4 rounded-xl border-2 font-black text-xs sm:text-sm transition-all duration-120 ease-out cursor-pointer select-none
+          className={`flex flex-col items-center justify-center gap-1 min-h-[48px] py-2.5 sm:py-3.5 px-1 sm:px-2 rounded-xl border-2 font-black text-xs sm:text-sm transition-all duration-100 ease-out cursor-pointer select-none
             disabled:opacity-50 disabled:pointer-events-none
             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2
-            active:scale-95 active:shadow-none
             shadow-neo-sm hover:shadow-neo hover:-translate-x-[0.5px] hover:-translate-y-[0.5px]
+            active:translate-x-[1px] active:translate-y-[1px] active:shadow-none
             ${r.colorClass}`}
           aria-label={`Rate as ${r.label} (press ${r.shortcut})`}
         >

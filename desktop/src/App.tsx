@@ -12,6 +12,7 @@ import { ReviewView } from './views/ReviewView';
 import { SettingsView } from './views/SettingsView';
 import { BookDetailView } from './views/BookDetailView';
 import { AnalyticsView } from './views/AnalyticsView';
+import { ProgressView } from './views/ProgressView';
 import { FlashcardSetsView } from './views/FlashcardSetsView';
 import { FlashcardSetDetailView } from './views/FlashcardSetDetailView';
 import { FlashcardStudyView } from './views/FlashcardStudyView';
@@ -151,22 +152,22 @@ export default function App() {
     const ratio = contrastLevel / 100;
     
     const bgColors = {
-      '--color-background': '#faf8ff',
-      '--color-surface': '#F8F7F4',
-      '--color-surface-container-lowest': '#F8F7F4',
-      '--color-surface-container-low': '#F2F0EA',
-      '--color-surface-container': '#EDEBE3',
-      '--color-surface-container-high': '#E5E2D8',
-      '--color-surface-container-highest': '#e2e2ec',
+      '--color-background': '#F4F5F7',
+      '--color-surface': '#FFFFFF',
+      '--color-surface-container-lowest': '#FFFFFF',
+      '--color-surface-container-low': '#F8F9FA',
+      '--color-surface-container': '#F1F3F6',
+      '--color-surface-container-high': '#E8EBF0',
+      '--color-surface-container-highest': '#DFE3EA',
     };
     
     const textColors = {
-      '--color-on-background': '#191b23',
-      '--color-on-surface': '#191b23',
-      '--color-on-surface-variant': '#434654',
-      '--color-primary': '#003594',
-      '--color-outline': '#737685',
-      '--color-outline-variant': '#c3c6d6',
+      '--color-on-background': '#0F172A',
+      '--color-on-surface': '#0F172A',
+      '--color-on-surface-variant': '#475569',
+      '--color-primary': '#1D4ED8',
+      '--color-outline': '#64748B',
+      '--color-outline-variant': '#CBD5E1',
     };
 
     Object.entries(bgColors).forEach(([key, baseHex]) => {
@@ -416,8 +417,10 @@ export default function App() {
           <Route path="/app/quizzes/:quizId/attempt" element={<QuizAttemptView />} />
           <Route path="/quizzes/:quizId/results/:attemptId" element={<QuizResultsView />} />
           <Route path="/app/quizzes/:quizId/results/:attemptId" element={<QuizResultsView />} />
-          <Route path="/analytics" element={<AnalyticsView />} />
-          <Route path="/app/analytics" element={<AnalyticsView />} />
+          <Route path="/progress" element={<ProgressView />} />
+          <Route path="/app/progress" element={<ProgressView />} />
+          <Route path="/analytics" element={<ProgressView />} />
+          <Route path="/app/analytics" element={<ProgressView />} />
           <Route path="/llm-inspection" element={<LLMInspectionView />} />
           <Route path="/app/llm-inspection" element={<LLMInspectionView />} />
           <Route path="/settings" element={<SettingsView />} />

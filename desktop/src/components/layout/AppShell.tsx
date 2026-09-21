@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { TopBar } from './TopBar';
 import { Sidebar } from '../Sidebar';
 import { MobileNav } from './MobileNav';
@@ -21,9 +22,16 @@ export function AppShell({
   children,
 }: AppShellProps) {
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
+  const location = useLocation();
+
+  const isFullHeightView =
+    location.pathname.startsWith('/chat') ||
+    location.pathname.startsWith('/app/chat') ||
+    location.pathname.startsWith('/books/') ||
+    location.pathname.startsWith('/notes');
 
   return (
-    <div className={cn('flex flex-col h-screen bg-background text-on-surface font-sans antialiased overflow-hidden', className)}>
+    <div className={cn('flex flex-col h-dvh bg-background text-on-surface font-sans antialiased overflow-hidden', className)}>
       {/* Global Command Palette (Cmd + K) */}
       <CommandPalette />
 
@@ -36,14 +44,21 @@ export function AppShell({
       />
 
       {/* Center Row: Desktop Sidebar + Main Content Viewport */}
-      <div className="flex relative w-full flex-row flex-1 h-[calc(100vh-60px)] overflow-hidden">
+      <div className="flex relative w-full flex-row flex-1 min-h-0 overflow-hidden">
         {/* Persistent Desktop Sidebar (hidden on mobile) */}
         <div className="hidden md:flex shrink-0">
           <Sidebar />
         </div>
 
         {/* Main Viewport */}
-        <main className="flex-1 flex flex-col bg-background relative min-w-0 overflow-y-auto pb-16 md:pb-0 focus:outline-none">
+        <main
+          id="main-content"
+          tabIndex={-1}
+          className={cn(
+            'flex-1 flex flex-col bg-background relative min-w-0 pb-[calc(4rem+env(safe-area-inset-bottom,0px))] md:pb-0 focus:outline-none',
+            isFullHeightView ? 'overflow-hidden' : 'overflow-y-auto'
+          )}
+        >
           {children}
         </main>
       </div>

@@ -29,12 +29,16 @@ export function TopBar({
   // Determine human-friendly page context title
   const getPageTitle = (pathname: string) => {
     if (pathname === '/' || pathname === '/app') return 'Dashboard';
-    if (pathname.startsWith('/books') || pathname.startsWith('/documents')) return 'Knowledge Hub';
+    if (pathname.startsWith('/flashcards') || pathname.startsWith('/app/flashcards')) return 'Flashcards';
+    if (pathname.startsWith('/quizzes') || pathname.startsWith('/app/quizzes')) return 'Quizzes';
+    if (pathname.startsWith('/review') || pathname.startsWith('/app/review')) return 'Daily Review';
+    if (pathname.startsWith('/progress') || pathname.startsWith('/app/progress') || pathname.startsWith('/analytics') || pathname.startsWith('/app/analytics')) return 'Progress';
+    if (pathname.startsWith('/chat') || pathname.startsWith('/app/chat')) return 'Knowledge Hub';
+    if (pathname.startsWith('/documents') || pathname.startsWith('/app/documents')) return 'Documents';
+    if (pathname.startsWith('/books')) return 'Document Reader';
     if (pathname.startsWith('/notes')) return 'Notes';
-    if (pathname.startsWith('/review')) return 'Daily Review';
-    if (pathname.startsWith('/analytics')) return 'Analytics';
-    if (pathname.startsWith('/settings')) return 'Settings';
-    if (pathname.startsWith('/chat')) return 'Knowledge Hub';
+    if (pathname.startsWith('/settings') || pathname.startsWith('/app/settings')) return 'Settings';
+    if (pathname.startsWith('/llm-inspection') || pathname.startsWith('/app/llm-inspection')) return 'LLM Inspection';
     if (pathname.startsWith('/study')) return 'Study Center';
     return 'Recall AI';
   };
@@ -44,7 +48,7 @@ export function TopBar({
   return (
     <header
       className={cn(
-        'sticky top-0 inset-x-0 z-40 h-[60px] bg-surface/90 backdrop-blur-md border-b-2 border-border-default px-3.5 sm:px-5 flex items-center justify-between gap-3 shrink-0 transition-colors',
+        'sticky top-0 inset-x-0 z-40 h-15 bg-surface/90 backdrop-blur-md border-b-2 border-border-default px-3.5 sm:px-5 flex items-center justify-between gap-3 shrink-0 transition-colors',
         className
       )}
     >
@@ -53,7 +57,7 @@ export function TopBar({
         <button
           type="button"
           onClick={onMobileMenuOpen}
-          className="md:hidden w-[34px] h-[34px] flex items-center justify-center rounded-lg border border-border-default bg-surface hover:bg-surface-container text-on-surface transition-all shrink-0 active:scale-95"
+          className="md:hidden w-8.5 h-8.5 flex items-center justify-center rounded-lg border border-border-default bg-surface hover:bg-surface-container text-on-surface transition-all shrink-0 active:scale-95"
           aria-label="Open mobile navigation"
         >
           <Menu size={18} />
@@ -81,7 +85,7 @@ export function TopBar({
         <button
           type="button"
           onClick={() => dispatch(setCommandOpen(true))}
-          className="w-full h-[34px] flex items-center justify-between px-3 rounded-lg border border-border-default bg-surface-container/50 hover:bg-surface-container text-on-surface-variant text-xs font-medium transition-all shadow-xs group cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          className="w-full h-8.5 flex items-center justify-between px-3 rounded-lg border border-border-default bg-surface-container/50 hover:bg-surface-container text-on-surface-variant text-xs font-medium transition-all shadow-xs group cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
         >
           <span className="flex items-center gap-2 truncate">
             <Search size={14} className="text-on-surface-variant group-hover:text-on-surface" />
@@ -99,7 +103,7 @@ export function TopBar({
         <button
           type="button"
           onClick={() => dispatch(setCommandOpen(true))}
-          className="sm:hidden w-[34px] h-[34px] flex items-center justify-center rounded-lg border border-border-default bg-surface text-on-surface hover:bg-surface-container transition-all"
+          className="sm:hidden w-8.5 h-8.5 flex items-center justify-center rounded-lg border border-border-default bg-surface text-on-surface hover:bg-surface-container transition-all"
           aria-label="Open search command palette"
         >
           <Search size={16} />
@@ -109,7 +113,7 @@ export function TopBar({
         {!isReviewActive && (
           <Link
             to="/review"
-            className="hidden md:flex items-center gap-1.5 px-2.5 h-[34px] text-xs font-bold rounded-lg border-2 border-border-default bg-surface hover:bg-surface-container text-on-surface shadow-neo-sm hover:shadow-neo hover:-translate-x-[1px] hover:-translate-y-[1px] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all"
+            className="hidden md:flex items-center gap-1.5 px-2.5 h-8.5 text-xs font-bold rounded-lg border-2 border-border-default bg-surface hover:bg-surface-container text-on-surface shadow-neo-sm hover:shadow-neo hover:-translate-x-px hover:-translate-y-px active:translate-x-px active:translate-y-px active:shadow-none transition-all"
             title="Start Spaced Repetition Review"
           >
             <BrainCircuit size={14} className="text-accent-blue" />

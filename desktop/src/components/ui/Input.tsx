@@ -45,6 +45,8 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
           ref={ref}
           id={id}
           type={type}
+          aria-invalid={!!error || undefined}
+          aria-describedby={error && id ? `${id}-error` : undefined}
           className={cn(
             inputVariants({ size, variant: error ? 'error' : variant }),
             leftIcon ? 'pl-9' : '',
@@ -74,7 +76,9 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
         )}
         {inputElement}
         {error && (
-          <span className="text-xs font-semibold text-error mt-0.5">{error}</span>
+          <span id={id ? `${id}-error` : undefined} role="alert" className="text-xs font-semibold text-error mt-0.5">
+            {error}
+          </span>
         )}
       </div>
     );

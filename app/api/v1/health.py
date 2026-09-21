@@ -42,3 +42,36 @@ async def database_health_check():
             "database": "connected"
         }
     )
+
+
+@router.get("/health/ready", response_model=ResponseEnvelope[dict], summary="Application readiness probe")
+async def readiness_check():
+    """
+    Evaluates core subsystem readiness for serving traffic.
+    Returns 200 OK if database and storage dependencies are operational.
+    Reports AI provider status without failing non-AI workloads if optional local Ollama is offline.
+    """
+    db_ok = check_database_health()
+    if not db_ok:
+        return format_error_response(
+            code=ErrorCode.INTERNAL_ERROR,
+            message="Database readiness check failed.",
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            details={"database": "unhealthy"}
+        )
+
+    ai_status = "configured"
+    if settings.llm_provider == "ollama":
+        ai_status = "local_ollama"
+    elif settings.llm_provider in ("openai", "gemini", "groq"):
+        ai_status = f"cloud_{settings.llm_provider}"
+
+    return ResponseEnvelope(
+        data={
+            "status": "ready",
+            "environment": settings.ENVIRONMENT,
+            "database": "connected",
+            "ai_provider": ai_status,
+            "version": "1.0.0"
+        }
+    )

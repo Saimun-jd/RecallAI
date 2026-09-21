@@ -4,8 +4,8 @@ import { client, type AtomicConcept } from '../api/client';
 import type { RootState } from '../store';
 import { setActiveTopicCards } from '../store/readerSlice';
 import { Zap, Target, Loader2, CheckCircle2, SlidersHorizontal, ChevronDown, X } from 'lucide-react';
-import clsx from 'clsx';
 import { useToast } from '../hooks/useToast';
+import { cn } from '../lib/utils';
 
 interface FlashcardGenWidgetProps {
   topicId: number;
@@ -95,24 +95,24 @@ export function FlashcardGenWidget({
   // ─── Generating State ───────────────────────────────────────────────
   if (isGenerating) {
     return (
-      <div className={clsx(
+      <div className={cn(
         "w-full border-2 rounded-xl shadow-[2px_2px_0px_0px_#191b23] p-8 flex flex-col items-center gap-4 relative overflow-hidden",
         selectedConcept ? "border-secondary/50 bg-secondary/5" : "border-outline-variant bg-surface-container-lowest"
       )}>
         <Loader2 size={32} className="animate-spin text-primary" />
-        <p className="font-label-md text-label-md font-bold text-on-surface-variant uppercase tracking-wider text-center">
+        <p className="text-label-md font-bold text-on-surface-variant uppercase tracking-wider text-center">
           {selectedConcept
             ? `Analyzing and generating flashcards for "${selectedConcept}"…`
             : `Analyzing topic and generating flashcards for "${topicTitle}"…`}
         </p>
 
         {hasCachedMarkdown ? (
-          <p className="font-body-sm text-body-sm text-emerald-600 font-bold italic mt-1 text-center max-w-sm flex items-center justify-center gap-1.5">
+          <p className="text-body-sm text-emerald-600 font-bold italic mt-1 text-center max-w-sm flex items-center justify-center gap-1.5">
             <CheckCircle2 size={15} /> Using cached markdown to generate
           </p>
         ) : (
           pdfExtractor === 'marker' && (
-            <p className="font-body-sm text-body-sm text-amber-600 font-medium italic mt-1 text-center max-w-sm">
+            <p className="text-body-sm text-amber-600 font-medium italic mt-1 text-center max-w-sm">
               Marker (ML) is currently extracting text for this section.
             </p>
           )
@@ -123,11 +123,11 @@ export function FlashcardGenWidget({
 
   // ─── Idle / Configuration State ─────────────────────────────────────
   return (
-    <div className={clsx(
-      "w-full border-2 rounded-xl shadow-[2px_2px_0px_0px_#191b23] p-4 flex flex-col gap-3 relative overflow-hidden group hover:-translate-y-[1px] hover:shadow-[4px_4px_0px_0px_#191b23] transition-all duration-300",
+    <div className={cn(
+      "w-full border-2 rounded-xl shadow-[2px_2px_0px_0px_#191b23] p-4 flex flex-col gap-3 relative overflow-hidden group hover:-translate-y-px hover:shadow-[4px_4px_0px_0px_#191b23] transition-all duration-300",
       selectedConcept ? "border-secondary/50 bg-secondary/5" : "border-outline-variant bg-surface-container-lowest"
     )}>
-      <div className={clsx(
+      <div className={cn(
         "absolute -right-12 -top-12 w-48 h-48 rounded-full blur-2xl transition-colors pointer-events-none",
         selectedConcept ? "bg-secondary/10 group-hover:bg-secondary/20" : "bg-primary/5 group-hover:bg-primary/10"
       )}></div>
@@ -136,7 +136,7 @@ export function FlashcardGenWidget({
         <div className="flex flex-col gap-1 w-full">
           {/* Header Row */}
           <div className="flex items-center gap-2 mb-1 flex-wrap">
-            <div className={clsx(
+            <div className={cn(
               "w-6 h-6 rounded-full flex items-center justify-center border-2 border-on-surface shadow-[2px_2px_0px_0px_#191b23]",
               selectedConcept ? "bg-secondary text-on-secondary" : "bg-primary text-on-primary"
             )}>
@@ -229,7 +229,7 @@ export function FlashcardGenWidget({
                   key={num}
                   type="button"
                   onClick={() => setCount(num)}
-                  className={clsx(
+                  className={cn(
                     "flex-1 py-1.5 text-xs font-bold rounded-lg border-2 transition-all cursor-pointer",
                     count === num
                       ? "bg-primary text-on-primary border-on-surface shadow-[1.5px_1.5px_0px_0px_#191b23]"
@@ -285,7 +285,7 @@ export function FlashcardGenWidget({
           >
             <SlidersHorizontal size={12} />
             <span>{showAdvanced ? "Hide Custom Instructions" : "+ Add Custom Instructions / Focus"}</span>
-            <ChevronDown size={12} className={clsx("transition-transform duration-200", showAdvanced && "rotate-180")} />
+            <ChevronDown size={12} className={cn("transition-transform duration-200", showAdvanced && "rotate-180")} />
           </button>
 
           {showAdvanced && (
@@ -306,8 +306,8 @@ export function FlashcardGenWidget({
       <div className="flex items-center justify-between mt-1 z-10">
         <button
           onClick={handleGenerate}
-          className={clsx(
-            "font-bold text-sm px-6 py-2.5 rounded-lg border-2 border-on-surface shadow-[2px_2px_0px_0px_#191b23] flex items-center gap-2 active:shadow-none active:translate-x-[1px] active:translate-y-[1px] transition-all whitespace-nowrap cursor-pointer",
+          className={cn(
+            "font-bold text-sm px-6 py-2.5 rounded-lg border-2 border-on-surface shadow-[2px_2px_0px_0px_#191b23] flex items-center gap-2 active:shadow-none active:translate-x-px active:translate-y-px transition-all whitespace-nowrap cursor-pointer",
             selectedConcept ? "bg-secondary text-on-secondary hover:brightness-110" : "bg-primary text-on-primary hover:bg-academic-blue"
           )}
         >

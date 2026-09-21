@@ -91,3 +91,4 @@ class InMemoryRateLimiter:
 
 
 auth_rate_limiter = InMemoryRateLimiter(requests_per_minute=15)
+upload_rate_limiter = InMemoryRateLimiter(requests_per_minute=20)

@@ -47,7 +47,7 @@ export function KnowledgeOverview({ totalDocuments, dashboardData }: KnowledgeOv
       value: reviewedTodayCount,
       subtext: 'Completions logged today',
       icon: CheckCircle2,
-      path: '/analytics',
+      path: '/app/progress',
       color: 'text-emerald-600',
       bg: 'bg-emerald-500/10',
     },
@@ -68,7 +68,7 @@ export function KnowledgeOverview({ totalDocuments, dashboardData }: KnowledgeOv
             <Link
               key={item.label}
               to={item.path}
-              className="group p-4 sm:p-5 rounded-2xl border-2 border-border-default bg-surface shadow-neo-sm hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-none transition-all flex flex-col justify-between select-none relative overflow-hidden"
+              className="group p-4 sm:p-5 rounded-xl border-2 border-border-default bg-surface shadow-neo-sm hover:-translate-x-[1px] hover:-translate-y-[1px] hover:shadow-neo active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all flex flex-col justify-between select-none relative overflow-hidden"
             >
               <div className="flex items-center justify-between mb-3">
                 <div className={`w-9 h-9 rounded-xl ${item.bg} ${item.color} flex items-center justify-center border border-border-default`}>

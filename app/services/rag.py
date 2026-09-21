@@ -4,6 +4,7 @@ Implements prompt injection defenses, multi-tenant isolation, source citation
 validation, usage accounting, conversation title auto-generation, and streaming.
 """
 
+import asyncio
 import json
 import logging
 import re
@@ -365,6 +366,7 @@ class RAGService:
             yield f"data: {json.dumps({'type': 'error', 'message': e.message})}\n\n"
             return
 
+        reservation_finalized = False
         try:
             # 3. Save User Message
             user_tokens = SemanticChunker.estimate_tokens(query)
@@ -406,6 +408,9 @@ class RAGService:
                     yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
             except AIProviderError as e:
                 logger.error("Streaming error: %s", e.message)
+                if not reservation_finalized:
+                    EntitlementService.release_usage(reservation)
+                    reservation_finalized = True
                 yield f"data: {json.dumps({'type': 'error', 'message': e.message})}\n\n"
                 return
 
@@ -442,8 +447,10 @@ class RAGService:
                 input_tokens=user_tokens,
                 output_tokens=out_tokens
             )
-        except Exception:
-            EntitlementService.release_usage(reservation)
+            reservation_finalized = True
+        except (Exception, asyncio.CancelledError):
+            if not reservation_finalized:
+                EntitlementService.release_usage(reservation)
             raise
 
         if is_byok:

@@ -28,10 +28,10 @@ export function NextActionCard({
   // Level 1: Zero documents in workspace
   if (totalDocuments === 0) {
     return (
-      <div className="p-6 sm:p-7 rounded-2xl border-2 border-border-default bg-surface shadow-neo-lg relative overflow-hidden">
+      <div className="p-6 sm:p-7 rounded-xl border-2 border-border-default bg-surface shadow-neo-lg relative overflow-hidden">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-5 relative z-10">
           <div className="flex items-start gap-4">
-            <div className="w-12 h-12 rounded-xl bg-primary text-white flex items-center justify-center border-2 border-border-default shadow-neo-sm shrink-0 mt-0.5">
+            <div className="w-12 h-12 rounded-lg bg-primary text-white flex items-center justify-center border-2 border-border-default shadow-neo-sm shrink-0 mt-0.5">
               <Upload size={24} className="stroke-[2.5]" />
             </div>
             <div className="space-y-1">
@@ -51,7 +51,7 @@ export function NextActionCard({
             <button
               type="button"
               onClick={onUploadClick}
-              className="inline-flex items-center gap-2 px-5 py-3 rounded-xl border-2 border-border-default bg-primary text-white font-extrabold text-sm shadow-neo-sm hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-none transition-all active:translate-x-1 active:translate-y-1"
+              className="inline-flex items-center gap-2 px-5 py-3 rounded-lg border-2 border-border-default bg-primary text-white font-extrabold text-sm shadow-neo-sm hover:-translate-x-[1px] hover:-translate-y-[1px] hover:shadow-neo transition-all active:translate-x-[1px] active:translate-y-[1px] active:shadow-none"
             >
               <Upload size={16} />
               <span>Add Your First PDF</span>
@@ -67,10 +67,10 @@ export function NextActionCard({
   if (failedDocs.length > 0) {
     const firstFailed = failedDocs[0];
     return (
-      <div className="p-6 rounded-2xl border-2 border-error/50 bg-error/5 shadow-neo relative overflow-hidden">
+      <div className="p-6 rounded-xl border-2 border-error/50 bg-error/5 shadow-neo relative overflow-hidden">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-5 relative z-10">
           <div className="flex items-start gap-4">
-            <div className="w-12 h-12 rounded-xl bg-error text-white flex items-center justify-center border-2 border-border-default shadow-neo-sm shrink-0 mt-0.5">
+            <div className="w-12 h-12 rounded-lg bg-error text-white flex items-center justify-center border-2 border-border-default shadow-neo-sm shrink-0 mt-0.5">
               <AlertTriangle size={24} className="stroke-[2.5]" />
             </div>
             <div className="space-y-1">
@@ -89,7 +89,7 @@ export function NextActionCard({
           <div className="flex items-center gap-3 shrink-0">
             <Link
               to="/documents"
-              className="inline-flex items-center gap-2 px-5 py-3 rounded-xl border-2 border-border-default bg-surface text-on-surface font-extrabold text-sm shadow-neo-sm hover:bg-surface-container hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-none transition-all"
+              className="inline-flex items-center gap-2 px-5 py-3 rounded-lg border-2 border-border-default bg-surface text-on-surface font-extrabold text-sm shadow-neo-sm hover:bg-surface-container hover:-translate-x-[1px] hover:-translate-y-[1px] hover:shadow-neo transition-all active:translate-x-[1px] active:translate-y-[1px] active:shadow-none"
             >
               <span>View Documents</span>
               <ArrowRight size={16} />
@@ -103,10 +103,10 @@ export function NextActionCard({
   // Level 3: Processing in progress
   if (processingDocs.length > 0) {
     return (
-      <div className="p-6 rounded-2xl border-2 border-primary/50 bg-primary/5 shadow-neo relative overflow-hidden">
+      <div className="p-6 rounded-xl border-2 border-primary/50 bg-primary/5 shadow-neo relative overflow-hidden">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-5 relative z-10">
           <div className="flex items-start gap-4">
-            <div className="w-12 h-12 rounded-xl bg-primary text-white flex items-center justify-center border-2 border-border-default shadow-neo-sm shrink-0 mt-0.5">
+            <div className="w-12 h-12 rounded-lg bg-primary text-white flex items-center justify-center border-2 border-border-default shadow-neo-sm shrink-0 mt-0.5">
               <Loader2 size={24} className="animate-spin stroke-[2.5]" />
             </div>
             <div className="space-y-1">
@@ -125,7 +125,7 @@ export function NextActionCard({
           <div className="flex items-center gap-3 shrink-0">
             <Link
               to="/documents"
-              className="inline-flex items-center gap-2 px-5 py-3 rounded-xl border-2 border-border-default bg-surface text-on-surface font-extrabold text-sm shadow-neo-sm hover:bg-surface-container hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-none transition-all"
+              className="inline-flex items-center gap-2 px-5 py-3 rounded-lg border-2 border-border-default bg-surface text-on-surface font-extrabold text-sm shadow-neo-sm hover:bg-surface-container hover:-translate-x-[1px] hover:-translate-y-[1px] hover:shadow-neo transition-all active:translate-x-[1px] active:translate-y-[1px] active:shadow-none"
             >
               <span>Check Status</span>
               <ArrowRight size={16} />
@@ -139,10 +139,10 @@ export function NextActionCard({
   // Level 4: Due reviews waiting
   if (dueCount > 0 || overdueCount > 0) {
     return (
-      <div className="p-6 sm:p-7 rounded-2xl border-2 border-border-default bg-surface shadow-neo-lg relative overflow-hidden">
+      <div className="p-6 sm:p-7 rounded-xl border-2 border-border-default bg-surface shadow-neo-lg relative overflow-hidden">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-5 relative z-10">
           <div className="flex items-start gap-4">
-            <div className="w-12 h-12 rounded-xl bg-primary text-white flex items-center justify-center border-2 border-border-default shadow-neo-sm shrink-0 mt-0.5">
+            <div className="w-12 h-12 rounded-lg bg-primary text-white flex items-center justify-center border-2 border-border-default shadow-neo-sm shrink-0 mt-0.5">
               <BrainCircuit size={24} className="stroke-[2.5]" />
             </div>
             <div className="space-y-1">
@@ -165,7 +165,7 @@ export function NextActionCard({
           <div className="flex items-center gap-3 shrink-0">
             <Link
               to="/app/review"
-              className="inline-flex items-center gap-2 px-5 py-3 rounded-xl border-2 border-border-default bg-primary text-white font-extrabold text-sm shadow-neo-sm hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-none transition-all active:translate-x-1 active:translate-y-1"
+              className="inline-flex items-center gap-2 px-5 py-3 rounded-lg border-2 border-border-default bg-primary text-white font-extrabold text-sm shadow-neo-sm hover:-translate-x-[1px] hover:-translate-y-[1px] hover:shadow-neo transition-all active:translate-x-[1px] active:translate-y-[1px] active:shadow-none"
             >
               <BrainCircuit size={16} />
               <span>Start Review ({dueCount})</span>
@@ -180,10 +180,10 @@ export function NextActionCard({
   // Level 5: New cards to learn
   if (newCount > 0) {
     return (
-      <div className="p-6 rounded-2xl border-2 border-border-default bg-surface shadow-neo relative overflow-hidden">
+      <div className="p-6 rounded-xl border-2 border-border-default bg-surface shadow-neo relative overflow-hidden">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-5 relative z-10">
           <div className="flex items-start gap-4">
-            <div className="w-12 h-12 rounded-xl bg-accent-blue/10 text-accent-blue flex items-center justify-center border-2 border-border-default shadow-neo-sm shrink-0 mt-0.5">
+            <div className="w-12 h-12 rounded-lg bg-accent-blue/10 text-accent-blue flex items-center justify-center border-2 border-border-default shadow-neo-sm shrink-0 mt-0.5">
               <Sparkles size={24} className="stroke-[2.5]" />
             </div>
             <div className="space-y-1">
@@ -202,7 +202,7 @@ export function NextActionCard({
           <div className="flex items-center gap-3 shrink-0">
             <Link
               to="/review"
-              className="inline-flex items-center gap-2 px-5 py-3 rounded-xl border-2 border-border-default bg-primary text-white font-extrabold text-sm shadow-neo-sm hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-none transition-all"
+              className="inline-flex items-center gap-2 px-5 py-3 rounded-lg border-2 border-border-default bg-primary text-white font-extrabold text-sm shadow-neo-sm hover:-translate-x-[1px] hover:-translate-y-[1px] hover:shadow-neo transition-all active:translate-x-[1px] active:translate-y-[1px] active:shadow-none"
             >
               <Sparkles size={16} />
               <span>Begin Studying</span>
@@ -216,10 +216,10 @@ export function NextActionCard({
 
   // Level 6: All caught up!
   return (
-    <div className="p-6 rounded-2xl border-2 border-border-default bg-surface shadow-neo relative overflow-hidden">
+    <div className="p-6 rounded-xl border-2 border-border-default bg-surface shadow-neo relative overflow-hidden">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-5 relative z-10">
         <div className="flex items-start gap-4">
-          <div className="w-12 h-12 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center border-2 border-border-default shadow-neo-sm shrink-0 mt-0.5">
+          <div className="w-12 h-12 rounded-lg bg-emerald-500/10 text-emerald-600 flex items-center justify-center border-2 border-border-default shadow-neo-sm shrink-0 mt-0.5">
             <CheckCircle2 size={24} className="stroke-[2.5]" />
           </div>
           <div className="space-y-1">
@@ -238,14 +238,14 @@ export function NextActionCard({
         <div className="flex items-center gap-3 shrink-0">
           <Link
             to="/documents"
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 border-border-default bg-surface text-on-surface font-extrabold text-xs sm:text-sm shadow-neo-sm hover:bg-surface-container hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-none transition-all"
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg border-2 border-border-default bg-surface text-on-surface font-extrabold text-xs sm:text-sm shadow-neo-sm hover:bg-surface-container hover:-translate-x-[1px] hover:-translate-y-[1px] hover:shadow-neo transition-all active:translate-x-[1px] active:translate-y-[1px] active:shadow-none"
           >
             <BookOpen size={15} />
             <span>Explore Documents</span>
           </Link>
           <Link
             to="/notes"
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 border-border-default bg-primary text-white font-extrabold text-xs sm:text-sm shadow-neo-sm hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-none transition-all"
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg border-2 border-border-default bg-primary text-white font-extrabold text-xs sm:text-sm shadow-neo-sm hover:-translate-x-[1px] hover:-translate-y-[1px] hover:shadow-neo transition-all active:translate-x-[1px] active:translate-y-[1px] active:shadow-none"
           >
             <NotebookPen size={15} />
             <span>Open Notes</span>

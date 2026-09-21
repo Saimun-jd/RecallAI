@@ -84,6 +84,7 @@ export function TabsTrigger({
       type="button"
       role="tab"
       aria-selected={isSelected}
+      tabIndex={isSelected ? 0 : -1}
       disabled={disabled}
       onClick={() => context.onValueChange(value)}
       className={cn(

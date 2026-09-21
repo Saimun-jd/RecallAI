@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { client, type Flashcard } from '../api/client';
 import { Brain, Check, X, TrendingUp, HelpCircle } from 'lucide-react';
 import { MarkdownRenderer } from '../components/MarkdownRenderer';
-import clsx from 'clsx';
+import { cn } from '../lib/utils';
 
 
 interface TopicPracticeModalProps {
@@ -75,7 +75,7 @@ export function TopicPracticeModal({ isOpen, onClose, topicId, topicName, cards:
         <div className="bg-surface-container-lowest border-2 border-on-surface shadow-[8px_8px_0px_0px_#191b23] w-full max-w-md rounded-xl flex flex-col items-center justify-center relative p-10">
           <button 
             onClick={onClose}
-            className="absolute top-4 right-4 text-on-surface bg-surface border-2 border-on-surface hover:bg-surface-container shadow-[2px_2px_0px_0px_#191b23] p-2 rounded-lg transition-all duration-200 active:translate-x-[1px] active:translate-y-[1px] active:shadow-none"
+            className="absolute top-4 right-4 text-on-surface bg-surface border-2 border-on-surface hover:bg-surface-container shadow-[2px_2px_0px_0px_#191b23] p-2 rounded-lg transition-all duration-200 active:translate-x-px active:translate-y-px active:shadow-none"
           >
             <X size={20} strokeWidth={2} />
           </button>
@@ -98,7 +98,7 @@ export function TopicPracticeModal({ isOpen, onClose, topicId, topicName, cards:
           
           <button 
             onClick={onClose}
-            className="mt-8 w-full px-6 py-4 bg-primary text-white border-2 border-on-surface rounded-xl font-bold uppercase tracking-wider shadow-[4px_4px_0px_0px_#191b23] active:shadow-none active:translate-x-[2px] active:translate-y-[2px] transition-all"
+            className="mt-8 w-full px-6 py-4 bg-primary text-white border-2 border-on-surface rounded-xl font-bold uppercase tracking-wider shadow-[4px_4px_0px_0px_#191b23] active:shadow-none active:translate-x-0.5 active:translate-y-0.5 transition-all"
           >
             Return to Topic
           </button>
@@ -138,7 +138,7 @@ export function TopicPracticeModal({ isOpen, onClose, topicId, topicName, cards:
             </div>
             <button 
               onClick={onClose}
-              className="text-on-surface bg-surface hover:bg-surface-container border-2 border-on-surface rounded-lg shadow-[2px_2px_0px_0px_#191b23] p-2 transition-all active:translate-x-[1px] active:translate-y-[1px] active:shadow-none"
+              className="text-on-surface bg-surface hover:bg-surface-container border-2 border-on-surface rounded-lg shadow-[2px_2px_0px_0px_#191b23] p-2 transition-all active:translate-x-px active:translate-y-px active:shadow-none"
             >
               <X size={18} strokeWidth={2} />
             </button>
@@ -149,8 +149,8 @@ export function TopicPracticeModal({ isOpen, onClose, topicId, topicName, cards:
         <div className="flex-1 flex flex-col p-6 overflow-y-auto bg-surface relative min-h-0 items-center justify-center">
           
           {/* 3D Flashcard Container */}
-          <div className="relative w-full max-w-2xl min-h-[320px] h-[45vh] max-h-[450px] group shrink-0">
-            <div className={clsx(
+          <div className="relative w-full max-w-2xl min-h-80 h-[45vh] max-h-112.5 group shrink-0">
+            <div className={cn(
               "flashcard-inner w-full h-full relative cursor-pointer",
               isFlipped && "flashcard-flipped"
             )} onClick={handleShowAnswer}>
@@ -160,7 +160,7 @@ export function TopicPracticeModal({ isOpen, onClose, topicId, topicName, cards:
                 <div className="px-6 py-4 flex justify-between items-center border-b-2 border-on-surface bg-secondary text-white">
                   <span className="text-xs font-bold uppercase tracking-widest flex items-center gap-2">
                     <Brain size={16} strokeWidth={2.5} />
-                    <span className="truncate max-w-[200px]">{currentCard.topic_name}</span>
+                    <span className="truncate max-w-50">{currentCard.topic_name}</span>
                   </span>
                   <div className="flex items-center gap-2">
                     <span className="text-[10px] font-black uppercase tracking-widest bg-surface-container text-on-surface px-2 py-1 border-2 border-on-surface rounded shadow-[2px_2px_0px_0px_#191b23]">
@@ -205,14 +205,14 @@ export function TopicPracticeModal({ isOpen, onClose, topicId, topicName, cards:
 
         {/* Controls */}
         <div className="p-6 pt-4 border-t-2 border-on-surface bg-surface-container-lowest shrink-0 flex justify-center">
-          <div className={clsx(
+          <div className={cn(
             "w-full max-w-2xl grid grid-cols-4 gap-4 transition-all duration-300",
             !isFlipped && "opacity-20 pointer-events-none grayscale"
           )}>
             <button 
               onClick={() => handleRate(1)} 
               disabled={!isFlipped}
-              className="bg-surface hover:bg-error/10 border-2 border-on-surface text-error font-bold py-3 rounded-xl shadow-[4px_4px_0px_0px_#191b23] active:shadow-none active:translate-x-[2px] active:translate-y-[2px] transition-all flex flex-col items-center justify-center group"
+              className="bg-surface hover:bg-error/10 border-2 border-on-surface text-error font-bold py-3 rounded-xl shadow-[4px_4px_0px_0px_#191b23] active:shadow-none active:translate-x-0.5 active:translate-y-0.5 transition-all flex flex-col items-center justify-center group"
             >
               <span className="text-lg uppercase pointer-events-none">Again</span>
               <span className="text-xs text-on-surface-variant font-bold mt-1 uppercase tracking-wider opacity-70 group-hover:opacity-100 pointer-events-none">&lt; 1m</span>
@@ -220,7 +220,7 @@ export function TopicPracticeModal({ isOpen, onClose, topicId, topicName, cards:
             <button 
               onClick={() => handleRate(2)} 
               disabled={!isFlipped}
-              className="bg-surface hover:bg-orange-500/10 border-2 border-on-surface text-orange-600 font-bold py-3 rounded-xl shadow-[4px_4px_0px_0px_#191b23] active:shadow-none active:translate-x-[2px] active:translate-y-[2px] transition-all flex flex-col items-center justify-center group"
+              className="bg-surface hover:bg-orange-500/10 border-2 border-on-surface text-orange-600 font-bold py-3 rounded-xl shadow-[4px_4px_0px_0px_#191b23] active:shadow-none active:translate-x-0.5 active:translate-y-0.5 transition-all flex flex-col items-center justify-center group"
             >
               <span className="text-lg uppercase pointer-events-none">Hard</span>
               <span className="text-xs text-on-surface-variant font-bold mt-1 uppercase tracking-wider opacity-70 group-hover:opacity-100 pointer-events-none">~ 5m</span>
@@ -228,7 +228,7 @@ export function TopicPracticeModal({ isOpen, onClose, topicId, topicName, cards:
             <button 
               onClick={() => handleRate(3)} 
               disabled={!isFlipped}
-              className="bg-surface hover:bg-primary/10 border-2 border-on-surface text-primary font-bold py-3 rounded-xl shadow-[4px_4px_0px_0px_#191b23] active:shadow-none active:translate-x-[2px] active:translate-y-[2px] transition-all flex flex-col items-center justify-center group"
+              className="bg-surface hover:bg-primary/10 border-2 border-on-surface text-primary font-bold py-3 rounded-xl shadow-[4px_4px_0px_0px_#191b23] active:shadow-none active:translate-x-0.5 active:translate-y-0.5 transition-all flex flex-col items-center justify-center group"
             >
               <span className="text-lg uppercase pointer-events-none">Good</span>
               <span className="text-xs text-on-surface-variant font-bold mt-1 uppercase tracking-wider opacity-70 group-hover:opacity-100 pointer-events-none">~ 10m</span>
@@ -236,7 +236,7 @@ export function TopicPracticeModal({ isOpen, onClose, topicId, topicName, cards:
             <button 
               onClick={() => handleRate(4)} 
               disabled={!isFlipped}
-              className="bg-surface hover:bg-green-600/10 border-2 border-on-surface text-green-700 font-bold py-3 rounded-xl shadow-[4px_4px_0px_0px_#191b23] active:shadow-none active:translate-x-[2px] active:translate-y-[2px] transition-all flex flex-col items-center justify-center group"
+              className="bg-surface hover:bg-green-600/10 border-2 border-on-surface text-green-700 font-bold py-3 rounded-xl shadow-[4px_4px_0px_0px_#191b23] active:shadow-none active:translate-x-0.5 active:translate-y-0.5 transition-all flex flex-col items-center justify-center group"
             >
               <span className="text-lg uppercase pointer-events-none">Easy</span>
               <span className="text-xs text-on-surface-variant font-bold mt-1 uppercase tracking-wider opacity-70 group-hover:opacity-100 pointer-events-none">~ 4d</span>

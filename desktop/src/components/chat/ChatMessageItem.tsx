@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { 
   Sparkles, User, Copy, Check, BrainCircuit, HelpCircle, 
   Cpu, Clock 
@@ -45,12 +46,15 @@ export function ChatMessageItem({
   })();
 
   return (
-    <div
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
       className={cn(
-        'flex flex-col gap-2 p-4 sm:p-5 rounded-2xl border-2 border-border-default transition-all',
+        'flex flex-col gap-2 p-3.5 sm:p-5 rounded-2xl border-2 border-border-default transition-all',
         isUser
-          ? 'bg-surface-container-low/60 ml-4 sm:ml-12 border-primary/20 shadow-neo-sm'
-          : 'bg-surface mr-4 sm:mr-8 shadow-neo',
+          ? 'bg-surface-container-low/60 ml-2 sm:ml-12 border-primary/20 shadow-neo-sm'
+          : 'bg-surface mr-2 sm:mr-8 shadow-neo',
         className
       )}
     >
@@ -96,11 +100,11 @@ export function ChatMessageItem({
           <button
             type="button"
             onClick={handleCopy}
-            className="p-1.5 rounded-md text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors cursor-pointer"
+            className="p-2 min-w-[36px] min-h-[36px] flex items-center justify-center rounded-md text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors cursor-pointer"
             title="Copy message content"
             aria-label="Copy message"
           >
-            {copied ? <Check size={13} className="text-emerald-600" /> : <Copy size={13} />}
+            {copied ? <Check size={14} className="text-emerald-600" /> : <Copy size={14} />}
           </button>
         </div>
       </div>
@@ -139,29 +143,35 @@ export function ChatMessageItem({
             Study Handoffs
           </span>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <button
               type="button"
-              onClick={() => navigate('/review?create=true&from=chat')}
-              className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-bold text-on-surface border border-border-default hover:bg-surface-container shadow-2xs hover:shadow-neo-sm transition-all cursor-pointer"
+              onClick={() => {
+                const primaryDocId = message.sources?.[0]?.document_id;
+                navigate(`/app/flashcards?generate=true${primaryDocId ? `&document_id=${encodeURIComponent(primaryDocId)}` : ''}`);
+              }}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 min-h-[34px] rounded-md text-[11px] font-bold text-on-surface border border-border-default hover:bg-surface-container shadow-2xs hover:shadow-neo-sm transition-all cursor-pointer"
               title="Create study flashcards from this answer"
             >
-              <BrainCircuit size={12} className="text-accent-blue" />
+              <BrainCircuit size={13} className="text-accent-blue" />
               <span>Make Flashcard</span>
             </button>
 
             <button
               type="button"
-              onClick={() => navigate('/review?quiz=true&from=chat')}
-              className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-bold text-on-surface border border-border-default hover:bg-surface-container shadow-2xs hover:shadow-neo-sm transition-all cursor-pointer"
+              onClick={() => {
+                const primaryDocId = message.sources?.[0]?.document_id;
+                navigate(`/app/quizzes?generate=true${primaryDocId ? `&document_id=${encodeURIComponent(primaryDocId)}` : ''}`);
+              }}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 min-h-[34px] rounded-md text-[11px] font-bold text-on-surface border border-border-default hover:bg-surface-container shadow-2xs hover:shadow-neo-sm transition-all cursor-pointer"
               title="Generate a self-test quiz from this knowledge"
             >
-              <HelpCircle size={12} className="text-amber-500" />
+              <HelpCircle size={13} className="text-amber-500" />
               <span>Test Knowledge</span>
             </button>
           </div>
         </div>
       )}
-    </div>
+    </motion.div>
   );
 }

@@ -71,7 +71,10 @@ export interface PdfSyncProgressEvent {
   message?: string;
 }
 
-export const API_BASE = "http://127.0.0.1:8000";
+export const API_BASE =
+  (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_API_BASE_URL)
+    ? ((import.meta as any).env.VITE_API_BASE_URL as string).replace(/\/+$/, '')
+    : "http://127.0.0.1:8000";
 
 export interface PromptVariable {
   name: string;
@@ -1291,18 +1294,8 @@ export const client = {
     }
   },
 
-  async getLearningDashboard(): Promise<DashboardSummaryResponse> {
-    const res = await fetch(`${API_BASE}/api/v1/learning/dashboard`);
-    if (!res.ok) throw await parseApiError(res);
-    const json = await res.json();
-    return json.data;
-  },
-
-  async getStudyActivity(range: string = '7d'): Promise<StudyActivityResponse> {
-    const res = await fetch(`${API_BASE}/api/v1/learning/activity?range=${encodeURIComponent(range)}`);
-    if (!res.ok) throw await parseApiError(res);
-    const json = await res.json();
-    return json.data;
+  async getStudyActivity(range: string = '7d', startDate?: string, endDate?: string): Promise<StudyActivityResponse> {
+    return this.getLearningActivity(range, startDate, endDate);
   },
 
   async getDocuments(limit: number = 20, offset: number = 0, status?: string): Promise<DocumentListResponse> {
@@ -1843,7 +1836,259 @@ export const client = {
     }
     return res.json();
   },
+
+  // ── Learning Progress & Spaced Repetition Analytics ───────────────────
+  async getLearningDashboard(): Promise<DashboardSummaryResponse> {
+    const res = await fetch(`${API_BASE}/api/v1/learning/dashboard`);
+    if (!res.ok) throw await parseApiError(res);
+    const json = await res.json();
+    return json.data;
+  },
+
+  async getLearningActivity(range: string = '7d', startDate?: string, endDate?: string): Promise<StudyActivityResponse> {
+    const params = new URLSearchParams({ range });
+    if (startDate) params.set('start_date', startDate);
+    if (endDate) params.set('end_date', endDate);
+    const res = await fetch(`${API_BASE}/api/v1/learning/activity?${params.toString()}`);
+    if (!res.ok) throw await parseApiError(res);
+    const json = await res.json();
+    return json.data;
+  },
+
+  async getLearningReviewStats(): Promise<ReviewDetailedStats> {
+    const res = await fetch(`${API_BASE}/api/v1/learning/statistics/reviews`);
+    if (!res.ok) throw await parseApiError(res);
+    const json = await res.json();
+    return json.data;
+  },
+
+  async getLearningQuizStats(): Promise<QuizPerformanceStats> {
+    const res = await fetch(`${API_BASE}/api/v1/learning/statistics/quizzes`);
+    if (!res.ok) throw await parseApiError(res);
+    const json = await res.json();
+    return json.data;
+  },
+
+  async getLearningFlashcardStats(): Promise<FlashcardPerformanceStats> {
+    const res = await fetch(`${API_BASE}/api/v1/learning/statistics/flashcards`);
+    if (!res.ok) throw await parseApiError(res);
+    const json = await res.json();
+    return json.data;
+  },
+
+  async getDocumentLearningProgress(limit: number = 50, offset: number = 0): Promise<DocumentLearningProgress[]> {
+    const params = new URLSearchParams({ limit: limit.toString(), offset: offset.toString() });
+    const res = await fetch(`${API_BASE}/api/v1/learning/progress/documents?${params.toString()}`);
+    if (!res.ok) throw await parseApiError(res);
+    const json = await res.json();
+    return json.data;
+  },
+
+  async getConceptLearningProgress(limit: number = 50, offset: number = 0): Promise<ConceptLearningProgress[]> {
+    const params = new URLSearchParams({ limit: limit.toString(), offset: offset.toString() });
+    const res = await fetch(`${API_BASE}/api/v1/learning/progress/concepts?${params.toString()}`);
+    if (!res.ok) throw await parseApiError(res);
+    const json = await res.json();
+    return json.data;
+  },
+
+  async getStudySessions(limit: number = 20, offset: number = 0, status?: string): Promise<StudySessionSummary[]> {
+    const params = new URLSearchParams({ limit: limit.toString(), offset: offset.toString() });
+    if (status) params.set('status', status);
+    const res = await fetch(`${API_BASE}/api/v1/learning/sessions?${params.toString()}`);
+    if (!res.ok) throw await parseApiError(res);
+    const json = await res.json();
+    return json.data;
+  },
+
+  async getLearningProgressSummary(): Promise<LearningProgressSummaryResponse> {
+    const res = await fetch(`${API_BASE}/api/v1/learning/progress`);
+    if (!res.ok) throw await parseApiError(res);
+    const json = await res.json();
+    return json.data;
+  },
+
+  // ── Account, Entitlements, BYOK & Billing ─────────────────────────
+  async getAccountUsage(): Promise<UsageSummaryResponse> {
+    const res = await fetch(`${API_BASE}/api/v1/account/usage`);
+    if (!res.ok) throw await parseApiError(res);
+    const json = await res.json();
+    return json.data;
+  },
+
+  async listBillingPlans(): Promise<PlanListResponse> {
+    const res = await fetch(`${API_BASE}/api/v1/billing/plans`);
+    if (!res.ok) throw await parseApiError(res);
+    const json = await res.json();
+    return json.data;
+  },
+
+  async getBillingSubscription(): Promise<SubscriptionResponse | null> {
+    const res = await fetch(`${API_BASE}/api/v1/billing/subscription`);
+    if (!res.ok) throw await parseApiError(res);
+    const json = await res.json();
+    return json.data;
+  },
+
+  async createBillingCheckout(planId: string, successUrl?: string, cancelUrl?: string): Promise<CheckoutResponse> {
+    const res = await fetch(`${API_BASE}/api/v1/billing/checkout`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        plan_id: planId,
+        success_url: successUrl,
+        cancel_url: cancelUrl,
+      }),
+    });
+    if (!res.ok) throw await parseApiError(res);
+    const json = await res.json();
+    return json.data;
+  },
+
+  async cancelBillingSubscription(atPeriodEnd: boolean = true): Promise<SubscriptionResponse> {
+    const res = await fetch(`${API_BASE}/api/v1/billing/cancel`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ at_period_end: atPeriodEnd }),
+    });
+    if (!res.ok) throw await parseApiError(res);
+    const json = await res.json();
+    return json.data;
+  },
+
+  async reactivateBillingSubscription(): Promise<SubscriptionResponse> {
+    const res = await fetch(`${API_BASE}/api/v1/billing/reactivate`, {
+      method: 'POST',
+    });
+    if (!res.ok) throw await parseApiError(res);
+    const json = await res.json();
+    return json.data;
+  },
+
+  async getUserPreferences(): Promise<UserPreferencesResponse> {
+    const res = await fetch(`${API_BASE}/api/v1/users/me/preferences`);
+    if (!res.ok) throw await parseApiError(res);
+    const json = await res.json();
+    return json.data;
+  },
+
+  async updateUserPreferences(payload: UserPreferencesUpdateRequest): Promise<UserPreferencesResponse> {
+    const res = await fetch(`${API_BASE}/api/v1/users/me/preferences`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw await parseApiError(res);
+    const json = await res.json();
+    return json.data;
+  },
+
+  async changePassword(currentPassword: string, newPassword: string): Promise<{ message: string }> {
+    const res = await fetch(`${API_BASE}/api/v1/auth/change-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        current_password: currentPassword,
+        new_password: newPassword,
+      }),
+    });
+    if (!res.ok) throw await parseApiError(res);
+    const json = await res.json();
+    return json.data;
+  },
+
+  async listByokCredentials(): Promise<ProviderCredentialItem[]> {
+    const res = await fetch(`${API_BASE}/api/v1/account/byok/credentials`);
+    if (!res.ok) throw await parseApiError(res);
+    const json = await res.json();
+    return json.data;
+  },
+
+  async saveByokCredential(provider: string, apiKey: string): Promise<ProviderCredentialItem> {
+    const res = await fetch(`${API_BASE}/api/v1/account/byok/credentials`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ provider, api_key: apiKey }),
+    });
+    if (!res.ok) throw await parseApiError(res);
+    const json = await res.json();
+    return json.data;
+  },
+
+  async deleteByokCredential(provider: string): Promise<{ success: boolean; provider: string; deleted: boolean }> {
+    const res = await fetch(`${API_BASE}/api/v1/account/byok/credentials/${provider}`, {
+      method: 'DELETE',
+    });
+    if (!res.ok) throw await parseApiError(res);
+    const json = await res.json();
+    return json.data;
+  },
+
+  async testByokProvider(provider: string, apiKey?: string): Promise<TestProviderResponse> {
+    const res = await fetch(`${API_BASE}/api/v1/account/byok/test`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ provider, api_key: apiKey }),
+    });
+    if (!res.ok) throw await parseApiError(res);
+    const json = await res.json();
+    return json.data;
+  },
 };
+
+export interface RatingDistributionItem {
+  rating: string;
+  count: number;
+  percentage: number;
+}
+
+export interface ReviewDetailedStats {
+  workload: ReviewWorkloadStats;
+  total_reviews: number;
+  reviewed_today: number;
+  correct_rate: number;
+  ratings: Record<string, RatingDistributionItem>;
+  average_reviews_per_active_day: number;
+}
+
+export interface DocumentLearningProgress {
+  document_id: string;
+  title: string;
+  total_learning_items: number;
+  new_items: number;
+  learning_items: number;
+  review_items: number;
+  due_items: number;
+  correct_rate: number;
+}
+
+export interface ConceptLearningProgress {
+  concept: string;
+  total_learning_items: number;
+  new_items: number;
+  learning_items: number;
+  review_items: number;
+  due_items: number;
+  correct_rate: number;
+}
+
+export interface StudySessionSummary {
+  id: string;
+  status: string;
+  started_at: string;
+  completed_at?: string | null;
+  duration_seconds?: number | null;
+  total_items: number;
+  reviewed_items: number;
+  rating_distribution: Record<string, number>;
+}
+
+export interface LearningProgressSummaryResponse {
+  total_items: number;
+  reviewed_items: number;
+  correct_rate: number;
+  due_items: number;
+}
 
 export interface ReviewWorkloadStats {
   due: number;
@@ -2402,5 +2647,74 @@ export interface QuizAttemptSummaryResponse {
   percentage: number;
   total_questions: number;
   correct_answers: number;
+}
+
+// ── Account, Entitlements & Billing Interfaces ─────────────────────
+export interface PlanResponse {
+  id: string;
+  name: string;
+  price_cents: number;
+  billing_interval: string;
+  monthly_credits: number;
+  max_documents: number;
+  max_storage_mb: number;
+  byok_allowed: boolean;
+  features: Record<string, boolean>;
+  is_active: boolean;
+}
+
+export interface PlanListResponse {
+  plans: PlanResponse[];
+  total: number;
+}
+
+export interface SubscriptionResponse {
+  id: string;
+  workspace_id: string;
+  plan_id: string;
+  plan_name: string;
+  status: string;
+  provider: string;
+  current_period_start: string;
+  current_period_end: string;
+  cancel_at_period_end: boolean;
+  canceled_at?: string | null;
+}
+
+export interface CheckoutResponse {
+  checkout_url: string;
+  session_id: string;
+}
+
+export interface UserPreferencesResponse {
+  user_id: string;
+  theme: string;
+  daily_review_goal: number;
+  preferred_llm_provider: string;
+  preferences: Record<string, any>;
+  updated_at: string;
+}
+
+export interface UserPreferencesUpdateRequest {
+  theme?: string;
+  daily_review_goal?: number;
+  preferred_llm_provider?: string;
+  preferences?: Record<string, any>;
+}
+
+export interface ProviderCredentialItem {
+  id: string;
+  workspace_id: string;
+  provider: string;
+  key_hint: string;
+  is_valid: boolean;
+  last_tested_at?: string | null;
+  created_at: string;
+}
+
+export interface TestProviderResponse {
+  valid: boolean;
+  provider: string;
+  error?: string | null;
 }
 

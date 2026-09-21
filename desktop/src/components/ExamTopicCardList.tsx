@@ -4,7 +4,7 @@ import { GraduationCap, BookOpen, Brain, Layers, Check, Filter } from 'lucide-re
 import { setActiveTopicId, setTargetPage, setExamScopeTopicIds } from '../store/readerSlice';
 import type { RootState } from '../store';
 import type { ExamTopicItem } from '../api/client';
-import clsx from 'clsx';
+import { cn } from '../lib/utils';
 
 interface ExamTopicCardListProps {
   topics: ExamTopicItem[];
@@ -72,7 +72,7 @@ export const ExamTopicCardList: React.FC<ExamTopicCardListProps> = ({
         </div>
         <button
           onClick={handleToggleScope}
-          className={clsx(
+          className={cn(
             "text-[11px] font-bold px-2.5 py-1 rounded-md border flex items-center gap-1.5 transition-all",
             isScopeActive
               ? "bg-primary text-white border-primary shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
@@ -91,7 +91,7 @@ export const ExamTopicCardList: React.FC<ExamTopicCardListProps> = ({
           return (
             <div
               key={topic.id}
-              className={clsx(
+              className={cn(
                 "p-2.5 rounded-lg border transition-all flex flex-col gap-2",
                 isSelected
                   ? "bg-primary/5 border-primary shadow-[2px_2px_0px_0px_rgba(0,0,0,0.8)]"

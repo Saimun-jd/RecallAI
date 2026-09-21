@@ -40,7 +40,7 @@ export function QuestionNavigator({
               type="button"
               disabled={disabled}
               onClick={() => onSelectQuestion(idx)}
-              className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl border-2 flex items-center justify-center text-xs font-black transition-all cursor-pointer select-none ${
+              className={`w-9 h-9 sm:w-10 sm:h-10 min-w-[38px] min-h-[38px] rounded-xl border-2 flex items-center justify-center text-xs sm:text-sm font-black transition-all cursor-pointer select-none ${
                 isCurrent
                   ? 'border-primary bg-primary text-on-primary shadow-neo ring-2 ring-primary/30 ring-offset-2'
                   : isAnswered

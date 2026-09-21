@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
+import { usePrefersReducedMotion } from '../components/ui/motion';
 import {
   ArrowLeft,
   Clock,
@@ -31,6 +33,7 @@ export function QuizAttemptView() {
   const { quizId } = useParams<{ quizId: string }>();
   const navigate = useNavigate();
   const { showToast } = useToast();
+  const shouldReduceMotion = usePrefersReducedMotion();
 
   const [attempt, setAttempt] = useState<QuizAttemptStartResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -271,11 +274,21 @@ export function QuizAttemptView() {
           />
 
           {/* Question Card */}
-          <QuestionRenderer
-            question={currentQuestion}
-            selectedAnswer={userAnswers[currentQuestion.id] || undefined}
-            onSelectAnswer={(val) => handleSelectAnswer(currentQuestion.id, val)}
-          />
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={currentQuestion.id}
+              initial={shouldReduceMotion ? { opacity: 1 } : { opacity: 0, x: 8 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, x: -8 }}
+              transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
+            >
+              <QuestionRenderer
+                question={currentQuestion}
+                selectedAnswer={userAnswers[currentQuestion.id] || undefined}
+                onSelectAnswer={(val) => handleSelectAnswer(currentQuestion.id, val)}
+              />
+            </motion.div>
+          </AnimatePresence>
 
           {/* Stepper Navigation Buttons */}
           <div className="flex items-center justify-between gap-4 pt-2">

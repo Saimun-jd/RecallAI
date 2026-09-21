@@ -4,7 +4,7 @@ import { useSelector } from 'react-redux';
 import { 
   NotebookPen, Book as BookIcon, Search, Plus, Trash2, ExternalLink, 
   Sparkles, FileText, Copy, Check, AlignJustify, Grid, Edit3, Eye, 
-  Layers, ChevronRight, Clock, ArrowUpDown, Filter, X, MessageSquare, 
+  Layers, ChevronRight, ChevronLeft, Clock, ArrowUpDown, Filter, X, MessageSquare, 
   Download, BookOpen, AlertCircle, Loader2
 } from 'lucide-react';
 import { client, type NoteItem, type NoteAnnotationItem, type Book, type Topic } from '../api/client';
@@ -12,7 +12,7 @@ import { MarkdownRenderer } from '../components/MarkdownRenderer';
 import { noteGenerationRunner } from '../services/noteGenerationRunner';
 import { useToast } from '../hooks/useToast';
 import type { RootState } from '../store';
-import clsx from 'clsx';
+import { cn } from '../lib/utils';
 
 type CategoryFilter = 'all' | 'cornell' | 'annotations';
 
@@ -37,6 +37,10 @@ export function NotesView() {
   const [selectedBookId, setSelectedBookId] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortOrder, setSortOrder] = useState<'updated_desc' | 'updated_asc' | 'title_asc' | 'book_asc'>('updated_desc');
+
+  // Responsive Mobile Workspace States
+  const [mobileActivePane, setMobileActivePane] = useState<'list' | 'editor'>('list');
+  const [isOrgDrawerOpen, setIsOrgDrawerOpen] = useState(false);
 
   // Background Note Generation state tracking
   const isCurrentTopicGenerating = !!(selectedTopicId && noteGeneration?.isGenerating && noteGeneration?.topicId === selectedTopicId);
@@ -83,6 +87,7 @@ export function NotesView() {
         if (!isNaN(tid)) {
           setSelectedType('note');
           setSelectedTopicId(tid);
+          setMobileActivePane('editor');
           const found = notesData.find(n => n.topic_id === tid);
           if (found) {
             setEditorContent(found.content);
@@ -381,197 +386,248 @@ export function NotesView() {
     return plain.length > 130 ? plain.slice(0, 130) + '...' : plain;
   };
 
-  return (
-    <div className="flex-1 flex flex-row h-full overflow-hidden bg-background">
-      {/* ─────────────────────────────────────────────────────────────
-          PANE 1: Left Organization Sidebar (Categories & Books Tree)
-      ────────────────────────────────────────────────────────────── */}
-      <aside className="w-64 shrink-0 border-r-2 border-on-surface bg-surface-container-low flex flex-col h-full select-none z-10">
-        {/* Header with "+ New Note" action */}
-        <div className="p-3 border-b-2 border-on-surface flex items-center justify-between shrink-0 bg-surface">
-          <div className="flex items-center gap-2">
-            <NotebookPen size={18} className="text-primary shrink-0" />
-            <span className="font-black text-sm uppercase tracking-wider text-on-surface">Notes Hub</span>
-          </div>
+  // Render organization tree (reusable for desktop sidebar and mobile drawer)
+  const renderOrgContent = (isDrawer = false) => (
+    <>
+      {/* Header with "+ New Note" action */}
+      <div className="p-3 border-b-2 border-on-surface flex items-center justify-between shrink-0 bg-surface">
+        <div className="flex items-center gap-2">
+          <NotebookPen size={18} className="text-primary shrink-0" />
+          <span className="font-black text-sm uppercase tracking-wider text-on-surface">Notes Hub</span>
+        </div>
+        <div className="flex items-center gap-1.5">
           <button
             onClick={() => {
               if (books.length > 0) {
                 handleNewNoteBookSelect(books[0].id);
               }
               setIsNewNoteModalOpen(true);
+              if (isDrawer) setIsOrgDrawerOpen(false);
             }}
-            className="flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded bg-primary text-on-primary border-2 border-on-surface shadow-[2px_2px_0px_0px_#191b23] hover:translate-y-[-1px] active:translate-y-[1px] transition-all cursor-pointer"
+            className="flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded bg-primary text-on-primary border-2 border-on-surface shadow-[2px_2px_0px_0px_#191b23] hover:translate-y-[-1px] active:translate-y-[1px] transition-all cursor-pointer min-h-[32px]"
             title="Create a new note for a topic"
           >
             <Plus size={14} strokeWidth={2.5} />
             <span>New</span>
           </button>
+          {isDrawer && (
+            <button
+              onClick={() => setIsOrgDrawerOpen(false)}
+              className="w-8 h-8 flex items-center justify-center rounded-lg border border-border-default bg-surface hover:bg-surface-container text-on-surface"
+              aria-label="Close sidebar"
+            >
+              <X size={16} />
+            </button>
+          )}
         </div>
+      </div>
 
-        {/* Scrollable Directory */}
-        <div className="flex-1 overflow-y-auto p-2 space-y-4 custom-scrollbar">
-          {/* Smart Views */}
-          <div className="space-y-1">
-            <div className="px-2 py-1 text-[11px] font-bold text-on-surface-variant uppercase tracking-wider">
-              Smart Views
+      {/* Scrollable Directory */}
+      <div className="flex-1 overflow-y-auto p-2 space-y-4 custom-scrollbar">
+        {/* Smart Views */}
+        <div className="space-y-1">
+          <div className="px-2 py-1 text-[11px] font-bold text-on-surface-variant uppercase tracking-wider">
+            Smart Views
+          </div>
+
+          <button
+            onClick={() => {
+              setActiveCategory('all');
+              setSelectedBookId(null);
+              setSelectedType('note');
+              if (isDrawer) setIsOrgDrawerOpen(false);
+            }}
+            className={cn(
+              "w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-bold transition-all text-left min-h-[38px]",
+              activeCategory === 'all' && selectedBookId === null && selectedType === 'note'
+                ? "bg-primary text-on-primary border-2 border-on-surface shadow-[2px_2px_0px_0px_#191b23]"
+                : "text-on-surface hover:bg-surface-container border-2 border-transparent"
+            )}
+          >
+            <div className="flex items-center gap-2.5">
+              <NotebookPen size={16} />
+              <span>All Study Notes</span>
             </div>
+            <span className={cn(
+              "px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold",
+              activeCategory === 'all' && selectedBookId === null && selectedType === 'note'
+                ? "bg-on-primary text-primary"
+                : "bg-surface-container-high text-on-surface-variant"
+            )}>
+              {metrics.notesCount}
+            </span>
+          </button>
 
-            <button
-              onClick={() => {
-                setActiveCategory('all');
-                setSelectedBookId(null);
-                setSelectedType('note');
-              }}
-              className={clsx(
-                "w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-bold transition-all text-left",
-                activeCategory === 'all' && selectedBookId === null && selectedType === 'note'
-                  ? "bg-primary text-on-primary border-2 border-on-surface shadow-[2px_2px_0px_0px_#191b23]"
-                  : "text-on-surface hover:bg-surface-container border-2 border-transparent"
-              )}
-            >
-              <div className="flex items-center gap-2.5">
-                <NotebookPen size={16} />
-                <span>All Study Notes</span>
-              </div>
-              <span className={clsx(
-                "px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold",
-                activeCategory === 'all' && selectedBookId === null && selectedType === 'note'
-                  ? "bg-on-primary text-primary"
-                  : "bg-surface-container-high text-on-surface-variant"
-              )}>
-                {metrics.notesCount}
-              </span>
-            </button>
-
-            <button
-              onClick={() => {
-                setActiveCategory('cornell');
-                setSelectedBookId(null);
-                setSelectedType('note');
-              }}
-              className={clsx(
-                "w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-bold transition-all text-left",
-                activeCategory === 'cornell' && selectedBookId === null
-                  ? "bg-amber-500 text-black border-2 border-on-surface shadow-[2px_2px_0px_0px_#191b23]"
-                  : "text-on-surface hover:bg-surface-container border-2 border-transparent"
-              )}
-            >
-              <div className="flex items-center gap-2.5">
-                <Sparkles size={16} className="text-amber-500 shrink-0" />
-                <span>Cornell Guides</span>
-              </div>
-              <span className="px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold bg-surface-container-high text-on-surface-variant">
-                {metrics.cornellCount}
-              </span>
-            </button>
-
-            <button
-              onClick={() => {
-                setActiveCategory('annotations');
-                setSelectedBookId(null);
-                setSelectedType('annotation');
-                if (annotations.length > 0) {
-                  setSelectedAnnotationId(annotations[0].id);
-                }
-              }}
-              className={clsx(
-                "w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-bold transition-all text-left",
-                activeCategory === 'annotations' && selectedBookId === null && selectedType === 'annotation'
-                  ? "bg-accent-blue text-white border-2 border-on-surface shadow-[2px_2px_0px_0px_#191b23]"
-                  : "text-on-surface hover:bg-surface-container border-2 border-transparent"
-              )}
-            >
-              <div className="flex items-center gap-2.5">
-                <MessageSquare size={16} />
-                <span>PDF Margin Notes</span>
-              </div>
-              <span className="px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold bg-surface-container-high text-on-surface-variant">
-                {metrics.annotationsCount}
-              </span>
-            </button>
-          </div>
-
-          {/* Filter by Books */}
-          <div className="space-y-1 pt-2">
-            <div className="px-2 py-1 flex items-center justify-between text-[11px] font-bold text-on-surface-variant uppercase tracking-wider">
-              <span>Books & Courses</span>
-              <span className="font-mono text-[10px]">{books.length}</span>
+          <button
+            onClick={() => {
+              setActiveCategory('cornell');
+              setSelectedBookId(null);
+              setSelectedType('note');
+              if (isDrawer) setIsOrgDrawerOpen(false);
+            }}
+            className={cn(
+              "w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-bold transition-all text-left min-h-[38px]",
+              activeCategory === 'cornell' && selectedBookId === null
+                ? "bg-amber-500 text-black border-2 border-on-surface shadow-[2px_2px_0px_0px_#191b23]"
+                : "text-on-surface hover:bg-surface-container border-2 border-transparent"
+            )}
+          >
+            <div className="flex items-center gap-2.5">
+              <Sparkles size={16} className="text-amber-500 shrink-0" />
+              <span>Cornell Guides</span>
             </div>
+            <span className="px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold bg-surface-container-high text-on-surface-variant">
+              {metrics.cornellCount}
+            </span>
+          </button>
 
-            {books.map(b => {
-              const bookNoteCount = notes.filter(n => n.book_id === b.id).length;
-              const isSelected = selectedBookId === b.id;
-
-              return (
-                <button
-                  key={b.id}
-                  onClick={() => {
-                    setSelectedBookId(isSelected ? null : b.id);
-                    if (activeCategory === 'annotations') {
-                      setSelectedType('annotation');
-                    } else {
-                      setSelectedType('note');
-                    }
-                  }}
-                  className={clsx(
-                    "w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-xs font-bold transition-all text-left group",
-                    isSelected
-                      ? "bg-surface border-2 border-on-surface shadow-[2px_2px_0px_0px_#191b23] text-primary"
-                      : "text-on-surface hover:bg-surface-container border-2 border-transparent"
-                  )}
-                >
-                  <div className="flex items-center gap-2 min-w-0 flex-1 pr-2">
-                    <BookIcon size={15} className={clsx("shrink-0", isSelected ? "text-primary" : "text-on-surface-variant group-hover:text-primary")} />
-                    <span className="truncate" title={b.title}>{b.title}</span>
-                  </div>
-                  <span className={clsx(
-                    "px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold shrink-0",
-                    isSelected ? "bg-primary/10 text-primary border border-primary/30" : "bg-surface-container text-on-surface-variant"
-                  )}>
-                    {bookNoteCount}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
+          <button
+            onClick={() => {
+              setActiveCategory('annotations');
+              setSelectedBookId(null);
+              setSelectedType('annotation');
+              if (annotations.length > 0) {
+                setSelectedAnnotationId(annotations[0].id);
+              }
+              if (isDrawer) setIsOrgDrawerOpen(false);
+            }}
+            className={cn(
+              "w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-bold transition-all text-left min-h-[38px]",
+              activeCategory === 'annotations' && selectedBookId === null && selectedType === 'annotation'
+                ? "bg-accent-blue text-white border-2 border-on-surface shadow-[2px_2px_0px_0px_#191b23]"
+                : "text-on-surface hover:bg-surface-container border-2 border-transparent"
+            )}
+          >
+            <div className="flex items-center gap-2.5">
+              <MessageSquare size={16} />
+              <span>PDF Margin Notes</span>
+            </div>
+            <span className="px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold bg-surface-container-high text-on-surface-variant">
+              {metrics.annotationsCount}
+            </span>
+          </button>
         </div>
 
-        {/* Bottom Metrics Bar */}
-        <div className="p-3 border-t-2 border-on-surface bg-surface text-xs space-y-1 shrink-0">
-          <div className="flex justify-between font-medium text-on-surface-variant">
-            <span>Total Words:</span>
-            <span className="font-mono font-bold text-on-surface">{metrics.totalWords.toLocaleString()}</span>
+        {/* Filter by Books */}
+        <div className="space-y-1 pt-2">
+          <div className="px-2 py-1 flex items-center justify-between text-[11px] font-bold text-on-surface-variant uppercase tracking-wider">
+            <span>Books & Courses</span>
+            <span className="font-mono text-[10px]">{books.length}</span>
           </div>
-          <div className="flex justify-between font-medium text-on-surface-variant">
-            <span>Books Covered:</span>
-            <span className="font-mono font-bold text-on-surface">{metrics.booksCovered}</span>
-          </div>
+
+          {books.map(b => {
+            const bookNoteCount = notes.filter(n => n.book_id === b.id).length;
+            const isSelected = selectedBookId === b.id;
+
+            return (
+              <button
+                key={b.id}
+                onClick={() => {
+                  setSelectedBookId(isSelected ? null : b.id);
+                  if (activeCategory === 'annotations') {
+                    setSelectedType('annotation');
+                  } else {
+                    setSelectedType('note');
+                  }
+                  if (isDrawer) setIsOrgDrawerOpen(false);
+                }}
+                className={cn(
+                  "w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-xs font-bold transition-all text-left group min-h-[38px]",
+                  isSelected
+                    ? "bg-surface border-2 border-on-surface shadow-[2px_2px_0px_0px_#191b23] text-primary"
+                    : "text-on-surface hover:bg-surface-container border-2 border-transparent"
+                )}
+              >
+                <div className="flex items-center gap-2 min-w-0 flex-1 pr-2">
+                  <BookIcon size={15} className={cn("shrink-0", isSelected ? "text-primary" : "text-on-surface-variant group-hover:text-primary")} />
+                  <span className="truncate" title={b.title}>{b.title}</span>
+                </div>
+                <span className={cn(
+                  "px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold shrink-0",
+                  isSelected ? "bg-primary/10 text-primary border border-primary/30" : "bg-surface-container text-on-surface-variant"
+                )}>
+                  {bookNoteCount}
+                </span>
+              </button>
+            );
+          })}
         </div>
+      </div>
+
+      {/* Bottom Metrics Bar */}
+      <div className="p-3 border-t-2 border-on-surface bg-surface text-xs space-y-1 shrink-0">
+        <div className="flex justify-between font-medium text-on-surface-variant">
+          <span>Total Words:</span>
+          <span className="font-mono font-bold text-on-surface">{metrics.totalWords.toLocaleString()}</span>
+        </div>
+        <div className="flex justify-between font-medium text-on-surface-variant">
+          <span>Books Covered:</span>
+          <span className="font-mono font-bold text-on-surface">{metrics.booksCovered}</span>
+        </div>
+      </div>
+    </>
+  );
+
+  return (
+    <div className="flex-1 flex flex-row h-full overflow-hidden bg-background">
+      {/* ─────────────────────────────────────────────────────────────
+          PANE 1: Left Organization Sidebar (Desktop >= lg)
+      ────────────────────────────────────────────────────────────── */}
+      <aside className="hidden lg:flex w-64 shrink-0 border-r-2 border-on-surface bg-surface-container-low flex-col h-full select-none z-10">
+        {renderOrgContent(false)}
       </aside>
+
+      {/* Organization Drawer (Mobile & Tablet < lg) */}
+      {isOrgDrawerOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden flex">
+          <div
+            className="fixed inset-0 bg-black/60 backdrop-blur-xs animate-in fade-in"
+            onClick={() => setIsOrgDrawerOpen(false)}
+            aria-hidden="true"
+          />
+          <aside className="relative w-72 max-w-[85vw] bg-surface-container-low border-r-2 border-on-surface h-full shadow-neo-lg flex flex-col z-10 animate-in slide-in-from-left duration-200">
+            {renderOrgContent(true)}
+          </aside>
+        </div>
+      )}
 
       {/* ─────────────────────────────────────────────────────────────
           PANE 2: Middle Notes List & Search Pane
       ────────────────────────────────────────────────────────────── */}
-      <section className="w-80 lg:w-96 shrink-0 border-r-2 border-on-surface bg-surface-container-lowest flex flex-col h-full select-none z-10">
+      <section className={cn(
+        "w-full md:w-80 lg:w-96 shrink-0 border-r-2 border-on-surface bg-surface-container-lowest flex flex-col h-full select-none z-10",
+        mobileActivePane === 'editor' && "hidden md:flex"
+      )}>
         {/* Search & Sort Bar */}
         <div className="p-3 border-b-2 border-on-surface bg-surface space-y-2 shrink-0">
-          <div className="relative">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search in notes, titles, math..."
-              className="w-full pl-9 pr-8 py-1.5 text-xs bg-surface-container-lowest border-2 border-on-surface rounded-md focus:outline-none focus:ring-2 focus:ring-primary shadow-[2px_2px_0px_0px_#191b23] placeholder:text-on-surface-variant/60"
-            />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery('')}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface"
-              >
-                <X size={14} />
-              </button>
-            )}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setIsOrgDrawerOpen(true)}
+              className="lg:hidden flex items-center justify-center p-2 rounded-md bg-surface border-2 border-on-surface shadow-[2px_2px_0px_0px_#191b23] hover:bg-surface-container text-on-surface shrink-0 min-w-[36px] min-h-[36px]"
+              title="Open Folders and Smart Views"
+              aria-label="Open Folders and Smart Views"
+            >
+              <Layers size={16} className="text-primary" />
+            </button>
+            <div className="relative flex-1">
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search in notes, titles, math..."
+                className="w-full pl-9 pr-8 py-1.5 text-xs bg-surface-container-lowest border-2 border-on-surface rounded-md focus:outline-none focus:ring-2 focus:ring-primary shadow-[2px_2px_0px_0px_#191b23] placeholder:text-on-surface-variant/60 min-h-[36px]"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface p-1"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="flex items-center justify-between text-xs pt-1">
@@ -622,8 +678,9 @@ export function NotesView() {
                     onClick={() => {
                       setSelectedType('annotation');
                       setSelectedAnnotationId(annot.id);
+                      setMobileActivePane('editor');
                     }}
-                    className={clsx(
+                    className={cn(
                       "p-3 rounded-lg border-2 transition-all cursor-pointer text-left space-y-1.5",
                       isSelected
                         ? "bg-surface border-on-surface shadow-[3px_3px_0px_0px_#191b23] ring-1 ring-primary/40"
@@ -672,8 +729,9 @@ export function NotesView() {
                       setSelectedType('note');
                       setSelectedTopicId(n.topic_id);
                       setEditorContent(n.content);
+                      setMobileActivePane('editor');
                     }}
-                    className={clsx(
+                    className={cn(
                       "p-3 rounded-lg border-2 transition-all cursor-pointer text-left space-y-1.5",
                       isSelected
                         ? "bg-surface border-on-surface shadow-[3px_3px_0px_0px_#191b23] ring-1 ring-primary/40"
@@ -734,14 +792,26 @@ export function NotesView() {
       {/* ─────────────────────────────────────────────────────────────
           PANE 3: Right Note Reader & Editor Workspace
       ────────────────────────────────────────────────────────────── */}
-      <main className="flex-1 flex flex-col h-full bg-surface-container-lowest overflow-hidden relative">
+      <main className={cn(
+        "flex-1 flex flex-col h-full bg-surface-container-lowest overflow-hidden relative",
+        mobileActivePane === 'list' && "hidden md:flex"
+      )}>
         {selectedType === 'note' && currentNote ? (
           <>
             {/* Top Workspace Header & Toolbar */}
-            <div className="h-12 px-4 border-b-2 border-on-surface bg-surface flex items-center justify-between shrink-0 select-none z-10 shadow-[0_2px_0px_0px_rgba(0,0,0,0.05)]">
+            <div className="h-12 px-3 sm:px-4 border-b-2 border-on-surface bg-surface flex items-center justify-between shrink-0 select-none z-10 shadow-[0_2px_0px_0px_rgba(0,0,0,0.05)]">
               {/* Left: Topic Title & Book Link */}
-              <div className="flex items-center gap-2 min-w-0 flex-1 mr-4">
-                <NotebookPen size={16} className="text-primary shrink-0" />
+              <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1 mr-2 sm:mr-4">
+                <button
+                  type="button"
+                  onClick={() => setMobileActivePane('list')}
+                  className="md:hidden flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded bg-surface border-2 border-on-surface shadow-[2px_2px_0px_0px_#191b23] hover:bg-surface-container text-on-surface mr-1 shrink-0 min-h-[32px]"
+                  title="Back to notes list"
+                >
+                  <ChevronLeft size={16} />
+                  <span>Notes</span>
+                </button>
+                <NotebookPen size={16} className="text-primary shrink-0 hidden sm:inline" />
                 <div className="flex flex-col min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="font-black text-xs sm:text-sm text-on-surface truncate" title={currentNote.topic_title}>
@@ -784,7 +854,7 @@ export function NotesView() {
                 {/* Mode Switcher: Notes View vs Edit */}
                 <button
                   onClick={() => setEditorMode(editorMode === 'preview' ? 'edit' : 'preview')}
-                  className={clsx(
+                  className={cn(
                     "flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded border-2 border-on-surface transition-all cursor-pointer shadow-[2px_2px_0px_0px_#191b23]",
                     editorMode === 'edit'
                       ? "bg-primary text-on-primary"
@@ -899,7 +969,7 @@ export function NotesView() {
               {editorMode === 'preview' ? (
                 <div className="w-full max-w-4xl pb-20">
                   <div
-                    className={clsx(
+                    className={cn(
                       "notebook-sheet w-full min-h-[850px] border-2 border-on-surface shadow-[4px_4px_0px_0px_#191b23] rounded-lg",
                       paperStyle === 'ruled' && 'notebook-paper-ruled p-6 pl-14 sm:p-8 sm:pl-18',
                       paperStyle === 'grid' && 'notebook-paper-grid p-6 sm:p-8',
@@ -922,7 +992,7 @@ export function NotesView() {
               ) : (
                 <div className="w-full max-w-4xl h-full flex flex-col pb-6">
                   <div
-                    className={clsx(
+                    className={cn(
                       "notebook-sheet flex-1 relative border-2 border-on-surface rounded-lg shadow-[4px_4px_0px_0px_#191b23] overflow-hidden flex flex-col",
                       paperStyle === 'ruled' && 'notebook-paper-ruled',
                       paperStyle === 'grid' && 'notebook-paper-grid',
@@ -933,7 +1003,7 @@ export function NotesView() {
                       value={editorContent}
                       onChange={(e) => handleEditorChange(e.target.value)}
                       placeholder="Write your study notes in Markdown (LaTeX math like $x^2$ or $$...$$ is fully supported)..."
-                      className={clsx(
+                      className={cn(
                         "w-full flex-1 min-h-[500px] p-6 bg-transparent text-on-surface font-handwriting text-lg leading-[32px] resize-none focus:outline-none",
                         paperStyle === 'ruled' ? 'pl-14 sm:pl-18' : 'px-6 sm:px-8'
                       )}
@@ -948,25 +1018,35 @@ export function NotesView() {
           /* PDF Annotation Detail View */
           <div className="flex-1 flex flex-col h-full">
             {/* Header */}
-            <div className="h-12 px-4 border-b-2 border-on-surface bg-surface flex items-center justify-between shrink-0 shadow-[0_2px_0px_0px_rgba(0,0,0,0.05)]">
-              <div className="flex items-center gap-2">
-                <MessageSquare size={16} className="text-accent-blue" />
-                <span className="font-bold text-xs sm:text-sm text-on-surface">
+            <div className="h-12 px-3 sm:px-4 border-b-2 border-on-surface bg-surface flex items-center justify-between shrink-0 shadow-[0_2px_0px_0px_rgba(0,0,0,0.05)]">
+              <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1 mr-2">
+                <button
+                  type="button"
+                  onClick={() => setMobileActivePane('list')}
+                  className="md:hidden flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded bg-surface border-2 border-on-surface shadow-[2px_2px_0px_0px_#191b23] hover:bg-surface-container text-on-surface mr-1 shrink-0 min-h-[32px]"
+                  title="Back to notes list"
+                >
+                  <ChevronLeft size={16} />
+                  <span>Notes</span>
+                </button>
+                <MessageSquare size={16} className="text-accent-blue shrink-0 hidden sm:inline" />
+                <span className="font-bold text-xs sm:text-sm text-on-surface truncate">
                   PDF Margin Annotation • {currentAnnotation.book_title} (Page {currentAnnotation.page_number})
                 </span>
               </div>
 
               <button
                 onClick={() => navigate(`/books/${currentAnnotation.book_id}`)}
-                className="flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded bg-surface border-2 border-on-surface hover:bg-surface-container text-on-surface shadow-[2px_2px_0px_0px_#191b23] transition-all cursor-pointer"
+                className="flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded bg-surface border-2 border-on-surface hover:bg-surface-container text-on-surface shadow-[2px_2px_0px_0px_#191b23] transition-all cursor-pointer shrink-0"
               >
                 <ExternalLink size={13} className="text-accent-blue" />
-                <span>Go to Page {currentAnnotation.page_number}</span>
+                <span className="hidden sm:inline">Go to Page {currentAnnotation.page_number}</span>
+                <span className="sm:hidden">p. {currentAnnotation.page_number}</span>
               </button>
             </div>
 
             {/* Content Area */}
-            <div className="flex-1 overflow-y-auto p-6 flex justify-center bg-surface-container-low/50">
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 flex justify-center bg-surface-container-low/50">
               <div className="w-full max-w-2xl space-y-4">
                 {/* Quoted Text Card */}
                 <div className="p-4 rounded-lg bg-surface border-2 border-on-surface shadow-[3px_3px_0px_0px_#191b23] space-y-1">
@@ -979,7 +1059,7 @@ export function NotesView() {
                 </div>
 
                 {/* Sidenote Content */}
-                <div className="p-6 rounded-lg bg-surface border-2 border-on-surface shadow-[3px_3px_0px_0px_#191b23] space-y-2">
+                <div className="p-4 sm:p-6 rounded-lg bg-surface border-2 border-on-surface shadow-[3px_3px_0px_0px_#191b23] space-y-2">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant font-mono">
                     Study Note / AI Explanation
                   </span>
@@ -992,7 +1072,15 @@ export function NotesView() {
           </div>
         ) : (
           /* Empty Workspace Placeholder */
-          <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-on-surface-variant">
+          <div className="flex-1 flex flex-col items-center justify-center p-6 sm:p-8 text-center text-on-surface-variant">
+            <button
+              type="button"
+              onClick={() => setMobileActivePane('list')}
+              className="md:hidden mb-4 self-start flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded bg-surface border-2 border-on-surface shadow-[2px_2px_0px_0px_#191b23] text-on-surface"
+            >
+              <ChevronLeft size={16} />
+              <span>Back to Notes</span>
+            </button>
             <div className="w-16 h-16 rounded-2xl border-2 border-on-surface bg-surface shadow-[4px_4px_0px_0px_#191b23] flex items-center justify-center mb-4">
               <NotebookPen size={32} className="text-primary" />
             </div>

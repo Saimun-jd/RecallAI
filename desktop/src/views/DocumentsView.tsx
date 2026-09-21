@@ -310,17 +310,17 @@ export function DocumentsView() {
   };
 
   return (
-    <div className="flex-1 overflow-y-auto bg-surface text-on-surface">
-      <div className="p-5 sm:p-8 space-y-6 max-w-7xl mx-auto">
+    <div className="w-full flex-1 bg-surface text-on-surface">
+      <div className="p-3.5 sm:p-6 lg:p-8 space-y-5 sm:space-y-6 max-w-7xl mx-auto">
         {/* Page Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b-2 border-border-default/60 pb-6">
           <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-2xl sm:text-3xl font-black text-on-surface tracking-tight">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-on-surface tracking-tight break-words">
                 Knowledge Documents
               </h1>
               {!isLoading && (
-                <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-primary/10 text-primary border border-primary/20">
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-primary/10 text-primary border border-primary/20 shrink-0">
                   {documents.length}
                 </span>
               )}
@@ -333,7 +333,7 @@ export function DocumentsView() {
           <Button
             variant="primary"
             onClick={() => setIsUploadModalOpen(true)}
-            className="gap-2 shadow-neo self-start sm:self-auto"
+            className="gap-2 shadow-neo w-full sm:w-auto min-h-[44px] justify-center"
           >
             <Plus size={16} />
             <span>Add Knowledge</span>
@@ -341,27 +341,27 @@ export function DocumentsView() {
         </div>
 
         {/* Search, Filter & Sort Toolbar */}
-        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 p-3.5 rounded-xl border-2 border-border-default bg-surface shadow-neo">
+        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 p-3 sm:p-3.5 rounded-xl border-2 border-border-default bg-surface shadow-neo">
           {/* Left: Search input */}
-          <div className="relative flex-1 min-w-[200px]">
+          <div className="relative flex-1 min-w-[180px]">
             <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant" />
             <input
               type="text"
               placeholder="Search documents by title..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 text-xs font-bold rounded-lg border-2 border-border-default bg-surface-container focus:bg-surface focus:outline-hidden focus:border-primary transition-all"
+              className="w-full pl-9 pr-3 py-2 min-h-[40px] text-xs font-bold rounded-lg border-2 border-border-default bg-surface-container focus:bg-surface focus:outline-hidden focus:border-primary transition-all"
             />
           </div>
 
           {/* Center: Status filter pills */}
-          <div className="inline-flex rounded-lg border border-border-default bg-surface-container p-1 gap-1 self-start md:self-auto">
+          <div className="inline-flex rounded-lg border border-border-default bg-surface-container p-1 gap-1 w-full sm:w-auto overflow-x-auto hide-scrollbar">
             {(['all', 'ready', 'processing', 'failed'] as const).map((filter) => (
               <button
                 key={filter}
                 type="button"
                 onClick={() => setStatusFilter(filter)}
-                className={`px-3 py-1 rounded-md text-xs font-bold capitalize transition-all ${
+                className={`px-3 py-1.5 min-h-[36px] rounded-md text-xs font-bold capitalize transition-all shrink-0 flex-1 sm:flex-initial text-center ${
                   statusFilter === filter
                     ? 'bg-primary text-on-primary shadow-neo-sm font-black'
                     : 'text-on-surface-variant hover:text-on-surface'
@@ -373,12 +373,15 @@ export function DocumentsView() {
           </div>
 
           {/* Right: Sort dropdown */}
-          <div className="flex items-center gap-2 self-end md:self-auto">
-            <ArrowUpDown size={14} className="text-on-surface-variant shrink-0" />
+          <div className="flex items-center justify-between sm:justify-end gap-2 w-full md:w-auto">
+            <div className="flex items-center gap-1.5">
+              <ArrowUpDown size={14} className="text-on-surface-variant shrink-0" />
+              <span className="text-xs font-bold text-on-surface-variant sm:hidden">Sort:</span>
+            </div>
             <select
               value={sortBy}
               onChange={(e: any) => setSortBy(e.target.value)}
-              className="text-xs font-bold rounded-lg border-2 border-border-default bg-surface-container py-1.5 px-2.5 focus:outline-hidden focus:border-primary cursor-pointer text-on-surface"
+              className="text-xs font-bold rounded-lg border-2 border-border-default bg-surface-container py-2 px-2.5 min-h-[40px] focus:outline-hidden focus:border-primary cursor-pointer text-on-surface flex-1 sm:flex-initial"
             >
               <option value="newest">Newest Added</option>
               <option value="oldest">Oldest Added</option>

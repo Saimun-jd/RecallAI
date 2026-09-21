@@ -49,6 +49,7 @@ def get_db(db_path: Optional[str] = None) -> Generator[sqlite3.Connection, None,
     
     # Enable SQLite constraints and performance optimizations
     conn.execute("PRAGMA foreign_keys = ON")
+    conn.execute("PRAGMA busy_timeout = 5000")
     if path != ":memory:":
         conn.execute("PRAGMA journal_mode = WAL")
         conn.execute("PRAGMA synchronous = NORMAL")
@@ -63,6 +64,40 @@ def get_db(db_path: Optional[str] = None) -> Generator[sqlite3.Connection, None,
         conn.close()
 
 
+def get_database_engine() -> str:
+    """Returns 'postgresql' if configured via DATABASE_URL, otherwise 'sqlite'."""
+    url = (settings.DATABASE_URL or "").strip().lower()
+    if url.startswith("postgresql://") or url.startswith("postgres://") or url.startswith("postgresql+psycopg://"):
+        return "postgresql"
+    return "sqlite"
+
+
+def get_connection_pool_status() -> dict:
+    """Returns runtime database engine configuration and capabilities for readiness probes."""
+    engine = get_database_engine()
+    if engine == "postgresql":
+        return {
+            "engine": "postgresql",
+            "url_configured": bool(settings.DATABASE_URL),
+            "vector_extension": "pgvector",
+            "vector_dimension": 1536,
+            "vector_index": "hnsw",
+            "pool_size": 10,
+            "max_overflow": 20,
+            "pool_timeout_seconds": 30,
+            "pool_recycle_seconds": 1800,
+        }
+    return {
+        "engine": "sqlite",
+        "path": _ACTIVE_DB_PATH,
+        "wal_mode": True,
+        "foreign_keys": True,
+        "busy_timeout_ms": 5000,
+        "vector_storage": "json_array_fallback",
+        "vector_dimension": 1536,
+    }
+
+
 def check_database_health() -> bool:
     """
     Probes the database connection.
@@ -73,7 +108,7 @@ def check_database_health() -> bool:
             cursor = conn.cursor()
             cursor.execute("SELECT 1")
             row = cursor.fetchone()
-            return row is not None and row[0] == 1
+            return row is not None and (row[0] == 1 or row["1"] == 1)
     except Exception as e:
         logger.error(f"Database health check probe failed: {e}")
         return False

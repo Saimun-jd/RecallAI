@@ -1,7 +1,7 @@
 import { createSlice } from '@reduxjs/toolkit';
 import type { PayloadAction } from '@reduxjs/toolkit';
 
-export type AIProviderId = 'ollama' | 'openai' | 'gemini' | 'groq';
+export type AIProviderId = 'auto' | 'ollama' | 'openai' | 'gemini' | 'groq';
 
 export interface ProvidersState {
   activeProvider: AIProviderId;
@@ -14,14 +14,16 @@ export interface ProvidersState {
 }
 
 const initialState: ProvidersState = {
-  activeProvider: 'ollama',
+  activeProvider: 'auto',
   providerStatus: {
+    auto: 'connected',
     ollama: 'disconnected',
     openai: 'disconnected',
     gemini: 'disconnected',
     groq: 'disconnected',
   },
   configuredProviders: {
+    auto: true,
     ollama: true, // Local usually doesn't need a key
     openai: false,
     gemini: false,

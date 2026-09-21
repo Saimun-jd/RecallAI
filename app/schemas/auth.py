@@ -60,3 +60,8 @@ class AuthResponse(BaseModel):
     expires_in: int
     user: UserResponse
     workspace: WorkspaceResponse
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str = Field(description="Current user password")
+    new_password: str = Field(min_length=8, max_length=128, description="New password (min 8 chars)")

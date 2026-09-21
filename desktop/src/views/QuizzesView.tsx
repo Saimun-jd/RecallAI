@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { HelpCircle, Sparkles, AlertCircle, RotateCcw, Search } from 'lucide-react';
+import { HelpCircle, Sparkles, Search } from 'lucide-react';
 import {
   client,
   type QuizResponse,
@@ -12,6 +12,8 @@ import {
   QuizDeleteDialog,
 } from '../components/quizzes';
 import { Button } from '../components/ui/Button';
+import { PageHeader } from '../components/layout/PageHeader';
+import { EmptyState, ErrorState } from '../components/shared';
 import { useToast } from '../hooks/useToast';
 
 export function QuizzesView() {
@@ -105,33 +107,28 @@ export function QuizzesView() {
   });
 
   return (
-    <div className="flex-1 overflow-y-auto">
+    <div className="w-full flex-1">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary border-2 border-primary/20 flex items-center justify-center shadow-neo-sm">
-              <HelpCircle size={20} />
-            </div>
-            <div>
-              <h1 className="text-lg sm:text-xl font-black text-on-surface">Quizzes</h1>
-              <p className="text-xs text-on-surface-variant font-medium">
-                {quizzes.length > 0
-                  ? `${quizzes.length} ${quizzes.length === 1 ? 'quiz' : 'quizzes'} available for assessment`
-                  : 'Test your retention with AI-generated assessments'}
-              </p>
-            </div>
-          </div>
-          <Button
-            variant="ai"
-            size="md"
-            onClick={() => setIsGenerateOpen(true)}
-            className="gap-2"
-          >
-            <Sparkles size={15} />
-            Generate Quiz
-          </Button>
-        </div>
+        {/* Standard Page Header */}
+        <PageHeader
+          title="Quizzes"
+          description={
+            quizzes.length > 0
+              ? `${quizzes.length} ${quizzes.length === 1 ? 'quiz' : 'quizzes'} available for knowledge assessment`
+              : 'Assess retention and benchmark recall accuracy with AI-generated tests'
+          }
+          actions={
+            <Button
+              variant="ai"
+              size="md"
+              onClick={() => setIsGenerateOpen(true)}
+              className="gap-2 w-full sm:w-auto min-h-[40px]"
+            >
+              <Sparkles size={15} />
+              <span>Generate Quiz</span>
+            </Button>
+          }
+        />
 
         {/* Filter / Search Bar */}
         {quizzes.length > 0 && (
@@ -158,43 +155,43 @@ export function QuizzesView() {
             ))}
           </div>
         ) : error ? (
-          <div className="flex flex-col items-center justify-center py-16 gap-4 text-center">
-            <div className="w-14 h-14 rounded-2xl bg-error/10 text-error border-2 border-error/20 flex items-center justify-center">
-              <AlertCircle size={24} />
-            </div>
-            <p className="text-sm font-bold text-on-surface">{error}</p>
-            <Button variant="secondary" size="sm" onClick={fetchQuizzes} className="gap-1.5">
-              <RotateCcw size={13} /> Retry
-            </Button>
-          </div>
+          <ErrorState
+            title="Unable to load quizzes"
+            message={error}
+            onRetry={fetchQuizzes}
+          />
         ) : quizzes.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 gap-5 text-center">
-            <div className="w-16 h-16 rounded-2xl bg-primary/10 text-primary border-2 border-primary/20 flex items-center justify-center shadow-neo">
-              <HelpCircle size={32} />
-            </div>
-            <div className="space-y-1.5">
-              <h2 className="text-lg font-black text-on-surface">No quizzes yet</h2>
-              <p className="text-sm text-on-surface-variant font-medium max-w-sm">
-                Generate your first quiz from your uploaded documents to challenge your knowledge and benchmark recall accuracy.
-              </p>
-            </div>
-            <Button variant="ai" size="md" onClick={() => setIsGenerateOpen(true)} className="gap-2">
-              <Sparkles size={15} />
-              Generate Your First Quiz
-            </Button>
-          </div>
+          <EmptyState
+            icon={<HelpCircle size={28} />}
+            title="No quizzes yet"
+            description="Generate your first quiz from your uploaded documents to challenge your knowledge and benchmark recall accuracy."
+            action={
+              <Button
+                variant="ai"
+                size="md"
+                onClick={() => setIsGenerateOpen(true)}
+                className="gap-2"
+              >
+                <Sparkles size={15} />
+                <span>Generate Your First Quiz</span>
+              </Button>
+            }
+          />
         ) : filteredQuizzes.length === 0 ? (
-          <div className="text-center py-16 text-on-surface-variant">
-            <p className="text-sm font-bold">No quizzes match "{searchQuery}"</p>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setSearchQuery('')}
-              className="mt-2 text-xs"
-            >
-              Clear search filter
-            </Button>
-          </div>
+          <EmptyState
+            title={`No quizzes match "${searchQuery}"`}
+            description="Try changing or clearing your search term to see other quizzes."
+            action={
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSearchQuery('')}
+                className="text-xs font-bold"
+              >
+                Clear search filter
+              </Button>
+            }
+          />
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredQuizzes.map((quiz) => (

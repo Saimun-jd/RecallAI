@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowRight, Menu, X, ShieldCheck, Sparkles, BookOpen } from 'lucide-react';
 import { ThemeToggle } from '../../hooks/useTheme';
 import { Button } from '../ui/Button';
@@ -14,6 +15,15 @@ export function PublicNavbar({ onLaunchApp }: PublicNavbarProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const location = useLocation();
   const { status } = useAuth();
+
+  React.useEffect(() => {
+    if (!mobileMenuOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMobileMenuOpen(false);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [mobileMenuOpen]);
 
   const navLinks = [
     { label: 'How It Works', path: '/how-it-works' },
@@ -104,7 +114,7 @@ export function PublicNavbar({ onLaunchApp }: PublicNavbarProps) {
           <button
             type="button"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="p-2 rounded-lg border-2 border-border-default bg-surface hover:bg-surface-container text-on-surface focus:outline-none focus:ring-2 focus:ring-primary shadow-neo-sm active:translate-x-0.5 active:translate-y-0.5"
+            className="w-10 h-10 min-w-[40px] min-h-[40px] flex items-center justify-center p-2 rounded-lg border-2 border-border-default bg-surface hover:bg-surface-container text-on-surface focus:outline-none focus:ring-2 focus:ring-primary shadow-neo-sm active:translate-x-0.5 active:translate-y-0.5"
             aria-expanded={mobileMenuOpen}
             aria-label={mobileMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
           >
@@ -114,68 +124,76 @@ export function PublicNavbar({ onLaunchApp }: PublicNavbarProps) {
       </div>
 
       {/* Mobile Drawer Menu */}
-      {mobileMenuOpen && (
-        <div className="md:hidden border-b-2 border-border-default bg-surface px-4 pt-3 pb-6 space-y-3 animate-in slide-in-from-top-2 duration-200">
-          <nav className="flex flex-col gap-1.5" aria-label="Mobile Navigation">
-            {navLinks.map((link) => {
-              const active = isActive(link.path);
-              return (
-                <Link
-                  key={link.path}
-                  to={link.path}
-                  onClick={() => setMobileMenuOpen(false)}
-                  className={`px-4 py-2.5 rounded-lg text-sm font-bold border-2 transition-all ${
-                    active
-                      ? 'bg-surface-container-high border-border-default text-on-surface shadow-neo-sm'
-                      : 'border-border-default bg-surface text-on-surface hover:bg-surface-container shadow-neo-sm'
-                  }`}
-                >
-                  {link.label}
-                </Link>
-              );
-            })}
-          </nav>
-          <div className="pt-2 flex flex-col gap-2">
-            {status === 'authenticated' ? (
-              <Link 
-                to="/app" 
-                onClick={() => {
-                  setMobileMenuOpen(false);
-                  if (onLaunchApp) onLaunchApp();
-                }}
-                className="w-full"
-              >
-                <Button variant="primary" size="md" className="w-full justify-center gap-2 font-bold shadow-neo">
-                  <span>Open Workspace</span>
-                  <ArrowRight size={16} className="stroke-[2.5]" />
-                </Button>
-              </Link>
-            ) : (
-              <>
+      <AnimatePresence>
+        {mobileMenuOpen && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+            className="md:hidden border-b-2 border-border-default bg-surface px-4 pt-3 pb-6 space-y-3 overflow-hidden"
+          >
+            <nav className="flex flex-col gap-1.5" aria-label="Mobile Navigation">
+              {navLinks.map((link) => {
+                const active = isActive(link.path);
+                return (
+                  <Link
+                    key={link.path}
+                    to={link.path}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className={`px-4 py-2.5 rounded-lg text-sm font-bold border-2 transition-all ${
+                      active
+                        ? 'bg-surface-container-high border-border-default text-on-surface shadow-neo-sm'
+                        : 'border-border-default bg-surface text-on-surface hover:bg-surface-container shadow-neo-sm active:translate-x-[1px] active:translate-y-[1px] active:shadow-none'
+                    }`}
+                  >
+                    {link.label}
+                  </Link>
+                );
+              })}
+            </nav>
+            <div className="pt-2 flex flex-col gap-2">
+              {status === 'authenticated' ? (
                 <Link 
-                  to="/login" 
-                  onClick={() => setMobileMenuOpen(false)}
+                  to="/app" 
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    if (onLaunchApp) onLaunchApp();
+                  }}
                   className="w-full"
                 >
-                  <Button variant="outline" size="md" className="w-full justify-center font-bold border-2 border-border-default shadow-neo-sm">
-                    Log in
-                  </Button>
-                </Link>
-                <Link 
-                  to="/register" 
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="w-full"
-                >
-                  <Button variant="primary" size="md" className="w-full justify-center gap-2 font-bold shadow-neo">
-                    <span>Get Started Free</span>
+                  <Button variant="primary" size="md" className="w-full justify-center gap-2 font-bold shadow-neo active:translate-x-[1px] active:translate-y-[1px] active:shadow-none">
+                    <span>Open Workspace</span>
                     <ArrowRight size={16} className="stroke-[2.5]" />
                   </Button>
                 </Link>
-              </>
-            )}
-          </div>
-        </div>
-      )}
+              ) : (
+                <>
+                  <Link 
+                    to="/login" 
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="w-full"
+                  >
+                    <Button variant="outline" size="md" className="w-full justify-center font-bold border-2 border-border-default shadow-neo-sm active:translate-x-[1px] active:translate-y-[1px] active:shadow-none">
+                      Log in
+                    </Button>
+                  </Link>
+                  <Link 
+                    to="/register" 
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="w-full"
+                  >
+                    <Button variant="primary" size="md" className="w-full justify-center gap-2 font-bold shadow-neo active:translate-x-[1px] active:translate-y-[1px] active:shadow-none">
+                      <span>Get Started Free</span>
+                      <ArrowRight size={16} className="stroke-[2.5]" />
+                    </Button>
+                  </Link>
+                </>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </header>
   );
 }

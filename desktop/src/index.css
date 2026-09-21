@@ -6,73 +6,83 @@
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "Inter", ui-monospace, monospace;
   
-  /* ─── Application Colors (from Design) ─── */
-  --color-surface-container-low: #F2F0EA;
-  --color-error: #ba1a1a;
-  --color-secondary-container: #e0e0dd;
-  --color-surface-variant: #e2e2ec;
-  --color-error-container: #ffdad6;
-  --color-on-secondary-container: #626361;
-  --color-surface-container: #EDEBE3;
-  --color-on-secondary-fixed: #1a1c1a;
-  --color-on-primary-fixed: #00174b;
-  --color-inverse-on-surface: #f0f0fb;
-  --color-outline: #737685;
-  --color-surface: #F8F7F4;
-  --color-on-tertiary-fixed: #3a0b00;
-  --color-secondary-fixed-dim: #c7c6c4;
-  --color-tertiary-fixed: #ffdbd0;
-  --color-primary-container: #004ac6;
-  --color-tertiary: #751f00;
-  --color-on-primary: #ffffff;
-  --color-on-error-container: #93000a;
-  --color-tertiary-fixed-dim: #ffb59e;
-  --color-primary: #003594;
-  --color-surface-container-lowest: #F8F7F4;
-  --color-on-error: #ffffff;
-  --color-surface-dim: #d9d9e4;
-  --color-surface-bright: #faf8ff;
-  --color-tertiary-container: #9c2e02;
-  --color-on-primary-fixed-variant: #003ea8;
-  --color-secondary-fixed: #e3e2df;
-  --color-surface-tint: #1b55d0;
-  --color-background: #faf8ff;
-  --color-secondary: #5e5f5c;
-  --color-academic-blue: #004AC6;
-  --color-inverse-primary: #b4c5ff;
-  --color-on-surface: #191b23;
-  --color-ink-black: #121212;
-  --color-primary-fixed: #dbe1ff;
-  --color-surface-container-high: #E5E2D8;
-  --color-on-tertiary: #ffffff;
-  --color-on-secondary-fixed-variant: #464745;
-  --color-on-surface-variant: #434654;
-  --color-primary-fixed-dim: #b4c5ff;
-  --color-surface-container-highest: #e2e2ec;
-  --color-on-primary-container: #b8c8ff;
-  --color-on-tertiary-container: #ffb9a4;
-  --color-on-tertiary-fixed-variant: #842500;
-  --color-on-background: #191b23;
-  --color-inverse-surface: #2e3038;
-  --color-outline-variant: #c3c6d6;
-  --color-on-secondary: #ffffff;
-  
-  /* Additional States & Borders (Restored) */
-  --color-accent-blue: #2563EB;
+  /* ─── Application Colors (Refined Neo-Brutalism & Academic Palette) ─── */
+  --color-surface-container-lowest: #FFFFFF;
+  --color-surface-container-low: #F8F9FA;
+  --color-surface-container: #F1F3F6;
+  --color-surface-container-high: #E8EBF0;
+  --color-surface-container-highest: #DFE3EA;
+  --color-surface-variant: #EAECEF;
+  --color-surface: #FFFFFF;
+  --color-background: #F4F5F7;
+
+  --color-on-surface: #0F172A;
+  --color-on-background: #0F172A;
+  --color-on-surface-variant: #475569;
+  --color-inverse-surface: #0F172A;
+  --color-inverse-on-surface: #F8FAFC;
+
+  --color-primary: #1D4ED8;
+  --color-on-primary: #FFFFFF;
+  --color-primary-container: #DBEAFE;
+  --color-on-primary-container: #1E3A8A;
+  --color-primary-fixed: #DBEAFE;
+  --color-primary-fixed-dim: #BFDBFE;
+  --color-on-primary-fixed: #1E3A8A;
+  --color-on-primary-fixed-variant: #1D4ED8;
+  --color-inverse-primary: #93C5FD;
+  --color-surface-tint: #1D4ED8;
+
+  --color-secondary: #475569;
+  --color-on-secondary: #FFFFFF;
+  --color-secondary-container: #E2E8F0;
+  --color-on-secondary-container: #1E293B;
+  --color-secondary-fixed: #E2E8F0;
+  --color-secondary-fixed-dim: #CBD5E1;
+  --color-on-secondary-fixed: #0F172A;
+  --color-on-secondary-fixed-variant: #334155;
+
+  --color-tertiary: #D97706;
+  --color-on-tertiary: #FFFFFF;
+  --color-tertiary-container: #FEF3C7;
+  --color-on-tertiary-container: #78350F;
+  --color-tertiary-fixed: #FEF3C7;
+  --color-tertiary-fixed-dim: #FDE68A;
+  --color-on-tertiary-fixed: #78350F;
+  --color-on-tertiary-fixed-variant: #B45309;
+
+  --color-error: #DC2626;
+  --color-on-error: #FFFFFF;
+  --color-error-container: #FEE2E2;
+  --color-on-error-container: #7F1D1D;
+
+  --color-outline: #64748B;
+  --color-outline-variant: #CBD5E1;
+  --color-surface-dim: #E2E8F0;
+  --color-surface-bright: #FFFFFF;
+
+  --color-academic-blue: #1D4ED8;
+  --color-ink-black: #0F172A;
+  --color-electric-blue: #2563EB;
+  --color-accent-blue: #1D4ED8;
   --color-ai-purple: #7C3AED;
-  --color-border-default: #E2E8F0;
-  --color-border-hover: #CBD5E1;
+
+  /* Intentional Neo-Brutalist Borders */
+  --color-border-default: #0F172A;
+  --color-border-subtle: #CBD5E1;
+  --color-border-hover: #0F172A;
+  --color-border-neo: #0F172A;
   --color-active-bg: #EFF6FF;
   --color-hover-bg: #F1F5F9;
-  
+
   /* ─── Shape Tokens ─── */
-  --radius-tag: 4px;
-  --radius-sm: 4px;
-  --radius-standard: 6px;
-  --radius-md: 6px;
+  --radius-tag: 6px;
+  --radius-sm: 6px;
+  --radius-standard: 8px;
+  --radius-md: 8px;
   --radius-large: 12px;
   --radius-lg: 12px;
-  --radius-xl: 0.75rem;
+  --radius-xl: 12px;
   --radius-full: 9999px;
   
   /* ─── Spacing System (8pt Grid) ─── */
@@ -143,6 +153,10 @@
 /* ─── Light Mode Defaults ─── */
 :root {
   --color-border-neo: #0F172A;
+  --shadow-neo-xs: 1px 1px 0px 0px var(--color-border-neo);
+  --shadow-neo-sm: 2px 2px 0px 0px var(--color-border-neo);
+  --shadow-neo: 3px 3px 0px 0px var(--color-border-neo);
+  --shadow-neo-lg: 5px 5px 0px 0px var(--color-border-neo);
 }
 
 /* ─── Refined Dark Mode Theme ─── */
@@ -174,6 +188,7 @@
   --color-primary-container: #1D4ED8;
   --color-on-primary-container: #DBEAFE;
   --color-academic-blue: #3B82F6;
+  --shadow-neo-xs: 1px 1px 0px 0px #000000;
   --shadow-neo-sm: 2px 2px 0px 0px #000000;
   --shadow-neo: 3px 3px 0px 0px #000000;
   --shadow-neo-lg: 5px 5px 0px 0px #000000;
@@ -222,14 +237,14 @@
     line-height: var(--line-height-headline-lg);
     font-weight: var(--font-weight-headline-lg);
     letter-spacing: var(--letter-spacing-headline-lg);
-    color: var(--color-primary);
+    color: var(--color-on-surface);
   }
   
   h2 {
     font-size: var(--font-size-headline-md);
     line-height: var(--line-height-headline-md);
     font-weight: var(--font-weight-headline-md);
-    color: var(--color-primary);
+    color: var(--color-on-surface);
   }
   
   p {
@@ -238,11 +253,24 @@
     font-weight: var(--font-weight-body-md);
   }
   
-  /* Soft Minimalism Focus Rings (2px blue ring with 20% opacity) */
+  /* High-Contrast Accessible Focus Rings for WCAG AAA & Neo-Brutalism */
   *:focus-visible {
-    @apply outline-none;
-    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
-    transition: box-shadow 150ms ease-out;
+    outline: 2px solid var(--color-accent-blue);
+    outline-offset: 2px;
+    box-shadow: 0 0 0 2px var(--color-surface);
+    transition: outline-offset 100ms ease-out;
+  }
+
+  /* Accessible Reduced Motion */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    ::before,
+    ::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
   }
   
   /* ─── Command Palette (Soft Minimalism) ─── */
@@ -281,7 +309,7 @@
   }
   
   [cmdk-list] {
-    @apply max-h-[300px] overflow-y-auto p-2;
+    @apply max-h-75 overflow-y-auto p-2;
     background: var(--color-surface-container-lowest);
   }
   
@@ -528,6 +556,28 @@ body .pdf-highlighter-container.theme-dark .Highlight {
     transform: translateX(0);
   }
 }
+
+/* ── Neo-Brutalist Marquee Animation ── */
+@keyframes marquee {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  100% {
+    transform: translate3d(-50%, 0, 0);
+  }
+}
+
+.animate-marquee {
+  display: flex;
+  width: max-content;
+  animation: marquee 30s linear infinite;
+  will-change: transform;
+}
+
+.animate-marquee:hover {
+  animation-play-state: paused;
+}
+
 
 /* ─── Authentic Student Handwritten Notebook Aesthetic ─── */
 
@@ -926,6 +976,28 @@ body .pdf-highlighter-container.theme-dark .Highlight {
 
 .neo-border-sm {
   border: 1px solid var(--color-border-default);
+}
+
+.neo-shadow-xs {
+  box-shadow: var(--shadow-neo-xs, 1px 1px 0px 0px var(--color-border-neo, #0F172A));
+}
+
+.neo-shadow-sm {
+  box-shadow: var(--shadow-neo-sm);
+}
+
+.neo-shadow {
+  box-shadow: var(--shadow-neo);
+}
+
+.neo-shadow-lg,
+.neo-shadow-large {
+  box-shadow: var(--shadow-neo-lg);
+}
+
+.active-neo-press:active {
+  transform: translate(1px, 1px);
+  box-shadow: none;
 }
 
 /* ─── Global Scrollbar Utilities ─── */

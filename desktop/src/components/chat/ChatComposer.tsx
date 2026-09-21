@@ -89,16 +89,16 @@ export function ChatComposer({
         />
 
         {/* Action Button: Send or Stop */}
-        <div className="shrink-0 pb-1 pr-1">
+        <div className="shrink-0 pb-0.5 pr-0.5">
           {isStreaming ? (
             <button
               type="button"
               onClick={onStop}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-error text-white font-bold text-xs shadow-neo-sm hover:shadow-neo active:translate-x-[1px] active:translate-y-[1px] transition-all cursor-pointer"
+              className="flex items-center justify-center gap-1.5 min-h-[44px] min-w-[44px] px-3.5 py-2 rounded-xl bg-error text-white font-bold text-xs shadow-neo-sm hover:shadow-neo active:translate-x-[1px] active:translate-y-[1px] transition-all cursor-pointer"
               title="Stop generating response"
               aria-label="Stop generating response"
             >
-              <Square size={13} fill="currentColor" />
+              <Square size={14} fill="currentColor" />
               <span className="hidden sm:inline">Stop</span>
             </button>
           ) : (
@@ -106,11 +106,11 @@ export function ChatComposer({
               type="button"
               onClick={onSend}
               disabled={!input.trim() || disabled}
-              className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-primary text-on-primary disabled:opacity-40 disabled:cursor-not-allowed shadow-neo-sm hover:shadow-neo active:translate-x-[1px] active:translate-y-[1px] transition-all flex items-center justify-center cursor-pointer"
+              className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-xl bg-primary text-on-primary disabled:opacity-40 disabled:cursor-not-allowed shadow-neo-sm hover:shadow-neo active:translate-x-[1px] active:translate-y-[1px] transition-all flex items-center justify-center cursor-pointer"
               title="Send question (Enter)"
               aria-label="Send question"
             >
-              <Send size={16} strokeWidth={2.5} />
+              <Send size={18} strokeWidth={2.5} />
             </button>
           )}
         </div>

@@ -102,7 +102,7 @@ export function PriorityReviewCard({ workload, learningStates }: PriorityReviewC
       <div className="pt-4 mt-4 border-t border-border-default">
         <Link
           to="/app/review"
-          className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl border-2 border-border-default bg-primary text-white font-black text-xs sm:text-sm shadow-neo-sm hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-none transition-all active:translate-x-1 active:translate-y-1"
+          className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg border-2 border-border-default bg-primary text-white font-black text-xs sm:text-sm shadow-neo-sm hover:-translate-x-[1px] hover:-translate-y-[1px] hover:shadow-neo transition-all active:translate-x-[1px] active:translate-y-[1px] active:shadow-none"
         >
           <Zap size={15} />
           <span>{isDue ? `Launch Review (${workload.due} due)` : 'Practice Review Session'}</span>

@@ -298,7 +298,7 @@ export function DocumentDetailView() {
 
   return (
     <div className="flex-1 overflow-y-auto bg-surface text-on-surface">
-      <div className="p-5 sm:p-8 space-y-6 max-w-6xl mx-auto">
+      <div className="p-3.5 sm:p-6 lg:p-8 space-y-4 sm:space-y-6 max-w-6xl mx-auto">
         {/* Breadcrumb Navigation */}
         <Breadcrumbs
           items={[
@@ -308,7 +308,7 @@ export function DocumentDetailView() {
         />
 
         {/* Document Header Card */}
-        <div className="p-6 rounded-2xl border-2 border-border-default bg-surface shadow-neo space-y-4">
+        <div className="p-4 sm:p-6 rounded-2xl border-2 border-border-default bg-surface shadow-neo space-y-4">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="space-y-2">
               <div className="flex flex-wrap items-center gap-2">
@@ -329,18 +329,18 @@ export function DocumentDetailView() {
                 </span>
               </div>
 
-              <h1 className="text-2xl sm:text-3xl font-black text-on-surface tracking-tight leading-tight">
+              <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-on-surface tracking-tight leading-tight break-words">
                 {document.title}
               </h1>
             </div>
 
             {/* Quick Action Buttons */}
-            <div className="flex flex-wrap items-center gap-2.5 self-start md:self-auto shrink-0">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-2.5 self-start md:self-auto shrink-0 w-full sm:w-auto">
               {(document.metadata?.book_id || document.source_type === 'pdf') && (
                 <Button
                   variant="primary"
                   onClick={() => navigate(`/books/${document.metadata?.book_id || document.id}`)}
-                  className="gap-1.5 shadow-neo-sm text-xs h-9 bg-primary text-white"
+                  className="gap-1.5 shadow-neo-sm text-xs h-9 min-h-[38px] bg-primary text-white flex-1 sm:flex-initial"
                 >
                   <BookOpen size={14} />
                   <span>Open in Reader</span>
@@ -350,7 +350,7 @@ export function DocumentDetailView() {
               <Button
                 variant="outline"
                 onClick={() => navigate(`/review?document_id=${document.id}`)}
-                className="gap-1.5 text-xs h-9"
+                className="gap-1.5 text-xs h-9 min-h-[38px] flex-1 sm:flex-initial"
               >
                 <BrainCircuit size={14} />
                 <span>Study</span>
@@ -359,7 +359,7 @@ export function DocumentDetailView() {
               <Button
                 variant="outline"
                 onClick={() => navigate(`/notes?document_id=${document.id}`)}
-                className="gap-1.5 text-xs h-9"
+                className="gap-1.5 text-xs h-9 min-h-[38px] flex-1 sm:flex-initial"
               >
                 <MessageSquare size={14} />
                 <span>Ask Document</span>
@@ -368,7 +368,7 @@ export function DocumentDetailView() {
               <button
                 type="button"
                 onClick={() => setIsDeleteOpen(true)}
-                className="p-2 rounded-lg border border-border-default text-on-surface-variant hover:text-error hover:bg-error/10 hover:border-error/30 transition-all"
+                className="p-2 min-w-[38px] min-h-[38px] flex items-center justify-center rounded-lg border border-border-default text-on-surface-variant hover:text-error hover:bg-error/10 hover:border-error/30 transition-all ml-auto sm:ml-0"
                 title="Delete document"
                 aria-label="Delete document"
               >

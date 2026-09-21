@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { client } from '../api/client';
 import { 
-  Loader2, Sparkles, Zap, Maximize2, Minimize2, X, PenTool, Eye, Edit3,
+  Loader2, Sparkles, Maximize2, Minimize2, X, PenTool, Eye, Edit3,
   AlignJustify, Grid, FileText, Image as ImageIcon
 } from 'lucide-react';
 import { useSelector } from 'react-redux';
@@ -9,7 +9,7 @@ import type { RootState } from '../store';
 import { useToast } from '../hooks/useToast';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { noteGenerationRunner } from '../services/noteGenerationRunner';
-import clsx from 'clsx';
+import { cn } from '../lib/utils';
 
 interface NotionNotesEditorProps {
   topicId: number;
@@ -256,7 +256,7 @@ export function NotionNotesEditor({
           {/* Mode Switcher: Notes vs Edit */}
           <button
             onClick={() => setMode(mode === 'preview' ? 'edit' : 'preview')}
-            className={clsx(
+            className={cn(
               "flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded border-2 border-on-background transition-colors cursor-pointer",
               mode === 'edit'
                 ? "bg-primary text-white shadow-xs"
@@ -283,7 +283,7 @@ export function NotionNotesEditor({
           <button
             onClick={handleCornellScaffold}
             disabled={isCurrentTopicGenerating || isOtherTopicGenerating || loading}
-            className="flex items-center gap-1 px-2.5 py-1 text-xs font-bold bg-amber-500 text-black border-2 border-on-background hover:bg-amber-400 neo-shadow-sm active:translate-x-[1px] active:translate-y-[1px] disabled:opacity-50 transition-all cursor-pointer"
+            className="flex items-center gap-1 px-2.5 py-1 text-xs font-bold bg-amber-500 text-black border-2 border-on-background hover:bg-amber-400 neo-shadow-sm active:translate-x-px active:translate-y-px disabled:opacity-50 transition-all cursor-pointer"
             title={
               isCurrentTopicGenerating 
                 ? `Generating notes: ${noteGeneration?.progress ?? 0}%` 
@@ -382,8 +382,8 @@ export function NotionNotesEditor({
         {mode === 'preview' ? (
           <div className="w-full max-w-3xl pb-16">
             <div
-              className={clsx(
-                "notebook-sheet w-full min-h-[750px] border border-outline-variant/30",
+              className={cn(
+                "notebook-sheet w-full min-h-187.5 border border-outline-variant/30",
                 paperStyle === 'ruled' && 'notebook-paper-ruled p-5 pl-14 sm:p-7 sm:pl-16',
                 paperStyle === 'grid' && 'notebook-paper-grid p-5 sm:p-7',
                 paperStyle === 'plain' && 'notebook-paper-plain p-5 sm:p-7'
@@ -447,7 +447,7 @@ export function NotionNotesEditor({
         ) : (
           <div className="w-full max-w-3xl h-full flex flex-col pb-6">
             <div
-              className={clsx(
+              className={cn(
                 "notebook-sheet flex-1 relative border border-outline-variant/40 overflow-hidden shadow-sm flex flex-col",
                 paperStyle === 'ruled' && 'notebook-paper-ruled',
                 paperStyle === 'grid' && 'notebook-paper-grid',
@@ -460,8 +460,8 @@ export function NotionNotesEditor({
                 onChange={(e) => handleMarkdownChange(e.target.value)}
                 onPaste={handlePaste}
                 placeholder="Write your study notes in Markdown (LaTeX math like $x^2$ or $$...$$ is fully supported). Paste screenshots directly with Ctrl+V or click Image above..."
-                className={clsx(
-                  "w-full flex-1 min-h-[500px] p-5 bg-transparent text-on-surface font-handwriting text-lg leading-[32px] resize-none focus:outline-none",
+                className={cn(
+                  "w-full flex-1 min-h-125 p-5 bg-transparent text-on-surface font-handwriting text-lg leading-[32px] resize-none focus:outline-none",
                   paperStyle === 'ruled' ? 'pl-14 sm:pl-16' : 'px-5 sm:px-7'
                 )}
                 spellCheck={false}

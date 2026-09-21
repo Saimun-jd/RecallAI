@@ -35,7 +35,7 @@ export function Breadcrumbs({ items, showHome = true, className }: BreadcrumbsPr
                 <span
                   aria-current={isLast ? 'page' : undefined}
                   className={cn(
-                    'flex items-center gap-1.5 truncate max-w-[200px] sm:max-w-xs',
+                    'flex items-center gap-1.5 truncate max-w-[110px] sm:max-w-xs',
                     isLast ? 'text-on-surface font-bold' : 'text-on-surface-variant'
                   )}
                 >
@@ -45,7 +45,7 @@ export function Breadcrumbs({ items, showHome = true, className }: BreadcrumbsPr
               ) : (
                 <Link
                   to={item.href}
-                  className="flex items-center gap-1.5 hover:text-primary transition-colors truncate max-w-[150px] sm:max-w-xs"
+                  className="flex items-center gap-1.5 hover:text-primary transition-colors truncate max-w-[80px] sm:max-w-xs"
                 >
                   {item.icon && <span className="shrink-0">{item.icon}</span>}
                   <span className="truncate">{item.label}</span>

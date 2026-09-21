@@ -1,5 +1,4 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { Loader2, AlertCircle, RotateCcw } from 'lucide-react';
 import {
   client,
   type ReviewQueueItem,
@@ -17,6 +16,8 @@ import {
   ReviewActiveSession,
   ReviewCompletion,
 } from '../components/review';
+import { LoadingState } from '../components/shared/LoadingState';
+import { ErrorState } from '../components/shared/ErrorState';
 
 type ReviewViewMode = 'loading' | 'landing' | 'session' | 'completed' | 'error';
 
@@ -271,14 +272,11 @@ export function ReviewView() {
   // ── Loading Skeleton ────────────────────────────────────────────
   if (viewMode === 'loading') {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center p-8 bg-surface">
-        <div className="flex flex-col items-center gap-3">
-          <Loader2 className="animate-spin text-primary w-10 h-10" strokeWidth={2.5} />
-          <p className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">
-            Loading spaced review queue...
-          </p>
-        </div>
-      </div>
+      <LoadingState
+        variant="page"
+        message="Loading spaced review queue..."
+        description="Consulting FSRS memory schedule and active recall deck..."
+      />
     );
   }
 
@@ -286,26 +284,12 @@ export function ReviewView() {
   if (viewMode === 'error') {
     return (
       <div className="flex-1 flex flex-col items-center justify-center p-8 bg-surface">
-        <div className="w-full max-w-md bg-surface border-2 border-border-default rounded-2xl p-8 text-center shadow-neo flex flex-col items-center gap-4">
-          <div className="w-12 h-12 bg-error/10 text-error border border-error/20 rounded-xl flex items-center justify-center">
-            <AlertCircle size={26} strokeWidth={2.5} />
-          </div>
-          <div>
-            <h2 className="text-lg font-black text-on-surface">Unable to load Review Queue</h2>
-            <p className="text-xs text-on-surface-variant mt-1">
-              {errorMessage || 'Failed to communicate with the review scheduler.'}
-            </p>
-          </div>
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={() => loadReviewData()}
-            className="gap-2 font-black text-xs shadow-neo-sm mt-2"
-          >
-            <RotateCcw size={14} />
-            Retry Connection
-          </Button>
-        </div>
+        <ErrorState
+          title="Unable to load Review Queue"
+          message={errorMessage || 'Failed to communicate with the review scheduler.'}
+          onRetry={() => loadReviewData()}
+          className="max-w-md"
+        />
       </div>
     );
   }
@@ -313,7 +297,7 @@ export function ReviewView() {
   // ── Active Session State ────────────────────────────────────────
   if (viewMode === 'session' && activeSession && currentItem) {
     return (
-      <div className="flex-1 overflow-y-auto bg-surface p-4 sm:p-8">
+      <div className="w-full flex-1 bg-surface p-4 sm:p-8">
         <ReviewActiveSession
           session={activeSession}
           currentItem={currentItem}
@@ -333,7 +317,7 @@ export function ReviewView() {
   // ── Session Completion State ────────────────────────────────────
   if (viewMode === 'completed' && activeSession) {
     return (
-      <div className="flex-1 overflow-y-auto bg-surface p-4 sm:p-8">
+      <div className="w-full flex-1 bg-surface p-4 sm:p-8">
         <ReviewCompletion
           session={activeSession}
           onReturnToQueue={handleReturnToQueue}
@@ -347,7 +331,7 @@ export function ReviewView() {
 
   if (isCaughtUp && (!activeSession || activeSession.status !== 'active')) {
     return (
-      <div className="flex-1 overflow-y-auto bg-surface p-4 sm:p-8">
+      <div className="w-full flex-1 bg-surface p-4 sm:p-8">
         <ReviewEmptyState
           statistics={statistics}
           onRefreshQueue={handleRefreshQueue}
@@ -359,7 +343,7 @@ export function ReviewView() {
 
   // ── Landing State: Due Cards Queue Summary ──────────────────────
   return (
-    <div className="flex-1 overflow-y-auto bg-surface p-4 sm:p-8">
+    <div className="w-full flex-1 bg-surface p-4 sm:p-8">
       <ReviewQueueSummary
         queue={queue}
         statistics={statistics}

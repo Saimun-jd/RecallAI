@@ -112,6 +112,24 @@ class UserRepository:
                 pass
         return user  # type: ignore
 
+    @staticmethod
+    def update_password(
+        user_id: str,
+        password_hash: str,
+        db_conn: Optional[sqlite3.Connection] = None
+    ) -> bool:
+        sql = "UPDATE users SET password_hash = ? WHERE id = ?"
+        params = (password_hash, user_id)
+        if db_conn:
+            cursor = db_conn.cursor()
+            cursor.execute(sql, params)
+            return cursor.rowcount > 0
+
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute(sql, params)
+            return cursor.rowcount > 0
+
 
 class WorkspaceRepository:
     @staticmethod
@@ -519,6 +537,43 @@ class ProviderCredentialRepository:
             cursor.execute(sql, params)
             return [dict(r) for r in cursor.fetchall()]
 
+    @staticmethod
+    def delete_credential(
+        workspace_id: str,
+        provider: str,
+        db_conn: Optional[sqlite3.Connection] = None
+    ) -> bool:
+        sql = "DELETE FROM provider_credentials WHERE workspace_id = ? AND provider = ?"
+        params = (workspace_id, provider)
+        if db_conn:
+            cursor = db_conn.cursor()
+            cursor.execute(sql, params)
+            return cursor.rowcount > 0
+
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute(sql, params)
+            return cursor.rowcount > 0
+
+    @staticmethod
+    def update_tested_status(
+        workspace_id: str,
+        provider: str,
+        is_valid: bool,
+        db_conn: Optional[sqlite3.Connection] = None
+    ) -> bool:
+        sql = "UPDATE provider_credentials SET is_valid = ?, last_tested_at = CURRENT_TIMESTAMP WHERE workspace_id = ? AND provider = ?"
+        params = (1 if is_valid else 0, workspace_id, provider)
+        if db_conn:
+            cursor = db_conn.cursor()
+            cursor.execute(sql, params)
+            return cursor.rowcount > 0
+
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute(sql, params)
+            return cursor.rowcount > 0
+
 
 class FileRepository:
     @staticmethod
@@ -700,12 +755,14 @@ class ChunkRepository:
     def search_candidates(
         workspace_id: str,
         document_id: Optional[str] = None,
+        document_ids: Optional[List[str]] = None,
         limit: int = 500,
         db_conn: Optional[sqlite3.Connection] = None
     ) -> List[Dict[str, Any]]:
         """
         Retrieves chunk candidates belonging to active documents in the workspace.
         Enforces tenant boundary and document ready/active state.
+        Supports single document_id or list of document_ids for scoped retrieval.
         """
         sql = """
             SELECT c.id, c.document_id, c.chunk_index, c.content, c.page_number,
@@ -721,6 +778,12 @@ class ChunkRepository:
         if document_id:
             sql += " AND d.id = ?"
             params.append(document_id)
+        elif document_ids:
+            clean_ids = [d for d in document_ids if d]
+            if clean_ids:
+                placeholders = ", ".join("?" for _ in clean_ids)
+                sql += f" AND d.id IN ({placeholders})"
+                params.extend(clean_ids)
         sql += " ORDER BY c.created_at DESC LIMIT ?"
         params.append(limit)
 
@@ -3124,6 +3187,47 @@ class LearningItemRepository:
             return _calc(db_conn)
         with get_db() as conn:
             return _calc(conn)
+
+    @staticmethod
+    def delete_by_content_id(
+        workspace_id: str,
+        content_type: str,
+        content_id: str,
+        db_conn: Optional[sqlite3.Connection] = None
+    ) -> int:
+        """Deletes a learning item by content_type and content_id within workspace."""
+        sql = "DELETE FROM learning_items WHERE workspace_id = ? AND content_type = ? AND content_id = ?"
+        params = (workspace_id, content_type, content_id)
+        if db_conn:
+            cursor = db_conn.cursor()
+            cursor.execute(sql, params)
+            return cursor.rowcount
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute(sql, params)
+            return cursor.rowcount
+
+    @staticmethod
+    def delete_by_content_ids(
+        workspace_id: str,
+        content_type: str,
+        content_ids: List[str],
+        db_conn: Optional[sqlite3.Connection] = None
+    ) -> int:
+        """Batch deletes learning items by content_ids within workspace."""
+        if not content_ids:
+            return 0
+        placeholders = ", ".join("?" for _ in content_ids)
+        sql = f"DELETE FROM learning_items WHERE workspace_id = ? AND content_type = ? AND content_id IN ({placeholders})"
+        params = [workspace_id, content_type] + content_ids
+        if db_conn:
+            cursor = db_conn.cursor()
+            cursor.execute(sql, tuple(params))
+            return cursor.rowcount
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute(sql, tuple(params))
+            return cursor.rowcount
 
 
 class ReviewEventRepository:

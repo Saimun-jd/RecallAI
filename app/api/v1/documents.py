@@ -8,10 +8,11 @@ import os
 import uuid
 import logging
 from typing import Any, Dict, Optional
-from fastapi import APIRouter, BackgroundTasks, Depends, File, Header, Query, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Header, Query, Request, UploadFile, status
 
 from app.api.deps import get_current_user, get_current_workspace, require_document_owner
-from app.core.errors import ValidationError, PayloadTooLargeError
+from app.api.middleware import upload_rate_limiter
+from app.core.errors import ValidationError, PayloadTooLargeError, RateLimitError
 from app.models.repositories import (
     DocumentRepository,
     FileRepository,
@@ -51,6 +52,7 @@ MAX_TEXT_BYTES = 10 * 1024 * 1024     # 10 MB
 )
 async def upload_document(
     background_tasks: BackgroundTasks,
+    request: Request,
     file: UploadFile = File(..., description="Document file (.pdf, .txt, .md)"),
     current_user: Dict[str, Any] = Depends(get_current_user),
     workspace: Dict[str, Any] = Depends(get_current_workspace),
@@ -59,8 +61,14 @@ async def upload_document(
     Ingests and securely stores a learning document.
     Enqueues asynchronous background processing (extraction, normalization, chunking, embedding).
     """
+    client_ip = request.client.host if request.client else "unknown"
+    client_key = f"{workspace['id']}_{client_ip}"
+    if not upload_rate_limiter.is_allowed(client_key):
+        raise RateLimitError("Upload rate limit exceeded. Please wait before uploading another document.")
+
     raw_filename = file.filename or "uploaded_document"
-    filename = os.path.basename(raw_filename).strip()
+    clean_raw = raw_filename.replace("\x00", "").replace("\r", "").replace("\n", "")
+    filename = os.path.basename(clean_raw).strip()
     if not filename:
         raise ValidationError("Invalid filename.")
 

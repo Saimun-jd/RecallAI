@@ -117,10 +117,10 @@ export function ProgressSnapshot({ activityData }: ProgressSnapshotProps) {
 
       <div className="pt-4 mt-4 border-t border-border-default">
         <Link
-          to="/analytics"
+          to="/app/progress"
           className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl border border-border-default bg-surface text-on-surface font-bold text-xs hover:bg-surface-container transition-all"
         >
-          <span>View Detailed Analytics</span>
+          <span>View Learning Progress</span>
           <ArrowRight size={14} />
         </Link>
       </div>

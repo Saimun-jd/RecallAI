@@ -120,6 +120,7 @@ def init_foundation_db(db_path: Optional[str] = None) -> None:
             )
         """)
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_documents_workspace ON documents(workspace_id, status)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_documents_ws_created ON documents(workspace_id, deleted_at, created_at DESC)")
 
         # Migration: Add file_id to documents if it was created in an earlier migration
         cursor.execute("PRAGMA table_info(documents)")
@@ -145,6 +146,7 @@ def init_foundation_db(db_path: Optional[str] = None) -> None:
             )
         """)
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_chunks_doc ON document_chunks(document_id, chunk_index)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_chunks_doc_created ON document_chunks(document_id, created_at DESC)")
 
         # 8. Processing Jobs Table (Asynchronous pipeline state machine)
         cursor.execute("""
@@ -261,6 +263,7 @@ def init_foundation_db(db_path: Optional[str] = None) -> None:
             )
         """)
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_flashcard_sets_ws ON flashcard_sets(workspace_id, updated_at DESC)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_flashcard_sets_ws_active ON flashcard_sets(workspace_id, deleted_at, updated_at DESC)")
 
         # 14. Flashcards Table (Individual atomic study cards)
         cursor.execute("""
@@ -297,6 +300,7 @@ def init_foundation_db(db_path: Optional[str] = None) -> None:
             )
         """)
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_quizzes_ws ON quizzes(workspace_id, updated_at DESC)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_quizzes_ws_active ON quizzes(workspace_id, deleted_at, updated_at DESC)")
 
         # 16. Quiz Questions Table (Atomic multiple-choice & true/false questions)
         cursor.execute("""
@@ -381,6 +385,7 @@ def init_foundation_db(db_path: Optional[str] = None) -> None:
         """)
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_learning_items_due ON learning_items(workspace_id, user_id, next_review_at ASC)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_learning_items_ws_user_content ON learning_items(workspace_id, user_id, content_type)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_learning_items_due_eval ON learning_items(workspace_id, user_id, content_type, next_review_at ASC)")
 
         # 20. Review Events Table (Append-only historical log of all review interactions)
         cursor.execute("""

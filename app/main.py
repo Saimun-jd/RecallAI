@@ -42,6 +42,7 @@ from app.api.middleware import SecurityHeadersMiddleware, RequestSizeLimitMiddle
 from app.api.v1.router import api_v1_router
 from app.api.v1.health import router as health_router
 from app.models.schema_init import init_foundation_db
+from app.core.migrations import run_migrations
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +51,10 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     init_db()
     init_foundation_db()
+    try:
+        run_migrations()
+    except Exception as e:
+        logger.warning(f"Migration runner check: {e}")
     os.makedirs(PARSED_DOCS_DIR, exist_ok=True)
     
     sk = get_setting("langfuse_secret_key")

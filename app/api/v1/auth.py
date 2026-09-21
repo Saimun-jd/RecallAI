@@ -13,10 +13,17 @@ from app.api.deps import get_current_user, get_current_workspace
 from app.api.middleware import auth_rate_limiter
 from app.core.config import settings
 from app.core.database import get_db
-from app.core.errors import AuthenticationError, ConflictError, RateLimitError
+from app.core.errors import AuthenticationError, ConflictError, RateLimitError, ValidationError
 from app.core.security import create_access_token, hash_password, verify_password
 from app.models.repositories import PreferencesRepository, UserRepository, WorkspaceRepository
-from app.schemas.auth import AuthResponse, UserLoginRequest, UserRegisterRequest, UserResponse, WorkspaceResponse
+from app.schemas.auth import (
+    AuthResponse,
+    ChangePasswordRequest,
+    UserLoginRequest,
+    UserRegisterRequest,
+    UserResponse,
+    WorkspaceResponse,
+)
 from app.schemas.common import ResponseEnvelope
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -179,3 +186,29 @@ async def get_me(
         "created_at": current_workspace["created_at"]
     }
     return ResponseEnvelope(data={"user": user_data, "workspace": ws_data})
+
+
+@router.post(
+    "/change-password",
+    response_model=ResponseEnvelope[dict],
+    summary="Change password for current authenticated user"
+)
+async def change_password(
+    body: ChangePasswordRequest,
+    request: Request,
+    current_user: dict = Depends(get_current_user)
+):
+    _check_rate_limit(request)
+    user = UserRepository.get_by_id(current_user["id"])
+    if not user:
+        raise AuthenticationError("User account not found.")
+
+    if not verify_password(body.current_password, user["password_hash"]):
+        raise AuthenticationError("Current password is incorrect.")
+
+    if len(body.new_password) < 8:
+        raise ValidationError("New password must be at least 8 characters long.")
+
+    new_hash = hash_password(body.new_password)
+    UserRepository.update_password(current_user["id"], new_hash)
+    return ResponseEnvelope(data={"message": "Password changed successfully."})

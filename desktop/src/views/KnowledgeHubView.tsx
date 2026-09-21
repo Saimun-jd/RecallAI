@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
   MessageSquare, Plus, RotateCcw, AlertCircle, 
-  Menu, PanelLeftOpen 
+  Menu, PanelLeftOpen, ArrowDown 
 } from 'lucide-react';
 import { 
   client, 
@@ -47,16 +48,38 @@ export function KnowledgeHubView() {
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);
   const lastQueryRef = useRef<string>('');
+  const [isUserNearBottom, setIsUserNearBottom] = useState(true);
+  const [showJumpToBottom, setShowJumpToBottom] = useState(false);
 
   // Auto-scroll to bottom of conversation
   const scrollToBottom = useCallback((smooth: boolean = true) => {
     messagesEndRef.current?.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto' });
+    setIsUserNearBottom(true);
+    setShowJumpToBottom(false);
   }, []);
 
+  // Handle user scrolling: check if user intentionally scrolled up
+  const handleViewportScroll = useCallback(() => {
+    if (!viewportRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = viewportRef.current;
+    const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+    const nearBottom = distanceFromBottom < 80;
+    setIsUserNearBottom(nearBottom);
+    if (nearBottom) {
+      setShowJumpToBottom(false);
+    }
+  }, []);
+
+  // Follow stream/messages only when already at the bottom
   useEffect(() => {
-    scrollToBottom(true);
-  }, [messages, scrollToBottom]);
+    if (isUserNearBottom) {
+      scrollToBottom(true);
+    } else {
+      setShowJumpToBottom(true);
+    }
+  }, [messages, isUserNearBottom, scrollToBottom]);
 
   // Initial Data Fetching: Check documents & load conversation list
   const loadInitialData = useCallback(async () => {
@@ -431,7 +454,15 @@ export function KnowledgeHubView() {
         )}
 
         {/* Message Stream Viewport */}
-        <div className="flex-1 overflow-y-auto p-3 sm:p-6 space-y-4 custom-scrollbar">
+        <div
+          ref={viewportRef}
+          onScroll={handleViewportScroll}
+          role="log"
+          aria-live="polite"
+          aria-atomic="false"
+          aria-label="Chat conversation stream"
+          className="flex-1 overflow-y-auto p-3 sm:p-6 space-y-4 custom-scrollbar relative"
+        >
           {loadingMessages ? (
             <div className="flex flex-col items-center justify-center h-64 text-on-surface-variant gap-2 text-xs font-bold">
               <span className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
@@ -480,6 +511,28 @@ export function KnowledgeHubView() {
 
           <div ref={messagesEndRef} />
         </div>
+
+        {/* Floating Jump to Bottom Pill */}
+        <AnimatePresence>
+          {showJumpToBottom && (
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 8 }}
+              transition={{ duration: 0.15 }}
+              className="absolute bottom-24 right-6 sm:right-10 z-20"
+            >
+              <button
+                type="button"
+                onClick={() => scrollToBottom(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border-2 border-border-default bg-surface shadow-neo text-xs font-bold text-on-surface hover:bg-surface-container active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all cursor-pointer"
+              >
+                <ArrowDown size={14} className="text-primary stroke-[2.5]" />
+                <span>New messages below</span>
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Composer Row (Sticky Bottom) */}
         <div className="p-3 sm:p-4 border-t-2 border-border-default bg-surface/95 backdrop-blur-md shrink-0">

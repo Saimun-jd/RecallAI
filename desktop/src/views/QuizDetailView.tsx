@@ -24,6 +24,8 @@ import {
 } from '../api/client';
 import { QuizDeleteDialog } from '../components/quizzes';
 import { Button } from '../components/ui/Button';
+import { Breadcrumbs } from '../components/ui/Breadcrumbs';
+import { ErrorState } from '../components/shared';
 import { Tag } from '../components/ui/Tag';
 import { useToast } from '../hooks/useToast';
 
@@ -135,22 +137,22 @@ export function QuizDetailView() {
 
   if (error || !quiz) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center p-6 text-center gap-4">
-        <div className="w-14 h-14 rounded-2xl bg-error/10 text-error border-2 border-error/20 flex items-center justify-center">
-          <AlertCircle size={24} />
-        </div>
-        <div className="space-y-1">
-          <h2 className="text-lg font-black text-on-surface">Unable to load quiz</h2>
-          <p className="text-sm text-on-surface-variant">{error || 'Quiz not found.'}</p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="secondary" size="sm" onClick={() => navigate('/app/quizzes')} className="gap-1.5">
-            <ArrowLeft size={14} /> Back to Quizzes
-          </Button>
-          <Button variant="primary" size="sm" onClick={fetchQuizData} className="gap-1.5">
-            <RotateCcw size={14} /> Retry
-          </Button>
-        </div>
+      <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
+        <ErrorState
+          title="Quiz Not Found"
+          message={error || 'The requested quiz could not be loaded.'}
+          onRetry={fetchQuizData}
+          action={
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate('/app/quizzes')}
+              className="gap-1.5"
+            >
+              <ArrowLeft size={14} /> Back to Quizzes
+            </Button>
+          }
+        />
       </div>
     );
   }
@@ -158,17 +160,13 @@ export function QuizDetailView() {
   return (
     <div className="flex-1 overflow-y-auto">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
-        {/* Navigation / Breadcrumb */}
-        <div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigate('/app/quizzes')}
-            className="gap-1.5 text-xs text-on-surface-variant hover:text-on-surface font-bold p-0"
-          >
-            <ArrowLeft size={14} /> Back to Quizzes
-          </Button>
-        </div>
+        {/* Standard Breadcrumb Navigation */}
+        <Breadcrumbs
+          items={[
+            { label: 'Quizzes', href: '/app/quizzes' },
+            { label: quiz.title },
+          ]}
+        />
 
         {/* Hero Card */}
         <div className="p-6 sm:p-8 rounded-2xl border-2 border-border-default bg-surface-container shadow-neo space-y-6">
