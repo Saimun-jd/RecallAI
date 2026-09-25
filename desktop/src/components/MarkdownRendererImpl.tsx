@@ -244,7 +244,7 @@ export const MarkdownRendererImpl: React.FC<MarkdownRendererProps> = ({ content 
               style={vscDarkPlus}
               language={match[1]}
               PreTag="div"
-              className="rounded-lg border border-zinc-800 !bg-zinc-900/80 !m-0 !p-4 font-sans text-sm"
+              className="rounded-lg border border-zinc-800 bg-zinc-900/80! m-0! p-4! font-sans text-sm"
             />
           ) : (
             <code
