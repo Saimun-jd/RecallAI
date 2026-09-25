@@ -94,8 +94,8 @@ export function preprocessMarkdown(text: string | undefined | null): string {
   processed = processed.replace(/(?<!\\)(?:\\\\|\\)\(([\s\S]+?)(?<!\\)(?:\\\\|\\)\)/g, (_m, math) => `$${math}$`);
 
   // 1.2 Repair BlockNote asterisk subscript corruption (*{...} -> _{...} and *digit -> _digit)
-  processed = processed.replace(/([a-zA-Z0-9\}\)])\*\{([a-zA-Z0-9,+-= \\]+)\}/g, '$1_{$2}');
-  processed = processed.replace(/([a-zA-Z0-9\}\)])\*([0-9a-zA-Z])/g, '$1_$2');
+  processed = processed.replace(/([a-zA-Z0-9}\)])\*\{([a-zA-Z0-9,+-= \\]+)\}/g, '$1_{$2}');
+  processed = processed.replace(/([a-zA-Z0-9}\)])\*([0-9a-zA-Z])/g, '$1_$2');
 
   // 1.3 Clean up trailing backslashes around environment delimiters
   processed = processed.replace(/(\\begin\{(?:aligned|bmatrix|pmatrix|matrix)\})\s*\\+/g, '$1');
@@ -111,7 +111,7 @@ export function preprocessMarkdown(text: string | undefined | null): string {
   });
 
   // 1.6 Inline math: clean up broken LaTeX newlines inside single-line inline math only
-  processed = processed.replace(/(?<!\$)\$(?!\$)([^\$\n]+?)(?<!\$)\$(?!\$)/g, (_match, mathContent) => {
+  processed = processed.replace(/(?<!\$)\$(?!\$)([^$\n]+?)(?<!\$)\$(?!\$)/g, (_match, mathContent) => {
     let fixedMath = mathContent.replace(/\\\s/g, '\\\\ ');
     return `$${fixedMath}$`;
   });

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { motion, AnimatePresence } from 'framer-motion';
 import { usePrefersReducedMotion } from '../components/ui/motion';
-import { Upload, Loader2, Sparkles, Plus, BookOpen, BrainCircuit } from 'lucide-react';
+import { Upload } from 'lucide-react';
 import { 
   client, 
   type DashboardSummaryResponse, 
@@ -48,8 +48,7 @@ export function DashboardView() {
   const uploadedBookIdRef = useRef<number | null>(null);
   const autoNavTimeoutRef = useRef<any>(null);
 
-  const { isUploading, ingestionProgress } = useSelector((state: RootState) => state.library);
-  const sidecarStatus = useSelector((state: RootState) => state.system.sidecarStatus);
+  const { ingestionProgress } = useSelector((state: RootState) => state.library);
 
   useEffect(() => {
     return () => {

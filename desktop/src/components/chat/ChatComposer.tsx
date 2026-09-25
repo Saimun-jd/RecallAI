@@ -1,5 +1,5 @@
 import React, { useRef, useEffect } from 'react';
-import { Send, Square, Globe2, BookOpen, CornerDownLeft } from 'lucide-react';
+import { Send, Square, Globe2, BookOpen } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
 export interface ChatComposerProps {

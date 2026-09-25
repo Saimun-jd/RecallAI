@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Loader2, CheckCircle, X, Sparkles } from 'lucide-react';
-import { DIALOG_VARIANTS, BACKDROP_VARIANTS, TRANSITIONS, SPRINGS } from '../lib/motion';
+import { Loader2, CheckCircle, X } from 'lucide-react';
+import { DIALOG_VARIANTS, BACKDROP_VARIANTS, TRANSITIONS } from '../lib/motion';
 import { usePrefersReducedMotion } from '../components/ui/motion';
 
 export interface IngestionProgress {
@@ -34,8 +34,6 @@ export function IngestionProgressModal({ isOpen, progress, onComplete }: Ingesti
   const percent = progress.percentage !== undefined 
     ? Math.min(100, Math.max(0, progress.percentage))
     : Math.min(100, Math.round((currentChunk / totalChunks) * 100));
-
-  const stateKey = isComplete ? 'complete' : isError ? 'error' : 'processing';
 
   return (
     <AnimatePresence>

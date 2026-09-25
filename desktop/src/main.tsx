@@ -15,8 +15,6 @@ import { listen } from '@tauri-apps/api/event'
 import { supabase } from './lib/supabase'
 import { isTauriEnvironment } from './api/keychain'
 
-;(window as any).supabase = supabase;
-
 export const handleAuthUrl = async (urlStr: string) => {
   console.log('[DeepLink] Received URL:', urlStr);
   if (!urlStr || !urlStr.includes('recallai://')) return;

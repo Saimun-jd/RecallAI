@@ -1,10 +1,9 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { User, Settings, LogOut, Shield } from 'lucide-react';
+import { Settings, LogOut, Shield } from 'lucide-react';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuLabel } from '../ui/DropdownMenu';
 import { Badge } from '../ui/Tag';
 import { ThemeToggle } from '../../hooks/useTheme';
-import { supabase } from '../../lib/supabase';
 import { cn } from '../../lib/utils';
 
 import { useAuth } from '../../contexts/AuthContext';

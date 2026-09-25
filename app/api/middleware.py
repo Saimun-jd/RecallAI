@@ -11,7 +11,6 @@ from collections import defaultdict
 from typing import Callable, Dict, List
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.types import ASGIApp
 
 from app.core.config import settings
 from app.core.errors import ErrorCode, format_error_response

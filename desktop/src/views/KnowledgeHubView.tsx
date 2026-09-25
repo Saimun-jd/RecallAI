@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   MessageSquare, Plus, RotateCcw, AlertCircle, 
-  Menu, PanelLeftOpen, ArrowDown 
+  PanelLeftOpen, ArrowDown 
 } from 'lucide-react';
 import { 
   client, 

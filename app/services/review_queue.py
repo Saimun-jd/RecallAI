@@ -4,15 +4,10 @@ Determines due learning items, prioritizes review order (overdue -> due now -> n
 and enforces daily review limits.
 """
 
-from datetime import datetime, timezone
 import logging
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
 
-from app.models.repositories import (
-    LearningItemRepository,
-    FlashcardRepository,
-    QuizQuestionRepository,
-)
+from app.models.repositories import LearningItemRepository
 from app.schemas.review import ReviewQueueItemResponse
 
 logger = logging.getLogger(__name__)

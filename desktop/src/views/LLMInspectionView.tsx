@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { client, type SystemPrompt, type TokenUsageSummary, type TokenLogEntry } from '../api/client';
 import { 
   Sparkles, Sliders, Coins, RotateCcw, Save, Search, 
-  Trash2, HelpCircle, Layers, Cpu, BookOpen, MessageSquare, 
+  Trash2, HelpCircle, Layers, BookOpen, MessageSquare, 
   CheckCircle2, ChevronDown, ChevronUp, FileText, Undo2
 } from 'lucide-react';
 import { 

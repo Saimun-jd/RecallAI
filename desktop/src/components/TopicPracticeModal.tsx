@@ -15,7 +15,7 @@ interface TopicPracticeModalProps {
 
 type ReviewState = 'question' | 'answer' | 'done';
 
-export function TopicPracticeModal({ isOpen, onClose, topicId, topicName, cards: initialCards }: TopicPracticeModalProps) {
+export function TopicPracticeModal({ isOpen, onClose, topicId: _topicId, topicName, cards: initialCards }: TopicPracticeModalProps) {
   const [cards, setCards] = useState<Flashcard[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [state, setState] = useState<ReviewState>('question');

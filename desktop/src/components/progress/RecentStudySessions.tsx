@@ -1,5 +1,5 @@
 import React from 'react';
-import { History, Clock, CheckCircle2, RotateCcw } from 'lucide-react';
+import { History } from 'lucide-react';
 import { type StudySessionSummary } from '../../api/client';
 import { cn } from '../../lib/utils';
 

@@ -5,7 +5,6 @@ import { MarkdownRenderer } from './MarkdownRenderer';
 import { useSelector } from 'react-redux';
 import type { RootState } from '../store';
 import { useToast } from '../hooks/useToast';
-import type { ApiError } from '../api/errors';
 import { cn } from '../lib/utils';
 
 const TIER_LABELS: Record<string, { label: string; color: string; bg: string }> = {

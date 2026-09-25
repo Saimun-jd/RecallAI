@@ -4,7 +4,7 @@ Provides flashcard set generation from documents/workspace, set management,
 and card-level editing with strict workspace tenant boundaries.
 """
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 from fastapi import APIRouter, Depends, Query, Request, status
 
 from app.api.deps import get_current_user, get_current_workspace

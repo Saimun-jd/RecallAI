@@ -4,8 +4,8 @@ import { useSelector } from 'react-redux';
 import { 
   NotebookPen, Book as BookIcon, Search, Plus, Trash2, ExternalLink, 
   Sparkles, FileText, Copy, Check, AlignJustify, Grid, Edit3, Eye, 
-  Layers, ChevronRight, ChevronLeft, Clock, ArrowUpDown, Filter, X, MessageSquare, 
-  Download, BookOpen, AlertCircle, Loader2
+  Layers, ChevronLeft, ArrowUpDown, X, MessageSquare, 
+  Download, AlertCircle, Loader2
 } from 'lucide-react';
 import { client, type NoteItem, type NoteAnnotationItem, type Book, type Topic } from '../api/client';
 import { MarkdownRenderer } from '../components/MarkdownRenderer';
@@ -18,7 +18,7 @@ type CategoryFilter = 'all' | 'cornell' | 'annotations';
 
 export function NotesView() {
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const { showToast } = useToast();
   const activeProvider = useSelector((state: RootState) => state.providers.activeProvider);
   const noteGeneration = useSelector((state: RootState) => state.reader.noteGeneration);
@@ -376,11 +376,11 @@ export function NotesView() {
     const plain = md
       .replace(/#+\s+/g, '')
       .replace(/\*\*|__|\*|_/g, '')
-      .replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1')
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
       .replace(/>\s+/g, '')
       .replace(/`{1,3}[^`]*`{1,3}/g, '')
       .replace(/\$\$[\s\S]*?\$\$/g, '[Math Equation]')
-      .replace(/\$[^\$]*?\$/g, '[Math]')
+      .replace(/\$[^$]*?\$/g, '[Math]')
       .replace(/\n+/g, ' ')
       .trim();
     return plain.length > 130 ? plain.slice(0, 130) + '...' : plain;

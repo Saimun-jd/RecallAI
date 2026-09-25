@@ -5,7 +5,6 @@ assessment context formatting, prompt injection defense, structured question val
 option verification, citation grounding, deduplication, atomic persistence, and usage tracking.
 """
 
-import json
 import logging
 import re
 from typing import Any, Dict, List, Optional, Set, Tuple
@@ -13,7 +12,6 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 from app.core.errors import NotFoundError, ValidationError, UsageExceededError
 from app.models.repositories import (
     DocumentRepository,
-    PlanRepository,
     QuizQuestionRepository,
     QuizRepository,
     UsageRepository,
@@ -24,7 +22,6 @@ from app.schemas.quiz import (
     QuizDetailResponse,
     QuizGenerateRequest,
     QuizQuestionResponse,
-    QuizResponse,
 )
 from app.schemas.search import SearchResultItem
 from app.services.ai.base import (

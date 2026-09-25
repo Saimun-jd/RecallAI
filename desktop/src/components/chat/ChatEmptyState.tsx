@@ -2,7 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Sparkles, BookOpen, Globe2, ArrowRight, Lightbulb, 
-  HelpCircle, Upload, Bookmark 
+  HelpCircle, Upload 
 } from 'lucide-react';
 import { Button } from '../ui';
 import { cn } from '../../lib/utils';

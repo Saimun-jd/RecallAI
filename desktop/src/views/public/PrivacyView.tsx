@@ -1,5 +1,4 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
 import { Badge } from '../../components/ui/Tag';
 import { PublicLayout } from '../../components/public/PublicLayout';
 

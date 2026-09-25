@@ -6,7 +6,6 @@ import {
   type DocumentLearningProgress,
   type QuizPerformanceStats 
 } from '../../api/client';
-import { cn } from '../../lib/utils';
 
 interface LearningGapsSectionProps {
   workload: ReviewWorkloadStats;
@@ -26,7 +25,6 @@ export const LearningGapsSection: React.FC<LearningGapsSectionProps> = ({
 
   // Overdue cards
   const hasOverdue = workload.overdue > 0;
-  const hasDue = workload.due > 0;
 
   // Quiz weakness
   const hasLowQuizAccuracy = quizStats && quizStats.completed_attempts > 0 && quizStats.accuracy_rate != null && quizStats.accuracy_rate < 65;

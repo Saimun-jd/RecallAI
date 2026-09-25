@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Cpu, HardDrive, Lock, ArrowUpRight, ShieldCheck } from 'lucide-react';
+import { Cpu, HardDrive, Lock, ArrowUpRight } from 'lucide-react';
 import { RecallLogo } from '../brand/RecallLogo';
 
 export function PublicFooter() {

@@ -9,8 +9,6 @@ import {
   BookOpen, 
   Cpu, 
   GraduationCap, 
-  FileText,
-  Clock,
   Layers
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';

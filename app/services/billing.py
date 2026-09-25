@@ -8,14 +8,14 @@ Provides provider-agnostic subscription lifecycle management:
 """
 
 from abc import ABC, abstractmethod
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 import hmac
 import hashlib
 import json
 import logging
 import os
 import uuid
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from app.core.errors import AuthenticationError, NotFoundError, ValidationError
 from app.models.repositories import (

@@ -1,6 +1,6 @@
 import React from 'react';
 import { 
-  FileText, CheckCircle2, Clock, AlertCircle, Loader2, 
+  CheckCircle2, Clock, AlertCircle, Loader2, 
   Trash2, RefreshCw, ArrowRight, BookOpen, Layers 
 } from 'lucide-react';
 import type { DocumentItem, DocumentStatusResponse } from '../../api/client';

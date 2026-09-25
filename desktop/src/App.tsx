@@ -11,7 +11,6 @@ import { NotesView } from './views/NotesView';
 import { ReviewView } from './views/ReviewView';
 import { SettingsView } from './views/SettingsView';
 import { BookDetailView } from './views/BookDetailView';
-import { AnalyticsView } from './views/AnalyticsView';
 import { ProgressView } from './views/ProgressView';
 import { FlashcardSetsView } from './views/FlashcardSetsView';
 import { FlashcardSetDetailView } from './views/FlashcardSetDetailView';
@@ -103,7 +102,7 @@ export default function App() {
   const { token } = useAuth();
   const sidecarStatus = useSelector((state: RootState) => state.system.sidecarStatus);
   const cloudUploadState = useSelector((state: RootState) => state.system.cloudUploadState);
-  const [contrastLevel, setContrastLevel] = useState(() => {
+  const [contrastLevel] = useState(() => {
     return parseInt(localStorage.getItem('app-contrast-level') || '0', 10);
   });
 
@@ -192,7 +191,7 @@ export default function App() {
       try {
         await client.checkHealth();
         dispatch(setSidecarStatus('connected'));
-      } catch (err) {
+      } catch {
         dispatch(setSidecarStatus('error'));
       }
     };
@@ -319,7 +318,7 @@ export default function App() {
               ]);
               // Saves succeeded, now actually close
               await appWindow.close();
-            } catch (err) {
+            } catch {
               const confirmClose = window.confirm("Save failed — close anyway?");
               if (confirmClose) {
                 await appWindow.close();

@@ -3,7 +3,6 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Eye, EyeOff, ArrowRight, AlertCircle } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { Button } from '../../components/ui/Button';
-import { Input } from '../../components/ui/Input';
 import { ThemeToggle } from '../../hooks/useTheme';
 import { getSafeRedirectUrl } from '../../components/auth/PublicOnlyRoute';
 import { isSupabaseConfigured } from '../../lib/supabase';

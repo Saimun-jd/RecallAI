@@ -7,7 +7,7 @@ Strictly read-only: never modifies scheduler state or debits AI credits.
 
 from datetime import datetime, timedelta, timezone
 import logging
-from typing import Any, Dict, List, Optional, Tuple
+from typing import List, Optional, Tuple
 
 from app.core.errors import ValidationError
 from app.models.repositories import AnalyticsRepository

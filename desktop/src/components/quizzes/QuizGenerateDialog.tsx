@@ -7,7 +7,6 @@ import {
   Check,
   CheckSquare,
   Square,
-  HelpCircle,
 } from 'lucide-react';
 import { Dialog, DialogFooter } from '../ui/Dialog';
 import { Button } from '../ui/Button';

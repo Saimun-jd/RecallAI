@@ -5,7 +5,6 @@ and provider_credentials with constraints and indexes.
 """
 
 import json
-import sqlite3
 import logging
 from typing import Optional
 

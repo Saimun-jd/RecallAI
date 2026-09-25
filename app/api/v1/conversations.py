@@ -4,7 +4,7 @@ Provides conversation lifecycle management, multi-tenant message isolation,
 and non-streaming / streaming grounded RAG completions.
 """
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 from fastapi import APIRouter, Depends, Query, Request, status
 from fastapi.responses import StreamingResponse
 

@@ -10,8 +10,6 @@ from typing import Any, Dict
 from fastapi import APIRouter, Depends, Query, status
 
 from app.api.deps import get_current_user, get_current_workspace, require_document_owner
-from app.core.errors import NotFoundError
-from app.models.repositories import ConceptRepository
 from app.schemas.common import ResponseEnvelope
 from app.schemas.knowledge import (
     ConceptGenerateRequest,

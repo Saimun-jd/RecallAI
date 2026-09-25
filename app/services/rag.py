@@ -8,14 +8,13 @@ import asyncio
 import json
 import logging
 import re
-from typing import Any, AsyncGenerator, Dict, List, Optional, Tuple
+from typing import Any, AsyncGenerator, Dict, List, Optional
 from fastapi import HTTPException
 
 from app.core.errors import EntitlementRequiredError, QuotaExceededError
 from app.models.repositories import (
     ConversationRepository,
     MessageRepository,
-    PlanRepository,
     UsageRepository,
 )
 from app.schemas.chat import (

@@ -1,23 +1,20 @@
 import { useState } from 'react';
 import {
   ShieldAlert,
-  KeyRound,
   LogOut,
   Trash2,
   CheckCircle2,
   AlertTriangle,
   Loader2,
-  Lock,
   Eye,
   EyeOff,
-  Check,
 } from 'lucide-react';
 import { client, API_BASE } from '../../api/client';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../hooks/useToast';
 
 export function SecuritySettings() {
-  const { user, workspace, logout } = useAuth();
+  const { user, logout } = useAuth();
   const { showToast } = useToast();
 
   // Password change state

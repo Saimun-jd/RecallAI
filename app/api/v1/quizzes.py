@@ -4,14 +4,13 @@ Provides AI-powered quiz generation from documents/workspace, quiz management,
 and question-level editing with strict workspace tenant boundaries.
 """
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 from fastapi import APIRouter, Depends, Query, Request, status
 
 from app.api.deps import get_current_user, get_current_workspace
 from app.api.middleware import InMemoryRateLimiter
 from app.core.errors import NotFoundError, RateLimitError
 from app.models.repositories import (
-    QuizAnswerRepository,
     QuizAttemptRepository,
     QuizQuestionRepository,
     QuizRepository,

@@ -9,7 +9,7 @@ Provides:
 import json
 import logging
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 try:
     import numpy as np
@@ -24,25 +24,20 @@ from app.models.repositories import (
     DocumentRepository,
     DocumentSummaryRepository,
     FileRepository,
-    PlanRepository,
     ProcessingJobRepository,
     UsageRepository,
     UsageReservationRepository,
 )
 from app.services.entitlements import EntitlementService
 from app.schemas.knowledge import (
-    ConceptGenerateRequest,
     ConceptItemResponse,
     ConceptListResponse,
     DocumentSummaryResponse,
-    SourceReference,
-    SummaryGenerateRequest,
 )
-from app.schemas.search import RelatedDocumentItem, RelatedDocumentsResponse, ReindexResponse, SearchResultItem
+from app.schemas.search import RelatedDocumentItem, RelatedDocumentsResponse, ReindexResponse
 from app.services.ai.base import AIMessage, parse_structured_json
 from app.services.ai.service import AIService
-from app.services.pipeline import DocumentProcessingPipeline
-from app.services.retrieval import RetrievalService, VectorSearcher
+from app.services.retrieval import VectorSearcher
 
 logger = logging.getLogger(__name__)
 

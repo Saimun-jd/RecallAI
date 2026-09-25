@@ -6,7 +6,6 @@ and standard error response builders.
 
 from enum import Enum
 from typing import Any, Optional, Dict
-from fastapi import Request
 from fastapi.responses import JSONResponse
 import logging
 

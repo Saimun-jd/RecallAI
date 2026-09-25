@@ -6,7 +6,7 @@ and billing webhook ingestion with signature verification and event idempotency.
 
 import logging
 from typing import Any, Dict, Optional
-from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
+from fastapi import APIRouter, Depends, Header, Request
 
 from app.api.deps import get_current_user, get_current_workspace
 from app.schemas.billing import (

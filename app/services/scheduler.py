@@ -12,7 +12,6 @@ import logging
 from typing import Any, Dict, Optional, Tuple, Union
 
 try:
-    import fsrs
     from fsrs import Card as FSRSCard, Rating as FSRSRating, Scheduler as FSRSLibScheduler, State as FSRSState
     FSRS_AVAILABLE = True
 except ImportError:

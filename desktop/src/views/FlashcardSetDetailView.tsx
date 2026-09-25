@@ -9,8 +9,6 @@ import {
   Sparkles,
   BookOpen,
   Calendar,
-  AlertCircle,
-  RotateCcw,
   Check,
   X,
 } from 'lucide-react';

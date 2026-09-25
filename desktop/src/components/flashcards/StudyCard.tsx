@@ -4,7 +4,7 @@ import { Eye, FileText } from 'lucide-react';
 import { MarkdownRenderer } from '../MarkdownRenderer';
 import { Button } from '../ui/Button';
 import type { MaskedReviewItem, RevealedReviewItem } from '../../api/client';
-import { TRANSITIONS, SPRINGS } from '../../lib/motion';
+import { TRANSITIONS } from '../../lib/motion';
 import { usePrefersReducedMotion } from '../ui/motion';
 
 export interface StudyCardProps {

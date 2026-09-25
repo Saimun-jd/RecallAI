@@ -2,7 +2,6 @@ import asyncio
 import json
 import logging
 import os
-import tempfile
 import time
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, File, Form, Request, UploadFile
@@ -32,7 +31,7 @@ from app.pdf_extract import extract_raw_text
 from app.prefilter import is_valid_section
 from app.schemas import Chunk, ChatRequest, ChatMessageDB
 from app.markdown_ast import parse_markdown_assets
-from app.errors import RecallError, ErrorCode, classify_error, error_response, error_event, get_user_message
+from app.errors import RecallError, classify_error, error_response, error_event
 from app.config import settings as app_settings
 
 from fastapi.exceptions import RequestValidationError

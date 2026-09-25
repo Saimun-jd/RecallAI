@@ -4,7 +4,7 @@ Provides centralized access control, user resolution, and IDOR protection.
 """
 
 from typing import Any, Dict, Optional
-from fastapi import Depends, Header, HTTPException, status
+from fastapi import Depends, Header
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.core.security import decode_access_token

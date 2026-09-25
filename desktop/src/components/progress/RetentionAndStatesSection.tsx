@@ -1,5 +1,5 @@
 import React from 'react';
-import { Brain, Award, Layers, Zap } from 'lucide-react';
+import { Brain, Award } from 'lucide-react';
 import { 
   type LearningStateDistribution, 
   type ReviewDetailedStats 

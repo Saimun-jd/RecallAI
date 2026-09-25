@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Mail, CheckCircle2, AlertCircle } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, AlertCircle } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { ThemeToggle } from '../../hooks/useTheme';
 import { supabase, isSupabaseConfigured } from '../../lib/supabase';
@@ -34,7 +34,7 @@ export function ForgotPasswordView() {
       }
       // Always show generic confirmation to prevent email enumeration
       setIsSubmitted(true);
-    } catch (err: any) {
+    } catch {
       // Still show generic confirmation unless network completely failed
       setIsSubmitted(true);
     } finally {

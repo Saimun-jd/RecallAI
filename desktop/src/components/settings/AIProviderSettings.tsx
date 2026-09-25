@@ -11,8 +11,6 @@ import {
 import {
   Cpu,
   ShieldCheck,
-  Zap,
-  HardDrive,
   RefreshCw,
   Eye,
   EyeOff,
@@ -22,7 +20,6 @@ import {
   Trash2,
   KeyRound,
   ExternalLink,
-  Plus,
   Check,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';

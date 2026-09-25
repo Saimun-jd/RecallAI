@@ -6,7 +6,6 @@ import { ErrorBoundary } from '../components/ErrorBoundary';
 import type { RootState } from '../store';
 import {
   setActiveTopicId,
-  setIsPdfDrawerOpen,
   setIsCardGenModalOpen,
   setIsNotesOpen,
   setActiveTopicCards,
@@ -15,7 +14,7 @@ import {
   clearExamScope
 } from '../store/readerSlice';
 import { client, API_BASE, type Book, type Topic, type Flashcard, type PdfAnnotation, type AtomicConcept } from '../api/client';
-import { Loader2, Zap, PenTool, Link2, BrainCircuit, Play, FileText, ChevronRight, ChevronLeft, CheckCircle2, Circle, Clock, Check, X, Edit2, Trash2, BookOpen, ArrowLeft, LayoutList, ChevronDown, Search, Save, Sun, Moon, MoreHorizontal, Bot, Copy, Target, Sparkles, Layers, ChevronsDownUp, ChevronsUpDown, GraduationCap } from 'lucide-react';
+import { Loader2, Zap, PenTool, Play, FileText, ChevronRight, ChevronLeft, Check, Edit2, Trash2, BookOpen, ArrowLeft, LayoutList, ChevronDown, Search, Sun, Moon, Bot, Copy, Target, Sparkles, Layers, ChevronsDownUp, ChevronsUpDown, GraduationCap } from 'lucide-react';
 import { MarkdownRenderer } from '../components/MarkdownRenderer';
 import { cn } from '../lib/utils';
 import { FlashcardGenModal } from '../components/FlashcardGenModal';
@@ -25,14 +24,11 @@ import { AIChatSidebar } from '../components/AIChatSidebar';
 const NotionNotesEditor = lazy(() => import('../components/NotionNotesEditor').then(m => ({ default: m.NotionNotesEditor })));
 import { TopicPracticeModal } from '../components/TopicPracticeModal';
 const PdfViewer = lazy(() => import('../components/PdfViewer').then(m => ({ default: m.PdfViewer })));
-import type { PdfSelection } from '../components/PdfViewer';
-import { PdfCommandPalette, type PdfCommandType } from '../components/PdfCommandPalette';
-import { preprocessMarkdown } from '../utils/markdown';
+import { PdfCommandPalette } from '../components/PdfCommandPalette';
 import { SocraticDrillWidget } from '../components/SocraticDrillWidget';
 import { FlashcardGenWidget } from '../components/FlashcardGenWidget';
-import { loadSettings, saveSetting, saveSettingsStore } from '../api/settingsStore';
+import { saveSetting, saveSettingsStore } from '../api/settingsStore';
 import { useToast } from '../hooks/useToast';
-import type { ApiError } from '../api/errors';
 
 export function BookDetailView() {
   const { id } = useParams<{ id: string }>();
@@ -43,7 +39,6 @@ export function BookDetailView() {
   const {
     activeTopicId,
     searchQuery,
-    isPdfDrawerOpen,
     isNotesOpen,
     activeTopicCards,
     pdfTheme,
@@ -94,7 +89,6 @@ export function BookDetailView() {
     topicName: string;
     cards: Flashcard[];
   } | null>(null);
-  const [pdfNumPages, setPdfNumPages] = useState<number>(1);
   const [processingProgress, setProcessingProgress] = useState<{
     stage?: string;
     status?: string;
@@ -121,7 +115,6 @@ export function BookDetailView() {
   const [selectedCardScope, setSelectedCardScope] = useState<string>('all');
   const { showToast } = useToast();
   const [annotations, setAnnotations] = useState<PdfAnnotation[]>([]);
-  const [isAnnotationLoading, setIsAnnotationLoading] = useState(false);
   const [pdfScrollCommand, setPdfScrollCommand] = useState<{ page: number, ts: number } | undefined>();
   const [viewMode, setViewMode] = useState<'topics' | 'pdf' | 'markdown'>('topics');
   const [isMdCopied, setIsMdCopied] = useState(false);
@@ -1009,9 +1002,7 @@ export function BookDetailView() {
                       url={`${API_BASE}/books/${bookId}/pdf`}
                       scrollCommand={pdfScrollCommand}
                       annotations={annotations}
-                      onLoadSuccess={(num) => {
-                        setPdfNumPages(num);
-                      }}
+                      onLoadSuccess={() => {}}
                       onPageVisible={handlePdfPageVisible}
                       renderSelectionOverlay={(sel, cancelSelection) => (
                         <PdfCommandPalette
@@ -1022,7 +1013,6 @@ export function BookDetailView() {
                           }}
                           onCommand={async (type, options) => {
                             const rectJson = JSON.stringify(sel.position);
-                            setIsAnnotationLoading(true);
                             try {
                               if (type === 'add_sidenote') {
                                 await client.createAnnotation(bookId, {
@@ -1097,8 +1087,6 @@ export function BookDetailView() {
                             } catch (err: any) {
                               console.error(`Annotation command '${type}' failed:`, err);
                               showToast('error', err?.userMessage || `Annotation command failed.`, err?.debugDetail);
-                            } finally {
-                              setIsAnnotationLoading(false);
                             }
                           }}
                         />
@@ -1217,9 +1205,6 @@ export function BookDetailView() {
                     <span className="px-3 py-1 bg-surface-container rounded-full border border-outline-variant font-bold text-on-surface">
                       Target: p. {activeTopic.start_page}
                     </span>
-                    {/* <button className="w-8 h-8 flex items-center justify-center rounded-full bg-surface-container hover:bg-surface-variant transition-colors border border-outline-variant">
-                    <MoreHorizontal size={18} className="text-on-surface" />
-                  </button> */}
                   </div>
                 </div>
 
@@ -1270,7 +1255,7 @@ export function BookDetailView() {
                       targetConcept={selectedDrillConcept}
                       onClearTargetConcept={() => setSelectedDrillConcept(null)}
                       hasCachedMarkdown={!!activeTopic.content_md}
-                      onMasteryUpdate={(score, status, conceptName) => {
+                      onMasteryUpdate={(_score, _status, _conceptName) => {
                         // Refresh topics to update TOC and concept deck mastery indicators
                         client.getTopics(bookId).then(setTopics).catch((err: any) => {
                           console.error(err);
@@ -1550,10 +1535,11 @@ export function BookDetailView() {
                                         Cancel
                                       </button>
                                       <button
+                                        disabled={isSavingCard}
                                         onClick={() => handleSaveCard(card.id)}
-                                        className="px-4 py-2 bg-primary text-on-primary font-bold border-2 border-on-surface rounded-lg shadow-[2px_2px_0px_0px_#191b23] active:shadow-none active:translate-x-px active:translate-y-px transition-all text-xs cursor-pointer"
+                                        className="px-4 py-2 bg-primary text-on-primary font-bold border-2 border-on-surface rounded-lg shadow-[2px_2px_0px_0px_#191b23] active:shadow-none active:translate-x-px active:translate-y-px transition-all text-xs cursor-pointer disabled:opacity-50"
                                       >
-                                        Save Changes
+                                        {isSavingCard ? 'Saving...' : 'Save Changes'}
                                       </button>
                                     </div>
                                   </div>

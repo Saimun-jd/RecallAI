@@ -72,15 +72,6 @@ export function PdfViewer({
   const [viewerReady, setViewerReady] = useState(false);
   const reportedNumPagesRef = useRef<number | null>(null);
 
-  const renderCount = useRef(0);
-  renderCount.current += 1;
-  console.log(`[PdfViewer] Render count: ${renderCount.current}, viewerReady: ${viewerReady}, scrollCommand:`, scrollCommand);
-
-  useEffect(() => {
-    console.log(`[PdfViewer] Mounted. width: ${containerRef.current?.clientWidth}, height: ${containerRef.current?.clientHeight}`);
-    return () => console.log("[PdfViewer] Unmounted");
-  }, []);
-
   const handleSelectionFinished = (
     position: ScaledPosition,
     content: { text?: string; image?: string },
@@ -196,17 +187,9 @@ export function PdfViewer({
 
   // --- Scroll on command ---
   useEffect(() => {
-    console.log(`[PdfViewer] scroll effect fired. Reason: dependencies changed [scrollCommand, viewerReady]. scrollCommand:`, scrollCommand, `viewerReady:`, viewerReady);
-    console.log('[PdfViewer] scroll effect run:', {
-      scrollCommand,
-      viewerReady,
-      hasScrollFn: !!scrollViewerTo.current
-    });
-
     if (!scrollCommand) return;
 
     if (!viewerReady || !scrollViewerTo.current) {
-      console.log('[PdfViewer] Scroll requested but viewer not ready yet. Deferring until ready.');
       return;
     }
 
@@ -214,7 +197,6 @@ export function PdfViewer({
 
     function doScroll(page: number) {
       const targetPage = Math.max(1, page);
-      console.log('[PdfViewer] Calling scrollViewerTo with targetPage:', targetPage);
       try {
         scrollViewerTo.current!({
           id: 'scroll-cmd',
@@ -229,9 +211,6 @@ export function PdfViewer({
       } catch (e) {
         console.error('[PdfViewer] scrollViewerTo threw:', e);
       }
-
-      const scrollContainer = containerRef.current?.querySelector('.PdfHighlighter__scroll-container') || containerRef.current?.firstElementChild;
-      console.log(`[PdfViewer] scrollTop after scroll: ${scrollContainer?.scrollTop ?? 'N/A'}`);
     }
   }, [scrollCommand, viewerReady]);
 
@@ -279,7 +258,7 @@ export function PdfViewer({
                 setViewerReady(true);
               }}
               onSelectionFinished={handleSelectionFinished}
-              highlightTransform={(highlight: any, index, setTip, hideTip, viewportToScaled, screenshot, isScrolledTo) => (
+              highlightTransform={(highlight: any, _index, _setTip, _hideTip, _viewportToScaled, _screenshot, _isScrolledTo) => (
                 <PdfAnnotationLayer
                   key={highlight.id}
                   annotation={highlight.rawAnnotation}

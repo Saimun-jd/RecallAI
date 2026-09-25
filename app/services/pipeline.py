@@ -7,7 +7,7 @@ Idempotent, crash-resilient, and tenant-isolated.
 
 import logging
 import traceback
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from app.models.repositories import (
     DocumentRepository,

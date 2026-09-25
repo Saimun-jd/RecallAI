@@ -5,7 +5,6 @@ Prevents leaking API keys, passwords, bearer tokens, or sensitive payload conten
 
 import logging
 import re
-from typing import Any
 
 # Sensitive patterns to scrub from log messages
 SENSITIVE_PATTERNS = [

@@ -5,7 +5,7 @@ Endpoints:
 - GET /health/db
 """
 
-from fastapi import APIRouter, Response, status
+from fastapi import APIRouter, status
 from app.core.config import settings
 from app.core.database import check_database_health
 from app.core.errors import ErrorCode, format_error_response

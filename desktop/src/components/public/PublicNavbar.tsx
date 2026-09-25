@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowRight, Menu, X, ShieldCheck, Sparkles, BookOpen } from 'lucide-react';
+import { ArrowRight, Menu, X } from 'lucide-react';
 import { ThemeToggle } from '../../hooks/useTheme';
 import { Button } from '../ui/Button';
 import { useAuth } from '../../contexts/AuthContext';

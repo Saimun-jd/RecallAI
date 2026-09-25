@@ -275,6 +275,33 @@ export function DocumentDetailView() {
     );
   }
 
+  // Error State
+  if (errorMessage && !isLoading) {
+    return (
+      <div className="flex-1 overflow-y-auto bg-surface text-on-surface p-8">
+        <div className="max-w-md mx-auto my-16 p-8 rounded-2xl border-2 border-border-default bg-surface shadow-neo text-center space-y-4">
+          <div className="w-14 h-14 rounded-xl bg-error/10 border-2 border-error/20 text-error flex items-center justify-center mx-auto shadow-neo-sm">
+            <AlertCircle size={26} />
+          </div>
+          <div className="space-y-1">
+            <h3 className="font-black text-xl text-on-surface">Error Loading Document</h3>
+            <p className="text-xs text-on-surface-variant font-medium leading-relaxed">
+              {errorMessage}
+            </p>
+          </div>
+          <Button
+            variant="primary"
+            onClick={() => navigate('/documents')}
+            className="w-full justify-center gap-2 mt-2"
+          >
+            <ArrowLeft size={16} />
+            <span>Back to Documents</span>
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   // Loading Skeleton State
   if (isLoading || !document) {
     return (

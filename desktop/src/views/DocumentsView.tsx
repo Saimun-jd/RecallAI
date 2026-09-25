@@ -1,8 +1,7 @@
 import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
-  Plus, Search, Filter, ArrowUpDown, BookOpen, 
-  Upload, Layers, RefreshCw, AlertCircle 
+  Plus, Search, ArrowUpDown, Upload 
 } from 'lucide-react';
 import { 
   client, 

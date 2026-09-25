@@ -3,7 +3,7 @@ Learning Progress and Spaced Repetition Service for Recall AI.
 Manages durable learning items, applies review scheduling, and records review events.
 """
 
-from datetime import datetime, timezone
+from datetime import datetime
 import logging
 from typing import Any, Dict, List, Optional
 import sqlite3

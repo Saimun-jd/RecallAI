@@ -5,7 +5,6 @@ learning context formatting, prompt injection defense, structured output validat
 citation grounding, deduplication, atomic persistence, and usage tracking.
 """
 
-import json
 import logging
 import re
 from typing import Any, Dict, List, Optional, Set, Tuple
@@ -16,7 +15,6 @@ from app.models.repositories import (
     FlashcardRepository,
     FlashcardSetRepository,
     LearningItemRepository,
-    PlanRepository,
     UsageRepository,
     UsageReservationRepository,
 )
@@ -25,7 +23,6 @@ from app.schemas.flashcard import (
     FlashcardGenerateRequest,
     FlashcardResponse,
     FlashcardSetDetailResponse,
-    FlashcardSetResponse,
 )
 from app.schemas.search import SearchResultItem
 from app.services.ai.base import (

@@ -397,7 +397,7 @@ export interface ChatRequest {
 
 export const client = {
   /** Parse structured API errors and throw as ApiError */
-  async _throwIfError(res: Response, fallbackMsg: string): Promise<void> {
+  async _throwIfError(res: Response, _fallbackMsg?: string): Promise<void> {
     if (!res.ok) {
       throw await parseApiError(res);
     }

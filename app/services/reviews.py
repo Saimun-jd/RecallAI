@@ -6,7 +6,7 @@ idempotent atomic rating, and FSRS memory state updates with zero AI credit cons
 
 from datetime import datetime, timezone
 import logging
-from typing import Any, Dict, List, Optional, Union
+from typing import Optional, Union
 
 from app.core.database import get_db
 from app.core.errors import ConflictError, NotFoundError, ValidationError

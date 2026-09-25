@@ -353,7 +353,7 @@ FORMATTING (apply only where relevant, and only if not overridden by the student
 - Code: fenced code blocks with language tags (e.g., ```python).
 """
 
-FLASHCARD_FROM_SELECTION_PROMPT = """You are an expert educational content creator. Generate exactly {count} high-quality flashcards from the following highlighted textbook passage.
+FLASHCARD_FROM_SELECTION_PROMPT = r"""You are an expert educational content creator. Generate exactly {count} high-quality flashcards from the following highlighted textbook passage.
 
 HIGHLIGHTED TEXT:
 <<<

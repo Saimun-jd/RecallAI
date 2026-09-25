@@ -4,7 +4,6 @@ Supports PDF (via PyMuPDF/fitz with magic-byte validation), Plain Text, and Mark
 Produces normalized, structured textual content with page boundaries.
 """
 
-import io
 import re
 from typing import List, Optional, Tuple, Union
 from pydantic import BaseModel

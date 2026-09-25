@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { 
-  Brain, Search, Sparkles, RefreshCw, Loader2, AlertCircle, 
-  Tag as TagIcon, Bookmark, ChevronRight 
+  Brain, Search, Sparkles, RefreshCw, AlertCircle, 
+  Bookmark 
 } from 'lucide-react';
 import type { ConceptItemResponse } from '../../api/client';
 import { Button } from '../ui/Button';
@@ -16,7 +16,7 @@ export interface DocumentConceptsTabProps {
 }
 
 export function DocumentConceptsTab({
-  documentId,
+  documentId: _documentId,
   concepts,
   isLoading,
   isExtracting,

@@ -5,7 +5,7 @@ headings, paragraphs, and page boundaries with configurable size and overlap.
 """
 
 import re
-from typing import Any, Dict, List, Optional, Union
+from typing import List, Optional, Union
 from pydantic import BaseModel
 
 from app.services.extractor import ExtractedDocument, PageExtraction

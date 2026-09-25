@@ -32,9 +32,6 @@ export function FlashcardSetsView() {
   const [deleteTarget, setDeleteTarget] = useState<FlashcardSetItem | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Rename
-  const [renameTarget, setRenameTarget] = useState<string | null>(null);
-
   const fetchSets = useCallback(async () => {
     setLoading(true);
     setError(null);

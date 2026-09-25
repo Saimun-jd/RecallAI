@@ -1,7 +1,7 @@
 import os
 import logging
 import traceback
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, Optional
 from supabase import create_client, Client
 from app.database import get_connection
 
@@ -533,7 +533,6 @@ def sync_with_remote(token: str):
     except Exception as e:
         logger.exception("Sync failed")
         raise e
-import httpx
 import json
 
 async def download_missing_pdfs_stream(token: str):

@@ -5,7 +5,7 @@ with strict tenant boundary enforcement and rate limiting.
 """
 
 from typing import Any, Dict, Optional
-from fastapi import APIRouter, Depends, Query, Request, status
+from fastapi import APIRouter, Depends, Query, Request
 
 from app.api.deps import get_current_user, get_current_workspace
 from app.api.middleware import InMemoryRateLimiter

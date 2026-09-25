@@ -2,7 +2,7 @@
 Pydantic Schemas for Knowledge Hub & RAG Chat System.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
 from pydantic import BaseModel, Field
 
 
