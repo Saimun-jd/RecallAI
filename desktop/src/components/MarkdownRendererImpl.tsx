@@ -161,6 +161,29 @@ export const MarkdownRendererImpl: React.FC<MarkdownRendererProps> = ({ content 
       remarkPlugins={[remarkMath, remarkGfm]}
       rehypePlugins={[[rehypeKatex, { strict: false, throwOnError: false }]]}
       components={{
+        a: ({ node, href, children, ...props }: any) => {
+          const rawHref = String(href || '').trim();
+          const isSafe =
+            rawHref.startsWith('http://') ||
+            rawHref.startsWith('https://') ||
+            rawHref.startsWith('/') ||
+            rawHref.startsWith('#') ||
+            rawHref.startsWith('mailto:');
+          if (!isSafe) {
+            return <span className="text-on-surface font-medium underline underline-offset-2">{children}</span>;
+          }
+          return (
+            <a
+              href={rawHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary hover:underline font-medium"
+              {...props}
+            >
+              {children}
+            </a>
+          );
+        },
         img: ({ node, src, alt, ...props }: any) => {
           return <DiagramImage src={src} alt={alt} {...props} />;
         },

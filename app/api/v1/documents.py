@@ -67,7 +67,7 @@ async def upload_document(
         raise RateLimitError("Upload rate limit exceeded. Please wait before uploading another document.")
 
     raw_filename = file.filename or "uploaded_document"
-    clean_raw = raw_filename.replace("\x00", "").replace("\r", "").replace("\n", "")
+    clean_raw = raw_filename.replace("\x00", "").replace("\r", "").replace("\n", "").replace("\\", "/")
     filename = os.path.basename(clean_raw).strip()
     if not filename:
         raise ValidationError("Invalid filename.")

@@ -30,6 +30,7 @@ from app.schemas.search import SearchResultItem
 from app.services.ai.base import (
     AIMessage,
     AIProviderError,
+    parse_structured_json,
 )
 from app.services.ai.service import AIService
 from app.services.retrieval import RetrievalService
@@ -233,22 +234,7 @@ class QuizGenerationService:
         Parses structured model response, validates question formats and options,
         enforces source citations, and deduplicates questions.
         """
-        parsed_data = None
-        clean_text = raw_text.strip()
-
-        try:
-            parsed_data = json.loads(clean_text)
-        except Exception:
-            try:
-                import json_repair
-                parsed_data = json_repair.loads(clean_text)
-            except Exception:
-                json_match = re.search(r'\{.*"questions"\s*:\s*\[.*\]\s*\}', clean_text, re.DOTALL)
-                if json_match:
-                    try:
-                        parsed_data = json.loads(json_match.group(0))
-                    except Exception:
-                        pass
+        parsed_data = parse_structured_json(raw_text)
 
         if not parsed_data or not isinstance(parsed_data, dict):
             logger.warning("Failed to parse JSON quiz questions from AI output")

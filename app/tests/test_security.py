@@ -114,6 +114,46 @@ class TestSecurityPrimitives(unittest.TestCase):
         self.assertEqual(mask_key("AIzaSyD-abc1234"), "...1234")
         self.assertEqual(mask_key("abc"), "****")
 
+    def test_storage_path_traversal_prevention(self):
+        from app.services.storage import StorageService
+        # Direct path traversal attempts must raise ValueError
+        traversal_attempts = [
+            "../../secret.txt",
+            "..\\..\\windows\\win.ini",
+            "users/../../../etc/passwd",
+            "/etc/shadow",
+            "C:\\Windows\\System32\\cmd.exe",
+        ]
+        for path in traversal_attempts:
+            with self.assertRaises(ValueError, msg=f"Should block traversal: {path}"):
+                StorageService.read_file(path)
+
+            with self.assertRaises(ValueError, msg=f"Should block traversal: {path}"):
+                StorageService.save_file(path, b"malicious content")
+
+            self.assertFalse(StorageService.file_exists(path))
+            self.assertFalse(StorageService.delete_file(path))
+
+    def test_production_secret_rejection(self):
+        from app.core.config import CoreSettings
+        import pydantic
+
+        # Must reject default dev SECRET_KEY in production
+        with self.assertRaises(pydantic.ValidationError):
+            CoreSettings(
+                ENVIRONMENT="production",
+                SECRET_KEY="dev_jwt_secret_key_change_in_production_12345",
+                BYOK_ENCRYPTION_KEY="0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+            )
+
+        # Must reject default dev BYOK_ENCRYPTION_KEY in production
+        with self.assertRaises(pydantic.ValidationError):
+            CoreSettings(
+                ENVIRONMENT="production",
+                SECRET_KEY="a_strong_production_secret_key_with_sufficient_entropy_123",
+                BYOK_ENCRYPTION_KEY="dev_byok_encryption_key_32bytes"
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

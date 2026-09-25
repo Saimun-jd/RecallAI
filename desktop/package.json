@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
+    "test:e2e": "node tests/e2e/critical_user_journeys.mjs",
     "tauri": "tauri"
   },
   "dependencies": {

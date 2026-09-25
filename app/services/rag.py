@@ -60,7 +60,7 @@ class CitationValidator:
     Filters out fabricated or hallucinated references.
     """
 
-    CITATION_REGEX = re.compile(r'\[S(\d+)\]')
+    CITATION_REGEX = re.compile(r'\[S\s*(\d+)\]', re.IGNORECASE)
 
     @classmethod
     def validate(
@@ -109,6 +109,7 @@ class RAGService:
     """
 
     MAX_HISTORY_MESSAGES = 6
+    MAX_REFERENCE_TOKENS = 3000
 
     @classmethod
     def _check_entitlements(cls, workspace_id: str, is_byok: bool) -> int:
@@ -148,16 +149,27 @@ class RAGService:
     ) -> List[AIMessage]:
         """
         Constructs the conversational prompt with XML-isolated reference data blocks.
+        Sanitizes untrusted document content against XML delimiter injection and
+        enforces a strict token budget on assembled reference material.
         """
         reference_blocks = []
+        current_tokens = 0
+
         for i, item in enumerate(retrieved_results, start=1):
             page_info = f' page="{item.page_number}"' if item.page_number else ""
+            clean_title = (item.document_title or "Study Material").replace('"', '&quot;').replace('<', '&lt;').replace('>', '&gt;')
+            clean_content = item.content.strip().replace("</reference_data>", "[sanitized]")
             block = (
-                f'<reference_data id="S{i}" document="{item.document_title}"{page_info}>\n'
-                f"{item.content}\n"
+                f'<reference_data id="S{i}" document="{clean_title}"{page_info}>\n'
+                f"{clean_content}\n"
                 f"</reference_data>"
             )
+            block_tokens = SemanticChunker.estimate_tokens(block)
+            if current_tokens + block_tokens > cls.MAX_REFERENCE_TOKENS and reference_blocks:
+                break
+
             reference_blocks.append(block)
+            current_tokens += block_tokens
 
         context_str = "\n\n".join(reference_blocks) if reference_blocks else (
             "<reference_data id=\"NONE\">\nNo relevant study materials found in your uploaded documents.\n</reference_data>"

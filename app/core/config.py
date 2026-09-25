@@ -6,7 +6,7 @@ Distinguishes server-only secrets from client-safe configuration.
 
 import os
 import sys
-from typing import List, Literal
+from typing import List, Literal, Union
 from platformdirs import user_data_dir
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -47,7 +47,7 @@ class CoreSettings(BaseSettings):
     )
 
     # CORS & Network Security
-    CORS_ALLOWED_ORIGINS: List[str] = [
+    CORS_ALLOWED_ORIGINS: Union[List[str], str] = [
         "http://localhost:5173",
         "http://127.0.0.1:5173",
         "http://localhost:3000",
@@ -112,6 +112,26 @@ class CoreSettings(BaseSettings):
         except ValueError as e:
             raise ValueError(f"Invalid BYOK_ENCRYPTION_KEY format: {e}")
         return v_clean
+
+    @field_validator("CORS_ALLOWED_ORIGINS")
+    @classmethod
+    def assemble_cors_origins(cls, v: Union[str, List[str]]) -> List[str]:
+        if isinstance(v, str):
+            v_str = v.strip()
+            if not v_str:
+                return []
+            if v_str.startswith("[") and v_str.endswith("]"):
+                import json
+                try:
+                    parsed = json.loads(v_str)
+                    if isinstance(parsed, list):
+                        return [str(i).strip() for i in parsed if str(i).strip()]
+                except Exception:
+                    pass
+            return [i.strip() for i in v_str.split(",") if i.strip()]
+        elif isinstance(v, (list, tuple)):
+            return [str(i).strip() for i in v if str(i).strip()]
+        return []
 
     @model_validator(mode="after")
     def validate_production_security(self) -> "CoreSettings":

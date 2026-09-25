@@ -31,6 +31,7 @@ from app.schemas.search import SearchResultItem
 from app.services.ai.base import (
     AIMessage,
     AIProviderError,
+    parse_structured_json,
 )
 from app.services.ai.service import AIService
 from app.services.retrieval import RetrievalService
@@ -211,20 +212,8 @@ class FlashcardGenerationService:
         Parses structured model response, applies quality guardrails,
         validates source citations, and deduplicates cards.
         """
-        # 1. Parse JSON
-        parsed_data = None
-        clean_text = raw_text.strip()
-
-        try:
-            parsed_data = json.loads(clean_text)
-        except Exception:
-            # Fallback: regex search for JSON block
-            json_match = re.search(r'\{.*"flashcards"\s*:\s*\[.*\]\s*\}', clean_text, re.DOTALL)
-            if json_match:
-                try:
-                    parsed_data = json.loads(json_match.group(0))
-                except Exception:
-                    pass
+        # 1. Parse JSON with Markdown fence stripping and repair
+        parsed_data = parse_structured_json(raw_text)
 
         if not parsed_data or not isinstance(parsed_data, dict):
             logger.warning("Failed to parse JSON flashcards from AI output")

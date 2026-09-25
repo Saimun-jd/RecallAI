@@ -39,7 +39,7 @@ from app.schemas.knowledge import (
     SummaryGenerateRequest,
 )
 from app.schemas.search import RelatedDocumentItem, RelatedDocumentsResponse, ReindexResponse, SearchResultItem
-from app.services.ai.base import AIMessage
+from app.services.ai.base import AIMessage, parse_structured_json
 from app.services.ai.service import AIService
 from app.services.pipeline import DocumentProcessingPipeline
 from app.services.retrieval import RetrievalService, VectorSearcher
@@ -310,10 +310,8 @@ class KnowledgeService:
 
             # 7. Parse AI response
             raw_text = response.content.strip()
-            try:
-                parsed = json.loads(raw_text)
-            except json.JSONDecodeError:
-                # Fallback: treat entire response as summary text
+            parsed = parse_structured_json(raw_text)
+            if not parsed or not isinstance(parsed, dict):
                 parsed = {
                     "summary": raw_text,
                     "key_points": [],
@@ -484,9 +482,8 @@ class KnowledgeService:
 
             # 7. Parse AI response
             raw_text = response.content.strip()
-            try:
-                parsed = json.loads(raw_text)
-            except json.JSONDecodeError:
+            parsed = parse_structured_json(raw_text)
+            if not parsed or not isinstance(parsed, dict):
                 parsed = {"concepts": []}
 
             raw_concepts = parsed.get("concepts", [])

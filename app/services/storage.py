@@ -70,6 +70,20 @@ class StorageService:
         return f"users/{user_id}/documents/{document_id}/{file_id}.{ext}"
 
     @classmethod
+    def _resolve_safe_path(cls, storage_path: str) -> Path:
+        """
+        Resolves storage path and strictly guarantees it remains inside the storage root directory.
+        Raises ValueError if path traversal is attempted.
+        """
+        resolved_root = cls._root_dir.resolve()
+        target = (cls._root_dir / storage_path).resolve()
+        try:
+            target.relative_to(resolved_root)
+        except ValueError:
+            raise ValueError(f"Path traversal detected: {storage_path}")
+        return target
+
+    @classmethod
     def save_file(
         cls,
         first_arg: str,
@@ -100,7 +114,7 @@ class StorageService:
             )
             data = content or b""
 
-        full_path = cls._root_dir / rel_path
+        full_path = cls._resolve_safe_path(rel_path)
         full_path.parent.mkdir(parents=True, exist_ok=True)
         full_path.write_bytes(data)
         return rel_path
@@ -108,7 +122,7 @@ class StorageService:
     @classmethod
     def read_file(cls, storage_path: str) -> bytes:
         """Reads raw bytes for a stored file."""
-        full_path = cls._root_dir / storage_path
+        full_path = cls._resolve_safe_path(storage_path)
         if not full_path.exists():
             raise FileNotFoundError(f"Storage file not found: {storage_path}")
         return full_path.read_bytes()
@@ -116,19 +130,26 @@ class StorageService:
     @classmethod
     def file_exists(cls, storage_path: str) -> bool:
         """Checks if storage path exists on disk."""
-        full_path = cls._root_dir / storage_path
-        return full_path.exists() and full_path.is_file()
+        try:
+            full_path = cls._resolve_safe_path(storage_path)
+            return full_path.exists() and full_path.is_file()
+        except ValueError:
+            return False
 
     @classmethod
     def delete_file(cls, storage_path: str) -> bool:
         """Deletes a file from storage if present and cleans empty parent directories."""
-        full_path = cls._root_dir / storage_path
+        try:
+            full_path = cls._resolve_safe_path(storage_path)
+        except ValueError:
+            return False
         if full_path.exists():
             try:
                 full_path.unlink()
                 # Clean up empty parent directories up to storage root
                 parent = full_path.parent
-                while parent != cls._root_dir and parent.exists() and not any(parent.iterdir()):
+                resolved_root = cls._root_dir.resolve()
+                while parent.resolve() != resolved_root and parent.exists() and not any(parent.iterdir()):
                     parent.rmdir()
                     parent = parent.parent
                 return True

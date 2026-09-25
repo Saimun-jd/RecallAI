@@ -2,6 +2,8 @@
 Base Classes, Data Transfer Objects, and Exceptions for AI Providers in Recall AI.
 """
 
+import json
+import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import AsyncGenerator, Dict, List, Optional, Any
@@ -103,3 +105,75 @@ class BaseAIAdapter(ABC):
     ) -> AsyncGenerator[str, None]:
         """Streams completion tokens as they are produced."""
         pass
+
+
+def parse_structured_json(text: str) -> Optional[Any]:
+    """
+    Robust JSON extractor for AI outputs.
+    Strips Markdown code fences, extracts outer JSON structure,
+    and applies json_repair for graceful syntax tolerance.
+    Returns parsed dict or list, or None if unparseable.
+    """
+    if not text or not text.strip():
+        return None
+
+    cleaned = text.strip()
+
+    # 1. Strip Markdown code fences if wrapped
+    if cleaned.startswith("```"):
+        cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r"\s*```\s*$", "", cleaned)
+        cleaned = cleaned.strip()
+
+    # 2. Try standard json.loads if it yields a container (dict or list)
+    try:
+        val = json.loads(cleaned)
+        if isinstance(val, (dict, list)):
+            return val
+    except Exception:
+        pass
+
+    # 3. Extract outer JSON object or array bounds
+    first_brace = cleaned.find("{")
+    first_bracket = cleaned.find("[")
+
+    start_idx = -1
+    if first_brace != -1 and first_bracket != -1:
+        start_idx = min(first_brace, first_bracket)
+    elif first_brace != -1:
+        start_idx = first_brace
+    elif first_bracket != -1:
+        start_idx = first_bracket
+
+    if start_idx != -1:
+        last_brace = cleaned.rfind("}")
+        last_bracket = cleaned.rfind("]")
+        end_idx = max(last_brace, last_bracket)
+        if end_idx > start_idx:
+            sub = cleaned[start_idx : end_idx + 1]
+            try:
+                import json_repair
+                val = json_repair.loads(sub)
+                if isinstance(val, (dict, list)):
+                    return val
+            except Exception:
+                pass
+            try:
+                val = json.loads(sub)
+                if isinstance(val, (dict, list)):
+                    return val
+            except Exception:
+                pass
+
+    # 4. Try json_repair directly on cleaned text
+    try:
+        import json_repair
+        val = json_repair.loads(cleaned)
+        if isinstance(val, (dict, list)):
+            return val
+    except Exception:
+        pass
+
+    return None
+
+
