@@ -300,6 +300,34 @@ class TestSpacedRepetitionAndReviewSessions(unittest.TestCase):
         self.assertEqual(sess_get.status_code, 200)
         self.assertEqual(sess_get.json()["data"]["reviewed_items"], 1)
 
+    def test_review_session_completes_with_completed_at(self):
+        """When the last review item is rated, RateReviewResponse includes completed_at timestamp."""
+        _, cards = self._create_test_flashcards(self.user_a_ws_id, self.user_a_id, count=1)
+
+        start_resp = self.client.post(
+            "/api/v1/reviews/sessions",
+            json={"limit": 5},
+            headers={"Authorization": f"Bearer {self.user_a_token}"}
+        )
+        self.assertEqual(start_resp.status_code, 201)
+        session_id = start_resp.json()["data"]["id"]
+
+        next_resp = self.client.get(
+            f"/api/v1/reviews/sessions/{session_id}/next",
+            headers={"Authorization": f"Bearer {self.user_a_token}"}
+        )
+        review_id = next_resp.json()["data"]["review_id"]
+
+        rate_resp = self.client.post(
+            f"/api/v1/reviews/{review_id}/rate",
+            json={"rating": "good"},
+            headers={"Authorization": f"Bearer {self.user_a_token}"}
+        )
+        self.assertEqual(rate_resp.status_code, 200)
+        data = rate_resp.json()["data"]
+        self.assertEqual(data["session_status"], "completed")
+        self.assertIsNotNone(data["completed_at"])
+
     def test_prevent_double_rating_idempotency(self):
         """Rating the same review item twice raises HTTP 409 Conflict without re-applying scheduler."""
         _, cards = self._create_test_flashcards(self.user_a_ws_id, self.user_a_id, count=1)

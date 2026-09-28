@@ -87,6 +87,17 @@ class FlashcardGenerationService:
             doc = DocumentRepository.get_by_id_and_workspace(doc_id, workspace_id)
             if not doc:
                 raise NotFoundError(f"Document '{doc_id}' not found or access denied.")
+            doc_status = doc.get("status")
+            title = doc.get("title") or f"Document {doc_id}"
+            if doc_status in ["uploading", "processing"]:
+                raise ValidationError(
+                    f"Document '{title}' is still being processed. Please wait until indexing completes before generating flashcards."
+                )
+            if doc_status == "failed":
+                err = doc.get("processing_error") or "indexing failed"
+                raise ValidationError(
+                    f"Document '{title}' failed processing ({err}). Please re-upload or re-index before generating flashcards."
+                )
             verified_docs.append(doc)
 
         return verified_docs

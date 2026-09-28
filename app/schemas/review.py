@@ -89,6 +89,7 @@ class RateReviewResponse(BaseModel):
     reviewed_items: int
     total_items: int
     session_status: str
+    completed_at: Optional[str] = None
 
 
 class ReviewQueueItemResponse(BaseModel):

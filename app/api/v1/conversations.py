@@ -10,7 +10,7 @@ from fastapi.responses import StreamingResponse
 
 from app.api.deps import get_current_user, get_current_workspace
 from app.api.middleware import InMemoryRateLimiter
-from app.core.errors import NotFoundError, RateLimitError
+from app.core.errors import NotFoundError, RateLimitError, ConflictError, ValidationError
 from app.models.repositories import (
     ConversationRepository,
     DocumentRepository,
@@ -261,7 +261,28 @@ async def send_message(
             workspace_id=workspace["id"]
         )
         if not doc:
+            try:
+                from app.services.book_sync import BookSyncService
+                BookSyncService.sync_workspace_books(workspace["id"])
+                doc = DocumentRepository.get_by_id_and_workspace(
+                    document_id=payload.document_id,
+                    workspace_id=workspace["id"]
+                )
+            except Exception:
+                pass
+        if not doc:
             raise NotFoundError("Filtered document not found.")
+        doc_status = doc.get("status")
+        if doc_status in ["uploading", "processing"]:
+            raise ConflictError(f"Document '{doc.get('title', 'Document')}' is still being indexed. Grounded chat will be available once indexing completes.")
+        if doc_status == "failed":
+            raise ValidationError(f"Document '{doc.get('title', 'Document')}' failed indexing. Please re-upload or re-index.")
+    else:
+        try:
+            from app.services.book_sync import BookSyncService
+            BookSyncService.sync_workspace_books(workspace["id"])
+        except Exception:
+            pass
 
     if payload.stream:
         return StreamingResponse(

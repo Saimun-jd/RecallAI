@@ -40,6 +40,45 @@ export function FlashcardStudyView() {
   const [isDirectPractice, setIsDirectPractice] = useState(false);
   const [directIndex, setDirectIndex] = useState(0);
 
+  // Active study duration tracking (accurately ignores background/idle time)
+  const activeStudySecondsRef = React.useRef<number>(0);
+  const cardStartTimeRef = React.useRef<number>(Date.now());
+  const isTabVisibleRef = React.useRef<boolean>(!document.hidden);
+  const [completedDuration, setCompletedDuration] = useState<number | null>(null);
+
+  // Accumulate active study time spent on the current card
+  const accumulateActiveCardTime = useCallback(() => {
+    if (isTabVisibleRef.current) {
+      const elapsed = (Date.now() - cardStartTimeRef.current) / 1000;
+      // Cap at 60s per card so stepping away from keyboard never inflates study duration
+      const activeCardTime = Math.min(Math.max(1, elapsed), 60);
+      activeStudySecondsRef.current += activeCardTime;
+    }
+    cardStartTimeRef.current = Date.now();
+  }, []);
+
+  // Track tab visibility so time spent in another tab/window is paused
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        if (isTabVisibleRef.current) {
+          const elapsed = (Date.now() - cardStartTimeRef.current) / 1000;
+          const activeCardTime = Math.min(Math.max(0, elapsed), 60);
+          activeStudySecondsRef.current += activeCardTime;
+        }
+        isTabVisibleRef.current = false;
+      } else {
+        isTabVisibleRef.current = true;
+        cardStartTimeRef.current = Date.now();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
+
   // Exit confirmation dialog
   const [showExitConfirm, setShowExitConfirm] = useState(false);
 
@@ -51,6 +90,10 @@ export function FlashcardStudyView() {
     setIsCompleted(false);
     setIsRevealed(false);
     setDirectIndex(0);
+    setCompletedDuration(null);
+    activeStudySecondsRef.current = 0;
+    cardStartTimeRef.current = Date.now();
+    isTabVisibleRef.current = !document.hidden;
 
     try {
       // 1. Fetch set details
@@ -130,12 +173,31 @@ export function FlashcardStudyView() {
       if (isDirectPractice) {
         // Advance direct set card
         if (!set) return;
+        accumulateActiveCardTime();
         const nextIdx = directIndex + 1;
         if (nextIdx >= set.cards.length) {
+          const totalSec = Math.max(1, Math.round(activeStudySecondsRef.current));
+          setCompletedDuration(totalSec);
+          const now = Date.now();
+          const nowIso = new Date(now).toISOString();
+          const startedIso = new Date(now - totalSec * 1000).toISOString();
+          setSession({
+            id: session?.id || 'direct-session',
+            workspace_id: set.workspace_id,
+            user_id: set.user_id,
+            status: 'completed',
+            started_at: startedIso,
+            completed_at: nowIso,
+            duration_seconds: totalSec,
+            total_items: set.cards.length,
+            reviewed_items: set.cards.length,
+            progress_percentage: 100,
+          });
           setIsCompleted(true);
         } else {
           setDirectIndex(nextIdx);
           setIsRevealed(false);
+          cardStartTimeRef.current = Date.now();
         }
         return;
       }
@@ -143,8 +205,33 @@ export function FlashcardStudyView() {
       if (!session || !currentItem) return;
 
       setIsSubmittingRating(true);
+      accumulateActiveCardTime();
       try {
         const rateResult = await client.rateReviewItem(currentItem.review_id, rating);
+        const isFinished = rateResult.session_status === 'completed' || rateResult.reviewed_items >= rateResult.total_items;
+
+        if (isFinished) {
+          const totalSec = Math.max(1, Math.round(activeStudySecondsRef.current));
+          setCompletedDuration(totalSec);
+          const now = Date.now();
+          const nowIso = new Date(now).toISOString();
+          const startedIso = new Date(now - totalSec * 1000).toISOString();
+
+          setSession((prev) => ({
+            ...(prev || session),
+            reviewed_items: rateResult.reviewed_items,
+            total_items: rateResult.total_items,
+            progress_percentage: 100,
+            status: 'completed',
+            started_at: startedIso,
+            completed_at: nowIso,
+            duration_seconds: totalSec,
+          }));
+
+          setIsCompleted(true);
+          return;
+        }
+
         setSession((prev) =>
           prev
             ? {
@@ -159,21 +246,29 @@ export function FlashcardStudyView() {
             : null
         );
 
-        if (rateResult.session_status === 'completed') {
-          setIsCompleted(true);
-          return;
-        }
-
         // Fetch next item
         const nextItem = await client.getNextReviewItem(session.id);
         if (!nextItem) {
           // Completed
-          const completedSession = await client.completeReviewSession(session.id);
-          setSession(completedSession);
+          const totalSec = Math.max(1, Math.round(activeStudySecondsRef.current));
+          setCompletedDuration(totalSec);
+          const now = Date.now();
+          const nowIso = new Date(now).toISOString();
+          const startedIso = new Date(now - totalSec * 1000).toISOString();
+
+          const completedSession = await client.completeReviewSession(session.id).catch(() => null);
+          setSession({
+            ...(completedSession || session),
+            status: 'completed',
+            started_at: startedIso,
+            completed_at: nowIso,
+            duration_seconds: totalSec,
+          });
           setIsCompleted(true);
         } else {
           setCurrentItem(nextItem);
           setIsRevealed(false);
+          cardStartTimeRef.current = Date.now();
         }
       } catch (err: any) {
         showToast('error', err?.userMessage || 'Failed to submit rating.');
@@ -274,15 +369,21 @@ export function FlashcardStudyView() {
 
   // Completion State
   if (isCompleted) {
-    const completedSession: ReviewSessionItem = session || {
-      id: 'direct-session',
-      workspace_id: set.workspace_id,
-      user_id: set.user_id,
+    const totalSec = completedDuration ?? Math.max(1, Math.round(activeStudySecondsRef.current));
+    const now = Date.now();
+    const nowIso = new Date(now).toISOString();
+    const startedIso = new Date(now - totalSec * 1000).toISOString();
+
+    const completedSession: ReviewSessionItem = {
+      id: session?.id || 'direct-session',
+      workspace_id: session?.workspace_id || set.workspace_id,
+      user_id: session?.user_id || set.user_id,
       status: 'completed',
-      started_at: new Date(Date.now() - set.cards.length * 5000).toISOString(),
-      completed_at: new Date().toISOString(),
-      total_items: set.cards.length,
-      reviewed_items: set.cards.length,
+      started_at: session?.started_at && session?.duration_seconds != null ? session.started_at : startedIso,
+      completed_at: session?.completed_at || nowIso,
+      duration_seconds: totalSec,
+      total_items: isDirectPractice ? set.cards.length : (session?.total_items || set.cards.length),
+      reviewed_items: isDirectPractice ? set.cards.length : (session?.reviewed_items || set.cards.length),
       progress_percentage: 100,
     };
 
@@ -292,6 +393,8 @@ export function FlashcardStudyView() {
           session={completedSession}
           setId={set.id}
           setTitle={set.title}
+          durationSeconds={totalSec}
+          onStudyAgain={initStudy}
         />
       </div>
     );

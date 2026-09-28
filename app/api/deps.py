@@ -106,5 +106,16 @@ def require_document_owner(
         workspace_id=workspace["id"]
     )
     if not document:
+        try:
+            from app.services.book_sync import BookSyncService
+            BookSyncService.sync_workspace_books(workspace["id"])
+            document = DocumentRepository.get_by_id_and_workspace(
+                document_id=document_id,
+                workspace_id=workspace["id"]
+            )
+        except Exception:
+            pass
+
+    if not document:
         raise NotFoundError("Document not found.")
     return document

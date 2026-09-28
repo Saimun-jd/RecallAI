@@ -326,8 +326,13 @@ class DocumentRepository:
         workspace_id: str,
         db_conn: Optional[sqlite3.Connection] = None
     ) -> Optional[Dict[str, Any]]:
-        sql = "SELECT * FROM documents WHERE id = ? AND workspace_id = ? AND deleted_at IS NULL"
-        params = (document_id, workspace_id)
+        sql = """
+            SELECT * FROM documents 
+            WHERE (id = ? OR json_extract(metadata, '$.book_id') = ? OR json_extract(metadata, '$.book_id') = CAST(? AS INTEGER))
+              AND workspace_id = ? 
+              AND deleted_at IS NULL
+        """
+        params = (document_id, document_id, document_id, workspace_id)
         if db_conn:
             cursor = db_conn.cursor()
             cursor.execute(sql, params)
@@ -776,8 +781,8 @@ class ChunkRepository:
         """
         params: List[Any] = [workspace_id]
         if document_id:
-            sql += " AND d.id = ?"
-            params.append(document_id)
+            sql += " AND (d.id = ? OR json_extract(d.metadata, '$.book_id') = ? OR json_extract(d.metadata, '$.book_id') = CAST(? AS INTEGER))"
+            params.extend([document_id, document_id, document_id])
         elif document_ids:
             clean_ids = [d for d in document_ids if d]
             if clean_ids:
@@ -3437,16 +3442,19 @@ class ReviewSessionRepository:
         Atomically increments reviewed_items count and returns updated (reviewed_items, total_items).
         """
         now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        # Update started_at on first card rating so prefetch/idle time before active study is excluded
         sql = """
             UPDATE review_sessions
-            SET reviewed_items = reviewed_items + 1, updated_at = ?
+            SET reviewed_items = reviewed_items + 1,
+                started_at = CASE WHEN reviewed_items = 0 THEN ? ELSE started_at END,
+                updated_at = ?
             WHERE id = ?
         """
         sql_fetch = "SELECT reviewed_items, total_items FROM review_sessions WHERE id = ?"
 
         def _run(conn: sqlite3.Connection) -> Dict[str, int]:
             cur = conn.cursor()
-            cur.execute(sql, (now_iso, session_id))
+            cur.execute(sql, (now_iso, now_iso, session_id))
             cur.execute(sql_fetch, (session_id,))
             row = cur.fetchone()
             if not row:

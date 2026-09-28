@@ -414,14 +414,32 @@ class GeminiAdapter(BaseAIAdapter):
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent?key={self.api_key}"
         payload = self._build_payload(messages, temperature, max_tokens)
 
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            try:
-                response = await client.post(url, json=payload)
-                response.raise_for_status()
-                data = response.json()
-            except Exception as e:
-                self._handle_http_error(e)
-                raise
+        max_retries = 3
+        for attempt in range(max_retries):
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                try:
+                    response = await client.post(url, json=payload)
+                    if response.status_code in (500, 502, 503, 504) and attempt < max_retries - 1:
+                        await asyncio.sleep(1.0 * (attempt + 1))
+                        continue
+                    response.raise_for_status()
+                    data = response.json()
+                    break
+                except httpx.HTTPStatusError as e:
+                    if e.response.status_code in (500, 502, 503, 504) and attempt < max_retries - 1:
+                        await asyncio.sleep(1.0 * (attempt + 1))
+                        continue
+                    self._handle_http_error(e)
+                    raise
+                except (httpx.TimeoutException, httpx.ConnectError) as e:
+                    if attempt < max_retries - 1:
+                        await asyncio.sleep(1.0 * (attempt + 1))
+                        continue
+                    self._handle_http_error(e)
+                    raise
+                except Exception as e:
+                    self._handle_http_error(e)
+                    raise
 
         candidates = data.get("candidates", [])
         if not candidates:
@@ -454,26 +472,44 @@ class GeminiAdapter(BaseAIAdapter):
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:streamGenerateContent?alt=sse&key={self.api_key}"
         payload = self._build_payload(messages, temperature, max_tokens)
 
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
+        max_retries = 3
+        for attempt in range(max_retries):
             try:
-                async with client.stream("POST", url, json=payload) as response:
-                    response.raise_for_status()
-                    async for line in response.aiter_lines():
-                        line = line.strip()
-                        if not line or not line.startswith("data: "):
+                async with httpx.AsyncClient(timeout=self.timeout) as client:
+                    async with client.stream("POST", url, json=payload) as response:
+                        if response.status_code in (500, 502, 503, 504) and attempt < max_retries - 1:
+                            await asyncio.sleep(1.0 * (attempt + 1))
                             continue
-                        data_str = line[6:].strip()
-                        try:
-                            chunk_json = json.loads(data_str)
-                            candidates = chunk_json.get("candidates", [])
-                            if candidates:
-                                parts = candidates[0].get("content", {}).get("parts", [])
-                                for p in parts:
-                                    text = p.get("text")
-                                    if text:
-                                        yield text
-                        except json.JSONDecodeError:
-                            continue
+                        response.raise_for_status()
+                        async for line in response.aiter_lines():
+                            line = line.strip()
+                            if not line or not line.startswith("data: "):
+                                continue
+                            data_str = line[6:].strip()
+                            try:
+                                chunk_json = json.loads(data_str)
+                                candidates = chunk_json.get("candidates", [])
+                                if candidates:
+                                    parts = candidates[0].get("content", {}).get("parts", [])
+                                    for p in parts:
+                                        text = p.get("text")
+                                        if text:
+                                            yield text
+                            except json.JSONDecodeError:
+                                continue
+                        return
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code in (500, 502, 503, 504) and attempt < max_retries - 1:
+                    await asyncio.sleep(1.0 * (attempt + 1))
+                    continue
+                self._handle_http_error(e)
+                raise
+            except (httpx.TimeoutException, httpx.ConnectError) as e:
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(1.0 * (attempt + 1))
+                    continue
+                self._handle_http_error(e)
+                raise
             except Exception as e:
                 self._handle_http_error(e)
                 raise

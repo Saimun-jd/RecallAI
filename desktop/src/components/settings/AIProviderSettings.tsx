@@ -1,13 +1,29 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import type { RootState, AIProviderId } from '../../store';
-import { setActiveProvider, setFallbackToCloud, setShowAttributionTags, setConfiguredProvider } from '../../store';
+import {
+  setActiveProvider,
+  setFallbackToCloud,
+  setShowAttributionTags,
+  setConfiguredProvider,
+  setPdfExtractor,
+} from '../../store';
 import {
   client,
   type AccountOverviewResponse,
   type ProviderCredentialItem,
   type TestProviderResponse,
 } from '../../api/client';
+import {
+  getApiKey,
+  saveApiKey,
+  removeApiKey,
+} from '../../api/keychain';
+import {
+  loadSettings,
+  saveSetting,
+  saveSettingsStore,
+} from '../../api/settingsStore';
 import {
   Cpu,
   ShieldCheck,
@@ -21,6 +37,8 @@ import {
   KeyRound,
   ExternalLink,
   Check,
+  Zap,
+  Sparkles,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useToast } from '../../hooks/useToast';
@@ -280,7 +298,7 @@ function ProviderKeyCard({
 
 export function AIProviderSettings() {
   const dispatch = useDispatch();
-  const { activeProvider, fallbackToCloudEnabled, showAttributionTags } = useSelector(
+  const { activeProvider, fallbackToCloudEnabled, showAttributionTags, pdfExtractor } = useSelector(
     (state: RootState) => state.providers
   );
   const { showToast } = useToast();
@@ -291,13 +309,26 @@ export function AIProviderSettings() {
   const [ollamaHost, setOllamaHost] = useState('http://localhost:11434');
   const [ollamaStatus, setOllamaStatus] = useState<'checking' | 'active' | 'inactive' | null>(null);
 
+  // Document & Vision OCR Extractor state
+  const [datalabKeyInput, setDatalabKeyInput] = useState('');
+  const [showDatalabKey, setShowDatalabKey] = useState(false);
+  const [datalabConfigured, setDatalabConfigured] = useState(false);
+  const [datalabHint, setDatalabHint] = useState('');
+  const [isEditingDatalab, setIsEditingDatalab] = useState(false);
+  const [isSavingDatalab, setIsSavingDatalab] = useState(false);
+  const [isTestingDatalab, setIsTestingDatalab] = useState(false);
+  const [datalabTestResult, setDatalabTestResult] = useState<{ valid: boolean; error?: string } | null>(null);
+
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      const [ov, creds, prefs] = await Promise.all([
+      const [ov, creds, prefs, storedSettings, backendSettings, nativeDatalabKey] = await Promise.all([
         client.getAccountOverview(),
         client.listByokCredentials(),
         client.getUserPreferences().catch(() => null),
+        loadSettings().catch(() => null),
+        client.getSettings().catch(() => ({} as Record<string, string>)),
+        getApiKey('datalab_api_key').catch(() => ''),
       ]);
       setOverview(ov);
       setCredentials(creds);
@@ -312,6 +343,21 @@ export function AIProviderSettings() {
           dispatch(setConfiguredProvider({ provider: c.provider as AIProviderId, isConfigured: true }));
         }
       });
+
+      // Sync PDF extractor
+      const currentExtractor = (storedSettings?.pdfExtractor || backendSettings['pdf_extractor'] || 'pymupdf4llm') as 'pymupdf4llm' | 'marker' | 'marker_api';
+      dispatch(setPdfExtractor(currentExtractor));
+
+      // Sync Datalab API key status
+      const effectiveDatalabKey = nativeDatalabKey || backendSettings['datalab_api_key'] || '';
+      if (effectiveDatalabKey.trim()) {
+        setDatalabConfigured(true);
+        const trimmed = effectiveDatalabKey.trim();
+        setDatalabHint(trimmed.length > 8 ? `${trimmed.slice(0, 4)}...${trimmed.slice(-4)}` : '••••••••');
+      } else {
+        setDatalabConfigured(false);
+        setDatalabHint('');
+      }
     } catch (err: any) {
       console.warn('Failed to load AI providers configuration:', err);
     } finally {
@@ -381,6 +427,89 @@ export function AIProviderSettings() {
       setOverview(ov);
     } catch (err: any) {
       showToast('error', err?.message || 'Failed to remove key.');
+    }
+  };
+
+  const handleSelectExtractor = async (extractor: 'pymupdf4llm' | 'marker' | 'marker_api') => {
+    dispatch(setPdfExtractor(extractor));
+    try {
+      await saveSetting('pdfExtractor', extractor);
+      await saveSettingsStore();
+      await client.updateSetting('pdf_extractor', extractor);
+      showToast(
+        'success',
+        `PDF extraction engine set to ${
+          extractor === 'pymupdf4llm'
+            ? 'PyMuPDF (Standard Fast)'
+            : extractor === 'marker'
+            ? 'Marker AI (Local CUDA)'
+            : 'Marker AI (Cloud API)'
+        }`
+      );
+    } catch (err: any) {
+      showToast('error', err?.message || 'Failed to update extractor setting.');
+    }
+  };
+
+  const handleSaveDatalabKey = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!datalabKeyInput.trim()) {
+      showToast('error', 'Please enter a valid Datalab API key.');
+      return;
+    }
+    setIsSavingDatalab(true);
+    try {
+      const trimmed = datalabKeyInput.trim();
+      await saveApiKey('datalab_api_key', trimmed);
+      await client.saveApiKeys({ datalab_api_key: trimmed });
+      setDatalabConfigured(true);
+      setDatalabHint(trimmed.length > 8 ? `${trimmed.slice(0, 4)}...${trimmed.slice(-4)}` : '••••••••');
+      setDatalabKeyInput('');
+      setIsEditingDatalab(false);
+      setDatalabTestResult(null);
+      showToast('success', 'Datalab API key saved to secure encrypted vault.');
+    } catch (err: any) {
+      showToast('error', err?.message || 'Failed to save Datalab key.');
+    } finally {
+      setIsSavingDatalab(false);
+    }
+  };
+
+  const handleRemoveDatalabKey = async () => {
+    if (!window.confirm('Are you sure you want to remove your Datalab API key?')) return;
+    try {
+      await removeApiKey('datalab_api_key');
+      await client.saveApiKeys({ datalab_api_key: '' });
+      setDatalabConfigured(false);
+      setDatalabHint('');
+      setDatalabTestResult(null);
+      showToast('success', 'Datalab API key removed from vault.');
+    } catch (err: any) {
+      showToast('error', err?.message || 'Failed to remove Datalab key.');
+    }
+  };
+
+  const handleTestDatalabKey = async () => {
+    setIsTestingDatalab(true);
+    setDatalabTestResult(null);
+    try {
+      const keyToTest = datalabKeyInput.trim() || (await getApiKey('datalab_api_key')) || ((await client.getSettings())['datalab_api_key'] || '');
+      if (!keyToTest) {
+        showToast('error', 'Please enter or save a Datalab key to test.');
+        return;
+      }
+      const res = await client.verifyApiKey('datalab_api_key', keyToTest);
+      setDatalabTestResult({ valid: res.valid, error: res.valid ? undefined : (res.message || 'Invalid key') });
+      if (res.valid) {
+        showToast('success', 'Datalab API connection verified and operational!');
+      } else {
+        showToast('error', res.message || 'Datalab connection failed.');
+      }
+    } catch (err: any) {
+      setDatalabTestResult({ valid: false, error: err?.message || 'Verification test failed' });
+      showToast('error', err?.message || 'Verification test failed.');
+    } finally {
+      setIsTestingDatalab(false);
     }
   };
 
@@ -611,6 +740,304 @@ export function AIProviderSettings() {
               </button>
             </div>
           </div>
+        </div>
+      </section>
+
+      {/* Document Extraction & Vision OCR Section */}
+      <section className="bg-surface border-2 border-border-default rounded-xl p-6 shadow-neo-sm">
+        <div className="mb-5 pb-3 border-b-2 border-border-default flex flex-col md:flex-row md:items-center justify-between gap-2">
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="text-lg font-black uppercase text-on-surface tracking-tight">
+                Document & Vision OCR Engine
+              </h3>
+              <span className="text-[10px] font-black uppercase px-2 py-0.5 bg-primary/10 text-primary border border-primary/30 rounded">
+                Active: {pdfExtractor === 'pymupdf4llm' ? 'PyMuPDF' : pdfExtractor === 'marker' ? 'Marker (Local)' : 'Marker (Cloud)'}
+              </span>
+            </div>
+            <p className="text-xs font-bold text-on-surface-variant mt-0.5">
+              Select the engine used to extract chapters, math formulas, and handwriting from uploaded PDFs
+            </p>
+          </div>
+          <span className="text-[10px] font-mono font-bold text-on-surface-variant uppercase">
+            LaTeX & Math OCR
+          </span>
+        </div>
+
+        {/* Extractor Cards Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          {/* PyMuPDF (Standard) */}
+          <div
+            className={cn(
+              "border-2 rounded-xl p-4 flex flex-col justify-between transition-all bg-surface",
+              pdfExtractor === 'pymupdf4llm'
+                ? "border-primary shadow-neo-sm ring-1 ring-primary"
+                : "border-border-default hover:border-primary/40 shadow-xs"
+            )}
+          >
+            <div>
+              <div className="flex items-start justify-between gap-2 mb-2">
+                <h4 className="font-black uppercase text-xs text-on-surface flex items-center gap-1.5">
+                  <Zap size={14} className="text-amber-500" />
+                  PyMuPDF4LLM
+                </h4>
+                <span className="text-[9px] font-black uppercase px-1.5 py-0.5 bg-surface-container text-on-surface-variant border border-border-default rounded">
+                  Fast Digital
+                </span>
+              </div>
+              <p className="text-xs font-medium text-on-surface-variant leading-relaxed mb-4">
+                Blazing fast layout extraction for clean, born-digital textbooks and lecture slides. Zero GPU or API key required.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => handleSelectExtractor('pymupdf4llm')}
+              disabled={pdfExtractor === 'pymupdf4llm'}
+              className={cn(
+                "w-full py-1.5 text-[11px] font-black uppercase rounded-lg border-2 transition-all cursor-pointer",
+                pdfExtractor === 'pymupdf4llm'
+                  ? "bg-primary text-on-primary border-primary shadow-neo-sm cursor-default"
+                  : "bg-surface-container-low text-on-surface border-border-default hover:border-primary hover:bg-surface-container"
+              )}
+            >
+              {pdfExtractor === 'pymupdf4llm' ? 'Active Engine' : 'Use PyMuPDF'}
+            </button>
+          </div>
+
+          {/* Marker AI (Cloud API / Datalab) */}
+          <div
+            className={cn(
+              "border-2 rounded-xl p-4 flex flex-col justify-between transition-all bg-surface",
+              pdfExtractor === 'marker_api'
+                ? "border-primary shadow-neo-sm ring-1 ring-primary"
+                : "border-border-default hover:border-primary/40 shadow-xs"
+            )}
+          >
+            <div>
+              <div className="flex items-start justify-between gap-2 mb-2">
+                <h4 className="font-black uppercase text-xs text-on-surface flex items-center gap-1.5">
+                  <Sparkles size={14} className="text-primary" />
+                  Marker AI (Cloud)
+                </h4>
+                <span className="text-[9px] font-black uppercase px-1.5 py-0.5 bg-primary/10 text-primary border border-primary/30 rounded">
+                  Datalab API
+                </span>
+              </div>
+              <p className="text-xs font-medium text-on-surface-variant leading-relaxed mb-4">
+                High-precision deep learning vision model hosted on Datalab. Excels at complex LaTeX formulas, tables, and handwritten notes.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => handleSelectExtractor('marker_api')}
+              disabled={pdfExtractor === 'marker_api'}
+              className={cn(
+                "w-full py-1.5 text-[11px] font-black uppercase rounded-lg border-2 transition-all cursor-pointer",
+                pdfExtractor === 'marker_api'
+                  ? "bg-primary text-on-primary border-primary shadow-neo-sm cursor-default"
+                  : "bg-surface-container-low text-on-surface border-border-default hover:border-primary hover:bg-surface-container"
+              )}
+            >
+              {pdfExtractor === 'marker_api' ? 'Active Engine' : 'Use Marker Cloud'}
+            </button>
+          </div>
+
+          {/* Marker AI (Local CUDA) */}
+          <div
+            className={cn(
+              "border-2 rounded-xl p-4 flex flex-col justify-between transition-all bg-surface",
+              pdfExtractor === 'marker'
+                ? "border-primary shadow-neo-sm ring-1 ring-primary"
+                : "border-border-default hover:border-primary/40 shadow-xs"
+            )}
+          >
+            <div>
+              <div className="flex items-start justify-between gap-2 mb-2">
+                <h4 className="font-black uppercase text-xs text-on-surface flex items-center gap-1.5">
+                  <Cpu size={14} className="text-emerald-500" />
+                  Marker AI (Local)
+                </h4>
+                <span className="text-[9px] font-black uppercase px-1.5 py-0.5 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 rounded">
+                  CUDA Offline
+                </span>
+              </div>
+              <p className="text-xs font-medium text-on-surface-variant leading-relaxed mb-4">
+                Runs local Surya and Marker vision models on your local GPU/CPU. 100% private and offline with no external network calls.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => handleSelectExtractor('marker')}
+              disabled={pdfExtractor === 'marker'}
+              className={cn(
+                "w-full py-1.5 text-[11px] font-black uppercase rounded-lg border-2 transition-all cursor-pointer",
+                pdfExtractor === 'marker'
+                  ? "bg-primary text-on-primary border-primary shadow-neo-sm cursor-default"
+                  : "bg-surface-container-low text-on-surface border-border-default hover:border-primary hover:bg-surface-container"
+              )}
+            >
+              {pdfExtractor === 'marker' ? 'Active Engine' : 'Use Marker Local'}
+            </button>
+          </div>
+        </div>
+
+        {/* Warning if Marker Cloud is selected but key is missing */}
+        {pdfExtractor === 'marker_api' && !datalabConfigured && !isEditingDatalab && (
+          <div className="mb-4 p-3 bg-amber-500/10 border-2 border-amber-500/40 rounded-xl flex items-start gap-2.5 animate-in fade-in">
+            <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+            <div className="text-xs">
+              <p className="font-black uppercase text-amber-500">Datalab API Key Required</p>
+              <p className="font-medium text-on-surface-variant mt-0.5">
+                Marker Cloud is selected as your active extractor. Please configure your Datalab API key below to enable vision OCR extraction.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Datalab API Key Card */}
+        <div className="p-4 bg-surface-container-low border-2 border-border-default rounded-xl">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <KeyRound size={15} className="text-primary" />
+                <h4 className="font-black uppercase text-xs text-on-surface">Datalab API Key (Marker Cloud OCR)</h4>
+                {datalabConfigured ? (
+                  <span className="text-[10px] font-black uppercase px-2 py-0.5 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 rounded flex items-center gap-1">
+                    <CheckCircle2 size={10} /> Configured
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-black uppercase px-2 py-0.5 bg-surface-container-high text-on-surface-variant border border-border-default rounded">
+                    No Key
+                  </span>
+                )}
+              </div>
+              <p className="text-xs font-medium text-on-surface-variant mt-0.5">
+                Used for Marker Cloud OCR conversion of scanned math notes and handwritten diagrams.
+              </p>
+            </div>
+
+            <a
+              href="https://www.datalab.to"
+              target="_blank"
+              rel="noreferrer"
+              className="text-[11px] font-bold text-primary hover:underline flex items-center gap-1 shrink-0"
+            >
+              Get Datalab Key <ExternalLink size={10} />
+            </a>
+          </div>
+
+          {/* Configured Display */}
+          {datalabConfigured && !isEditingDatalab && (
+            <div className="p-3 bg-surface border border-border-default rounded-lg flex items-center justify-between text-xs">
+              <div className="flex items-center gap-2">
+                <span className="font-mono font-bold text-on-surface">Key hint: {datalabHint}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleTestDatalabKey}
+                  disabled={isTestingDatalab}
+                  className="text-[11px] font-bold uppercase px-2.5 py-1 bg-surface border border-border-default hover:border-primary text-on-surface rounded cursor-pointer transition-colors disabled:opacity-40 flex items-center gap-1"
+                  title="Test Datalab key connection"
+                >
+                  {isTestingDatalab ? <Loader2 size={10} className="animate-spin" /> : null}
+                  Test
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsEditingDatalab(true)}
+                  className="text-[11px] font-bold uppercase px-2.5 py-1 bg-surface border border-border-default hover:border-primary text-on-surface rounded cursor-pointer transition-colors"
+                >
+                  Replace
+                </button>
+                <button
+                  type="button"
+                  onClick={handleRemoveDatalabKey}
+                  className="p-1 text-rose-500 hover:text-rose-600 hover:bg-rose-500/10 rounded cursor-pointer transition-colors"
+                  title="Remove Datalab API Key"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Test Status Banner */}
+          {datalabTestResult && (
+            <div
+              className={cn(
+                "p-2.5 my-3 rounded-lg border text-xs flex items-center gap-2",
+                datalabTestResult.valid
+                  ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 font-bold"
+                  : "bg-rose-500/10 border-rose-500/30 text-rose-600 dark:text-rose-400 font-medium"
+              )}
+            >
+              {datalabTestResult.valid ? <CheckCircle2 size={14} className="shrink-0" /> : <AlertTriangle size={14} className="shrink-0" />}
+              <span className="truncate">{datalabTestResult.valid ? 'Datalab connection verified and operational.' : datalabTestResult.error}</span>
+            </div>
+          )}
+
+          {/* Form to enter or edit key */}
+          {(!datalabConfigured || isEditingDatalab) && (
+            <form onSubmit={handleSaveDatalabKey} className="space-y-3 mt-2 p-3 bg-surface border border-border-default rounded-lg">
+              <label className="text-[11px] font-black uppercase text-on-surface block">
+                {datalabConfigured ? 'Replace Datalab Secret Key' : 'Enter Datalab Secret Key'}
+              </label>
+
+              <div className="relative flex items-center">
+                <input
+                  type={showDatalabKey ? 'text' : 'password'}
+                  value={datalabKeyInput}
+                  onChange={(e) => setDatalabKeyInput(e.target.value)}
+                  placeholder="Paste Datalab API key (e.g. dl-...)"
+                  autoComplete="new-password"
+                  spellCheck={false}
+                  className="w-full bg-surface-container-low border-2 border-border-default rounded-lg px-3 py-2 pr-10 text-xs font-mono font-medium text-on-surface focus:outline-none focus:border-primary transition-all"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowDatalabKey(!showDatalabKey)}
+                  className="absolute right-2.5 p-1 text-on-surface-variant hover:text-on-surface cursor-pointer"
+                  title={showDatalabKey ? 'Hide key' : 'Show key'}
+                >
+                  {showDatalabKey ? <EyeOff size={14} /> : <Eye size={14} />}
+                </button>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-1">
+                {datalabConfigured && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsEditingDatalab(false);
+                      setDatalabKeyInput('');
+                      setDatalabTestResult(null);
+                    }}
+                    className="px-3 py-1.5 text-[11px] font-bold uppercase rounded border border-border-default bg-surface hover:bg-surface-container text-on-surface cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={handleTestDatalabKey}
+                  disabled={!datalabKeyInput.trim() || isTestingDatalab}
+                  className="px-3 py-1.5 text-[11px] font-bold uppercase rounded border border-border-default bg-surface hover:border-primary text-on-surface cursor-pointer disabled:opacity-40 flex items-center gap-1"
+                >
+                  {isTestingDatalab && <Loader2 size={10} className="animate-spin" />}
+                  Test Key
+                </button>
+                <button
+                  type="submit"
+                  disabled={!datalabKeyInput.trim() || isSavingDatalab}
+                  className="px-3.5 py-1.5 text-[11px] font-black uppercase rounded bg-primary text-on-primary border-2 border-primary shadow-xs hover:translate-x-0.5 hover:translate-y-0.5 transition-all disabled:opacity-40 cursor-pointer flex items-center gap-1"
+                >
+                  {isSavingDatalab ? <Loader2 size={10} className="animate-spin" /> : <Check size={10} strokeWidth={3} />}
+                  {isSavingDatalab ? 'Encrypting...' : 'Save Vault Key'}
+                </button>
+              </div>
+            </form>
+          )}
         </div>
       </section>
 

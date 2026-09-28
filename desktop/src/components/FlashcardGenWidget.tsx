@@ -28,6 +28,8 @@ export function FlashcardGenWidget({
 }: FlashcardGenWidgetProps) {
   const dispatch = useDispatch();
   const { activeProvider, configuredProviders, pdfExtractor } = useSelector((state: RootState) => state.providers);
+  const topicProcessingState = useSelector((state: RootState) => state.reader.activeProcessingTopics[topicId]);
+  const isTopicProcessing = !!topicProcessingState;
   const { showToast } = useToast();
 
   const [localConceptName, setLocalConceptName] = useState<string>('');
@@ -134,6 +136,18 @@ export function FlashcardGenWidget({
 
       <div className="flex items-start justify-between z-10">
         <div className="flex flex-col gap-1 w-full">
+          {/* Concept Extraction Progress Banner */}
+          {isTopicProcessing && (
+            <div className="p-3 mb-2 rounded-lg bg-primary/10 border-2 border-primary/30 flex items-center gap-2 text-xs font-medium text-on-surface z-10 animate-in fade-in duration-200">
+              <Loader2 size={14} className="animate-spin text-primary shrink-0" />
+              <span>
+                {topicProcessingState?.stage === 'queued'
+                  ? 'Concept extraction is queued behind other topics...'
+                  : topicProcessingState?.message || 'Extracting atomic concepts... You can generate flashcards once concepts finish extracting.'}
+              </span>
+            </div>
+          )}
+
           {/* Header Row */}
           <div className="flex items-center gap-2 mb-1 flex-wrap">
             <div className={cn(
@@ -306,13 +320,28 @@ export function FlashcardGenWidget({
       <div className="flex items-center justify-between mt-1 z-10">
         <button
           onClick={handleGenerate}
+          disabled={isGenerating || isTopicProcessing}
           className={cn(
-            "font-bold text-sm px-6 py-2.5 rounded-lg border-2 border-on-surface shadow-[2px_2px_0px_0px_#191b23] flex items-center gap-2 active:shadow-none active:translate-x-px active:translate-y-px transition-all whitespace-nowrap cursor-pointer",
+            "font-bold text-sm px-6 py-2.5 rounded-lg border-2 border-on-surface shadow-[2px_2px_0px_0px_#191b23] flex items-center gap-2 active:shadow-none active:translate-x-px active:translate-y-px transition-all whitespace-nowrap cursor-pointer disabled:opacity-50",
             selectedConcept ? "bg-secondary text-on-secondary hover:brightness-110" : "bg-primary text-on-primary hover:bg-academic-blue"
           )}
         >
-          <Zap size={16} fill="currentColor" />
-          <span>{selectedConcept ? `Generate "${selectedConcept}"` : 'Generate Flashcards'}</span>
+          {isTopicProcessing ? (
+            <>
+              <Loader2 size={16} className="animate-spin" />
+              <span>Extracting Concepts...</span>
+            </>
+          ) : isGenerating ? (
+            <>
+              <Loader2 size={16} className="animate-spin" />
+              <span>Generating Cards...</span>
+            </>
+          ) : (
+            <>
+              <Zap size={16} fill="currentColor" />
+              <span>{selectedConcept ? `Generate "${selectedConcept}"` : 'Generate Flashcards'}</span>
+            </>
+          )}
         </button>
       </div>
     </div>

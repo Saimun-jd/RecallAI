@@ -47,6 +47,9 @@ export const DiagramImage: React.FC<DiagramImageProps> = ({ src, alt, ...props }
     if (rawSrc.startsWith('http://') || rawSrc.startsWith('https://') || rawSrc.startsWith('data:')) {
       return rawSrc;
     }
+    if (rawSrc.startsWith('/static/')) {
+      return `${API_BASE}${rawSrc}`;
+    }
     // Clean relative path (e.g. "./images/fig1.png" -> "fig1.png", "images/fig1.png" -> "fig1.png")
     const clean = rawSrc.replace(/^\.?\/*(images\/)?/, '');
     return `${API_BASE}/images/${clean}`;

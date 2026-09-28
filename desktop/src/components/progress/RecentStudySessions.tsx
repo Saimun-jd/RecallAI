@@ -2,6 +2,7 @@ import React from 'react';
 import { History } from 'lucide-react';
 import { type StudySessionSummary } from '../../api/client';
 import { cn } from '../../lib/utils';
+import { formatDuration } from '../../utils/formatDuration';
 
 interface RecentStudySessionsProps {
   sessions: StudySessionSummary[];
@@ -9,14 +10,6 @@ interface RecentStudySessionsProps {
 
 export const RecentStudySessions: React.FC<RecentStudySessionsProps> = ({ sessions }) => {
   const hasSessions = sessions.length > 0;
-
-  const formatDuration = (seconds?: number | null) => {
-    if (seconds == null || seconds <= 0) return '—';
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    if (mins === 0) return `${secs}s`;
-    return `${mins}m ${secs}s`;
-  };
 
   const formatTimestamp = (isoStr: string) => {
     try {
@@ -81,7 +74,7 @@ export const RecentStudySessions: React.FC<RecentStudySessionsProps> = ({ sessio
                       {s.reviewed_items} <span className="text-on-surface-variant font-sans font-normal">/ {s.total_items}</span>
                     </td>
                     <td className="py-3 px-3 font-mono">
-                      {formatDuration(s.duration_seconds)}
+                      {formatDuration(s.duration_seconds, { fallback: '—' })}
                     </td>
                     <td className="py-3 px-3 text-right">
                       <div className="inline-flex flex-wrap items-center justify-end gap-1.5 font-bold text-[11px]">

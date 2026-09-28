@@ -402,6 +402,7 @@ class ReviewSessionService:
             )
 
             session_status = "active"
+            completed_at_iso = None
             if counts["reviewed_items"] >= counts["total_items"]:
                 ReviewSessionRepository.update_status(
                     session_id=session["id"],
@@ -410,6 +411,7 @@ class ReviewSessionService:
                     db_conn=conn
                 )
                 session_status = "completed"
+                completed_at_iso = eval_iso
 
         return RateReviewResponse(
             review_id=review_id,
@@ -422,7 +424,8 @@ class ReviewSessionService:
             state=updated_metadata.get("state", "review"),
             reviewed_items=counts["reviewed_items"],
             total_items=counts["total_items"],
-            session_status=session_status
+            session_status=session_status,
+            completed_at=completed_at_iso
         )
 
     @classmethod

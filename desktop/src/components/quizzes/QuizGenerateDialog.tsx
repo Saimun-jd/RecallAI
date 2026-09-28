@@ -17,6 +17,7 @@ import {
   type QuizDetailResponse,
   type QuizGenerateRequest,
 } from '../../api/client';
+import { fetchUnifiedDocuments } from '../../utils/documentUtils';
 
 export interface QuizGenerateDialogProps {
   isOpen: boolean;
@@ -44,7 +45,7 @@ export function QuizGenerateDialog({
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Load documents when dialog opens
+  // Load unified documents when dialog opens
   useEffect(() => {
     if (!isOpen) return;
 
@@ -52,15 +53,35 @@ export function QuizGenerateDialog({
     setLoadingDocs(true);
     setError(null);
 
-    client
-      .getDocuments(50, 0, 'ready')
-      .then((resp) => {
+    fetchUnifiedDocuments(100)
+      .then(async (docs) => {
         if (!isMounted) return;
-        setDocuments(resp.documents || []);
+        let allDocs = docs || [];
+
+        // If preselected document wasn't in unified list, attempt to fetch it directly
+        if (preselectedDocumentId && !allDocs.some((d) => d.id === preselectedDocumentId)) {
+          try {
+            const single = await client.getDocument(preselectedDocumentId);
+            if (single) {
+              allDocs = [single, ...allDocs];
+            }
+          } catch {
+            // Ignore if doc could not be fetched directly
+          }
+        }
+
+        setDocuments(allDocs);
+
         if (preselectedDocumentId) {
           setSelectedDocIds([preselectedDocumentId]);
-        } else if (resp.documents && resp.documents.length > 0 && selectedDocIds.length === 0) {
-          setSelectedDocIds([resp.documents[0].id]);
+        } else {
+          // Preselect first ready document
+          const firstReady = allDocs.find(
+            (d) => d.status === 'ready' || (!d.status && ((d.metadata?.chunk_count as number) || 0) > 0)
+          );
+          if (firstReady && selectedDocIds.length === 0) {
+            setSelectedDocIds([firstReady.id]);
+          }
         }
       })
       .catch((err) => {
@@ -75,6 +96,16 @@ export function QuizGenerateDialog({
       isMounted = false;
     };
   }, [isOpen, preselectedDocumentId]);
+
+  // Compute unready state for selected documents
+  const selectedDocs = documents.filter((d) => selectedDocIds.includes(d.id));
+  const unreadySelectedDocs = selectedDocs.filter(
+    (d) => d.status === 'processing' || d.status === 'uploading' || d.status === 'failed'
+  );
+  const isSelectedDocProcessing = unreadySelectedDocs.some(
+    (d) => d.status === 'processing' || d.status === 'uploading'
+  );
+  const isSelectedDocFailed = unreadySelectedDocs.some((d) => d.status === 'failed');
 
   const toggleDoc = (docId: string) => {
     setSelectedDocIds((prev) =>
@@ -95,6 +126,14 @@ export function QuizGenerateDialog({
   const handleGenerate = async () => {
     if (selectedDocIds.length === 0) {
       setError('Please select at least one study document.');
+      return;
+    }
+
+    if (unreadySelectedDocs.length > 0) {
+      const docName = unreadySelectedDocs[0].title || 'The selected document';
+      setError(
+        `Document "${docName}" is not ready for quiz generation. Please wait until indexing completes.`
+      );
       return;
     }
 
@@ -145,6 +184,31 @@ export function QuizGenerateDialog({
           </div>
         )}
 
+        {/* Unready Selected Document Warning Banner */}
+        {isSelectedDocProcessing && (
+          <div className="p-3.5 rounded-xl bg-amber-500/10 border-2 border-amber-500/30 text-amber-700 dark:text-amber-400 flex items-start gap-2.5 text-xs font-semibold">
+            <Loader2 size={16} className="shrink-0 mt-0.5 animate-spin text-amber-600 dark:text-amber-400" />
+            <div className="flex-1 min-w-0">
+              <p className="font-bold">Document Still Indexing</p>
+              <p className="opacity-90">
+                "{unreadySelectedDocs[0].title}" is still being processed. Quizzes require extractable text chunks. Please wait for indexing to finish or select a ready document.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {isSelectedDocFailed && (
+          <div className="p-3.5 rounded-xl bg-error/10 border-2 border-error/30 text-error flex items-start gap-2.5 text-xs font-semibold">
+            <AlertCircle size={16} className="shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <p className="font-bold">Document Failed Processing</p>
+              <p className="opacity-90">
+                "{unreadySelectedDocs[0].title}" failed processing. Please re-upload or select another document.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Document Selection */}
         <div className="space-y-2">
           <label className="text-xs font-extrabold uppercase tracking-widest text-on-surface-variant flex items-center justify-between">
@@ -166,6 +230,8 @@ export function QuizGenerateDialog({
             <div className="max-h-36 overflow-y-auto border-2 border-border-default rounded-xl divide-y divide-border-default/50 bg-surface">
               {documents.map((doc) => {
                 const isSelected = selectedDocIds.includes(doc.id);
+                const isDocProcessing = doc.status === 'uploading' || doc.status === 'processing';
+                const isDocFailed = doc.status === 'failed';
                 return (
                   <button
                     key={doc.id}
@@ -173,19 +239,42 @@ export function QuizGenerateDialog({
                     onClick={() => toggleDoc(doc.id)}
                     className={`w-full flex items-center gap-2.5 px-3 py-2 text-left text-xs transition-colors cursor-pointer ${
                       isSelected
-                        ? 'bg-primary/10 font-bold text-primary'
+                        ? isDocProcessing
+                          ? 'bg-amber-500/10 font-bold text-amber-700 dark:text-amber-400'
+                          : isDocFailed
+                          ? 'bg-error/10 font-bold text-error'
+                          : 'bg-primary/10 font-bold text-primary'
                         : 'hover:bg-surface-container text-on-surface'
                     }`}
                   >
                     <div className="shrink-0">
                       {isSelected ? (
-                        <CheckSquare size={15} className="text-primary" />
+                        <CheckSquare
+                          size={15}
+                          className={
+                            isDocProcessing
+                              ? 'text-amber-600'
+                              : isDocFailed
+                              ? 'text-error'
+                              : 'text-primary'
+                          }
+                        />
                       ) : (
                         <Square size={15} className="text-on-surface-variant/50" />
                       )}
                     </div>
                     <FileText size={13} className="shrink-0 opacity-60" />
                     <span className="truncate flex-1">{doc.title}</span>
+                    {isDocProcessing && (
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-700 dark:text-amber-400 shrink-0">
+                        Indexing
+                      </span>
+                    )}
+                    {isDocFailed && (
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-error/20 text-error shrink-0">
+                        Failed
+                      </span>
+                    )}
                     <span className="text-[10px] text-on-surface-variant shrink-0">
                       {doc.total_pages}p
                     </span>
@@ -338,10 +427,19 @@ export function QuizGenerateDialog({
           size="md"
           onClick={handleGenerate}
           isLoading={generating}
+          disabled={generating || unreadySelectedDocs.length > 0 || selectedDocIds.length === 0}
           className="gap-2"
         >
           <Sparkles size={16} />
-          <span>{generating ? 'Generating Questions...' : 'Generate Assessment'}</span>
+          <span>
+            {generating
+              ? 'Generating Questions...'
+              : isSelectedDocProcessing
+              ? 'Document Indexing...'
+              : isSelectedDocFailed
+              ? 'Document Failed'
+              : 'Generate Assessment'}
+          </span>
         </Button>
       </DialogFooter>
     </Dialog>

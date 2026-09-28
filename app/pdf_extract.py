@@ -78,6 +78,21 @@ async def extract_raw_text(pdf_bytes: bytes, start_page: int | None = None, forc
                     except Exception as e:
                         logger.error(f"Marker fallback extraction failed: {e}")
 
+            # Scope extracted images with cache_key to prevent cross-chunk/cross-book collisions
+            images_dir = doc_cache_dir / "images"
+            if images_dir.exists():
+                import shutil
+                for img_file in list(images_dir.iterdir()):
+                    if img_file.is_file() and not img_file.name.startswith(f"{cache_key}_"):
+                        scoped_name = f"{cache_key}_{img_file.name}"
+                        scoped_path = images_dir / scoped_name
+                        shutil.copy2(str(img_file), str(scoped_path))
+                        md_text = re.sub(
+                            r'(!\[.*?\]\()(?:\.?\/?(?:images\/)?)' + re.escape(img_file.name) + r'(\))',
+                            rf'\g<1>{scoped_name}\2',
+                            md_text
+                        )
+
             return md_text, cache_key, start_page_num, True, md_file
 
     md_text, cache_key, start_page_num, is_new, md_file = await run_in_threadpool(_do_fitz_and_extract)

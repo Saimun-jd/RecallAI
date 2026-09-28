@@ -18,6 +18,7 @@ import {
   UploadDocumentModal 
 } from '../components/documents';
 import { supabase } from '../lib/supabase';
+import { fetchUnifiedDocuments } from '../utils/documentUtils';
 
 export function DocumentsView() {
   const navigate = useNavigate();
@@ -39,59 +40,7 @@ export function DocumentsView() {
   // 1. Fetch workspace documents (with offline SQLite fallback)
   const fetchDocuments = useCallback(async () => {
     try {
-      const [v1Res, booksRes] = await Promise.allSettled([
-        client.getDocuments(100, 0),
-        client.getBooks(),
-      ]);
-
-      let items: DocumentItem[] = [];
-
-      if (v1Res.status === 'fulfilled' && v1Res.value?.documents) {
-        items = [...v1Res.value.documents];
-      }
-
-      // Merge legacy books if running offline/local
-      if (booksRes.status === 'fulfilled' && Array.isArray(booksRes.value)) {
-        const booksList = booksRes.value;
-        // Associate book_id with any v1 items that match title or metadata
-        items = items.map((item) => {
-          const matchingBook = booksList.find((b: any) =>
-            b.id.toString() === item.id ||
-            item.metadata?.book_id === b.id ||
-            b.title.toLowerCase().trim() === item.title.toLowerCase().trim()
-          );
-          if (matchingBook) {
-            return {
-              ...item,
-              metadata: {
-                ...item.metadata,
-                book_id: matchingBook.id,
-              },
-            };
-          }
-          return item;
-        });
-
-        const legacyItems: DocumentItem[] = booksList
-          .filter((b: any) => !items.some((d) => d.id === b.id.toString() || d.metadata?.book_id === b.id))
-          .map((b: any) => ({
-            id: b.id.toString(),
-            workspace_id: 'default',
-            title: b.title,
-            source_type: 'pdf',
-            total_pages: b.total_pages || 1,
-            status: 'ready',
-            created_at: b.created_at || new Date().toISOString(),
-            updated_at: b.created_at || new Date().toISOString(),
-            metadata: {
-              book_id: b.id,
-              chunk_count: b.topics_processed || b.total_topics,
-              file_hash: b.file_hash,
-            },
-          }));
-        items = [...items, ...legacyItems];
-      }
-
+      const items = await fetchUnifiedDocuments(100);
       setDocuments(items);
     } catch (err: any) {
       console.error('Failed to fetch documents:', err);

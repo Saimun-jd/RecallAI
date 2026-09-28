@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Sparkles, Loader2, AlertCircle, CheckCircle2, BookOpen } from 'lucide-react';
 import { Dialog, DialogFooter } from '../ui/Dialog';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { client, type DocumentItem, type FlashcardSetDetailResponse } from '../../api/client';
+import { fetchUnifiedDocuments } from '../../utils/documentUtils';
 
 export interface FlashcardGenerateDialogProps {
   isOpen: boolean;
@@ -36,12 +37,20 @@ export function FlashcardGenerateDialog({
 
   // Fetch documents for the selector
   useEffect(() => {
-    if (!isOpen) return;
     const fetchDocs = async () => {
       setLoadingDocs(true);
       try {
-        const resp = await client.getDocuments(50, 0);
-        setDocuments(resp.documents.filter((d) => d.status === 'ready'));
+        const docs = await fetchUnifiedDocuments(100);
+        let allDocs = docs || [];
+        if (preselectedDocumentId && !allDocs.some((d) => d.id === preselectedDocumentId)) {
+          try {
+            const single = await client.getDocument(preselectedDocumentId);
+            if (single) allDocs = [single, ...allDocs];
+          } catch {
+            // ignore
+          }
+        }
+        setDocuments(allDocs);
       } catch {
         setDocuments([]);
       } finally {
@@ -49,7 +58,17 @@ export function FlashcardGenerateDialog({
       }
     };
     fetchDocs();
-  }, [isOpen]);
+  }, [isOpen, preselectedDocumentId]);
+
+  // Compute unready state for selected documents
+  const selectedDocs = documents.filter((d) => selectedDocIds.includes(d.id));
+  const unreadySelectedDocs = selectedDocs.filter(
+    (d) => d.status === 'processing' || d.status === 'uploading' || d.status === 'failed'
+  );
+  const isSelectedDocProcessing = unreadySelectedDocs.some(
+    (d) => d.status === 'processing' || d.status === 'uploading'
+  );
+  const isSelectedDocFailed = unreadySelectedDocs.some((d) => d.status === 'failed');
 
   // Sync preselected doc when dialog opens
   useEffect(() => {
@@ -58,7 +77,7 @@ export function FlashcardGenerateDialog({
     }
   }, [isOpen, preselectedDocumentId]);
 
-  const handleReset = () => {
+  const handleReset = useCallback(() => {
     setGenerateState('idle');
     setErrorMessage(null);
     setGeneratedSet(null);
@@ -66,12 +85,12 @@ export function FlashcardGenerateDialog({
     setTopic('');
     setCount(10);
     if (!preselectedDocumentId) setSelectedDocIds([]);
-  };
+  }, [preselectedDocumentId]);
 
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     handleReset();
     onClose();
-  };
+  }, [handleReset, onClose]);
 
   const toggleDocSelection = (docId: string) => {
     setSelectedDocIds((prev) =>
@@ -80,6 +99,15 @@ export function FlashcardGenerateDialog({
   };
 
   const handleGenerate = async () => {
+    if (unreadySelectedDocs.length > 0) {
+      const docName = unreadySelectedDocs[0].title || 'The selected document';
+      setErrorMessage(
+        `Document "${docName}" is still being processed. Please wait until indexing completes.`
+      );
+      setGenerateState('error');
+      return;
+    }
+
     setGenerateState('generating');
     setErrorMessage(null);
 
@@ -120,6 +148,31 @@ export function FlashcardGenerateDialog({
     >
       {generateState === 'idle' && (
         <div className="space-y-5">
+          {/* Unready Selected Document Warning Banner */}
+          {isSelectedDocProcessing && (
+            <div className="p-3.5 rounded-xl bg-amber-500/10 border-2 border-amber-500/30 text-amber-700 dark:text-amber-400 flex items-start gap-2.5 text-xs font-semibold">
+              <Loader2 size={16} className="shrink-0 mt-0.5 animate-spin text-amber-600 dark:text-amber-400" />
+              <div className="flex-1 min-w-0">
+                <p className="font-bold">Document Still Indexing</p>
+                <p className="opacity-90">
+                  "{unreadySelectedDocs[0].title}" is still being processed. Flashcards require extractable text chunks. Please wait for indexing to finish or select a ready document.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {isSelectedDocFailed && (
+            <div className="p-3.5 rounded-xl bg-error/10 border-2 border-error/30 text-error flex items-start gap-2.5 text-xs font-semibold">
+              <AlertCircle size={16} className="shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <p className="font-bold">Document Failed Processing</p>
+                <p className="opacity-90">
+                  "{unreadySelectedDocs[0].title}" failed processing. Please re-upload or select another document.
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Document Selector */}
           <div className="space-y-2">
             <label className="text-xs font-extrabold text-on-surface uppercase tracking-wider">
@@ -137,6 +190,8 @@ export function FlashcardGenerateDialog({
               <div className="max-h-40 overflow-y-auto border-2 border-border-default rounded-xl divide-y divide-border-default/60">
                 {documents.map((doc) => {
                   const isSelected = selectedDocIds.includes(doc.id);
+                  const isDocProcessing = doc.status === 'uploading' || doc.status === 'processing';
+                  const isDocFailed = doc.status === 'failed';
                   return (
                     <button
                       key={doc.id}
@@ -144,19 +199,39 @@ export function FlashcardGenerateDialog({
                       onClick={() => toggleDocSelection(doc.id)}
                       className={`w-full flex items-center gap-3 px-3.5 py-2.5 text-left text-xs font-bold transition-colors cursor-pointer ${
                         isSelected
-                          ? 'bg-primary/10 text-primary'
+                          ? isDocProcessing
+                            ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400'
+                            : isDocFailed
+                            ? 'bg-error/10 text-error'
+                            : 'bg-primary/10 text-primary'
                           : 'hover:bg-surface-container text-on-surface'
                       }`}
                     >
                       <div
                         className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${
-                          isSelected ? 'bg-primary border-primary' : 'border-border-default'
+                          isSelected
+                            ? isDocProcessing
+                              ? 'bg-amber-600 border-amber-600'
+                              : isDocFailed
+                              ? 'bg-error border-error'
+                              : 'bg-primary border-primary'
+                            : 'border-border-default'
                         }`}
                       >
                         {isSelected && <CheckCircle2 size={10} className="text-white" />}
                       </div>
                       <BookOpen size={12} className="shrink-0 opacity-50" />
-                      <span className="truncate">{doc.title}</span>
+                      <span className="truncate flex-1">{doc.title}</span>
+                      {isDocProcessing && (
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-700 dark:text-amber-400 shrink-0">
+                          Indexing
+                        </span>
+                      )}
+                      {isDocFailed && (
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-error/20 text-error shrink-0">
+                          Failed
+                        </span>
+                      )}
                     </button>
                   );
                 })}
@@ -220,9 +295,17 @@ export function FlashcardGenerateDialog({
             <Button variant="outline" onClick={handleClose}>
               Cancel
             </Button>
-            <Button variant="ai" onClick={handleGenerate} disabled={documents.length === 0}>
+            <Button
+              variant="ai"
+              onClick={handleGenerate}
+              disabled={documents.length === 0 || unreadySelectedDocs.length > 0}
+            >
               <Sparkles size={14} />
-              Generate {count} Cards
+              {isSelectedDocProcessing
+                ? 'Document Indexing...'
+                : isSelectedDocFailed
+                ? 'Document Failed'
+                : `Generate ${count} Cards`}
             </Button>
           </DialogFooter>
         </div>

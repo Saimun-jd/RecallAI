@@ -28,6 +28,11 @@ export function Dialog({
   const previousActiveElement = useRef<HTMLElement | null>(null);
   const shouldReduceMotion = usePrefersReducedMotion();
 
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  });
+
   // Focus management and Escape key listener
   useEffect(() => {
     if (!isOpen) return;
@@ -37,15 +42,15 @@ export function Dialog({
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        onClose();
+        onCloseRef.current?.();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
 
-    // Initial focus on open
+    // Initial focus on open: only focus if focus is not already inside the dialog
     const timer = setTimeout(() => {
-      if (dialogRef.current) {
+      if (dialogRef.current && !dialogRef.current.contains(document.activeElement)) {
         const focusable = dialogRef.current.querySelector<HTMLElement>(
           'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
         );
@@ -59,7 +64,7 @@ export function Dialog({
       window.removeEventListener('keydown', handleKeyDown);
       previousActiveElement.current?.focus();
     };
-  }, [isOpen, onClose]);
+  }, [isOpen]);
 
   const maxWidthClasses = {
     sm: 'max-w-sm',

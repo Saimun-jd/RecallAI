@@ -16,6 +16,19 @@ export interface NoteGenerationState {
   completedAt?: number;
 }
 
+export interface TopicProcessingProgress {
+  topicId: number;
+  topicTitle?: string;
+  bookId?: number;
+  status: 'processing' | 'queued' | 'completed' | 'error' | 'already_processing';
+  stage?: string;
+  progress?: number;
+  message?: string;
+  child_title?: string;
+  current?: number;
+  total?: number;
+}
+
 export interface ReaderState {
   activeTopicId: number | null;
   currentPage: number;
@@ -29,6 +42,7 @@ export interface ReaderState {
   pdfTheme: 'dark' | 'light';
   noteGeneration: NoteGenerationState | null;
   examScopeTopicIds: number[] | null;
+  activeProcessingTopics: Record<number, TopicProcessingProgress>;
 }
 
 const initialState: ReaderState = {
@@ -44,6 +58,7 @@ const initialState: ReaderState = {
   pdfTheme: 'dark',
   noteGeneration: null,
   examScopeTopicIds: null,
+  activeProcessingTopics: {},
 };
 
 const readerSlice = createSlice({
@@ -94,6 +109,24 @@ const readerSlice = createSlice({
     clearExamScope: (state) => {
       state.examScopeTopicIds = null;
     },
+    setTopicProcessing: (state, action: PayloadAction<TopicProcessingProgress>) => {
+      state.activeProcessingTopics[action.payload.topicId] = action.payload;
+    },
+    updateTopicProcessingProgress: (state, action: PayloadAction<Partial<TopicProcessingProgress> & { topicId: number }>) => {
+      const existing = state.activeProcessingTopics[action.payload.topicId];
+      if (existing) {
+        state.activeProcessingTopics[action.payload.topicId] = { ...existing, ...action.payload };
+      } else {
+        state.activeProcessingTopics[action.payload.topicId] = {
+          topicId: action.payload.topicId,
+          status: 'processing',
+          ...action.payload,
+        };
+      }
+    },
+    clearTopicProcessing: (state, action: PayloadAction<number>) => {
+      delete state.activeProcessingTopics[action.payload];
+    },
   },
 });
 
@@ -112,5 +145,8 @@ export const {
   updateNoteGenerationProgress,
   setExamScopeTopicIds,
   clearExamScope,
+  setTopicProcessing,
+  updateTopicProcessingProgress,
+  clearTopicProcessing,
 } = readerSlice.actions;
 export default readerSlice.reducer;

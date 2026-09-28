@@ -123,7 +123,7 @@ export function ThemeToggle({ className, variant = 'icon' }: { className?: strin
         role="radiogroup"
         aria-label="Theme selection"
         className={cn(
-          "inline-flex items-center p-1 bg-surface-container border border-border-default rounded-lg gap-1",
+          "grid grid-cols-3 p-1 bg-surface-container-low border border-border-default rounded-xl gap-1 w-full",
           className
         )}
       >
@@ -133,13 +133,13 @@ export function ThemeToggle({ className, variant = 'icon' }: { className?: strin
           aria-checked={theme === 'light'}
           onClick={() => setTheme('light')}
           className={cn(
-            "flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-md transition-all",
+            "flex items-center justify-center gap-1.5 py-1.5 px-2 text-xs font-bold rounded-lg transition-all cursor-pointer",
             theme === 'light'
-              ? "bg-surface text-on-surface shadow-xs border border-border-default"
-              : "text-on-surface-variant hover:text-on-surface"
+              ? "bg-surface text-on-surface shadow-neo-xs border border-border-default font-black"
+              : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container/50 border border-transparent"
           )}
         >
-          <Sun size={14} className="text-amber-500" />
+          <Sun size={13} className="text-amber-500 shrink-0" />
           <span>Light</span>
         </button>
         <button
@@ -148,13 +148,13 @@ export function ThemeToggle({ className, variant = 'icon' }: { className?: strin
           aria-checked={theme === 'dark'}
           onClick={() => setTheme('dark')}
           className={cn(
-            "flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-md transition-all",
+            "flex items-center justify-center gap-1.5 py-1.5 px-2 text-xs font-bold rounded-lg transition-all cursor-pointer",
             theme === 'dark'
-              ? "bg-surface text-on-surface shadow-xs border border-border-default"
-              : "text-on-surface-variant hover:text-on-surface"
+              ? "bg-surface text-on-surface shadow-neo-xs border border-border-default font-black"
+              : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container/50 border border-transparent"
           )}
         >
-          <Moon size={14} className="text-blue-400" />
+          <Moon size={13} className="text-blue-400 shrink-0" />
           <span>Dark</span>
         </button>
         <button
@@ -163,13 +163,13 @@ export function ThemeToggle({ className, variant = 'icon' }: { className?: strin
           aria-checked={theme === 'system'}
           onClick={() => setTheme('system')}
           className={cn(
-            "flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-md transition-all",
+            "flex items-center justify-center gap-1.5 py-1.5 px-2 text-xs font-bold rounded-lg transition-all cursor-pointer",
             theme === 'system'
-              ? "bg-surface text-on-surface shadow-xs border border-border-default"
-              : "text-on-surface-variant hover:text-on-surface"
+              ? "bg-surface text-on-surface shadow-neo-xs border border-border-default font-black"
+              : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container/50 border border-transparent"
           )}
         >
-          <Monitor size={14} />
+          <Monitor size={13} className="shrink-0" />
           <span>System</span>
         </button>
       </div>

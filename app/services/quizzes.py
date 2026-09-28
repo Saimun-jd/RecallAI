@@ -105,7 +105,27 @@ class QuizGenerationService:
         for doc_id in document_ids:
             doc = DocumentRepository.get_by_id_and_workspace(doc_id, workspace_id)
             if not doc:
+                try:
+                    from app.services.book_sync import BookSyncService
+                    BookSyncService.sync_workspace_books(workspace_id)
+                    doc = DocumentRepository.get_by_id_and_workspace(doc_id, workspace_id)
+                except Exception:
+                    pass
+            if not doc:
                 raise NotFoundError(f"Document '{doc_id}' not found or access denied.")
+
+            doc_status = doc.get("status")
+            title = doc.get("title") or doc_id
+            if doc_status in ("uploading", "processing"):
+                raise ValidationError(
+                    f"Document '{title}' is still being processed. Please wait until indexing completes before generating quizzes."
+                )
+            if doc_status == "failed":
+                err = doc.get("processing_error") or "indexing failed"
+                raise ValidationError(
+                    f"Document '{title}' failed processing ({err}). Please re-upload or re-index before generating quizzes."
+                )
+
             verified_docs.append(doc)
 
         return verified_docs
@@ -168,6 +188,12 @@ class QuizGenerationService:
 
             return all_chunks
         else:
+            try:
+                from app.services.book_sync import BookSyncService
+                BookSyncService.sync_workspace_books(workspace_id)
+            except Exception:
+                pass
+
             res = RetrievalService.search(
                 query=query,
                 workspace_id=workspace_id,
@@ -428,7 +454,14 @@ class QuizGenerationService:
             )
 
             if not assessment_chunks:
-                raise ValidationError("Not enough source material to generate high-quality quiz questions.")
+                if verified_docs:
+                    titles = ", ".join(f"'{d.get('title') or d.get('id')}'" for d in verified_docs)
+                    raise ValidationError(
+                        f"Not enough source material found in {titles} to generate high-quality quiz questions. "
+                        "Ensure the document has readable text."
+                    )
+                else:
+                    raise ValidationError("Not enough source material to generate high-quality quiz questions.")
 
             # 5. Build assessment context
             allowed_types = [t for t in request.question_types if t in ("multiple_choice", "true_false")]

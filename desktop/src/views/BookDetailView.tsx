@@ -11,7 +11,9 @@ import {
   setActiveTopicCards,
   setSearchQuery,
   setPdfTheme,
-  clearExamScope
+  clearExamScope,
+  setTopicProcessing,
+  clearTopicProcessing,
 } from '../store/readerSlice';
 import { client, API_BASE, type Book, type Topic, type Flashcard, type PdfAnnotation, type AtomicConcept } from '../api/client';
 import { Loader2, Zap, PenTool, Play, FileText, ChevronRight, ChevronLeft, Check, Edit2, Trash2, BookOpen, ArrowLeft, LayoutList, ChevronDown, Search, Sun, Moon, Bot, Copy, Target, Sparkles, Layers, ChevronsDownUp, ChevronsUpDown, GraduationCap } from 'lucide-react';
@@ -23,6 +25,7 @@ import { RelatedTopicsModal } from '../components/RelatedTopicsModal';
 import { AIChatSidebar } from '../components/AIChatSidebar';
 const NotionNotesEditor = lazy(() => import('../components/NotionNotesEditor').then(m => ({ default: m.NotionNotesEditor })));
 import { TopicPracticeModal } from '../components/TopicPracticeModal';
+import { topicProcessingRunner } from '../services/topicProcessingRunner';
 const PdfViewer = lazy(() => import('../components/PdfViewer').then(m => ({ default: m.PdfViewer })));
 import { PdfCommandPalette } from '../components/PdfCommandPalette';
 import { SocraticDrillWidget } from '../components/SocraticDrillWidget';
@@ -43,7 +46,8 @@ export function BookDetailView() {
     activeTopicCards,
     pdfTheme,
     examScopeTopicIds,
-    noteGeneration
+    noteGeneration,
+    activeProcessingTopics,
   } = useSelector((state: RootState) => state.reader);
 
   // Mobile awareness & TOC sidebar state
@@ -89,7 +93,7 @@ export function BookDetailView() {
     topicName: string;
     cards: Flashcard[];
   } | null>(null);
-  const [processingProgress, setProcessingProgress] = useState<{
+  const [handwritingProgress, setHandwritingProgress] = useState<{
     stage?: string;
     status?: string;
     progress?: number;
@@ -242,6 +246,16 @@ export function BookDetailView() {
           console.error(err);
           showToast('error', err?.userMessage || 'Failed to load flashcards.', err?.debugDetail);
         });
+
+      // Verify status with server if topic shows 'processing' but is not actively running in this client
+      const current = topics.find(t => t.id === activeTopicId);
+      if (current?.status === 'processing' && !activeProcessingTopics?.[activeTopicId]) {
+        client.getTopic(activeTopicId).then(fresh => {
+          if (fresh && fresh.status !== 'processing') {
+            setTopics(prev => prev.map(t => t.id === activeTopicId ? { ...t, status: fresh.status } : t));
+          }
+        }).catch(() => {});
+      }
     } else {
       dispatch(setActiveTopicCards([]));
     }
@@ -250,7 +264,7 @@ export function BookDetailView() {
     setCurrentCardIndex(0);
     setSelectedDrillConcept(null);
     setSelectedCardScope('all');
-  }, [activeTopicId, dispatch]);
+  }, [activeTopicId, dispatch, topics, activeProcessingTopics]);
 
   // Restore PDF scroll position on mount if we already have an active topic
   useEffect(() => {
@@ -316,30 +330,21 @@ export function BookDetailView() {
   const { activeProvider } = useSelector((state: RootState) => state.providers);
 
   const handleProcessTopic = async () => {
-    if (!activeTopicId) return;
+    if (!activeTopicId || !activeTopic) return;
 
     // Optimistically update status to processing for active topic and any children
     setTopics(prev => prev.map(t => (t.id === activeTopicId || t.parent_id === activeTopicId) ? { ...t, status: 'processing' } : t));
 
     try {
-      if (!activeTopic) return;
-      setProcessingProgress({ stage: 'starting' });
-      await client.processTopicStream(activeTopicId, activeProvider, (event) => {
-        setProcessingProgress(event);
-      });
-      setProcessingProgress(null);
-
+      await topicProcessingRunner.startProcessing(activeTopicId, activeTopic.title, bookId, activeProvider);
       // Refresh topics and flashcards
-      const updatedTopics = await client.getTopics(bookId);
-      setTopics(updatedTopics);
-
-      const cards = await client.getTopicFlashcards(activeTopicId);
+      const updatedTopics = await client.getTopics(bookId).catch(() => null);
+      if (updatedTopics) setTopics(updatedTopics);
+      const cards = await client.getTopicFlashcards(activeTopicId).catch(() => []);
       dispatch(setActiveTopicCards(cards));
-
     } catch (err: any) {
       console.error(err);
       showToast('error', err?.userMessage || 'Failed to process topic.', err?.debugDetail);
-      setProcessingProgress(null);
       // Revert status from server truth
       const updatedTopics = await client.getTopics(bookId).catch(() => null);
       if (updatedTopics) {
@@ -350,10 +355,24 @@ export function BookDetailView() {
     }
   };
 
+  useEffect(() => {
+    const unsubscribe = topicProcessingRunner.subscribe(async (completedTopicId, completedBookId) => {
+      if (completedBookId === bookId) {
+        const updatedTopics = await client.getTopics(bookId).catch(() => null);
+        if (updatedTopics) setTopics(updatedTopics);
+        if (completedTopicId === activeTopicId) {
+          const cards = await client.getTopicFlashcards(completedTopicId).catch(() => []);
+          dispatch(setActiveTopicCards(cards));
+        }
+      }
+    });
+    return () => unsubscribe();
+  }, [bookId, activeTopicId, dispatch]);
+
   const handleAnalyzeHandwriting = async () => {
     if (isAnalyzingHandwriting) return;
     setIsAnalyzingHandwriting(true);
-    setProcessingProgress({
+    setHandwritingProgress({
       stage: 'analyzing_handwriting',
       status: 'processing',
       message: 'Reading PDF pages & preparing document slices...',
@@ -363,7 +382,7 @@ export function BookDetailView() {
     let currentProgress = 10;
     const ticker = setInterval(() => {
       currentProgress = Math.min(88, currentProgress + 4);
-      setProcessingProgress((prev) => {
+      setHandwritingProgress((prev) => {
         if (!prev || prev.stage !== 'analyzing_handwriting') return prev;
         let msg = prev.message;
         if (currentProgress >= 25 && currentProgress < 60) {
@@ -387,7 +406,7 @@ export function BookDetailView() {
         if (event.progress !== undefined) {
           currentProgress = Math.max(currentProgress, event.progress);
         }
-        setProcessingProgress({
+        setHandwritingProgress({
           stage: 'analyzing_handwriting',
           status: event.status || 'processing',
           message: event.message || 'Processing handwritten notes...',
@@ -397,7 +416,7 @@ export function BookDetailView() {
 
       clearInterval(ticker);
 
-      setProcessingProgress({
+      setHandwritingProgress({
         stage: 'analyzing_handwriting',
         status: 'complete',
         message: `Generated ${res.topic_count} topics from handwriting!`,
@@ -412,11 +431,11 @@ export function BookDetailView() {
       showToast('success', `Generated ${res.topic_count} topics from handwriting!`);
 
       setTimeout(() => {
-        setProcessingProgress(null);
+        setHandwritingProgress(null);
       }, 2500);
     } catch (e: any) {
       clearInterval(ticker);
-      setProcessingProgress(null);
+      setHandwritingProgress(null);
       showToast('error', e?.userMessage || 'Failed to analyze handwriting.');
     } finally {
       setIsAnalyzingHandwriting(false);
@@ -538,6 +557,15 @@ export function BookDetailView() {
   });
 
   const activeTopic = topics.find(t => t.id === activeTopicId);
+  const currentTopicProcessing = activeTopicId ? activeProcessingTopics?.[activeTopicId] : null;
+  const anyProcessingTopicInBook = useMemo(() => {
+    const entries = Object.values(activeProcessingTopics || {});
+    if (currentTopicProcessing) return currentTopicProcessing;
+    return entries.find(p => (p.bookId ? p.bookId === bookId : topics.some(t => t.id === p.topicId))) || null;
+  }, [activeProcessingTopics, currentTopicProcessing, topics, bookId]);
+
+  const processingProgress = currentTopicProcessing || anyProcessingTopicInBook || handwritingProgress;
+  const isCurrentTopicProcessing = !!(activeTopicId && (activeProcessingTopics?.[activeTopicId] || (activeTopic?.status === 'processing' && !!anyProcessingTopicInBook)));
 
   const activeTopicAtomicConcepts = useMemo<AtomicConcept[]>(() => {
     if (!activeTopic?.atomic_concepts) return [];
@@ -808,6 +836,38 @@ export function BookDetailView() {
               </div>
             </div>
           )}
+          {anyProcessingTopicInBook && (
+            <div className="mx-3 my-2.5 p-3 bg-amber-500/10 border-2 border-amber-500 rounded-xl flex flex-col gap-2 text-xs text-amber-700 dark:text-amber-300 shadow-[2px_2px_0px_0px_#d97706] animate-in fade-in">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Loader2 size={15} className="animate-spin text-amber-600 dark:text-amber-400 shrink-0" />
+                  <span className="font-extrabold text-xs truncate">
+                    {anyProcessingTopicInBook.stage === 'processing_child'
+                      ? `Extracting Subtopic ${anyProcessingTopicInBook.current || 1}/${anyProcessingTopicInBook.total || 1}`
+                      : (anyProcessingTopicInBook.stage === 'parent_decomposition'
+                        ? 'Decomposing Subtopics...'
+                        : 'Extracting Concepts...')}
+                  </span>
+                </div>
+                {anyProcessingTopicInBook.progress !== undefined && (
+                  <span className="font-black text-[11px] shrink-0 text-amber-700 dark:text-amber-300 font-mono">
+                    {anyProcessingTopicInBook.progress}%
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] font-medium opacity-85 leading-snug wrap-break-word truncate" title={anyProcessingTopicInBook.child_title || anyProcessingTopicInBook.message}>
+                {anyProcessingTopicInBook.child_title || anyProcessingTopicInBook.message || `Processing ${anyProcessingTopicInBook.topicTitle || 'topic'}...`}
+              </p>
+              {anyProcessingTopicInBook.progress !== undefined && (
+                <div className="w-full bg-amber-500/20 h-1.5 rounded-full overflow-hidden border border-amber-500/30">
+                  <div
+                    className="bg-amber-600 dark:bg-amber-500 h-full rounded-full transition-all duration-300"
+                    style={{ width: `${Math.max(5, Math.min(100, anyProcessingTopicInBook.progress))}%` }}
+                  />
+                </div>
+              )}
+            </div>
+          )}
           {filteredTopics.length === 0 && !isAnalyzingHandwriting && (
             <div className="p-6 text-center text-on-surface-variant flex flex-col items-center justify-center">
               <BookOpen size={32} className="opacity-20 mb-2" />
@@ -881,7 +941,7 @@ export function BookDetailView() {
                       <div className="w-2 h-2 rounded-full bg-orange-500" title="Fragile" />
                     ) : topic.mastery_status === 'misconception' ? (
                       <div className="w-2 h-2 rounded-full bg-red-500" title="Misconception" />
-                    ) : topic.status === 'processing' ? (
+                    ) : (activeProcessingTopics?.[topic.id] || (topic.status === 'processing' && topic.id === activeTopicId && !!processingProgress)) ? (
                       <Loader2 size={12} className="animate-spin text-amber-500" />
                     ) : (
                       <div className="w-1.5 h-1.5 rounded-full bg-on-background" title="Untested" />
@@ -947,9 +1007,21 @@ export function BookDetailView() {
                     <div className="flex items-center gap-2 px-2.5 py-1 bg-amber-500/10 border border-amber-500 text-amber-700 dark:text-amber-300 rounded-lg text-xs font-bold animate-pulse">
                       <Loader2 size={13} className="animate-spin text-amber-600 dark:text-amber-400 shrink-0" />
                       <span className="truncate max-w-55">
-                        Analyzing Outline {processingProgress?.progress !== undefined ? `(${processingProgress.progress}%)` : ''}
+                        Analyzing Outline {handwritingProgress?.progress !== undefined ? `(${handwritingProgress.progress}%)` : ''}
                       </span>
                     </div>
+                  )}
+                  {anyProcessingTopicInBook && (
+                    <button
+                      onClick={() => setViewMode('topics')}
+                      className="flex items-center gap-2 px-2.5 py-1 bg-amber-500/10 border border-amber-500 text-amber-700 dark:text-amber-300 rounded-lg text-xs font-bold animate-pulse hover:bg-amber-500/20 transition-colors cursor-pointer"
+                      title="Click to view extraction progress in Topics view"
+                    >
+                      <Loader2 size={13} className="animate-spin text-amber-600 dark:text-amber-400 shrink-0" />
+                      <span className="truncate max-w-55">
+                        Extracting Concepts {anyProcessingTopicInBook.progress !== undefined ? `(${anyProcessingTopicInBook.progress}%)` : ''}
+                      </span>
+                    </button>
                   )}
                 </div>
 
@@ -1140,6 +1212,18 @@ export function BookDetailView() {
                     <FileText size={16} className="text-accent-blue shrink-0" />
                     <span className="truncate max-w-50">Extracted Markdown</span>
                   </div>
+                  {anyProcessingTopicInBook && (
+                    <button
+                      onClick={() => setViewMode('topics')}
+                      className="flex items-center gap-2 px-2.5 py-1 bg-amber-500/10 border border-amber-500 text-amber-700 dark:text-amber-300 rounded-lg text-xs font-bold animate-pulse hover:bg-amber-500/20 transition-colors cursor-pointer ml-1"
+                      title="Click to view extraction progress in Topics view"
+                    >
+                      <Loader2 size={13} className="animate-spin text-amber-600 dark:text-amber-400 shrink-0" />
+                      <span className="truncate max-w-55">
+                        Extracting Concepts {anyProcessingTopicInBook.progress !== undefined ? `(${anyProcessingTopicInBook.progress}%)` : ''}
+                      </span>
+                    </button>
+                  )}
                 </div>
                 <div className="flex items-center gap-3">
                   <button
@@ -1221,7 +1305,7 @@ export function BookDetailView() {
                                 ? 'Decomposing Chapter into Subtopics...'
                                 : (processingProgress.stage === 'analyzing_handwriting'
                                   ? 'Analyzing Handwritten Outline with Marker AI...'
-                                  : 'Processing Topic...'))}
+                                  : `Processing ${processingProgress.topicTitle ? `"${processingProgress.topicTitle}"` : 'Topic'}...`))}
                           </h4>
                           {processingProgress.progress !== undefined && (
                             <span className="text-xs font-black shrink-0">
@@ -1336,7 +1420,7 @@ export function BookDetailView() {
                     )}
                     title="View extracted concepts and Socratic drills"
                   >
-                    {activeTopic.status === 'processing' ? (
+                    {isCurrentTopicProcessing ? (
                       <Loader2 size={16} className="animate-spin text-current" />
                     ) : (
                       <Sparkles size={16} className={viewMode === 'topics' && topicTab === 'concepts' ? "text-on-primary" : "text-primary"} />
@@ -1649,11 +1733,11 @@ export function BookDetailView() {
                                 e.stopPropagation();
                                 handleProcessTopic();
                               }}
-                              disabled={activeTopic.status === 'processing'}
+                              disabled={isCurrentTopicProcessing}
                               className="bg-primary text-on-primary font-bold text-xs px-3.5 py-1.5 rounded-lg border-2 border-on-surface shadow-[2px_2px_0px_0px_#191b23] flex items-center gap-1.5 hover:bg-academic-blue active:shadow-none active:translate-x-px active:translate-y-px transition-all disabled:opacity-50 cursor-pointer"
                               title="Extract atomic concepts from this topic"
                             >
-                              {activeTopic.status === 'processing' ? (
+                              {isCurrentTopicProcessing ? (
                                 <>
                                   <Loader2 size={14} className="animate-spin" />
                                   <span>Extracting...</span>
@@ -1809,10 +1893,10 @@ export function BookDetailView() {
                                 </div>
                                 <button
                                   onClick={handleProcessTopic}
-                                  disabled={activeTopic.status === 'processing'}
+                                  disabled={isCurrentTopicProcessing}
                                   className="bg-primary text-on-primary font-bold text-xs px-5 py-2.5 rounded-lg border-2 border-on-surface shadow-[2px_2px_0px_0px_#191b23] flex items-center gap-2 hover:bg-academic-blue active:shadow-none active:translate-x-px active:translate-y-px transition-all disabled:opacity-50 cursor-pointer mt-1"
                                 >
-                                  {activeTopic.status === 'processing' ? (
+                                  {isCurrentTopicProcessing ? (
                                     <>
                                       <Loader2 size={15} className="animate-spin" />
                                       <span>Extracting Atomic Concepts...</span>
@@ -1866,7 +1950,7 @@ export function BookDetailView() {
             bookId={bookId}
             topicName={activeTopic?.title}
             contextMarkdown={activeTopic?.content_md || ''}
-            isProcessing={activeTopic?.status === 'processing'}
+            isProcessing={isCurrentTopicProcessing}
             onProcessTopic={handleProcessTopic}
             onPracticeTopic={handlePracticeTopic}
             onPracticeExamScope={handlePracticeExamScope}
@@ -1908,6 +1992,55 @@ export function BookDetailView() {
             >
               Open Notes
             </button>
+          </div>
+        )}
+
+        {/* Floating Mini Banner when Topic Concepts are Extracting and user switched view or collapsed TOC */}
+        {anyProcessingTopicInBook && (viewMode !== 'topics' || isTocCollapsed) && (
+          <div
+            className={cn(
+              "fixed left-1/2 -translate-x-1/2 z-40 bg-surface-container-lowest border-2 border-on-surface px-4 py-2.5 rounded-xl shadow-[4px_4px_0px_0px_#191b23] flex items-center gap-3 animate-in slide-in-from-bottom-3 duration-200 max-w-[90vw]",
+              !isNotesOpen && noteGeneration?.isGenerating ? "bottom-24" : "bottom-6"
+            )}
+          >
+            <div className="flex items-center gap-2.5 min-w-0">
+              <Loader2 size={16} className="animate-spin text-amber-500 shrink-0" />
+              <div className="flex flex-col min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-black text-on-surface truncate">
+                    {anyProcessingTopicInBook.stage === 'processing_child'
+                      ? `Extracting Subtopic ${anyProcessingTopicInBook.current || 1} of ${anyProcessingTopicInBook.total || 1}...`
+                      : (anyProcessingTopicInBook.stage === 'parent_decomposition'
+                        ? 'Decomposing Subtopics...'
+                        : `Extracting: ${anyProcessingTopicInBook.topicTitle || 'Topic'}`)}
+                  </span>
+                  {anyProcessingTopicInBook.progress !== undefined && (
+                    <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-700 dark:text-amber-300 shrink-0">
+                      {anyProcessingTopicInBook.progress}%
+                    </span>
+                  )}
+                </div>
+                <span className="text-[11px] text-on-surface-variant truncate max-w-[320px]">
+                  {anyProcessingTopicInBook.child_title || anyProcessingTopicInBook.message || 'Extracting atomic concepts...'}
+                </span>
+                {anyProcessingTopicInBook.progress !== undefined && (
+                  <div className="w-full bg-amber-500/20 h-1.5 rounded-full mt-1.5 overflow-hidden border border-amber-500/30">
+                    <div
+                      className="bg-amber-600 dark:bg-amber-500 h-full rounded-full transition-all duration-300"
+                      style={{ width: `${Math.max(5, Math.min(100, anyProcessingTopicInBook.progress))}%` }}
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+            {viewMode !== 'topics' && (
+              <button
+                onClick={() => setViewMode('topics')}
+                className="px-3 py-1 text-xs font-bold bg-primary text-white border-2 border-on-surface rounded-md shadow-[1.5px_1.5px_0px_0px_#191b23] active:translate-x-px active:translate-y-px cursor-pointer hover:bg-academic-blue shrink-0 transition-all"
+              >
+                View Topics
+              </button>
+            )}
           </div>
         )}
 

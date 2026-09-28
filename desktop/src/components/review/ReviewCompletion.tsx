@@ -10,27 +10,31 @@ import {
 } from 'lucide-react';
 import type { ReviewSessionItem } from '../../api/client';
 import { Button } from '../ui/Button';
+import { formatDuration } from '../../utils/formatDuration';
 
 export interface ReviewCompletionProps {
   session: ReviewSessionItem;
   onReturnToQueue: () => void;
+  durationSeconds?: number | null;
 }
 
-export function ReviewCompletion({ session, onReturnToQueue }: ReviewCompletionProps) {
-  // Calculate session duration if timestamps exist
-  let durationText: string | null = null;
-  if (session.started_at && session.completed_at) {
-    const start = new Date(session.started_at).getTime();
-    const end = new Date(session.completed_at).getTime();
-    const diffSeconds = Math.max(0, Math.round((end - start) / 1000));
-    if (diffSeconds < 60) {
-      durationText = `${diffSeconds}s`;
-    } else {
-      const minutes = Math.floor(diffSeconds / 60);
-      const seconds = diffSeconds % 60;
-      durationText = `${minutes}m ${seconds}s`;
+export function ReviewCompletion({ session, onReturnToQueue, durationSeconds }: ReviewCompletionProps) {
+  // Calculate and freeze session duration if timestamps exist
+  const durationText = React.useMemo(() => {
+    if (durationSeconds != null && durationSeconds >= 0) {
+      return formatDuration(durationSeconds);
     }
-  }
+    if (session.duration_seconds != null && session.duration_seconds >= 0) {
+      return formatDuration(session.duration_seconds);
+    }
+    if (!session.started_at) return null;
+    const start = new Date(session.started_at).getTime();
+    const end = session.completed_at
+      ? new Date(session.completed_at).getTime()
+      : Date.now();
+    const diffSeconds = Math.max(0, Math.round((end - start) / 1000));
+    return formatDuration(diffSeconds);
+  }, [durationSeconds, session.duration_seconds, session.started_at, session.completed_at]);
 
   return (
     <div className="max-w-xl mx-auto py-8 sm:py-12 space-y-6 animate-in fade-in zoom-in-95">

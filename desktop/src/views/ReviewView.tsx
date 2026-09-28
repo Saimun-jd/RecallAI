@@ -41,6 +41,44 @@ export function ReviewView() {
   const [ratingError, setRatingError] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  // Active study duration tracking (accurately ignores background/idle time)
+  const activeStudySecondsRef = React.useRef<number>(0);
+  const cardStartTimeRef = React.useRef<number>(Date.now());
+  const isTabVisibleRef = React.useRef<boolean>(!document.hidden);
+  const [completedDuration, setCompletedDuration] = useState<number | null>(null);
+
+  // Accumulate active study time spent on the current card
+  const accumulateActiveCardTime = useCallback(() => {
+    if (isTabVisibleRef.current) {
+      const elapsed = (Date.now() - cardStartTimeRef.current) / 1000;
+      const activeCardTime = Math.min(Math.max(1, elapsed), 60);
+      activeStudySecondsRef.current += activeCardTime;
+    }
+    cardStartTimeRef.current = Date.now();
+  }, []);
+
+  // Track tab visibility so time spent in another tab/window is paused
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        if (isTabVisibleRef.current) {
+          const elapsed = (Date.now() - cardStartTimeRef.current) / 1000;
+          const activeCardTime = Math.min(Math.max(0, elapsed), 60);
+          activeStudySecondsRef.current += activeCardTime;
+        }
+        isTabVisibleRef.current = false;
+      } else {
+        isTabVisibleRef.current = true;
+        cardStartTimeRef.current = Date.now();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
+
   // ── 1. Fetch Due Queue & Statistics ─────────────────────────────
   const loadReviewData = useCallback(async (isSilent = false) => {
     if (!isSilent) setViewMode('loading');
@@ -104,12 +142,16 @@ export function ReviewView() {
 
       sessionStorage.setItem(SESSION_STORAGE_KEY, session.id);
       setActiveSession(session);
+      activeStudySecondsRef.current = 0;
+      cardStartTimeRef.current = Date.now();
+      setCompletedDuration(null);
 
       // Fetch the first masked card from the authoritative backend
       const nextCard = await client.getNextReviewItem(session.id);
       if (nextCard) {
         setCurrentItem(nextCard);
         setIsRevealed(false);
+        cardStartTimeRef.current = Date.now();
         setViewMode('session');
       } else {
         // Session has no pending items
@@ -130,12 +172,14 @@ export function ReviewView() {
     if (!activeSession) return;
     setIsStarting(true);
     setRatingError(null);
+    cardStartTimeRef.current = Date.now();
 
     try {
       const nextCard = await client.getNextReviewItem(activeSession.id);
       if (nextCard) {
         setCurrentItem(nextCard);
         setIsRevealed(false);
+        cardStartTimeRef.current = Date.now();
         setViewMode('session');
       } else {
         // Active session is actually finished
@@ -208,9 +252,34 @@ export function ReviewView() {
     if (!currentItem || !activeSession || isRating) return;
     setIsRating(true);
     setRatingError(null);
+    accumulateActiveCardTime();
 
     try {
       const rateResult = await client.rateReviewItem(currentItem.review_id, rating);
+
+      const isFinished = rateResult.session_status === 'completed' || rateResult.reviewed_items >= rateResult.total_items;
+
+      if (isFinished) {
+        const totalSec = Math.max(1, Math.round(activeStudySecondsRef.current));
+        setCompletedDuration(totalSec);
+        const now = Date.now();
+        const nowIso = new Date(now).toISOString();
+        const startedIso = new Date(now - totalSec * 1000).toISOString();
+
+        const updatedSession: ReviewSessionItem = {
+          ...activeSession,
+          reviewed_items: rateResult.reviewed_items,
+          total_items: rateResult.total_items,
+          status: 'completed',
+          started_at: startedIso,
+          completed_at: nowIso,
+          duration_seconds: totalSec,
+        };
+        setActiveSession(updatedSession);
+        sessionStorage.removeItem(SESSION_STORAGE_KEY);
+        setViewMode('completed');
+        return;
+      }
 
       // Update local session metrics directly from server response
       const updatedSession: ReviewSessionItem = {
@@ -221,22 +290,28 @@ export function ReviewView() {
       };
       setActiveSession(updatedSession);
 
-      // Check if session finished according to the backend
-      if (rateResult.session_status === 'completed' || rateResult.reviewed_items >= rateResult.total_items) {
-        sessionStorage.removeItem(SESSION_STORAGE_KEY);
-        setViewMode('completed');
-        return;
-      }
-
       // Fetch next card from backend
       const nextCard = await client.getNextReviewItem(activeSession.id);
       if (nextCard) {
         setCurrentItem(nextCard);
         setIsRevealed(false);
+        cardStartTimeRef.current = Date.now();
       } else {
         // No more cards in session
-        const finished = await client.completeReviewSession(activeSession.id);
-        setActiveSession(finished);
+        const totalSec = Math.max(1, Math.round(activeStudySecondsRef.current));
+        setCompletedDuration(totalSec);
+        const now = Date.now();
+        const nowIso = new Date(now).toISOString();
+        const startedIso = new Date(now - totalSec * 1000).toISOString();
+
+        const finished = await client.completeReviewSession(activeSession.id).catch(() => null);
+        setActiveSession({
+          ...(finished || activeSession),
+          status: 'completed',
+          started_at: startedIso,
+          completed_at: nowIso,
+          duration_seconds: totalSec,
+        });
         sessionStorage.removeItem(SESSION_STORAGE_KEY);
         setViewMode('completed');
       }
@@ -321,6 +396,7 @@ export function ReviewView() {
         <ReviewCompletion
           session={activeSession}
           onReturnToQueue={handleReturnToQueue}
+          durationSeconds={completedDuration ?? activeSession.duration_seconds}
         />
       </div>
     );

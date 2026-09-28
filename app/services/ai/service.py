@@ -46,7 +46,34 @@ class AIService:
         if settings.ENVIRONMENT == "test" or provider_preference == "mock":
             return MockAIAdapter(model="mock-test-model", provider_name="mock"), "mock", "mock-test-model", False
 
-        target_provider = (provider_preference or settings.llm_provider or "openai").lower().strip()
+        target_provider = (provider_preference or "").lower().strip()
+        if not target_provider or target_provider == "auto":
+            # 1. Check workspace owner preferences
+            try:
+                from app.models.repositories import WorkspaceRepository, PreferencesRepository
+                ws = WorkspaceRepository.get_by_id(workspace_id)
+                if ws and ws.get("owner_id"):
+                    user_prefs = PreferencesRepository.get_by_user_id(ws["owner_id"])
+                    if user_prefs and user_prefs.get("preferred_llm_provider"):
+                        p = user_prefs["preferred_llm_provider"].lower().strip()
+                        if p and p != "auto":
+                            target_provider = p
+            except Exception:
+                pass
+
+        if not target_provider or target_provider == "auto":
+            # 2. Check active BYOK credentials for this workspace
+            try:
+                workspace_creds = ProviderCredentialRepository.list_by_workspace(workspace_id)
+                valid_creds = [c for c in workspace_creds if c.get("is_valid")]
+                if valid_creds:
+                    target_provider = valid_creds[0]["provider"].lower().strip()
+            except Exception:
+                pass
+
+        if not target_provider or target_provider == "auto":
+            # 3. Fallback to server setting
+            target_provider = (settings.llm_provider or "openai").lower().strip()
 
         # 2. BYOK Vault Lookup (AES-256-GCM Decryption)
         cred = ProviderCredentialRepository.get_by_workspace_and_provider(

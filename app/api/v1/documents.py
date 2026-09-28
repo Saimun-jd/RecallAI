@@ -247,6 +247,12 @@ def list_documents(
     workspace: Dict[str, Any] = Depends(get_current_workspace),
 ) -> ResponseEnvelope[DocumentListResponse]:
     """Retrieves all documents belonging to the authenticated user's workspace."""
+    try:
+        from app.services.book_sync import BookSyncService
+        BookSyncService.sync_workspace_books(workspace["id"])
+    except Exception as e:
+        logger.debug(f"Book sync on list_documents: {e}")
+
     docs = DocumentRepository.list_by_workspace(
         workspace_id=workspace["id"],
         limit=limit,

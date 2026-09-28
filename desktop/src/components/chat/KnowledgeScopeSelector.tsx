@@ -1,21 +1,25 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { BookOpen, Globe2, ChevronDown, Check, X, FileText } from 'lucide-react';
-import { client, type DocumentItem } from '../../api/client';
+import { BookOpen, Globe2, ChevronDown, Check, X, FileText, Search } from 'lucide-react';
+import type { DocumentItem } from '../../api/client';
+import { fetchUnifiedDocuments } from '../../utils/documentUtils';
 import { cn } from '../../lib/utils';
 
 export interface KnowledgeScopeSelectorProps {
   selectedDocumentId: string | null;
+  selectedDocumentTitle?: string | null;
   onSelectScope: (documentId: string | null, documentTitle?: string) => void;
   className?: string;
 }
 
 export function KnowledgeScopeSelector({
   selectedDocumentId,
+  selectedDocumentTitle,
   onSelectScope,
   className,
 }: KnowledgeScopeSelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -24,9 +28,10 @@ export function KnowledgeScopeSelector({
     const loadDocs = async () => {
       setLoading(true);
       try {
-        const resp = await client.getDocuments(50, 0, 'ready');
+        const unified = await fetchUnifiedDocuments(100);
         if (isMounted) {
-          setDocuments(resp.documents || []);
+          // Keep documents that are ready or uploaded study items
+          setDocuments(unified.filter((d) => d.status === 'ready' || !d.status));
         }
       } catch (err) {
         console.error('Failed to load documents for scope selector:', err);
@@ -55,7 +60,17 @@ export function KnowledgeScopeSelector({
     };
   }, [isOpen]);
 
-  const selectedDoc = documents.find((d) => d.id === selectedDocumentId);
+  const selectedDoc = documents.find(
+    (d) => d.id === selectedDocumentId || d.metadata?.book_id?.toString() === selectedDocumentId
+  );
+
+  const displayTitle = selectedDocumentId
+    ? (selectedDoc?.title || selectedDocumentTitle || 'Selected Document')
+    : 'All Knowledge';
+
+  const filteredDocs = documents.filter((doc) =>
+    !searchQuery.trim() || doc.title.toLowerCase().includes(searchQuery.toLowerCase().trim())
+  );
 
   return (
     <div className={cn('relative inline-block text-left', className)} ref={dropdownRef}>
@@ -77,10 +92,10 @@ export function KnowledgeScopeSelector({
         ) : (
           <Globe2 size={14} className="text-primary shrink-0" />
         )}
-        <span className="truncate max-w-[200px] sm:max-w-[240px]">
-          {selectedDoc ? selectedDoc.title : 'All Knowledge'}
+        <span className="truncate max-w-[200px] sm:max-w-[240px]" title={displayTitle}>
+          {displayTitle}
         </span>
-        {selectedDoc && (
+        {selectedDoc && selectedDoc.total_pages > 0 && (
           <span className="hidden sm:inline-block px-1.5 py-0.2 rounded bg-amber-500/20 text-[10px] font-mono">
             {selectedDoc.total_pages} {selectedDoc.total_pages === 1 ? 'page' : 'pages'}
           </span>
@@ -116,7 +131,33 @@ export function KnowledgeScopeSelector({
             </span>
           </div>
 
-          <div className="p-1.5 max-h-60 overflow-y-auto space-y-1 custom-scrollbar">
+          {/* Search box if 4 or more documents */}
+          {documents.length >= 4 && (
+            <div className="p-2 border-b border-border-default bg-surface">
+              <div className="relative">
+                <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant" />
+                <input
+                  type="text"
+                  placeholder="Filter documents..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-8 pr-6 py-1 text-xs rounded-md border border-border-default bg-surface-container focus:bg-surface focus:outline-hidden focus:border-primary"
+                  autoFocus
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface"
+                  >
+                    <X size={12} />
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          <div className="p-1.5 max-h-64 overflow-y-auto space-y-1 custom-scrollbar">
             {/* Option 1: All Knowledge */}
             <button
               type="button"
@@ -152,9 +193,15 @@ export function KnowledgeScopeSelector({
               <div className="p-3 text-center text-xs text-on-surface-variant">
                 No processed documents found in your workspace.
               </div>
+            ) : filteredDocs.length === 0 ? (
+              <div className="p-3 text-center text-xs text-on-surface-variant">
+                No documents match "{searchQuery}"
+              </div>
             ) : (
-              documents.map((doc) => {
-                const isSelected = selectedDocumentId === doc.id;
+              filteredDocs.map((doc) => {
+                const isSelected =
+                  selectedDocumentId === doc.id ||
+                  doc.metadata?.book_id?.toString() === selectedDocumentId;
                 return (
                   <button
                     key={doc.id}
@@ -177,7 +224,7 @@ export function KnowledgeScopeSelector({
                           {doc.title}
                         </span>
                         <span className="text-[10px] text-on-surface-variant font-mono block">
-                          {doc.total_pages} {doc.total_pages === 1 ? 'page' : 'pages'} · {doc.source_type.toUpperCase()}
+                          {doc.total_pages} {doc.total_pages === 1 ? 'page' : 'pages'} · {(doc.source_type || 'PDF').toUpperCase()}
                         </span>
                       </div>
                     </div>

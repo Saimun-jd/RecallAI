@@ -84,7 +84,7 @@ export function AccountMenu({ user, planName = 'Free', className }: AccountMenuP
         {/* Theme Setting in Menu */}
         <DropdownMenuLabel>Appearance</DropdownMenuLabel>
         <div className="px-3.5 py-1.5">
-          <ThemeToggle variant="segmented" className="w-full justify-between" />
+          <ThemeToggle variant="segmented" className="w-full" />
         </div>
 
         <DropdownMenuSeparator />

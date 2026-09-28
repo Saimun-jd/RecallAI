@@ -42,7 +42,10 @@ export function NotesView() {
   const [mobileActivePane, setMobileActivePane] = useState<'list' | 'editor'>('list');
   const [isOrgDrawerOpen, setIsOrgDrawerOpen] = useState(false);
 
-  // Background Note Generation state tracking
+  // Concept Extraction & Background Note Generation state tracking
+  const activeProcessingTopics = useSelector((state: RootState) => state.reader.activeProcessingTopics);
+  const selectedTopicProcessing = selectedTopicId ? activeProcessingTopics?.[selectedTopicId] : undefined;
+  const isSelectedTopicProcessing = !!selectedTopicProcessing;
   const isCurrentTopicGenerating = !!(selectedTopicId && noteGeneration?.isGenerating && noteGeneration?.topicId === selectedTopicId);
   const isOtherTopicGenerating = !!(noteGeneration?.isGenerating && (!selectedTopicId || noteGeneration?.topicId !== selectedTopicId));
 
@@ -172,6 +175,10 @@ export function NotesView() {
   // Cornell Scaffold Generation via background runner
   const handleGenerateCornell = async () => {
     if (!selectedTopicId) return;
+    if (isSelectedTopicProcessing) {
+      showToast('info', 'Atomic concepts are currently being extracted for this topic. Cornell notes will generate once extraction finishes.');
+      return;
+    }
     try {
       showToast('info', 'Synthesizing Cornell Study Guide with AI...');
       const targetTopicTitle = currentNote?.topic_title || 'Study Topic';
@@ -869,17 +876,24 @@ export function NotesView() {
                 {/* AI Cornell Generation */}
                 <button
                   onClick={handleGenerateCornell}
-                  disabled={isCurrentTopicGenerating || isOtherTopicGenerating}
+                  disabled={isCurrentTopicGenerating || isOtherTopicGenerating || isSelectedTopicProcessing}
                   className="flex items-center gap-1 px-2.5 py-1 text-xs font-bold bg-amber-500 text-black border-2 border-on-surface hover:bg-amber-400 shadow-[2px_2px_0px_0px_#191b23] active:translate-y-[1px] disabled:opacity-50 transition-all cursor-pointer"
                   title={
-                    isCurrentTopicGenerating 
+                    isSelectedTopicProcessing
+                      ? "Extracting concepts for this topic... Please wait until extraction finishes."
+                      : isCurrentTopicGenerating 
                       ? `Generating notes: ${noteGeneration?.progress ?? 0}%` 
                       : isOtherTopicGenerating 
                       ? `Generating notes for another topic: ${noteGeneration?.topicTitle}`
                       : "Generate or update Cornell active recall guide with AI"
                   }
                 >
-                  {isCurrentTopicGenerating ? (
+                  {isSelectedTopicProcessing ? (
+                    <>
+                      <Loader2 size={13} className="animate-spin" />
+                      <span>Extracting...</span>
+                    </>
+                  ) : isCurrentTopicGenerating ? (
                     <>
                       <Loader2 size={13} className="animate-spin" />
                       <span>{noteGeneration?.progress ?? 0}%</span>
@@ -920,6 +934,18 @@ export function NotesView() {
                 </button>
               </div>
             </div>
+
+            {/* Active Topic Concept Extraction Progress Banner */}
+            {isSelectedTopicProcessing && (
+              <div className="bg-primary/10 border-b-2 border-on-surface px-4 py-2 shrink-0 flex items-center gap-2 text-xs font-medium text-on-surface animate-in fade-in duration-200">
+                <Loader2 size={14} className="animate-spin text-primary shrink-0" />
+                <span>
+                  {selectedTopicProcessing?.stage === 'queued'
+                    ? 'Concept extraction is queued behind other topics...'
+                    : selectedTopicProcessing?.message || 'Extracting atomic concepts... Cornell note generation will unlock once extraction finishes.'}
+                </span>
+              </div>
+            )}
 
             {/* Active Topic Note Generation Progress Banner */}
             {isCurrentTopicGenerating && noteGeneration && (

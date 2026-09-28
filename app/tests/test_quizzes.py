@@ -403,6 +403,53 @@ class TestQuizAndAssessmentBackend(unittest.TestCase):
         self.assertEqual(err["code"], "VALIDATION_ERROR")
         self.assertIn("not enough source material", err["message"].lower())
 
+    def test_unprocessed_document_generation_rejected(self):
+        """Generating a quiz on an uploading or processing document must return 422 with clear message."""
+        from app.models.repositories import DocumentRepository
+        res = self.client.post(
+            "/api/v1/documents/upload",
+            headers=self._auth_header(self.user_a_token),
+            files={"file": ("unprocessed.md", b"# Draft\nSome unprocessed content", "text/markdown")}
+        )
+        self.assertEqual(res.status_code, 202)
+        doc_id = res.json()["data"]["document_id"]
+
+        # Simulate ongoing background processing
+        DocumentRepository.update_status(doc_id, "processing")
+
+        gen_res = self.client.post(
+            "/api/v1/quizzes/generate",
+            headers=self._auth_header(self.user_a_token),
+            json={"document_ids": [doc_id], "question_count": 5}
+        )
+        self.assertEqual(gen_res.status_code, 422)
+        err = gen_res.json()["error"]
+        self.assertEqual(err["code"], "VALIDATION_ERROR")
+        self.assertIn("still being processed", err["message"].lower())
+
+    def test_failed_document_generation_rejected(self):
+        """Generating a quiz on a failed document must return 422 with clear failure reason."""
+        from app.models.repositories import DocumentRepository
+        res = self.client.post(
+            "/api/v1/documents/upload",
+            headers=self._auth_header(self.user_a_token),
+            files={"file": ("corrupt.md", b"# Corrupt", "text/markdown")}
+        )
+        self.assertEqual(res.status_code, 202)
+        doc_id = res.json()["data"]["document_id"]
+
+        DocumentRepository.update_status(doc_id, "failed", processing_error="PDF parser fatal error")
+
+        gen_res = self.client.post(
+            "/api/v1/quizzes/generate",
+            headers=self._auth_header(self.user_a_token),
+            json={"document_ids": [doc_id], "question_count": 5}
+        )
+        self.assertEqual(gen_res.status_code, 422)
+        err = gen_res.json()["error"]
+        self.assertEqual(err["code"], "VALIDATION_ERROR")
+        self.assertIn("failed processing", err["message"].lower())
+
     def test_quiz_and_question_crud(self):
         """Tests updating quiz details, editing question fields, and deleting questions with count sync."""
         doc = self._upload_and_process_document(

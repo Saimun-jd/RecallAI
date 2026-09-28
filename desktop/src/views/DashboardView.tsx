@@ -465,9 +465,11 @@ export function DashboardView() {
           />
         </div>
 
-        {/* 5. Three-Column Continuation, Consistency & Quotas */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <ContinueLearningCard recentDocument={mostRecentDoc} />
+        {/* 5. Continuation Banner */}
+        <ContinueLearningCard recentDocument={mostRecentDoc} />
+
+        {/* 6. Consistency & Usage Quotas (Balanced Landscape Split) */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <ProgressSnapshot activityData={activityData} />
           <UsageQuotaCard overview={accountOverview} />
         </div>

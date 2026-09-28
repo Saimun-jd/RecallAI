@@ -56,6 +56,17 @@ async def lifespan(app: FastAPI):
         logger.warning(f"Migration runner check: {e}")
     os.makedirs(PARSED_DOCS_DIR, exist_ok=True)
     
+    # Reconcile any stranded 'processing' topics from previous crashes/reloads
+    try:
+        with get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("UPDATE topics SET status = 'unprocessed' WHERE status = 'processing'")
+            affected = cursor.rowcount
+            if affected > 0:
+                logger.info(f"Reconciled {affected} stranded 'processing' topics on startup.")
+    except Exception as e:
+        logger.warning(f"Failed to reconcile stranded processing topics: {e}")
+    
     sk = get_setting("langfuse_secret_key")
     pk = get_setting("langfuse_public_key")
     host = get_setting("langfuse_host") or "https://cloud.langfuse.com"
@@ -417,9 +428,22 @@ async def set_active_user(req: SetUserRequest):
                         logger.warning(f"Could not remove default db: {rem_err}")
                     
             init_db()
+            try:
+                from app.services.book_sync import BookSyncService
+                from app.models.repositories import WorkspaceRepository
+                ws = WorkspaceRepository.get_by_owner_id(req.user_id)
+                if ws:
+                    BookSyncService.sync_workspace_books(ws["id"])
+            except Exception as sync_err:
+                logger.debug(f"Could not auto-sync books on set_user: {sync_err}")
     else:
         set_active_db_path(default_db_path)
         init_db()
+        try:
+            from app.services.book_sync import BookSyncService
+            BookSyncService.sync_workspace_books("default")
+        except Exception:
+            pass
         
     return {"status": "ok"}
 
@@ -569,21 +593,8 @@ async def upload_and_parse_toc(
 
         # Mirror into recall_saas.db so DocumentsView and RAG chat have unified access
         try:
-            from app.models.repositories import DocumentRepository
-            doc_title = book_title.replace("_", " ").replace("-", " ").strip() or "Untitled Document"
-            existing_docs = DocumentRepository.list_by_workspace(workspace_id="default", limit=100)
-            already_linked = any(d.get("metadata", {}).get("book_id") == book_id for d in existing_docs)
-            if not already_linked:
-                import uuid
-                DocumentRepository.create_document(
-                    workspace_id="default",
-                    title=doc_title,
-                    source_type="pdf",
-                    total_pages=actual_total_pages,
-                    status="ready",
-                    metadata={"book_id": book_id, "chunk_count": topic_count},
-                    doc_id=str(uuid.uuid4())
-                )
+            from app.services.book_sync import BookSyncService
+            BookSyncService.sync_book_to_all_workspaces(book_id)
         except Exception as saas_err:
             logger.debug(f"Could not mirror book into recall_saas.db: {saas_err}")
         
@@ -611,42 +622,126 @@ async def get_book_pdf(book_id: int):
     return FileResponse(path=file_path, media_type="application/pdf", filename=os.path.basename(file_path))
 
 
+from pathlib import Path
+import re
+
+def _get_media_type(file_path: Path | str) -> str:
+    ext = Path(file_path).suffix.lower()
+    return (
+        "image/jpeg" if ext in (".jpg", ".jpeg")
+        else "image/png" if ext == ".png"
+        else "image/webp" if ext == ".webp"
+        else "image/svg+xml" if ext == ".svg"
+        else "image/gif" if ext == ".gif"
+        else "application/octet-stream"
+    )
+
 @app.get("/images/{image_name:path}")
-async def get_extracted_image(image_name: str):
-    from pathlib import Path
+async def get_extracted_image(
+    image_name: str,
+    topic_id: int | None = None,
+    book_id: int | None = None
+):
     clean_subpath = os.path.normpath(image_name).lstrip("/\\")
     target_path = Path(PARSED_DOCS_DIR)
     
     # 1. Direct path check
     direct_file = target_path / clean_subpath
     if direct_file.is_file():
-        ext = direct_file.suffix.lower()
-        media_type = (
-            "image/jpeg" if ext in (".jpg", ".jpeg")
-            else "image/png" if ext == ".png"
-            else "image/webp" if ext == ".webp"
-            else "image/svg+xml" if ext == ".svg"
-            else "image/gif" if ext == ".gif"
-            else "application/octet-stream"
-        )
-        return FileResponse(path=str(direct_file), media_type=media_type, filename=direct_file.name)
+        return FileResponse(path=str(direct_file), media_type=_get_media_type(direct_file), filename=direct_file.name)
         
-    # 2. Search by basename across extracted cache directories
     file_basename = os.path.basename(clean_subpath)
-    if file_basename:
-        for p in target_path.rglob(file_basename):
-            if p.is_file():
-                ext = p.suffix.lower()
-                media_type = (
-                    "image/jpeg" if ext in (".jpg", ".jpeg")
-                    else "image/png" if ext == ".png"
-                    else "image/webp" if ext == ".webp"
-                    else "image/svg+xml" if ext == ".svg"
-                    else "image/gif" if ext == ".gif"
-                    else "application/octet-stream"
+    if not file_basename:
+        return JSONResponse(status_code=404, content={"error": "Invalid image name"})
+
+    # 2. Check if filename starts with a cache_key (e.g. {hash}_p{start}-{end}_{orig_name})
+    cache_match = re.match(r"^([a-f0-9]{8}_p\d+-\d+)_(.*)$", file_basename)
+    if cache_match:
+        cache_key = cache_match.group(1)
+        orig_name = cache_match.group(2)
+        # Check inside target_path / cache_key / "images"
+        cand1 = target_path / cache_key / "images" / file_basename
+        if cand1.is_file():
+            return FileResponse(path=str(cand1), media_type=_get_media_type(cand1), filename=file_basename)
+        cand2 = target_path / cache_key / "images" / orig_name
+        if cand2.is_file():
+            return FileResponse(path=str(cand2), media_type=_get_media_type(cand2), filename=file_basename)
+
+    # 3. Direct path check inside any subfolder (e.g. {cache_key}/images/{name})
+    if "/" in clean_subpath or "\\" in clean_subpath:
+        parts = Path(clean_subpath).parts
+        p = target_path.joinpath(*parts)
+        if p.is_file():
+            return FileResponse(path=str(p), media_type=_get_media_type(p), filename=p.name)
+
+    # 4. Context-aware resolution if topic_id / book_id provided or inferred from DB
+    target_page_ranges = []
+    if topic_id:
+        try:
+            with get_connection() as conn:
+                cur = conn.cursor()
+                cur.execute("SELECT start_page, end_page, book_id FROM topics WHERE id = ?", (topic_id,))
+                t_row = cur.fetchone()
+                if t_row:
+                    target_page_ranges.append((t_row["start_page"], t_row["end_page"]))
+        except Exception:
+            pass
+
+    # If no topic_id provided, check if any topic in DB contains this image filename in its content_md
+    if not target_page_ranges and file_basename:
+        try:
+            with get_connection() as conn:
+                cur = conn.cursor()
+                cur.execute(
+                    "SELECT start_page, end_page FROM topics WHERE content_md LIKE ? LIMIT 5",
+                    (f"%{file_basename}%",)
                 )
-                return FileResponse(path=str(p), media_type=media_type, filename=file_basename)
-                
+                for t_row in cur.fetchall():
+                    target_page_ranges.append((t_row["start_page"], t_row["end_page"]))
+        except Exception:
+            pass
+
+    # 5. Search in cache directories
+    matches = list(target_path.rglob(file_basename))
+    if matches:
+        if len(matches) == 1:
+            return FileResponse(path=str(matches[0]), media_type=_get_media_type(matches[0]), filename=file_basename)
+
+        # Disambiguate when multiple files match:
+        # A) Prioritize candidate directories whose markdown mentions file_basename
+        confirmed_matches = []
+        for m_path in matches:
+            parent_dir = m_path.parent.parent if m_path.parent.name == "images" else m_path.parent
+            for md_candidate in parent_dir.glob("*.md"):
+                try:
+                    if file_basename in md_candidate.read_text(encoding="utf-8", errors="ignore"):
+                        confirmed_matches.append(m_path)
+                        break
+                except Exception:
+                    pass
+
+        candidates_to_filter = confirmed_matches if confirmed_matches else matches
+
+        # B) Filter by target_page_ranges if known
+        if target_page_ranges:
+            for cand in candidates_to_filter:
+                dir_name = cand.parent.parent.name if cand.parent.name == "images" else cand.parent.name
+                m = re.search(r'_p(\d+)-(\d+)', dir_name)
+                if m:
+                    p_start, p_end = int(m.group(1)), int(m.group(2))
+                    for t_start, t_end in target_page_ranges:
+                        if not (p_end < t_start or p_start > t_end):
+                            return FileResponse(path=str(cand), media_type=_get_media_type(cand), filename=file_basename)
+
+        # C) If we have confirmed matches from markdown, return the newest one
+        if confirmed_matches:
+            confirmed_matches.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+            return FileResponse(path=str(confirmed_matches[0]), media_type=_get_media_type(confirmed_matches[0]), filename=file_basename)
+
+        # Fallback to the newest match rather than alphabetical order
+        matches.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+        return FileResponse(path=str(matches[0]), media_type=_get_media_type(matches[0]), filename=file_basename)
+
     return JSONResponse(status_code=404, content={"error": f"Image {image_name} not found"})
 
 
@@ -1038,6 +1133,34 @@ class ProcessTopicRequest(BaseModel):
     provider_override: str | None = None
     force_reprocess: bool = False
 
+# In-flight topic extraction concurrency tracking and event barriers
+_active_topic_extractions: set[int] = set()
+_topic_extraction_events: dict[int, asyncio.Event] = {}
+_topic_semaphore: asyncio.Semaphore | None = None
+
+def get_topic_processing_semaphore() -> asyncio.Semaphore:
+    global _topic_semaphore
+    if _topic_semaphore is None:
+        _topic_semaphore = asyncio.Semaphore(2)
+    return _topic_semaphore
+
+async def wait_for_topic_extraction(topic_id: int, timeout: float = 120.0) -> bool:
+    """
+    Awaits completion of an active extraction on topic_id.
+    Returns True if completed successfully, False if timed out or not running.
+    """
+    if topic_id not in _active_topic_extractions:
+        return True
+    event = _topic_extraction_events.get(topic_id)
+    if not event:
+        return True
+    try:
+        await asyncio.wait_for(event.wait(), timeout=timeout)
+        return True
+    except asyncio.TimeoutError:
+        logger.warning(f"Timed out after {timeout}s waiting for topic {topic_id} extraction.")
+        return False
+
 @app.post("/topics/{topic_id}/process-stream")
 async def process_topic_stream(topic_id: int, req: ProcessTopicRequest):
     from app.database import (
@@ -1064,6 +1187,21 @@ async def process_topic_stream(topic_id: int, req: ProcessTopicRequest):
         children = []
         atomic_concepts = []
         content_md = ""
+
+        # Duplicate extraction check: reject if already running
+        if topic_id in _active_topic_extractions:
+            yield f"data: {json.dumps({'status': 'already_processing', 'topic_id': topic_id, 'message': f'Topic {topic_id} is already being processed.'})}\n\n"
+            return
+
+        sem = get_topic_processing_semaphore()
+        if sem.locked():
+            yield f"data: {json.dumps({'stage': 'queued', 'topic_id': topic_id, 'message': 'Queued waiting for available processing slot...'})}\n\n"
+
+        await sem.acquire()
+        _active_topic_extractions.add(topic_id)
+        done_event = asyncio.Event()
+        _topic_extraction_events[topic_id] = done_event
+
         try:
             update_topic_status(topic_id, "processing")
             children = get_child_topics(topic_id)
@@ -1404,6 +1542,15 @@ async def process_topic_stream(topic_id: int, req: ProcessTopicRequest):
                     content_md=content_md or None,
                     status="unprocessed"
                 )
+            else:
+                top = get_topic_by_id(topic_id)
+                if top and top.get("status") == "processing":
+                    update_topic_status(topic_id, "unprocessed")
+            if children:
+                for c in children:
+                    c_curr = get_topic_by_id(c["id"])
+                    if c_curr and c_curr.get("status") == "processing":
+                        update_topic_status(c["id"], "unprocessed")
             raise
         except Exception as e:
             import traceback
@@ -1441,6 +1588,24 @@ async def process_topic_stream(topic_id: int, req: ProcessTopicRequest):
                 err_dict["checkpointed_concepts"] = len(atomic_concepts)
 
             yield f"data: {json.dumps(err_dict)}\n\n"
+        finally:
+            _active_topic_extractions.discard(topic_id)
+            ev = _topic_extraction_events.pop(topic_id, None)
+            if ev:
+                ev.set()
+            sem.release()
+            # Double check: ensure no topic is left stranded in 'processing' status
+            try:
+                top = get_topic_by_id(topic_id)
+                if top and top.get("status") == "processing":
+                    update_topic_status(topic_id, "unprocessed")
+                if children:
+                    for c in children:
+                        c_curr = get_topic_by_id(c["id"])
+                        if c_curr and c_curr.get("status") == "processing":
+                            update_topic_status(c["id"], "unprocessed")
+            except Exception as ex:
+                logger.warning(f"Failed to verify final topic status in finally: {ex}")
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
@@ -1464,6 +1629,12 @@ async def drill_generate_questions(topic_id: int, req: DrillGenerateRequest):
     topic = get_topic_by_id(topic_id)
     if not topic:
         return JSONResponse(status_code=404, content={"error": "Topic not found"})
+
+    if topic_id in _active_topic_extractions:
+        await wait_for_topic_extraction(topic_id)
+        refreshed = get_topic_by_id(topic_id)
+        if refreshed:
+            topic = refreshed
 
     # Resolve topic content: prefer stored content_md, fallback to PDF extraction
     content = await ensure_topic_markdown(topic_id)
@@ -1647,6 +1818,12 @@ async def generate_topic_flashcards(topic_id: int, req: FlashcardGenerationReque
     topic = get_topic_by_id(topic_id)
     if not topic:
         return JSONResponse(status_code=404, content={"error": "Topic not found"})
+
+    if topic_id in _active_topic_extractions:
+        await wait_for_topic_extraction(topic_id)
+        refreshed = get_topic_by_id(topic_id)
+        if refreshed:
+            topic = refreshed
         
     summary = req.summary_override or topic.get("summary") or ""
     topic_text = await ensure_topic_markdown(topic_id)
@@ -1991,15 +2168,32 @@ def delete_book_api(book_id: int, authorization: Optional[str] = Header(None)):
 
 @app.get("/topics")
 def get_topics_api(book_id: int | None = None, skip: int = 0, limit: int = 10000):
-    from app.database import get_topics
-    return get_topics(book_id, skip, limit)
+    from app.database import get_topics, update_topic_status
+    topics = get_topics(book_id, skip, limit)
+    # Reconcile any topic marked 'processing' that is not actively in memory
+    for t in topics:
+        if t.get("status") == "processing" and t["id"] not in _active_topic_extractions:
+            real_status = "processed" if t.get("atomic_concepts") else "unprocessed"
+            t["status"] = real_status
+            try:
+                update_topic_status(t["id"], real_status)
+            except Exception:
+                pass
+    return topics
 
 @app.get("/topics/{topic_id}")
 def get_topic_by_id_api(topic_id: int):
-    from app.database import get_topic_by_id
+    from app.database import get_topic_by_id, update_topic_status
     topic = get_topic_by_id(topic_id)
     if not topic:
         return JSONResponse(status_code=404, content={"error": "Topic not found"})
+    if topic.get("status") == "processing" and topic_id not in _active_topic_extractions:
+        real_status = "processed" if topic.get("atomic_concepts") else "unprocessed"
+        topic["status"] = real_status
+        try:
+            update_topic_status(topic_id, real_status)
+        except Exception:
+            pass
     return topic
 
 class NoteUpdate(BaseModel):
@@ -2042,6 +2236,13 @@ async def generate_single_cornell_note(topic: dict, provider_override: str | Non
     import json
     
     topic_id = topic.get("id")
+    if topic_id and topic_id in _active_topic_extractions:
+        await wait_for_topic_extraction(topic_id)
+        from app.database import get_topic_by_id
+        refreshed = get_topic_by_id(topic_id)
+        if refreshed:
+            topic = refreshed
+
     content = topic.get("content_md") or ""
     if not content or len(content.strip()) < 30:
         if topic_id:
@@ -2168,7 +2369,15 @@ async def generate_note_scaffold_stream_api(topic_id: int, req: NoteScaffoldRequ
             children = leaf_children
     
     async def event_generator():
+        nonlocal topic
         try:
+            if topic_id in _active_topic_extractions:
+                yield f"data: {json.dumps({'stage': 'waiting_for_extraction', 'status': 'generating', 'progress': 5, 'message': 'Atomic concepts extraction in progress. Awaiting completion before synthesizing study guide...'})}\n\n"
+                await wait_for_topic_extraction(topic_id)
+                refreshed = get_topic_by_id(topic_id)
+                if refreshed:
+                    topic = refreshed
+
             if children:
                 total_children = len(children)
                 start_payload = {
@@ -2190,6 +2399,14 @@ async def generate_note_scaffold_stream_api(topic_id: int, req: NoteScaffoldRequ
                 # Check for cached notes first
                 for idx, child in enumerate(children, 1):
                     c_id = child["id"]
+                    if c_id in _active_topic_extractions:
+                        c_title = child.get("title") or f"Subtopic {idx}"
+                        yield f"data: {json.dumps({'stage': 'waiting_for_extraction', 'status': 'generating', 'progress': 5, 'child_id': c_id, 'child_title': c_title, 'message': f'Awaiting concept extraction for {c_title}...'})}\n\n"
+                        await wait_for_topic_extraction(c_id)
+                        c_refreshed = get_topic_by_id(c_id)
+                        if c_refreshed:
+                            child = c_refreshed
+
                     existing_note = get_note_by_topic(c_id)
                     child_title = child.get("title") or f"Subtopic {idx}"
                     if existing_note and len(existing_note.strip()) > 60:
@@ -2687,6 +2904,7 @@ async def generate_flashcards_annotation(book_id: int, body: FlashcardSelectionR
         )
 
         ann_id = -1
+        saved_cards_count = 0
         if body.save:
             # Save a flashcard_link annotation
             ann_id = save_annotation(
@@ -2699,6 +2917,57 @@ async def generate_flashcards_annotation(book_id: int, body: FlashcardSelectionR
                 custom_prompt=body.custom_prompt,
             )
 
+            # Persist flashcards to the FSRS review table
+            if flashcards:
+                try:
+                    target_topic_id = None
+                    topic_title = "Selected Notes"
+                    topic_breadcrumb = ""
+                    with get_connection() as conn:
+                        cursor = conn.cursor()
+                        cursor.execute(
+                            """
+                            SELECT id, title, breadcrumb FROM topics 
+                            WHERE book_id = ? AND start_page <= ? AND end_page >= ? 
+                            ORDER BY level DESC, sort_order ASC LIMIT 1
+                            """,
+                            (book_id, body.page_number, body.page_number)
+                        )
+                        row = cursor.fetchone()
+                        if not row:
+                            cursor.execute(
+                                """
+                                SELECT id, title, breadcrumb FROM topics 
+                                WHERE book_id = ? 
+                                ORDER BY ABS(start_page - ?) ASC LIMIT 1
+                                """,
+                                (book_id, body.page_number)
+                            )
+                            row = cursor.fetchone()
+                        if row:
+                            target_topic_id = row["id"]
+                            topic_title = row["title"]
+                            topic_breadcrumb = row["breadcrumb"] or ""
+
+                    if target_topic_id is not None:
+                        cards_to_save = []
+                        for fc in flashcards:
+                            cards_to_save.append({
+                                "question": fc.get("question", ""),
+                                "answer": fc.get("answer", ""),
+                                "topic_name": topic_title,
+                                "concept_type": "Definition",
+                                "summary": (fc.get("answer", "") or "")[:100],
+                                "breadcrumb": topic_breadcrumb,
+                                "source_page": body.page_number,
+                            })
+                        saved_cards_count = save_flashcards(target_topic_id, cards_to_save)
+                        logger.info(
+                            f"Persisted {saved_cards_count} selection flashcards to topic {target_topic_id} for FSRS review."
+                        )
+                except Exception as save_err:
+                    logger.error(f"Failed to persist selection flashcards to FSRS: {save_err}")
+
         return {
             "id": ann_id,
             "annotation_type": "flashcard_link",
@@ -2706,6 +2975,7 @@ async def generate_flashcards_annotation(book_id: int, body: FlashcardSelectionR
             "selected_text": body.selected_text,
             "page_number": body.page_number,
             "rect_json": body.rect_json,
+            "saved_count": saved_cards_count,
         }
     except RecallError:
         raise

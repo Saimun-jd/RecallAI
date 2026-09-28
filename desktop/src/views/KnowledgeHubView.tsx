@@ -21,6 +21,7 @@ import {
   UsageLimitBanner 
 } from '../components/chat';
 import { useToast } from '../hooks/useToast';
+import { fetchUnifiedDocuments, resolveDocumentTitle } from '../utils/documentUtils';
 
 export function KnowledgeHubView() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -52,6 +53,8 @@ export function KnowledgeHubView() {
   const lastQueryRef = useRef<string>('');
   const [isUserNearBottom, setIsUserNearBottom] = useState(true);
   const [showJumpToBottom, setShowJumpToBottom] = useState(false);
+  const isStreamingRef = useRef(false);
+  const skipConversationFetchRef = useRef<string | null>(null);
 
   // Auto-scroll to bottom of conversation
   const scrollToBottom = useCallback((smooth: boolean = true) => {
@@ -85,13 +88,17 @@ export function KnowledgeHubView() {
   const loadInitialData = useCallback(async () => {
     setLoadingConversations(true);
     try {
-      const [docsResp, convResp] = await Promise.all([
-        client.getDocuments(1, 0),
+      const [docsList, convResp] = await Promise.allSettled([
+        fetchUnifiedDocuments(50),
         client.listConversations(50, 0),
       ]);
 
-      setHasDocuments(docsResp.total > 0);
-      setConversations(convResp.conversations || []);
+      const resolvedDocs = docsList.status === 'fulfilled' ? docsList.value : [];
+      setHasDocuments(resolvedDocs.length > 0);
+
+      if (convResp.status === 'fulfilled') {
+        setConversations(convResp.value.conversations || []);
+      }
 
       // Check URL query parameters
       const urlDocId = searchParams.get('document_id');
@@ -99,11 +106,14 @@ export function KnowledgeHubView() {
 
       if (urlDocId) {
         setSelectedDocumentId(urlDocId);
-        try {
-          const doc = await client.getDocument(urlDocId);
-          setSelectedDocumentTitle(doc.title);
-        } catch {
-          setSelectedDocumentTitle('Selected Document');
+        const matchingDoc = resolvedDocs.find(
+          (d) => d.id === urlDocId || d.metadata?.book_id?.toString() === urlDocId
+        );
+        if (matchingDoc?.title) {
+          setSelectedDocumentTitle(matchingDoc.title);
+        } else {
+          const resolvedTitle = await resolveDocumentTitle(urlDocId);
+          setSelectedDocumentTitle(resolvedTitle || 'Selected Document');
         }
       }
 
@@ -122,6 +132,30 @@ export function KnowledgeHubView() {
     loadInitialData();
   }, [loadInitialData]);
 
+  // Load conversation messages with proper error handling and mounting check
+  const loadConversationMessages = useCallback(async (convId: string) => {
+    if (!convId) {
+      setMessages([]);
+      return;
+    }
+    setLoadingMessages(true);
+    setActiveError(null);
+    try {
+      const detail = await client.getConversation(convId);
+      setMessages(detail.messages || []);
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.set('conversation_id', convId);
+        return next;
+      }, { replace: true });
+    } catch (err: any) {
+      console.error('Failed to load conversation messages:', err);
+      setActiveError('Failed to load message history. The conversation may have been removed.');
+    } finally {
+      setLoadingMessages(false);
+    }
+  }, [setSearchParams]);
+
   // Load message history when active conversation changes
   useEffect(() => {
     if (!activeConversationId) {
@@ -129,37 +163,19 @@ export function KnowledgeHubView() {
       return;
     }
 
-    let isMounted = true;
-    const fetchConversationDetails = async () => {
-      setLoadingMessages(true);
-      setActiveError(null);
-      try {
-        const detail = await client.getConversation(activeConversationId);
-        if (isMounted) {
-          setMessages(detail.messages || []);
-          // Update URL
-          setSearchParams((prev) => {
-            const next = new URLSearchParams(prev);
-            next.set('conversation_id', activeConversationId);
-            return next;
-          }, { replace: true });
-        }
-      } catch (err: any) {
-        console.error('Failed to load conversation messages:', err);
-        if (isMounted) {
-          setActiveError('Failed to load message history. The conversation may have been removed.');
-        }
-      } finally {
-        if (isMounted) setLoadingMessages(false);
-      }
-    };
+    // Skip fetch if this was created during handleSendMessage
+    if (skipConversationFetchRef.current === activeConversationId) {
+      skipConversationFetchRef.current = null;
+      return;
+    }
 
-    fetchConversationDetails();
+    // Avoid wiping messages if generation is currently streaming
+    if (isStreamingRef.current) {
+      return;
+    }
 
-    return () => {
-      isMounted = false;
-    };
-  }, [activeConversationId, setSearchParams]);
+    loadConversationMessages(activeConversationId);
+  }, [activeConversationId, loadConversationMessages]);
 
   // Select scope handler
   const handleSelectScope = (docId: string | null, docTitle?: string) => {
@@ -248,6 +264,7 @@ export function KnowledgeHubView() {
       try {
         const newConv = await client.createConversation();
         targetConvId = newConv.id;
+        skipConversationFetchRef.current = newConv.id;
         setActiveConversationId(newConv.id);
         setConversations((prev) => [newConv, ...prev]);
         setSearchParams((prev) => {
@@ -288,6 +305,7 @@ export function KnowledgeHubView() {
     setMessages((prev) => [...prev, userMsg, assistantMsgPlaceholder]);
     setInput('');
     setIsStreaming(true);
+    isStreamingRef.current = true;
 
     const abortController = new AbortController();
     abortControllerRef.current = abortController;
@@ -312,17 +330,23 @@ export function KnowledgeHubView() {
         },
         // onDone: attach validated sources and finalize
         (doneEvent) => {
-          setMessages((prev) =>
-            prev.map((msg) =>
-              msg.id === tempAssistantId
-                ? {
-                    ...msg,
-                    id: doneEvent.message_id || msg.id,
-                    sources: doneEvent.sources || [],
-                  }
-                : msg
-            )
-          );
+          setMessages((prev) => {
+            const hasTemp = prev.some((m) => m.id === tempAssistantId);
+            if (hasTemp) {
+              return prev.map((msg) =>
+                msg.id === tempAssistantId
+                  ? {
+                      ...msg,
+                      id: doneEvent.message_id || msg.id,
+                      sources: doneEvent.sources || [],
+                    }
+                  : msg
+              );
+            }
+            // Fallback sync if placeholder was lost
+            if (targetConvId) loadConversationMessages(targetConvId);
+            return prev;
+          });
 
           // Update conversation title in list if auto-titled by backend
           if (doneEvent.conversation_title) {
@@ -354,6 +378,16 @@ export function KnowledgeHubView() {
           } else {
             setActiveError(errMessage);
           }
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === tempAssistantId && !msg.content
+                ? {
+                    ...msg,
+                    content: `⚠️ **Generation Error**: ${errMessage}\n\nPlease click **Retry** below to regenerate.`,
+                  }
+                : msg
+            )
+          );
         },
         abortController.signal
       );
@@ -367,8 +401,19 @@ export function KnowledgeHubView() {
       } else {
         setActiveError(errMsg);
       }
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === tempAssistantId && !msg.content
+            ? {
+                ...msg,
+                content: `⚠️ **Generation Error**: ${errMsg}\n\nPlease click **Retry** below to regenerate.`,
+              }
+            : msg
+        )
+      );
     } finally {
       setIsStreaming(false);
+      isStreamingRef.current = false;
       abortControllerRef.current = null;
     }
   };
@@ -388,7 +433,13 @@ export function KnowledgeHubView() {
       <ConversationSidebar
         conversations={conversations}
         activeConversationId={activeConversationId}
-        onSelectConversation={(id) => setActiveConversationId(id)}
+        onSelectConversation={(id) => {
+          if (activeConversationId === id) {
+            loadConversationMessages(id);
+          } else {
+            setActiveConversationId(id);
+          }
+        }}
         onNewChat={handleNewChat}
         onRenameConversation={handleRenameConversation}
         onDeleteConversation={handleDeleteConversation}
@@ -428,6 +479,7 @@ export function KnowledgeHubView() {
           <div className="flex items-center gap-2 shrink-0">
             <KnowledgeScopeSelector
               selectedDocumentId={selectedDocumentId}
+              selectedDocumentTitle={selectedDocumentTitle}
               onSelectScope={handleSelectScope}
             />
 

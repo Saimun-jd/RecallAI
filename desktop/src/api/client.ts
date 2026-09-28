@@ -592,6 +592,20 @@ export const client = {
       throw error;
     }
   },
+  async getApiKeys(): Promise<{
+    gemini_api_key?: string;
+    groq_api_key?: string;
+    openai_api_key?: string;
+    datalab_api_key?: string;
+    langfuse_secret_key?: string;
+    langfuse_public_key?: string;
+    langfuse_host?: string;
+    ollama_host?: string;
+  }> {
+    const res = await fetch(`${API_BASE}/settings/api-keys`);
+    await this._throwIfError(res, "Failed to fetch API keys");
+    return res.json();
+  },
   async verifyApiKey(provider: string, apiKey: string): Promise<{ valid: boolean; provider: string; message: string }> {
     const res = await fetch(`${API_BASE}/settings/verify-key`, {
       method: "POST",
@@ -2470,6 +2484,7 @@ export interface ReviewSessionItem {
   status: string;
   started_at: string;
   completed_at?: string | null;
+  duration_seconds?: number | null;
   total_items: number;
   reviewed_items: number;
   progress_percentage: number;
@@ -2507,6 +2522,7 @@ export interface RateReviewResult {
   reviewed_items: number;
   total_items: number;
   session_status: string;
+  completed_at?: string | null;
 }
 
 export interface ReviewStatistics {

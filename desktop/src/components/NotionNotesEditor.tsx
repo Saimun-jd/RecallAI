@@ -45,6 +45,9 @@ export function NotionNotesEditor({
   const { showToast } = useToast();
   const activeProvider = useSelector((state: RootState) => state.providers.activeProvider);
   const noteGeneration = useSelector((state: RootState) => state.reader.noteGeneration);
+  const activeProcessingTopics = useSelector((state: RootState) => state.reader.activeProcessingTopics);
+  const topicProcessingState = activeProcessingTopics?.[topicId];
+  const isTopicProcessing = !!topicProcessingState;
   const isCurrentTopicGenerating = !!(noteGeneration?.isGenerating && noteGeneration?.topicId === topicId);
   const isOtherTopicGenerating = !!(noteGeneration?.isGenerating && noteGeneration?.topicId !== topicId);
 
@@ -112,6 +115,10 @@ export function NotionNotesEditor({
 
   // Handle AI Cornell Note generation through background runner
   const handleCornellScaffold = async () => {
+    if (isTopicProcessing) {
+      showToast('info', 'Atomic concepts are currently being extracted for this topic. Cornell notes will be available once extraction completes.');
+      return;
+    }
     try {
       showToast('info', 'Synthesizing Cornell Study Guide with AI...');
       await noteGenerationRunner.startGeneration(topicId, topicTitle || 'Study Topic', activeProvider, rawMarkdown);
@@ -282,17 +289,24 @@ export function NotionNotesEditor({
           {/* AI Cornell Notes Generation */}
           <button
             onClick={handleCornellScaffold}
-            disabled={isCurrentTopicGenerating || isOtherTopicGenerating || loading}
+            disabled={isCurrentTopicGenerating || isOtherTopicGenerating || loading || isTopicProcessing}
             className="flex items-center gap-1 px-2.5 py-1 text-xs font-bold bg-amber-500 text-black border-2 border-on-background hover:bg-amber-400 neo-shadow-sm active:translate-x-px active:translate-y-px disabled:opacity-50 transition-all cursor-pointer"
             title={
-              isCurrentTopicGenerating 
+              isTopicProcessing
+                ? "Extracting atomic concepts... Please wait until extraction finishes."
+                : isCurrentTopicGenerating 
                 ? `Generating notes: ${noteGeneration?.progress ?? 0}%` 
                 : isOtherTopicGenerating 
                 ? `Generating notes for another topic: ${noteGeneration?.topicTitle}`
                 : "Generate Cornell study notes with AI"
             }
           >
-            {isCurrentTopicGenerating ? (
+            {isTopicProcessing ? (
+              <>
+                <Loader2 size={13} className="animate-spin" />
+                <span>Extracting...</span>
+              </>
+            ) : isCurrentTopicGenerating ? (
               <>
                 <Loader2 size={13} className="animate-spin" />
                 <span>{noteGeneration?.progress ?? 0}%</span>
@@ -327,6 +341,18 @@ export function NotionNotesEditor({
           )}
         </div>
       </div>
+
+      {/* Active Topic Concept Extraction Progress Banner */}
+      {isTopicProcessing && (
+        <div className="bg-primary/10 border-b-2 border-on-background px-4 py-2 shrink-0 flex items-center gap-2 text-xs font-medium text-on-surface animate-in fade-in duration-200">
+          <Loader2 size={14} className="animate-spin text-primary shrink-0" />
+          <span>
+            {topicProcessingState?.stage === 'queued'
+              ? 'Concept extraction is queued behind other topics...'
+              : topicProcessingState?.message || 'Extracting atomic concepts... Cornell note generation will unlock once extraction finishes.'}
+          </span>
+        </div>
+      )}
 
       {/* Active Topic Note Generation Progress Banner */}
       {isCurrentTopicGenerating && noteGeneration && (

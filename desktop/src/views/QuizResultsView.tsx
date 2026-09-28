@@ -23,6 +23,7 @@ import { QuestionReviewCard } from '../components/quizzes';
 import { Button } from '../components/ui/Button';
 import { Breadcrumbs } from '../components/ui/Breadcrumbs';
 import { LoadingState, ErrorState } from '../components/shared';
+import { formatDuration } from '../utils/formatDuration';
 import { Tag } from '../components/ui/Tag';
 
 export function QuizResultsView() {
@@ -115,9 +116,7 @@ export function QuizResultsView() {
   const durationSecs = result.duration_seconds !== undefined && result.duration_seconds !== null
     ? result.duration_seconds
     : Math.max(0, Math.round((endMs - startMs) / 1000));
-  const durMins = Math.floor(durationSecs / 60);
-  const durSecs = durationSecs % 60;
-  const durationText = `${durMins}m ${durSecs}s`;
+  const durationText = formatDuration(durationSecs);
 
   // Feedback level
   let feedbackTitle = 'Needs Focus';

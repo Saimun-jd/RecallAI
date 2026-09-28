@@ -21,8 +21,10 @@ export function FlashcardGenModal({
   activeTopicTitle
 }: FlashcardGenModalProps) {
   const dispatch = useDispatch();
-  const { activeTopicId, isCardGenModalOpen } = useSelector((state: RootState) => state.reader);
+  const { activeTopicId, isCardGenModalOpen, activeProcessingTopics } = useSelector((state: RootState) => state.reader);
   const { activeProvider, configuredProviders, pdfExtractor } = useSelector((state: RootState) => state.providers);
+  const topicProcessingState = activeTopicId ? activeProcessingTopics?.[activeTopicId] : undefined;
+  const isTopicProcessing = !!topicProcessingState;
   
   const [count, setCount] = useState(3);
   const [cardType, setCardType] = useState('Conceptual');
@@ -93,6 +95,17 @@ export function FlashcardGenModal({
         </div>
         
         <div className="p-5 overflow-y-auto space-y-4 custom-scrollbar">
+          {/* Active Topic Concept Extraction Progress Banner */}
+          {isTopicProcessing && (
+            <div className="p-3 rounded-lg bg-primary/10 border-2 border-primary/30 flex items-center gap-2 text-xs font-medium text-on-surface animate-in fade-in duration-200">
+              <Loader2 size={14} className="animate-spin text-primary shrink-0" />
+              <span>
+                {topicProcessingState?.stage === 'queued'
+                  ? 'Concept extraction is queued behind other topics...'
+                  : topicProcessingState?.message || 'Extracting atomic concepts... Flashcard generation will utilize extracted concepts once finished.'}
+              </span>
+            </div>
+          )}
           
           {/* Topic Scope / Target Concept */}
           {atomicConcepts && atomicConcepts.length > 0 ? (
@@ -259,10 +272,19 @@ export function FlashcardGenModal({
             </button>
             <button 
               onClick={handleGenerate}
-              disabled={loading}
+              disabled={loading || isTopicProcessing}
               className="px-4 py-2 text-sm font-bold bg-primary text-on-primary border-2 border-on-surface rounded-lg flex items-center gap-2 shadow-[2px_2px_0px_0px_#191b23] active:shadow-none active:translate-x-[1px] active:translate-y-[1px] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? <Loader2 size={16} className="animate-spin" /> : <><Zap size={16} fill="currentColor" /> Generate</>}
+              {isTopicProcessing ? (
+                <>
+                  <Loader2 size={16} className="animate-spin" />
+                  <span>Extracting Concepts...</span>
+                </>
+              ) : loading ? (
+                <Loader2 size={16} className="animate-spin" />
+              ) : (
+                <><Zap size={16} fill="currentColor" /> Generate</>
+              )}
             </button>
           </div>
         </div>
