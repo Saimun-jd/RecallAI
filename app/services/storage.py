@@ -6,7 +6,7 @@ Path format: users/{user_id}/documents/{document_id}/{file_id}.{ext}
 
 import hashlib
 import os
-from pathlib import Path, PureWindowsPath
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Optional, Union
 from platformdirs import user_data_dir
 
@@ -80,8 +80,14 @@ class StorageService:
             raise ValueError(f"Path traversal detected: {storage_path}")
 
         normalized_storage_path = storage_path.replace("\\", "/")
+        posix_path = PurePosixPath(normalized_storage_path)
+        if any(part in {"", ".", ".."} for part in posix_path.parts):
+            raise ValueError(f"Path traversal detected: {storage_path}")
+
         resolved_root = cls._root_dir.resolve()
-        target = (cls._root_dir / normalized_storage_path).resolve()
+        target = resolved_root.joinpath(*posix_path.parts).resolve()
+        if os.path.commonpath([str(resolved_root), str(target)]) != str(resolved_root):
+            raise ValueError(f"Path traversal detected: {storage_path}")
         try:
             target.relative_to(resolved_root)
         except ValueError:
