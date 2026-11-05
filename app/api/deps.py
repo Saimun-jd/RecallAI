@@ -1,0 +1,177 @@
+"""
+Authorization & Authentication Dependencies for FastAPI.
+Provides centralized access control, user resolution, and IDOR protection.
+"""
+
+from typing import Any, Dict, Optional
+from fastapi import Depends, Header
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+
+from app.core.config import settings
+from app.core.security import decode_access_token
+from app.core.errors import AuthenticationError, AuthorizationError, NotFoundError
+from app.models.repositories import UserRepository, WorkspaceRepository, DocumentRepository
+
+security_scheme = HTTPBearer(auto_error=False)
+
+
+def get_current_user(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security_scheme),
+    authorization: Optional[str] = Header(None)
+) -> Dict[str, Any]:
+    """
+    Extracts and validates the JWT Bearer token.
+    Resolves the authenticated user from the database.
+    """
+    raw_token: Optional[str] = None
+    if credentials:
+        raw_token = credentials.credentials
+    elif authorization and authorization.startswith("Bearer "):
+        raw_token = authorization[7:].strip()
+
+    if not raw_token:
+        raise AuthenticationError("Authentication credentials required. Please provide a Bearer token.")
+
+    try:
+        payload = decode_access_token(raw_token)
+    except ValueError as e:
+        raise AuthenticationError(f"Invalid authentication token: {str(e)}")
+
+    user_id = payload.get("sub")
+    if not user_id:
+        raise AuthenticationError("Invalid token payload: missing subject identifier.")
+
+    user = UserRepository.get_by_id(user_id)
+    if not user:
+        # Auto-provision OAuth / Supabase user if authenticated
+        email = payload.get("email")
+        if email or payload.get("sub"):
+            user_meta = payload.get("user_metadata") or {}
+            full_name = user_meta.get("full_name") or payload.get("name")
+            avatar_url = user_meta.get("avatar_url") or payload.get("picture")
+            user = UserRepository.ensure_user(
+                user_id=user_id,
+                email=email or f"{user_id}@oauth.local",
+                full_name=full_name,
+                avatar_url=avatar_url
+            )
+        else:
+            raise AuthenticationError("User account not found or has been removed.")
+
+    if not user.get("is_active"):
+        raise AuthenticationError("User account is currently disabled.")
+
+    return user
+
+
+def get_current_workspace(
+    current_user: Dict[str, Any] = Depends(get_current_user)
+) -> Dict[str, Any]:
+    """
+    Retrieves the authoritative personal workspace belonging to the authenticated user.
+    """
+    workspace = WorkspaceRepository.get_by_owner_id(current_user["id"])
+    if not workspace:
+        # Fallback: create default workspace if one was not initialized
+        workspace = WorkspaceRepository.create_workspace(
+            owner_id=current_user["id"],
+            name="Personal Workspace"
+        )
+    return workspace
+
+
+def require_workspace_owner(
+    workspace_id: str,
+    current_user: Dict[str, Any] = Depends(get_current_user)
+) -> Dict[str, Any]:
+    """
+    Enforces that the workspace requested exists and is owned by the current user.
+    Eliminates multi-tenant crosstalk.
+    """
+    workspace = WorkspaceRepository.get_by_id(workspace_id)
+    if not workspace or workspace.get("owner_id") != current_user["id"]:
+        raise AuthorizationError("You do not have permission to access this workspace.")
+    return workspace
+
+
+def require_document_owner(
+    document_id: str,
+    workspace: Dict[str, Any] = Depends(get_current_workspace)
+) -> Dict[str, Any]:
+    """
+    Enforces that the document exists within the authenticated user's workspace.
+    Guarantees 100% IDOR protection. Returns 404 to avoid leaking existence.
+    """
+    document = DocumentRepository.get_by_id_and_workspace(
+        document_id=document_id,
+        workspace_id=workspace["id"]
+    )
+    if not document:
+        try:
+            from app.services.book_sync import BookSyncService
+            BookSyncService.sync_workspace_books(workspace["id"])
+            document = DocumentRepository.get_by_id_and_workspace(
+                document_id=document_id,
+                workspace_id=workspace["id"]
+            )
+        except Exception:
+            pass
+
+    if not document:
+        raise NotFoundError("Document not found.")
+    return document
+
+
+def get_current_user_optional(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security_scheme),
+    authorization: Optional[str] = Header(None)
+) -> Optional[Dict[str, Any]]:
+    """
+    Extracts and validates the JWT Bearer token if present.
+    In production mode, requires valid authentication credentials.
+    In development/test mode, resolves the user if a token is present, else returns None.
+    """
+    raw_token: Optional[str] = None
+    if credentials:
+        raw_token = credentials.credentials
+    elif authorization and authorization.startswith("Bearer "):
+        raw_token = authorization[7:].strip()
+
+    if not raw_token:
+        if settings.ENVIRONMENT == "production":
+            raise AuthenticationError("Authentication credentials required. Please provide a Bearer token.")
+        return None
+
+    try:
+        payload = decode_access_token(raw_token)
+    except ValueError as e:
+        if settings.ENVIRONMENT == "production":
+            raise AuthenticationError(f"Invalid authentication token: {str(e)}")
+        return None
+
+    user_id = payload.get("sub")
+    if not user_id:
+        if settings.ENVIRONMENT == "production":
+            raise AuthenticationError("Invalid token payload: missing subject identifier.")
+        return None
+
+    user = UserRepository.get_by_id(user_id)
+    if not user:
+        email = payload.get("email")
+        if email or user_id:
+            user_meta = payload.get("user_metadata") or {}
+            full_name = user_meta.get("full_name") or payload.get("name")
+            avatar_url = user_meta.get("avatar_url") or payload.get("picture")
+            user = UserRepository.ensure_user(
+                user_id=user_id,
+                email=email or f"{user_id}@oauth.local",
+                full_name=full_name,
+                avatar_url=avatar_url
+            )
+        elif settings.ENVIRONMENT == "production":
+            raise AuthenticationError("User account not found or has been removed.")
+
+    if user and not user.get("is_active"):
+        raise AuthenticationError("User account is currently disabled.")
+
+    return user

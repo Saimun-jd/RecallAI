@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { TocEntry, SectionSelection } from '../api/client';
 import { X, Layers } from 'lucide-react';
-import clsx from 'clsx';
+import { cn } from '../lib/utils';
 
 interface TocSelectionModalProps {
   isOpen: boolean;
@@ -103,7 +103,7 @@ export function TocSelectionModal({ isOpen, onClose, toc, onProcess }: TocSelect
                 return (
                   <label 
                     key={idx} 
-                    className={clsx(
+                    className={cn(
                       "flex items-start gap-3 p-3 rounded-[var(--radius-standard)] cursor-pointer transition-all duration-200 border border-transparent",
                       isSelected ? "bg-accent-blue/5 border-accent-blue/20" : "hover:bg-surface-container hover:border-border-default"
                     )}
@@ -115,7 +115,7 @@ export function TocSelectionModal({ isOpen, onClose, toc, onProcess }: TocSelect
                       className="mt-1 rounded-[var(--radius-tag)] border-outline-variant bg-surface-container-lowest text-accent-blue focus:ring-accent-blue/20 w-4 h-4"
                     />
                     <div className="flex-1" style={{ paddingLeft: `${(entry.level - 1) * 1.25}rem` }}>
-                      <p className={clsx("text-sm", entry.level === 1 ? 'font-semibold text-primary' : 'text-on-surface-variant')}>
+                      <p className={cn("text-sm", entry.level === 1 ? 'font-semibold text-primary' : 'text-on-surface-variant')}>
                         {entry.title}
                       </p>
                     </div>

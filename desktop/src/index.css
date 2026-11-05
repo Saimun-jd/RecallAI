@@ -2,78 +2,87 @@
 @plugin "@tailwindcss/typography";
 
 @theme {
-  /* ─── Global Overrides ─── */
-  --color-white: #F8F7F4;
-
   /* ─── Typography ─── */
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "Inter", ui-monospace, monospace;
   
-  /* ─── Application Colors (from Design) ─── */
-  --color-surface-container-low: #F2F0EA;
-  --color-error: #ba1a1a;
-  --color-secondary-container: #e0e0dd;
-  --color-surface-variant: #e2e2ec;
-  --color-error-container: #ffdad6;
-  --color-on-secondary-container: #626361;
-  --color-surface-container: #EDEBE3;
-  --color-on-secondary-fixed: #1a1c1a;
-  --color-on-primary-fixed: #00174b;
-  --color-inverse-on-surface: #f0f0fb;
-  --color-outline: #737685;
-  --color-surface: #F8F7F4;
-  --color-on-tertiary-fixed: #3a0b00;
-  --color-secondary-fixed-dim: #c7c6c4;
-  --color-tertiary-fixed: #ffdbd0;
-  --color-primary-container: #004ac6;
-  --color-tertiary: #751f00;
-  --color-on-primary: #ffffff;
-  --color-on-error-container: #93000a;
-  --color-tertiary-fixed-dim: #ffb59e;
-  --color-primary: #003594;
-  --color-surface-container-lowest: #F8F7F4;
-  --color-on-error: #ffffff;
-  --color-surface-dim: #d9d9e4;
-  --color-surface-bright: #faf8ff;
-  --color-tertiary-container: #9c2e02;
-  --color-on-primary-fixed-variant: #003ea8;
-  --color-secondary-fixed: #e3e2df;
-  --color-surface-tint: #1b55d0;
-  --color-background: #faf8ff;
-  --color-secondary: #5e5f5c;
-  --color-academic-blue: #004AC6;
-  --color-inverse-primary: #b4c5ff;
-  --color-on-surface: #191b23;
-  --color-ink-black: #121212;
-  --color-primary-fixed: #dbe1ff;
-  --color-surface-container-high: #E5E2D8;
-  --color-on-tertiary: #ffffff;
-  --color-on-secondary-fixed-variant: #464745;
-  --color-on-surface-variant: #434654;
-  --color-primary-fixed-dim: #b4c5ff;
-  --color-surface-container-highest: #e2e2ec;
-  --color-on-primary-container: #b8c8ff;
-  --color-on-tertiary-container: #ffb9a4;
-  --color-on-tertiary-fixed-variant: #842500;
-  --color-on-background: #191b23;
-  --color-inverse-surface: #2e3038;
-  --color-outline-variant: #c3c6d6;
-  --color-on-secondary: #ffffff;
-  
-  /* Additional States & Borders (Restored) */
-  --color-border-default: #E2E8F0;
-  --color-border-hover: #CBD5E1;
+  /* ─── Application Colors (Refined Neo-Brutalism & Academic Palette) ─── */
+  --color-surface-container-lowest: #FFFFFF;
+  --color-surface-container-low: #F8F9FA;
+  --color-surface-container: #F1F3F6;
+  --color-surface-container-high: #E8EBF0;
+  --color-surface-container-highest: #DFE3EA;
+  --color-surface-variant: #EAECEF;
+  --color-surface: #FFFFFF;
+  --color-background: #F4F5F7;
+
+  --color-on-surface: #0F172A;
+  --color-on-background: #0F172A;
+  --color-on-surface-variant: #475569;
+  --color-inverse-surface: #0F172A;
+  --color-inverse-on-surface: #F8FAFC;
+
+  --color-primary: #1D4ED8;
+  --color-on-primary: #FFFFFF;
+  --color-primary-container: #DBEAFE;
+  --color-on-primary-container: #1E3A8A;
+  --color-primary-fixed: #DBEAFE;
+  --color-primary-fixed-dim: #BFDBFE;
+  --color-on-primary-fixed: #1E3A8A;
+  --color-on-primary-fixed-variant: #1D4ED8;
+  --color-inverse-primary: #93C5FD;
+  --color-surface-tint: #1D4ED8;
+
+  --color-secondary: #475569;
+  --color-on-secondary: #FFFFFF;
+  --color-secondary-container: #E2E8F0;
+  --color-on-secondary-container: #1E293B;
+  --color-secondary-fixed: #E2E8F0;
+  --color-secondary-fixed-dim: #CBD5E1;
+  --color-on-secondary-fixed: #0F172A;
+  --color-on-secondary-fixed-variant: #334155;
+
+  --color-tertiary: #D97706;
+  --color-on-tertiary: #FFFFFF;
+  --color-tertiary-container: #FEF3C7;
+  --color-on-tertiary-container: #78350F;
+  --color-tertiary-fixed: #FEF3C7;
+  --color-tertiary-fixed-dim: #FDE68A;
+  --color-on-tertiary-fixed: #78350F;
+  --color-on-tertiary-fixed-variant: #B45309;
+
+  --color-error: #DC2626;
+  --color-on-error: #FFFFFF;
+  --color-error-container: #FEE2E2;
+  --color-on-error-container: #7F1D1D;
+
+  --color-outline: #64748B;
+  --color-outline-variant: #CBD5E1;
+  --color-surface-dim: #E2E8F0;
+  --color-surface-bright: #FFFFFF;
+
+  --color-academic-blue: #1D4ED8;
+  --color-ink-black: #0F172A;
+  --color-electric-blue: #2563EB;
+  --color-accent-blue: #1D4ED8;
+  --color-ai-purple: #7C3AED;
+
+  /* Intentional Neo-Brutalist Borders */
+  --color-border-default: #0F172A;
+  --color-border-subtle: #CBD5E1;
+  --color-border-hover: #0F172A;
+  --color-border-neo: #0F172A;
   --color-active-bg: #EFF6FF;
   --color-hover-bg: #F1F5F9;
-  
+
   /* ─── Shape Tokens ─── */
-  --radius-tag: 4px;
-  --radius-sm: 4px;
-  --radius-standard: 6px;
-  --radius-md: 6px;
+  --radius-tag: 6px;
+  --radius-sm: 6px;
+  --radius-standard: 8px;
+  --radius-md: 8px;
   --radius-large: 12px;
   --radius-lg: 12px;
-  --radius-xl: 0.75rem;
+  --radius-xl: 12px;
   --radius-full: 9999px;
   
   /* ─── Spacing System (8pt Grid) ─── */
@@ -132,11 +141,57 @@
   --line-height-mono-sm: 18px;
   --font-weight-mono-sm: 400;
   
-  /* ─── Shadows (Diffused Ambient) ─── */
-  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-  --shadow-default: 0 4px 6px -1px rgb(0 0 0 / 0.05), 0 2px 4px -2px rgb(0 0 0 / 0.05);
-  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  /* ─── Neo Brutalism Elevation & Shadows ─── */
+  --shadow-neo-sm: 2px 2px 0px 0px var(--color-border-neo, #0F172A);
+  --shadow-neo: 3px 3px 0px 0px var(--color-border-neo, #0F172A);
+  --shadow-neo-lg: 5px 5px 0px 0px var(--color-border-neo, #0F172A);
+  --color-border-neo: #0F172A;
+  --color-ai-purple: #7C3AED;
+  --color-electric-blue: #2563EB;
+}
+
+/* ─── Light Mode Defaults ─── */
+:root {
+  --color-border-neo: #0F172A;
+  --shadow-neo-xs: 1px 1px 0px 0px var(--color-border-neo);
+  --shadow-neo-sm: 2px 2px 0px 0px var(--color-border-neo);
+  --shadow-neo: 3px 3px 0px 0px var(--color-border-neo);
+  --shadow-neo-lg: 5px 5px 0px 0px var(--color-border-neo);
+}
+
+/* ─── Refined Dark Mode Theme ─── */
+.dark,
+[data-theme="dark"] {
+  color-scheme: dark;
+  --color-background: #090D16;
+  --color-surface: #111827;
+  --color-surface-container-lowest: #111827;
+  --color-surface-container-low: #151E2E;
+  --color-surface-container: #1E293B;
+  --color-surface-container-high: #273549;
+  --color-surface-container-highest: #334155;
+  --color-surface-variant: #1E293B;
+  --color-on-background: #F8FAFC;
+  --color-on-surface: #F8FAFC;
+  --color-on-surface-variant: #94A3B8;
+  --color-inverse-surface: #F8FAFC;
+  --color-inverse-on-surface: #111827;
+  --color-border-default: #334155;
+  --color-border-hover: #475569;
+  --color-border-neo: #475569;
+  --color-active-bg: #1E293B;
+  --color-hover-bg: #151E2E;
+  --color-outline: #475569;
+  --color-outline-variant: #334155;
+  --color-primary: #3B82F6;
+  --color-on-primary: #FFFFFF;
+  --color-primary-container: #1D4ED8;
+  --color-on-primary-container: #DBEAFE;
+  --color-academic-blue: #3B82F6;
+  --shadow-neo-xs: 1px 1px 0px 0px #000000;
+  --shadow-neo-sm: 2px 2px 0px 0px #000000;
+  --shadow-neo: 3px 3px 0px 0px #000000;
+  --shadow-neo-lg: 5px 5px 0px 0px #000000;
 }
 
 .high-contrast {
@@ -156,11 +211,24 @@
 }
 
 @layer base {
-  /* ─── Global Styles (Academic Precision) ─── */
-  html, body {
-    @apply bg-surface text-on-surface antialiased h-full w-full overflow-hidden;
+  /* ─── Global Styles (Academic Precision & Refined Neo Brutalism) ─── */
+  html {
+    @apply bg-background text-on-surface antialiased w-full;
     font-family: var(--font-sans);
-    color-scheme: light;
+    transition: background-color 150ms ease, color 150ms ease;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-background text-on-surface antialiased min-h-screen w-full;
+    font-family: var(--font-sans);
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  #root {
+    min-height: 100vh;
+    width: 100%;
   }
   
   /* Typography Hierarchy */
@@ -169,14 +237,14 @@
     line-height: var(--line-height-headline-lg);
     font-weight: var(--font-weight-headline-lg);
     letter-spacing: var(--letter-spacing-headline-lg);
-    color: var(--color-primary);
+    color: var(--color-on-surface);
   }
   
   h2 {
     font-size: var(--font-size-headline-md);
     line-height: var(--line-height-headline-md);
     font-weight: var(--font-weight-headline-md);
-    color: var(--color-primary);
+    color: var(--color-on-surface);
   }
   
   p {
@@ -185,11 +253,24 @@
     font-weight: var(--font-weight-body-md);
   }
   
-  /* Soft Minimalism Focus Rings (2px blue ring with 20% opacity) */
+  /* High-Contrast Accessible Focus Rings for WCAG AAA & Neo-Brutalism */
   *:focus-visible {
-    @apply outline-none;
-    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
-    transition: box-shadow 150ms ease-out;
+    outline: 2px solid var(--color-accent-blue);
+    outline-offset: 2px;
+    box-shadow: 0 0 0 2px var(--color-surface);
+    transition: outline-offset 100ms ease-out;
+  }
+
+  /* Accessible Reduced Motion */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    ::before,
+    ::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
   }
   
   /* ─── Command Palette (Soft Minimalism) ─── */
@@ -228,7 +309,7 @@
   }
   
   [cmdk-list] {
-    @apply max-h-[300px] overflow-y-auto p-2;
+    @apply max-h-75 overflow-y-auto p-2;
     background: var(--color-surface-container-lowest);
   }
   
@@ -277,21 +358,21 @@
 
 @layer utilities {
   .neo-shadow {
-    box-shadow: 4px 4px 0px 0px rgba(0,0,0,1);
+    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05), 0 2px 4px -2px rgb(0 0 0 / 0.05);
   }
   .neo-shadow-lg {
-    box-shadow: 8px 8px 0px 0px rgba(0,0,0,1);
+    box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.06), 0 4px 6px -4px rgb(0 0 0 / 0.06);
   }
   .neo-border {
-    border: 3px solid #1b1b1b;
+    border: 1px solid var(--color-border-default, #E2E8F0);
   }
   .neo-shadow-button:active {
-    transform: translate(4px, 4px);
-    box-shadow: 0px 0px 0px 0px rgba(0,0,0,1);
+    transform: translateY(1px);
+    box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
   }
   .neo-shadow-card:hover {
-    transform: translate(-2px, -2px);
-    box-shadow: 8px 8px 0px 0px rgba(0,0,0,1);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 12px -2px rgb(0 0 0 / 0.08);
   }
   
   .flashcard-inner {
@@ -342,6 +423,70 @@ body .pdf-highlighter-container.theme-dark .Highlight {
 /* Reset Tailwind Typography (prose) line-height for KaTeX math blocks */
 .prose .katex {
   line-height: normal;
+}
+
+/* ─── Typography & Theme Integration ─── */
+.prose {
+  --tw-prose-body: var(--color-on-surface);
+  --tw-prose-headings: var(--color-on-surface);
+  --tw-prose-lead: var(--color-on-surface-variant);
+  --tw-prose-links: var(--color-primary);
+  --tw-prose-bold: var(--color-on-surface);
+  --tw-prose-counters: var(--color-on-surface-variant);
+  --tw-prose-bullets: var(--color-outline);
+  --tw-prose-hr: var(--color-border-default);
+  --tw-prose-quotes: var(--color-on-surface);
+  --tw-prose-quote-borders: var(--color-border-default);
+  --tw-prose-captions: var(--color-on-surface-variant);
+  --tw-prose-code: var(--color-on-surface);
+  --tw-prose-pre-code: var(--color-on-surface);
+  --tw-prose-pre-bg: var(--color-surface-container);
+  --tw-prose-th-borders: var(--color-border-default);
+  --tw-prose-td-borders: var(--color-border-default);
+}
+
+.dark .prose,
+[data-theme="dark"] .prose,
+.dark .prose-slate,
+[data-theme="dark"] .prose-slate,
+.dark.prose,
+[data-theme="dark"].prose {
+  --tw-prose-body: var(--color-on-surface);
+  --tw-prose-headings: var(--color-on-surface);
+  --tw-prose-lead: var(--color-on-surface-variant);
+  --tw-prose-links: var(--color-primary);
+  --tw-prose-bold: var(--color-on-surface);
+  --tw-prose-counters: var(--color-on-surface-variant);
+  --tw-prose-bullets: var(--color-outline);
+  --tw-prose-hr: var(--color-border-default);
+  --tw-prose-quotes: var(--color-on-surface);
+  --tw-prose-quote-borders: var(--color-border-default);
+  --tw-prose-captions: var(--color-on-surface-variant);
+  --tw-prose-code: var(--color-on-surface);
+  --tw-prose-pre-code: var(--color-on-surface);
+  --tw-prose-pre-bg: var(--color-surface-container);
+  --tw-prose-th-borders: var(--color-border-default);
+  --tw-prose-td-borders: var(--color-border-default);
+}
+
+/* Flashcard text color contrast guarantee */
+.flashcard-face strong,
+.flashcard-face b,
+.flashcard-face .prose strong,
+.flashcard-face .prose b {
+  color: var(--color-on-surface) !important;
+  font-weight: 700;
+}
+
+.flashcard-face em,
+.flashcard-face i,
+.flashcard-face .prose em,
+.flashcard-face .prose i {
+  color: var(--color-on-surface) !important;
+}
+
+.flashcard-face .prose {
+  color: var(--color-on-surface);
 }
 
 /* ─── PDF Viewer Layers ─── */
@@ -399,3 +544,498 @@ body .pdf-highlighter-container.theme-dark .Highlight {
 .pdf-annotation-mount > * {
   pointer-events: auto;
 }
+
+/* ── Toast Notifications ── */
+@keyframes toast-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(40px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* ── Neo-Brutalist Marquee Animation ── */
+@keyframes marquee {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  100% {
+    transform: translate3d(-50%, 0, 0);
+  }
+}
+
+.animate-marquee {
+  display: flex;
+  width: max-content;
+  animation: marquee 30s linear infinite;
+  will-change: transform;
+}
+
+.animate-marquee:hover {
+  animation-play-state: paused;
+}
+
+
+/* ─── Authentic Student Handwritten Notebook Aesthetic ─── */
+
+:root {
+  --font-handwriting: 'Kalam', 'Patrick Hand', cursive, sans-serif;
+  --font-handwriting-heading: 'Caveat', cursive, sans-serif;
+}
+
+.font-handwriting {
+  font-family: var(--font-handwriting);
+}
+
+.font-handwriting-heading {
+  font-family: var(--font-handwriting-heading);
+}
+
+/* Notebook Sheet Container */
+.notebook-sheet {
+  position: relative;
+  border-radius: 14px;
+  box-shadow: 
+    0 1px 3px rgba(0, 0, 0, 0.05),
+    0 10px 30px -5px rgba(0, 0, 0, 0.1),
+    0 0 0 1px rgba(0, 0, 0, 0.06);
+  font-family: var(--font-handwriting);
+  font-size: 1.06rem;
+  line-height: 2rem;
+  color: #1e293b;
+  transition: background 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* Dark Mode Notebook Sheet */
+.dark .notebook-sheet,
+:root[class~="dark"] .notebook-sheet {
+  box-shadow: 
+    0 1px 3px rgba(0, 0, 0, 0.3),
+    0 12px 35px -5px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(255, 255, 255, 0.08);
+  color: #e2e8f0;
+}
+
+/* ── Paper Pattern 1: College Ruled ── */
+.notebook-paper-ruled {
+  background-color: #fdfbf7;
+  /* Red margin line at 42px + horizontal ruled lines spaced at 32px (matching 2rem line-height) */
+  background-image: 
+    linear-gradient(to right, transparent 41px, rgba(239, 68, 68, 0.35) 41px, rgba(239, 68, 68, 0.35) 43px, transparent 43px),
+    repeating-linear-gradient(to bottom, transparent, transparent 31px, rgba(147, 197, 253, 0.45) 31px, rgba(147, 197, 253, 0.45) 32px);
+  background-size: 100% 100%, 100% 32px;
+  background-attachment: local;
+}
+
+.dark .notebook-paper-ruled,
+:root[class~="dark"] .notebook-paper-ruled {
+  background-color: #151821;
+  background-image: 
+    linear-gradient(to right, transparent 41px, rgba(248, 113, 113, 0.32) 41px, rgba(248, 113, 113, 0.32) 43px, transparent 43px),
+    repeating-linear-gradient(to bottom, transparent, transparent 31px, rgba(59, 130, 246, 0.18) 31px, rgba(59, 130, 246, 0.18) 32px);
+  background-size: 100% 100%, 100% 32px;
+  background-attachment: local;
+}
+
+/* ── Paper Pattern 2: Engineering Dot Grid (Clean Grid, No Margin Line) ── */
+.notebook-paper-grid {
+  background-color: #fdfbf7;
+  background-image: radial-gradient(rgba(148, 163, 184, 0.38) 1.5px, transparent 1.5px);
+  background-size: 24px 24px;
+  background-position: 0 0;
+  background-attachment: local;
+}
+
+.dark .notebook-paper-grid,
+:root[class~="dark"] .notebook-paper-grid {
+  background-color: #151821;
+  background-image: radial-gradient(rgba(148, 163, 184, 0.22) 1.5px, transparent 1.5px);
+  background-size: 24px 24px;
+  background-position: 0 0;
+  background-attachment: local;
+}
+
+/* ── Paper Pattern 3: Clean Blank Warm Paper (Clean Sheet, No Margin Line) ── */
+.notebook-paper-plain {
+  background-color: #fcf9f2;
+  background-image: none;
+}
+
+.dark .notebook-paper-plain,
+:root[class~="dark"] .notebook-paper-plain {
+  background-color: #171922;
+  background-image: none;
+}
+
+/* ── Notebook Binder Margin Edge (Only for Ruled Paper) ── */
+.notebook-binder-edge {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 40px;
+  pointer-events: none;
+  user-select: none;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-around;
+  align-items: center;
+  padding: 60px 0;
+}
+
+.notebook-hole-punch {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.08);
+  box-shadow: inset 1px 1px 2px rgba(0, 0, 0, 0.22), 0 0 0 1px rgba(255, 255, 255, 0.35);
+}
+
+.dark .notebook-hole-punch,
+:root[class~="dark"] .notebook-hole-punch {
+  background: rgba(0, 0, 0, 0.5);
+  box-shadow: inset 1px 1px 2px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+/* ── Handwritten Typography Hierarchy ── */
+.notebook-sheet h1,
+.notebook-sheet h2,
+.notebook-sheet h3,
+.notebook-sheet h4 {
+  font-family: var(--font-handwriting-heading);
+  letter-spacing: 0.01em;
+  margin-top: 1.5rem;
+  margin-bottom: 0.75rem;
+  line-height: 1.25;
+}
+
+.notebook-sheet h1 {
+  font-size: 2.2rem;
+  font-weight: 700;
+  color: #0f2c59;
+  border-bottom: 2px dashed rgba(30, 58, 138, 0.25);
+  padding-bottom: 0.4rem;
+}
+
+.dark .notebook-sheet h1,
+:root[class~="dark"] .notebook-sheet h1 {
+  color: #93c5fd;
+  border-bottom-color: rgba(147, 197, 253, 0.25);
+}
+
+.notebook-sheet h2 {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #1e3a8a;
+}
+
+.dark .notebook-sheet h2,
+:root[class~="dark"] .notebook-sheet h2 {
+  color: #60a5fa;
+}
+
+.notebook-sheet h3 {
+  font-size: 1.45rem;
+  font-weight: 700;
+  color: #1d4ed8;
+}
+
+.dark .notebook-sheet h3,
+:root[class~="dark"] .notebook-sheet h3 {
+  color: #93c5fd;
+}
+
+/* ── Authentic Student Highlighter for Bold / Key Terms ── */
+.notebook-sheet strong,
+.notebook-sheet b {
+  font-weight: 700;
+  color: #0f172a;
+  background: linear-gradient(104deg, rgba(254, 240, 138, 0.65) 0%, rgba(253, 224, 71, 0.75) 100%);
+  padding: 0.1em 0.35em;
+  margin: 0 0.1em;
+  border-radius: 4px 6px 3px 5px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+.dark .notebook-sheet strong,
+.dark .notebook-sheet b,
+:root[class~="dark"] .notebook-sheet strong,
+:root[class~="dark"] .notebook-sheet b {
+  color: #fef08a;
+  background: rgba(234, 179, 8, 0.22);
+  border-bottom: 1px solid rgba(234, 179, 8, 0.4);
+}
+
+/* ── KaTeX Math Formula Gel Pen Ink (Fixes Faded Math Issue) ── */
+.notebook-sheet .katex,
+.notebook-sheet .katex-display,
+.notebook-sheet .katex * {
+  color: #1e3a8a !important;
+  font-size: 1.05em;
+}
+
+.dark .notebook-sheet .katex,
+.dark .notebook-sheet .katex-display,
+.dark .notebook-sheet .katex * {
+  color: #93c5fd !important;
+}
+
+.notebook-sheet .katex-display {
+  padding: 0.6rem 1rem;
+  margin: 0.75rem 0;
+  background: rgba(224, 231, 255, 0.25);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  border-radius: 6px;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.dark .notebook-sheet .katex-display {
+  background: rgba(30, 58, 138, 0.2);
+  border-color: rgba(96, 165, 250, 0.25);
+}
+
+/* ── Sticky Note Callout for Exam Pitfalls & Warnings ── */
+.notebook-sheet blockquote,
+.notebook-sheet .sticky-note {
+  position: relative;
+  background: #fef9c3;
+  color: #713f12;
+  border-left: none;
+  padding: 1rem 1.25rem;
+  margin: 1.25rem 0;
+  border-radius: 4px 12px 6px 14px;
+  box-shadow: 2px 4px 12px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(234, 179, 8, 0.2);
+  transform: rotate(-0.4deg);
+  font-family: var(--font-handwriting);
+}
+
+.dark .notebook-sheet blockquote,
+.dark .notebook-sheet .sticky-note {
+  background: #292524;
+  color: #fef08a;
+  box-shadow: 2px 4px 12px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(234, 179, 8, 0.25);
+}
+
+/* Sticky Note Tape Visual */
+.notebook-sheet blockquote::before,
+.notebook-sheet .sticky-note::before {
+  content: '';
+  position: absolute;
+  top: -8px;
+  left: 35%;
+  width: 65px;
+  height: 18px;
+  background: rgba(254, 240, 138, 0.7);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transform: rotate(1deg);
+  opacity: 0.85;
+}
+
+.dark .notebook-sheet blockquote::before,
+.dark .notebook-sheet .sticky-note::before {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+/* ── Handwritten Ruled Tables ── */
+.notebook-sheet table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.25rem 0;
+  font-family: var(--font-handwriting);
+  font-size: 0.98rem;
+}
+
+.notebook-sheet th {
+  background: rgba(219, 234, 254, 0.4);
+  color: #1e3a8a;
+  font-family: var(--font-handwriting-heading);
+  font-size: 1.25rem;
+  font-weight: 700;
+  padding: 0.6rem 0.8rem;
+  border-bottom: 2px solid #2563eb;
+  text-align: left;
+}
+
+.dark .notebook-sheet th {
+  background: rgba(30, 58, 138, 0.3);
+  color: #93c5fd;
+  border-bottom-color: #60a5fa;
+}
+
+.notebook-sheet td {
+  padding: 0.6rem 0.8rem;
+  border-bottom: 1px dashed rgba(148, 163, 184, 0.4);
+}
+
+.notebook-sheet tr:hover td {
+  background: rgba(254, 249, 195, 0.25);
+}
+
+/* ── Paragraphs sitting on notebook lines ── */
+.notebook-sheet p {
+  margin-top: 0.5rem;
+  margin-bottom: 0.75rem;
+  line-height: 2rem;
+  color: #1e293b;
+}
+
+.dark .notebook-sheet p {
+  color: #e2e8f0;
+}
+
+/* ── Lists sitting on notebook lines ── */
+.notebook-sheet ul {
+  list-style-type: disc;
+  padding-left: 1.5rem;
+  margin: 0.75rem 0;
+}
+
+.notebook-sheet ol {
+  list-style-type: decimal;
+  padding-left: 1.5rem;
+  margin: 0.75rem 0;
+}
+
+.notebook-sheet li {
+  margin-bottom: 0.35rem;
+  line-height: 2rem;
+  color: #1e293b;
+}
+
+.dark .notebook-sheet li {
+  color: #e2e8f0;
+}
+
+.notebook-sheet ul > li::marker {
+  color: #2563eb;
+  font-size: 1.1em;
+}
+
+.dark .notebook-sheet ul > li::marker {
+  color: #60a5fa;
+}
+
+.notebook-sheet ol > li::marker {
+  color: #2563eb;
+  font-weight: 700;
+  font-family: var(--font-handwriting-heading);
+}
+
+.dark .notebook-sheet ol > li::marker {
+  color: #60a5fa;
+}
+
+.notebook-sheet .katex-error {
+  color: #dc2626 !important;
+  background: rgba(254, 202, 202, 0.4);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 0.9em;
+}
+
+/* ─── Neo Brutalism Utility Classes ─── */
+.neo-card {
+  background-color: var(--color-surface);
+  border: 2px solid var(--color-border-default);
+  box-shadow: var(--shadow-neo);
+  border-radius: var(--radius-large);
+  transition: all 150ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.neo-card-hover {
+  transition: all 150ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.neo-card-hover:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: var(--shadow-neo-lg);
+}
+
+.neo-button {
+  border: 2px solid var(--color-border-default);
+  box-shadow: var(--shadow-neo);
+  transition: all 120ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.neo-button:hover:not(:disabled) {
+  transform: translate(-1px, -1px);
+  box-shadow: var(--shadow-neo-lg);
+}
+.neo-button:active:not(:disabled) {
+  transform: translate(2px, 2px);
+  box-shadow: none;
+}
+
+.neo-border {
+  border: 2px solid var(--color-border-default);
+}
+
+.neo-border-sm {
+  border: 1px solid var(--color-border-default);
+}
+
+.neo-shadow-xs {
+  box-shadow: var(--shadow-neo-xs, 1px 1px 0px 0px var(--color-border-neo, #0F172A));
+}
+
+.neo-shadow-sm {
+  box-shadow: var(--shadow-neo-sm);
+}
+
+.neo-shadow {
+  box-shadow: var(--shadow-neo);
+}
+
+.neo-shadow-lg,
+.neo-shadow-large {
+  box-shadow: var(--shadow-neo-lg);
+}
+
+.active-neo-press:active {
+  transform: translate(1px, 1px);
+  box-shadow: none;
+}
+
+/* ─── Global Scrollbar Utilities ─── */
+.hide-scrollbar,
+.no-scrollbar {
+  -ms-overflow-style: none !important; /* IE and Edge */
+  scrollbar-width: none !important; /* Firefox */
+}
+
+.hide-scrollbar::-webkit-scrollbar,
+.no-scrollbar::-webkit-scrollbar {
+  display: none !important; /* Chrome, Safari, Opera */
+  width: 0 !important;
+  height: 0 !important;
+}
+
+/* Custom sleek subtle scrollbar */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(25, 27, 35, 0.25) transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(25, 27, 35, 0.2);
+  border-radius: 9999px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(25, 27, 35, 0.4);
+}
+
+

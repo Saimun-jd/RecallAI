@@ -1,0 +1,54 @@
+{
+  "description": "AI/RAG Evaluation Suite Cases for Recall AI",
+  "cases": [
+    {
+      "id": "case_a_direct",
+      "name": "Case A - Direct Retrieval",
+      "query": "Recall was founded in 2026 and uses PostgreSQL",
+      "expected_document": "document_a.md",
+      "expected_concepts": ["founded in 2026", "PostgreSQL"],
+      "forbidden_documents": ["document_c.md"]
+    },
+    {
+      "id": "case_b_semantic",
+      "name": "Case B - Semantic Retrieval",
+      "query": "When was the Recall learning platform established and what database powers it?",
+      "expected_document": "document_a.md",
+      "expected_concepts": ["2026", "PostgreSQL"],
+      "forbidden_documents": ["document_c.md"]
+    },
+    {
+      "id": "case_c_multi_chunk",
+      "name": "Case C - Multi-Chunk Answer",
+      "query": "How are document chunks embedded and stored in pgvector?",
+      "expected_document": "document_b.md",
+      "expected_concepts": ["1500 characters", "1536-dimensional", "pgvector"],
+      "forbidden_documents": ["document_c.md"]
+    },
+    {
+      "id": "case_d_missing_knowledge",
+      "name": "Case D - Missing Knowledge",
+      "query": "What are the rules for quantum teleportation in warp drive engines?",
+      "expected_document": null,
+      "expected_behavior": "insufficient_knowledge_acknowledgment",
+      "must_not_cite_sources": true
+    },
+    {
+      "id": "case_e_user_isolation",
+      "name": "Case E - User Isolation",
+      "description": "User A must never retrieve chunks belonging to User B",
+      "user_a_doc": "document_a.md",
+      "user_b_doc": "document_b.md",
+      "query_for_user_b_content": "1536-dimensional L2-normalized float vectors",
+      "expected_results_for_user_a": 0
+    },
+    {
+      "id": "case_f_document_scope",
+      "name": "Case F - Document Scope",
+      "description": "When scoped to Document A, chunks from Document B must not be returned",
+      "scoped_document": "document_a.md",
+      "query": "pipeline and storage",
+      "forbidden_documents": ["document_b.md", "document_c.md"]
+    }
+  ]
+}

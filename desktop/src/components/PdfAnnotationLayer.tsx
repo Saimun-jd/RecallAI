@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Trash2, Edit2, Bookmark } from 'lucide-react';
 import type { PdfAnnotation } from '../api/client';
-import { Sparkles, NotebookPen, CreditCard } from 'lucide-react';
 import { MarkdownRenderer } from './MarkdownRenderer';
 
 const TYPE_STYLES: Record<string, any> = {
@@ -92,8 +91,8 @@ export function PdfAnnotationLayer({ annotation, highlightPosition, onDelete, on
         }}
         title={`Click to view ${style.label}`}
       >
-        <div className={`p-2 rounded-full ${style.iconBg} ${style.iconColor} ring-2 ring-white shadow-xl backdrop-blur-sm`}>
-          <Bookmark size={16} className={style.iconColor} strokeWidth={2.5} />
+        <div className={`p-2 rounded-full bg-surface border-2 border-on-surface text-on-surface shadow-xl backdrop-blur-sm`}>
+          <Bookmark size={16} strokeWidth={2.5} />
         </div>
       </div>
 

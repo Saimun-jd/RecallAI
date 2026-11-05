@@ -9,6 +9,19 @@ class BaseLLMProvider(ABC):
         json_schema: Dict[str, Any],
         temperature: float = 0.1,
         max_tokens: int = 4096,
+        feature: str = "general",
     ) -> str:
         """Sends prompt and json schema, returning a raw JSON string response."""
         pass
+
+    @abstractmethod
+    async def generate_stream(
+        self,
+        prompt: str,
+        temperature: float = 0.7,
+        max_tokens: int = 8192,
+        feature: str = "general",
+    ):
+        """Yields chunks of string."""
+        pass
+

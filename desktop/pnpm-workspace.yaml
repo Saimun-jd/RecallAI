@@ -1,5 +1,2 @@
 packages:
   - "."
-allowBuilds:
-  canvas: set this to true or false
-  puppeteer: set this to true or false

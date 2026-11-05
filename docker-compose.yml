@@ -1,41 +1,137 @@
-# docker-compose.yml
+# =============================================================================
+# Recall AI — Production Docker Compose Architecture
+# =============================================================================
+# Top-level production topology:
+# - postgres: PostgreSQL 16 with pgvector extension (internal network only)
+# - backend: FastAPI ASGI service (non-root, health checked, persistent storage)
+# - frontend: Nginx reverse proxy & static SPA gateway (exposed port 80/443)
+# - ollama: Optional local AI inference container with model persistence
+# =============================================================================
 
 services:
+  # ---------------------------------------------------------------------------
+  # 1. Database: PostgreSQL 16 + pgvector
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: recall-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-recall}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-recall_production_db_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-recall}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-recall} -d ${POSTGRES_DB:-recall}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - recall-internal
+
+  # ---------------------------------------------------------------------------
+  # 2. Backend: FastAPI Core API & Ingestion Engine
+  # ---------------------------------------------------------------------------
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: recall-backend:latest
+    container_name: recall-backend
+    restart: unless-stopped
+    environment:
+      ENVIRONMENT: production
+      DEBUG: "false"
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY must be set in production}
+      BYOK_ENCRYPTION_KEY: ${BYOK_ENCRYPTION_KEY:?BYOK_ENCRYPTION_KEY must be set in production}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-recall}:${POSTGRES_PASSWORD:-recall_production_db_secret}@postgres:5432/${POSTGRES_DB:-recall}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost,http://127.0.0.1}
+      DATA_DIR: /app/data
+      UPLOAD_DIR: /app/uploads
+      LLM_PROVIDER: ${LLM_PROVIDER:-openai}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      OLLAMA_HOST: http://ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-gemma3:4b}
+    volumes:
+      - uploads_data:/app/uploads
+      - app_data:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://127.0.0.1:8000/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    networks:
+      - recall-internal
+
+  # ---------------------------------------------------------------------------
+  # 3. Frontend Gateway: Nginx Static SPA & Reverse Proxy
+  # ---------------------------------------------------------------------------
+  frontend:
+    build:
+      context: ./desktop
+      dockerfile: Dockerfile
+    image: recall-frontend:latest
+    container_name: recall-frontend
+    restart: unless-stopped
+    ports:
+      - "${PORT:-80}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://127.0.0.1/ || exit 1"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    networks:
+      - recall-internal
+
+  # ---------------------------------------------------------------------------
+  # 4. Optional Local AI Runtime: Ollama with Persistent Models
+  # ---------------------------------------------------------------------------
   ollama:
     image: ollama/ollama:latest
-    ports:
-      - "11434:11434"
+    container_name: recall-ollama
+    restart: unless-stopped
     volumes:
       - ollama_data:/root/.ollama
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]   # remove this block if no GPU
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://127.0.0.1:11434/api/tags || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    networks:
+      - recall-internal
 
-  ollama-pull:
-    image: curlimages/curl:latest
-    depends_on:
-      - ollama
-    command: >
-      sh -c "until curl -s -o /dev/null -w '%{http_code}' http://ollama:11434/api/tags | grep -q '200'; do echo 'Waiting for Ollama API...'; sleep 2; done; echo 'Pulling model...'; curl -s -X POST http://ollama:11434/api/pull -d '{\"name\": \"gemma3:4b\"}'"
-
-
-
-  chunker:
-    build: .
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-    depends_on:
-      - ollama
-    environment:
-      OLLAMA_MODEL: gemma3:4b
-    ports:
-      - "8000:8000"
-    volumes:
-      - ./app:/app/app
-      - ./parsed_docs:/app/parsed_docs
-
+# =============================================================================
+# Persistent Volumes (Survives container replacement)
+# =============================================================================
 volumes:
+  postgres_data:
+    name: recall_postgres_data
+  uploads_data:
+    name: recall_uploads_data
+  app_data:
+    name: recall_app_data
   ollama_data:
+    name: recall_ollama_data
+
+# =============================================================================
+# Internal Isolated Network (No direct public exposure for DB or Ollama)
+# =============================================================================
+networks:
+  recall-internal:
+    driver: bridge
+    name: recall-internal

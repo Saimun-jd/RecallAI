@@ -1,0 +1,183 @@
+"""
+Core Configuration for Recall AI.
+Centralized, validated environment configuration using Pydantic Settings.
+Distinguishes server-only secrets from client-safe configuration.
+"""
+
+import os
+import sys
+from typing import List, Literal, Union
+from platformdirs import user_data_dir
+from pydantic import Field, field_validator, model_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+if hasattr(sys, '_MEIPASS'):
+    ENV_PATH = os.path.join(sys._MEIPASS, '.env')
+else:
+    ENV_PATH = '.env'
+
+DATA_DIR = user_data_dir("Recall", "Recall")
+DEFAULT_SQLITE_PATH = os.path.join(DATA_DIR, "recall_saas.db")
+
+
+def _get_or_create_local_key(filename: str, length_chars: int) -> str:
+    """Generates and persists a unique local cryptographic key if not provided via environment."""
+    try:
+        os.makedirs(DATA_DIR, exist_ok=True)
+        key_file = os.path.join(DATA_DIR, filename)
+        if os.path.exists(key_file):
+            with open(key_file, "r", encoding="utf-8") as f:
+                val = f.read().strip()
+                if len(val) >= length_chars:
+                    return val
+        import secrets
+        if filename.endswith(".hex"):
+            new_key = secrets.token_hex(length_chars // 2)
+        else:
+            new_key = secrets.token_urlsafe(length_chars)
+        with open(key_file, "w", encoding="utf-8") as f:
+            f.write(new_key)
+        return new_key
+    except Exception:
+        import secrets
+        if filename.endswith(".hex"):
+            return secrets.token_hex(length_chars // 2)
+        return secrets.token_urlsafe(length_chars)
+
+
+class CoreSettings(BaseSettings):
+    # Environment Mode
+    ENVIRONMENT: Literal["development", "test", "production"] = "development"
+    DEBUG: bool = True
+
+    # Security & Auth Secrets (Server-Only)
+    # Default provided for dev/test convenience; validated for production below
+    SECRET_KEY: str = Field(
+        default="recall-ai-dev-secret-key-at-least-32-chars-long!",
+        description="Master secret key for signing JWTs. Must be at least 32 characters."
+    )
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(
+        default=60,
+        description="JWT token validity duration in minutes."
+    )
+    BYOK_ENCRYPTION_KEY: str = Field(
+        default="0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        description="32-byte hex-encoded encryption key for AES-256-GCM BYOK vault."
+    )
+
+    # Database
+    DATABASE_URL: str = Field(
+        default="",
+        description="PostgreSQL/Supabase URL or SQLite URL. If empty, defaults to local SQLite."
+    )
+
+    # CORS & Network Security
+    CORS_ALLOWED_ORIGINS: Union[List[str], str] = [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+        "tauri://localhost",
+        "https://tauri.localhost",
+        "http://tauri.localhost",
+    ]
+
+    # Request Limits
+    MAX_REQUEST_BODY_BYTES: int = 10 * 1024 * 1024  # 10 MB for standard API requests
+    MAX_UPLOAD_BYTES: int = 55 * 1024 * 1024        # 55 MB for file uploads (50 MB PDF + multipart overhead)
+    MAX_PDF_BYTES: int = 50 * 1024 * 1024           # 50 MB for PDF documents
+
+    # Supabase (Public & Service)
+    SUPABASE_URL: str = ""
+    SUPABASE_ANON_KEY: str = ""
+    SUPABASE_SERVICE_ROLE_KEY: str = ""
+
+    # Legacy & AI provider configurations (kept for complete compatibility)
+    llm_provider: str = "openai"
+    pdf_extractor: str = "pymupdf4llm"
+    ollama_host: str = "http://localhost:11434"
+    ollama_model: str = "gemma3:4b"
+    ollama_embedding_model: str = "nomic-embed-text"
+    openai_api_key: str = ""
+    openai_model: str = "gpt-4o-mini"
+    openai_base_url: str = "https://api.openai.com/v1"
+    openai_embedding_model: str = "text-embedding-3-small"
+    datalab_api_key: str = ""
+    gemini_api_key: str = ""
+    gemini_model: str = "gemini-3.6-flash"
+    groq_api_key: str = ""
+    groq_model: str = "openai/gpt-oss-20b"
+    openrouter_api_key: str = ""
+    openrouter_model: str = "meta-llama/llama-3.3-70b-instruct"
+    langfuse_secret_key: str = ""
+    langfuse_public_key: str = ""
+    langfuse_host: str = "https://cloud.langfuse.com"
+
+    model_config = SettingsConfigDict(
+        env_file=ENV_PATH,
+        env_file_encoding="utf-8",
+        extra="ignore"
+    )
+
+    @field_validator("SECRET_KEY")
+    @classmethod
+    def validate_secret_key(cls, v: str, info) -> str:
+        v_clean = v.strip() if v else ""
+        if not v_clean or v_clean.startswith("replace_with"):
+            return _get_or_create_local_key(".local_secret_key", 48)
+        if len(v_clean) < 32:
+            raise ValueError("SECRET_KEY must be at least 32 characters long.")
+        return v_clean
+
+    @field_validator("BYOK_ENCRYPTION_KEY")
+    @classmethod
+    def validate_byok_key(cls, v: str) -> str:
+        v_clean = v.strip() if v else ""
+        if not v_clean or v_clean.startswith("replace_with"):
+            return _get_or_create_local_key(".local_byok_key.hex", 64)
+        try:
+            raw_bytes = bytes.fromhex(v_clean)
+            if len(raw_bytes) != 32:
+                raise ValueError("BYOK_ENCRYPTION_KEY must be exactly 32 bytes (64 hex characters).")
+        except ValueError as e:
+            if v_clean.startswith("replace_with"):
+                return _get_or_create_local_key(".local_byok_key.hex", 64)
+            raise ValueError(f"Invalid BYOK_ENCRYPTION_KEY format: {e}")
+        return v_clean
+
+    @field_validator("CORS_ALLOWED_ORIGINS")
+    @classmethod
+    def assemble_cors_origins(cls, v: Union[str, List[str]]) -> List[str]:
+        if isinstance(v, str):
+            v_str = v.strip()
+            if not v_str:
+                return []
+            if v_str.startswith("[") and v_str.endswith("]"):
+                import json
+                try:
+                    parsed = json.loads(v_str)
+                    if isinstance(parsed, list):
+                        return [str(i).strip() for i in parsed if str(i).strip()]
+                except Exception:
+                    pass
+            return [i.strip() for i in v_str.split(",") if i.strip()]
+        elif isinstance(v, (list, tuple)):
+            return [str(i).strip() for i in v if str(i).strip()]
+        return []
+
+    @model_validator(mode="after")
+    def validate_production_security(self) -> "CoreSettings":
+        if self.ENVIRONMENT == "production":
+            if (
+                "dev-secret" in self.SECRET_KEY.lower()
+                or self.SECRET_KEY == "recall-ai-dev-secret-key-at-least-32-chars-long!"
+            ):
+                raise ValueError("Production mode requires a secure, non-default SECRET_KEY.")
+            if self.BYOK_ENCRYPTION_KEY == "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef":
+                raise ValueError("Production mode requires a unique, secure BYOK_ENCRYPTION_KEY.")
+        return self
+
+
+settings = CoreSettings()

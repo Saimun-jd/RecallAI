@@ -54,7 +54,7 @@ Thumbs.db
 
 # Scratch, Debug, and Tests
 scratch/
-test_*.py
+/test_*.py
 test_*.mjs
 test_*.cjs
 test_*.js

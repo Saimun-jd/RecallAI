@@ -7,10 +7,11 @@ from app.config import Settings
 from app.database import get_setting
 
 DEFAULT_MODELS = {
-    "gemini": "gemini-3.6-flash",
+    "gemini": "gemini-flash-latest",
     "openai": "gpt-4o-mini",
     "ollama": "gemma2:2b",
     "groq": "openai/gpt-oss-20b",
+    "openrouter": "meta-llama/llama-3.3-70b-instruct",
 }
 
 def get_llm_provider(config: Settings, provider_override: str = None) -> BaseLLMProvider:
@@ -39,7 +40,10 @@ def get_llm_provider(config: Settings, provider_override: str = None) -> BaseLLM
 
     def log_usage(msg):
         print(msg)
-        with open("provider_usage.log", "a") as f:
+        import tempfile
+        import os
+        log_file = os.path.join(tempfile.gettempdir(), "recall_provider_usage.log")
+        with open(log_file, "a") as f:
             f.write(msg + "\n")
 
     if target_provider == "openai":
@@ -58,6 +62,13 @@ def get_llm_provider(config: Settings, provider_override: str = None) -> BaseLLM
         api_key = get_setting("groq_api_key") or getattr(config, "groq_api_key", "")
         log_usage(f"[DEBUG] LLM Factory returning GroqProvider. Key: {api_key[:4]}...{api_key[-4:] if len(api_key)>8 else ''}")
         return GroqProvider(api_key=api_key, model=model_name)
+
+    elif target_provider == "openrouter":
+        api_key = get_setting("openrouter_api_key") or getattr(config, "openrouter_api_key", "")
+        base_url = "https://openrouter.ai/api/v1"
+        model_name = saved_model or getattr(config, "openrouter_model", "meta-llama/llama-3.3-70b-instruct")
+        log_usage(f"[DEBUG] LLM Factory returning OpenRouterProvider. Key: {api_key[:4]}...{api_key[-4:] if len(api_key)>8 else ''}")
+        return OpenAIProvider(api_key=api_key, model=model_name, base_url=base_url)
 
     else:
         host = get_setting("ollama_host") \

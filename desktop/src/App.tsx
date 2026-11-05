@@ -1,30 +1,114 @@
 import { useEffect, useState } from 'react';
-import { Routes, Route, Link, useLocation } from 'react-router-dom';
+import { Routes, Route, Outlet, Navigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { type RootState } from './store';
 import { client } from './api/client';
-import { LibraryView } from './views/LibraryView';
+import { DashboardView } from './views/DashboardView';
+import { DocumentsView } from './views/DocumentsView';
+import { DocumentDetailView } from './views/DocumentDetailView';
+import { KnowledgeHubView } from './views/KnowledgeHubView';
+import { NotesView } from './views/NotesView';
 import { ReviewView } from './views/ReviewView';
 import { SettingsView } from './views/SettingsView';
 import { BookDetailView } from './views/BookDetailView';
-import { AnalyticsView } from './views/AnalyticsView';
-import { CommandPalette } from './components/CommandPalette';
+import { ProgressView } from './views/ProgressView';
+import { FlashcardSetsView } from './views/FlashcardSetsView';
+import { FlashcardSetDetailView } from './views/FlashcardSetDetailView';
+import { FlashcardStudyView } from './views/FlashcardStudyView';
+import { QuizzesView } from './views/QuizzesView';
+import { QuizDetailView } from './views/QuizDetailView';
+import { QuizAttemptView } from './views/QuizAttemptView';
+import { QuizResultsView } from './views/QuizResultsView';
+import { LLMInspectionView } from './views/LLMInspectionView';
 import { loadSettings } from './api/settingsStore';
 import { getApiKey } from './api/keychain';
-import { Sidebar } from './components/Sidebar';
-import { StatusBar } from './components/StatusBar';
 import { getCurrentWindow } from '@tauri-apps/api/window';
+import { getActiveKeychainSave, isTauriEnvironment } from './api/keychain';
+import { getActiveSettingsSave } from './api/settingsStore';
+import { getActiveSaveOperation } from './api/saveCoordinator';
+import { WelcomeScreen } from './components/WelcomeScreen';
+import { useAutoSync } from './hooks/useAutoSync';
+import { AppShell } from './components/layout';
+import { setSidecarStatus } from './store';
+import { 
+  LandingView, 
+  PricingView, 
+  HowItWorksView, 
+  SecurityView, 
+  PrivacyView, 
+  TermsView 
+} from './views/public';
+import {
+  LoginView,
+  RegisterView,
+  ForgotPasswordView,
+  OnboardingView
+} from './views/auth';
+import { ProtectedRoute, PublicOnlyRoute } from './components/auth';
+import { useAuth } from './contexts/AuthContext';
+
+function RootRoute() {
+  const { status, onboardingCompleted } = useAuth();
+
+  if (status === 'loading') {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (status === 'authenticated') {
+    if (!onboardingCompleted) {
+      return <Navigate to="/onboarding" replace />;
+    }
+    return <Navigate to="/app" replace />;
+  }
+
+  if (isTauriEnvironment()) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return <LandingView />;
+}
+
+function WorkspaceLayout({ bootTime, sidecarStatus }: { bootTime: number; sidecarStatus: any }) {
+  const { user, onboardingCompleted } = useAuth();
+  const [hasSeenWelcome, setHasSeenWelcome] = useState(() => {
+    return localStorage.getItem('has-seen-welcome') === 'true' || onboardingCompleted;
+  });
+
+  const handleWelcomeComplete = () => {
+    localStorage.setItem('has-seen-welcome', 'true');
+    setHasSeenWelcome(true);
+  };
+
+  return (
+    <>
+      {!hasSeenWelcome && !onboardingCompleted && <WelcomeScreen onComplete={handleWelcomeComplete} />}
+      <AppShell
+        user={user}
+        bootTime={bootTime}
+        sidecarStatus={sidecarStatus}
+      >
+        <Outlet />
+      </AppShell>
+    </>
+  );
+}
 
 export default function App() {
   const [bootTime] = useState(Date.now());
-  const [sidecarStatus, setSidecarStatus] = useState<'connected' | 'error' | 'booting'>('booting');
-  const [contrastLevel, setContrastLevel] = useState(() => {
+  const { token } = useAuth();
+  const sidecarStatus = useSelector((state: RootState) => state.system.sidecarStatus);
+  const cloudUploadState = useSelector((state: RootState) => state.system.cloudUploadState);
+  const [contrastLevel] = useState(() => {
     return parseInt(localStorage.getItem('app-contrast-level') || '0', 10);
   });
 
   useEffect(() => {
     const root = document.documentElement;
-    if (contrastLevel === 0) {
+    if (contrastLevel === 0 || root.classList.contains('dark') || root.getAttribute('data-theme') === 'dark') {
       root.style.removeProperty('--color-background');
       root.style.removeProperty('--color-surface');
       root.style.removeProperty('--color-surface-container-lowest');
@@ -67,22 +151,22 @@ export default function App() {
     const ratio = contrastLevel / 100;
     
     const bgColors = {
-      '--color-background': '#faf8ff',
-      '--color-surface': '#F8F7F4',
-      '--color-surface-container-lowest': '#F8F7F4',
-      '--color-surface-container-low': '#F2F0EA',
-      '--color-surface-container': '#EDEBE3',
-      '--color-surface-container-high': '#E5E2D8',
-      '--color-surface-container-highest': '#e2e2ec',
+      '--color-background': '#F4F5F7',
+      '--color-surface': '#FFFFFF',
+      '--color-surface-container-lowest': '#FFFFFF',
+      '--color-surface-container-low': '#F8F9FA',
+      '--color-surface-container': '#F1F3F6',
+      '--color-surface-container-high': '#E8EBF0',
+      '--color-surface-container-highest': '#DFE3EA',
     };
     
     const textColors = {
-      '--color-on-background': '#191b23',
-      '--color-on-surface': '#191b23',
-      '--color-on-surface-variant': '#434654',
-      '--color-primary': '#003594',
-      '--color-outline': '#737685',
-      '--color-outline-variant': '#c3c6d6',
+      '--color-on-background': '#0F172A',
+      '--color-on-surface': '#0F172A',
+      '--color-on-surface-variant': '#475569',
+      '--color-primary': '#1D4ED8',
+      '--color-outline': '#64748B',
+      '--color-outline-variant': '#CBD5E1',
     };
 
     Object.entries(bgColors).forEach(([key, baseHex]) => {
@@ -97,15 +181,18 @@ export default function App() {
   }, [contrastLevel]);
 
   const dispatch = useDispatch();
+  
+  // Auto sync hook
+  useAutoSync(token);
 
   useEffect(() => {
     // Health check polling
     const checkHealth = async () => {
       try {
         await client.checkHealth();
-        setSidecarStatus('connected');
-      } catch (err) {
-        setSidecarStatus('error');
+        dispatch(setSidecarStatus('connected'));
+      } catch {
+        dispatch(setSidecarStatus('error'));
       }
     };
 
@@ -121,12 +208,47 @@ export default function App() {
         }
         
         // Hydrate API keys
-        console.log('[Keychain] Hydrating keys on startup...');
+        console.log('[Keychain] Migrating and hydrating keys on startup...');
+        
+        try {
+          const { migrateLegacyKeys } = await import('./api/legacy-keyring-migration');
+          await migrateLegacyKeys();
+        } catch (err) {
+          console.error("Migration check failed", err);
+        }
+
+        const backendKeys: Record<string, string> = {};
         for (const provider of ['openai', 'gemini', 'groq']) {
           const key = await getApiKey(provider);
           if (key) {
             dispatch({ type: 'providers/setConfiguredProvider', payload: { provider, isConfigured: true } });
+            backendKeys[`${provider}_api_key`] = key;
           }
+        }
+        for (const extraKey of ['datalab_api_key', 'langfuse_secret_key', 'langfuse_public_key', 'langfuse_host', 'ollama_host']) {
+          const key = await getApiKey(extraKey);
+          if (key) {
+            backendKeys[extraKey] = key;
+          }
+        }
+        
+        // Sync loaded keys to Python sidecar immediately on boot
+        if (Object.keys(backendKeys).length > 0) {
+          client.saveApiKeys(backendKeys).catch((err) => {
+            console.warn('[App] Non-critical boot key sync error:', err);
+          });
+        }
+
+        // Sync active provider and extractor to Python sidecar
+        if (settings.activeProvider) {
+          client.updateSetting('llm_provider', JSON.stringify({ type: settings.activeProvider })).catch((err) =>
+            console.warn('[App] Non-critical boot provider sync error:', err)
+          );
+        }
+        if (settings.pdfExtractor) {
+          client.updateSetting('pdf_extractor', settings.pdfExtractor).catch((err) =>
+            console.warn('[App] Non-critical boot extractor sync error:', err)
+          );
         }
         console.log('[Keychain] Hydration complete.');
       } catch (e) {
@@ -136,8 +258,14 @@ export default function App() {
 
     checkHealth();
     loadGlobalSettings();
-    const interval = setInterval(checkHealth, 3000);
-    return () => clearInterval(interval);
+    const interval = setInterval(() => {
+      if (document.visibilityState !== 'hidden') {
+        checkHealth();
+      }
+    }, 10000);
+    return () => {
+      clearInterval(interval);
+    };
   }, [dispatch]);
 
   // F11 Fullscreen toggle
@@ -165,53 +293,160 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  return (
-    <div className="flex flex-col h-screen bg-background text-on-surface font-sans antialiased overflow-hidden">
-      <CommandPalette />
-      
-      {/* Global Header */}
-      <header className="fixed top-0 inset-x-0 z-50 bg-surface-container-low border-b-2 border-on-surface pt-[env(safe-area-inset-top,0px)]">
-        <div className="h-16 px-5 flex items-center justify-between">
-          <StatusBar bootTime={bootTime} sidecarStatus={sidecarStatus} />
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 border-2 border-on-surface rounded-lg px-3 py-1.5 bg-surface shadow-[2px_2px_0px_0px_#191b23]">
-              <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Contrast</span>
-              <input 
-                type="range" 
-                min="-100" 
-                max="100" 
-                value={contrastLevel}
-                onChange={(e) => setContrastLevel(parseInt(e.target.value, 10))}
-                className="w-20 lg:w-24 accent-on-surface cursor-pointer"
-              />
-            </div>
-            <button className="w-10 h-10 flex items-center justify-center rounded-lg border-2 border-on-surface active:translate-y-0.5 transition-transform hover:bg-surface-container">
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-on-surface"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
-            </button>
-            <div className="w-10 h-10 rounded-full border-2 border-on-surface bg-primary flex items-center justify-center overflow-hidden">
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-on-primary"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-            </div>
-          </div>
-        </div>
-      </header>
-      
-      <div className="flex relative w-full pt-16 flex-row flex-1 h-full overflow-hidden">
-        <Sidebar />
-        
-        {/* Main Viewport */}
-        <main className="flex-1 flex flex-col bg-background relative min-w-0 overflow-y-auto">
-          <Routes>
-            <Route path="/" element={<LibraryView />} />
-            <Route path="/review" element={<ReviewView />} />
-            <Route path="/analytics" element={<AnalyticsView />} />
-            <Route path="/settings" element={<SettingsView />} />
-            <Route path="/books/:id" element={<BookDetailView />} />
-            <Route path="*" element={<LibraryView />} />
-          </Routes>
-        </main>
-      </div>
-      
+  // Window close handler to prevent data loss during saves
+  useEffect(() => {
+    if (!isTauriEnvironment()) return;
+    
+    let unlisten: (() => void) | undefined;
+    
+    const setupCloseHandler = async () => {
+      try {
+        const appWindow = getCurrentWindow();
+        unlisten = await appWindow.onCloseRequested(async (event) => {
+          const saveOp = getActiveSaveOperation();
+          const keychainSave = getActiveKeychainSave();
+          const settingsSave = getActiveSettingsSave();
+          
+          if (saveOp || keychainSave || settingsSave) {
+            event.preventDefault(); // Stop immediate close
+            
+            try {
+              await Promise.all([
+                saveOp || Promise.resolve(),
+                keychainSave || Promise.resolve(),
+                settingsSave || Promise.resolve()
+              ]);
+              // Saves succeeded, now actually close
+              await appWindow.close();
+            } catch {
+              const confirmClose = window.confirm("Save failed — close anyway?");
+              if (confirmClose) {
+                await appWindow.close();
+              }
+            }
+          }
+        });
+      } catch (err) {
+        console.error("Failed to setup close handler:", err);
+      }
+    };
+    
+    setupCloseHandler();
+    
+    return () => {
+      if (unlisten) unlisten();
+    };
+  }, []);
 
-    </div>
+  return (
+    <>
+      <Routes>
+        {/* Root entry point: Launches /app if authenticated, /login in desktop Tauri, or LandingView on web */}
+        <Route path="/" element={<RootRoute />} />
+        <Route path="/pricing" element={<PricingView />} />
+        <Route path="/how-it-works" element={<HowItWorksView />} />
+        <Route path="/security" element={<SecurityView />} />
+        <Route path="/privacy" element={<PrivacyView />} />
+        <Route path="/terms" element={<TermsView />} />
+
+        {/* Public-only auth pages */}
+        <Route
+          path="/login"
+          element={
+            <PublicOnlyRoute>
+              <LoginView />
+            </PublicOnlyRoute>
+          }
+        />
+        <Route
+          path="/register"
+          element={
+            <PublicOnlyRoute>
+              <RegisterView />
+            </PublicOnlyRoute>
+          }
+        />
+        <Route
+          path="/forgot-password"
+          element={
+            <PublicOnlyRoute>
+              <ForgotPasswordView />
+            </PublicOnlyRoute>
+          }
+        />
+
+        {/* Guided Onboarding route */}
+        <Route
+          path="/onboarding"
+          element={
+            <ProtectedRoute requireOnboarding={false}>
+              <OnboardingView />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Protected workspace routes inside AppShell */}
+        <Route
+          element={
+            <ProtectedRoute>
+              <WorkspaceLayout bootTime={bootTime} sidecarStatus={sidecarStatus} />
+            </ProtectedRoute>
+          }
+        >
+          <Route path="/app" element={<DashboardView />} />
+          <Route path="/documents" element={<DocumentsView />} />
+          <Route path="/library" element={<Navigate to="/documents" replace />} />
+          <Route path="/app/library" element={<Navigate to="/documents" replace />} />
+          <Route path="/chat" element={<KnowledgeHubView />} />
+          <Route path="/app/chat" element={<KnowledgeHubView />} />
+          <Route path="/notes" element={<NotesView />} />
+          <Route path="/review" element={<ReviewView />} />
+          <Route path="/app/review" element={<ReviewView />} />
+          <Route path="/flashcards" element={<FlashcardSetsView />} />
+          <Route path="/app/flashcards" element={<FlashcardSetsView />} />
+          <Route path="/flashcards/:setId" element={<FlashcardSetDetailView />} />
+          <Route path="/app/flashcards/:setId" element={<FlashcardSetDetailView />} />
+          <Route path="/flashcards/:setId/study" element={<FlashcardStudyView />} />
+          <Route path="/app/flashcards/:setId/study" element={<FlashcardStudyView />} />
+          <Route path="/quizzes" element={<QuizzesView />} />
+          <Route path="/app/quizzes" element={<QuizzesView />} />
+          <Route path="/quizzes/:quizId" element={<QuizDetailView />} />
+          <Route path="/app/quizzes/:quizId" element={<QuizDetailView />} />
+          <Route path="/quizzes/:quizId/attempt" element={<QuizAttemptView />} />
+          <Route path="/app/quizzes/:quizId/attempt" element={<QuizAttemptView />} />
+          <Route path="/quizzes/:quizId/results/:attemptId" element={<QuizResultsView />} />
+          <Route path="/app/quizzes/:quizId/results/:attemptId" element={<QuizResultsView />} />
+          <Route path="/progress" element={<ProgressView />} />
+          <Route path="/app/progress" element={<ProgressView />} />
+          <Route path="/analytics" element={<ProgressView />} />
+          <Route path="/app/analytics" element={<ProgressView />} />
+          <Route path="/llm-inspection" element={<LLMInspectionView />} />
+          <Route path="/app/llm-inspection" element={<LLMInspectionView />} />
+          <Route path="/settings" element={<SettingsView />} />
+          <Route path="/app/settings" element={<SettingsView />} />
+          <Route path="/books/:id" element={<BookDetailView />} />
+          <Route path="/documents/:id" element={<DocumentDetailView />} />
+          <Route path="/app/documents/:id" element={<DocumentDetailView />} />
+          <Route path="*" element={<DocumentsView />} />
+        </Route>
+      </Routes>
+
+      {/* Cloud Upload Progress Indicator */}
+      {cloudUploadState?.isUploading && (
+        <div className="fixed bottom-6 right-6 z-[100] w-80 bg-surface border-2 border-border-default shadow-neo rounded-xl p-4 flex flex-col gap-2">
+          <div className="flex justify-between items-center">
+            <span className="font-bold text-sm text-on-surface truncate pr-2">Uploading {cloudUploadState.fileName}...</span>
+            <span className="text-xs font-bold text-on-surface bg-surface-container border border-border-default px-2 py-0.5 rounded-full">{cloudUploadState.progress}%</span>
+          </div>
+          <div className="w-full h-2.5 bg-surface-container-high rounded-full overflow-hidden border border-border-default">
+            <div 
+              className="h-full bg-primary transition-all duration-300 ease-out"
+              style={{ width: `${cloudUploadState.progress}%` }}
+            />
+          </div>
+          <span className="text-[11px] text-on-surface-variant text-center uppercase tracking-wider font-bold">Do not close app</span>
+        </div>
+      )}
+    </>
   );
 }

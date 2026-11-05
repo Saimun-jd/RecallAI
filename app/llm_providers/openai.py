@@ -6,6 +6,8 @@ import httpx
 from langfuse import get_client
 
 from app.llm_providers.base import BaseLLMProvider
+from app.llm_providers.retry import retry_with_backoff
+from app.errors import RecallError, ErrorCode, classify_error
 
 
 def _make_schema_strict(schema: Any) -> Any:
@@ -67,7 +69,15 @@ class OpenAIProvider(BaseLLMProvider):
         json_schema: Dict[str, Any] = None,
         temperature: float = 0.1,
         max_tokens: int = 4096,
+        feature: str = "general",
     ) -> str:
+        if not self.api_key or not self.api_key.strip():
+            provider_name = "Groq" if "groq" in self.base_url.lower() or "groq" in self.model.lower() else "OpenAI"
+            raise RecallError(
+                ErrorCode.API_KEY_MISSING,
+                f"No API key configured for {provider_name}. Please add your {provider_name} API key in Settings → API Keys."
+            )
+
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
@@ -114,43 +124,63 @@ class OpenAIProvider(BaseLLMProvider):
             model=self.model,
             input=prompt_with_schema,
         ) as generation:
-            try:
+            async def _send_request():
                 async with httpx.AsyncClient(timeout=120.0) as client:
-                    r = await client.post(
+                    resp = await client.post(
                         f"{self.base_url}/chat/completions",
                         headers=headers,
                         json=payload,
                     )
+                    resp.raise_for_status()
+                    return resp
+
+            try:
+                r = await retry_with_backoff(
+                    _send_request,
+                    max_retries=3,
+                    initial_delay=2.0,
+                    backoff_factor=2.0,
+                    provider_name=f"OpenAIProvider({self.model})",
+                )
+            except httpx.HTTPStatusError as e:
+                r = e.response
+                status_code = r.status_code if r else 500
+                text = r.text if r else ""
+                print(f"response text: {text}")
+                generation.update(level="ERROR", status_message=f"HTTP {status_code}: {text}")
+                raise classify_error(e, provider_hint="openai")
             except httpx.TimeoutException as e:
                 print(f"⏱️ [OpenAIProvider] Request to {self.base_url} timed out: {e}")
                 generation.update(level="ERROR", status_message=str(e))
-                raise
+                raise classify_error(e, provider_hint="openai")
             except httpx.RequestError as e:
                 print(f"🔌 [OpenAIProvider] Network error calling {self.base_url}: {e}")
                 generation.update(level="ERROR", status_message=str(e))
-                raise
+                raise classify_error(e, provider_hint="openai")
 
             print(f"📥 [OpenAIProvider] Received response with status code: {r.status_code}")
             generation.update(metadata={"status_code": r.status_code})
-
-            if r.status_code >= 400:
-                print(f"response text: {r.text}")
-                generation.update(level="ERROR", status_message=f"HTTP {r.status_code}: {r.text}")
-                r.raise_for_status()
 
             try:
                 data = r.json()
             except json.JSONDecodeError as e:
                 print(f"❌ [OpenAIProvider] Response was not valid JSON: {r.text[:500]}")
                 generation.update(level="ERROR", status_message=str(e))
-                raise ValueError(f"Non-JSON response from {self.base_url}: {e}") from e
+                raise RecallError(ErrorCode.LLM_INVALID_RESPONSE, f"Non-JSON response from {self.base_url}: {r.text[:500]}", e)
 
             choices = data.get("choices") or []
             if not choices:
                 print(f"❌ [OpenAIProvider] Response had no 'choices': {data}")
                 err_msg = f"No choices returned from {self.base_url}: {data}"
                 generation.update(level="ERROR", status_message=err_msg)
-                raise ValueError(err_msg)
+                raise RecallError(ErrorCode.LLM_INVALID_RESPONSE, err_msg)
+
+            # Detect content filtering
+            finish_reason = choices[0].get("finish_reason", "")
+            if finish_reason == "content_filter":
+                err_msg = f"Content filter triggered by {self.base_url}: {data}"
+                generation.update(level="ERROR", status_message=err_msg)
+                raise RecallError(ErrorCode.LLM_CONTENT_FILTERED, err_msg)
 
             message = choices[0].get("message") or {}
             content = message.get("content")
@@ -158,22 +188,114 @@ class OpenAIProvider(BaseLLMProvider):
                 print(f"❌ [OpenAIProvider] Response had no message content: {data}")
                 err_msg = f"No content in response from {self.base_url}: {data}"
                 generation.update(level="ERROR", status_message=err_msg)
-                raise ValueError(err_msg)
+                raise RecallError(ErrorCode.LLM_INVALID_RESPONSE, err_msg)
 
             print(f"✅ [OpenAIProvider] Successfully generated {len(content)} characters of content")
             
             # Extract usage if available
             usage = data.get("usage")
+            provider_label = "groq" if "groq" in self.base_url.lower() else "openai"
             if usage:
+                p_tok = usage.get("prompt_tokens", 0)
+                c_tok = usage.get("completion_tokens", 0)
+                t_tok = usage.get("total_tokens", 0)
                 generation.update(
                     output=content,
                     usage={
-                        "input": usage.get("prompt_tokens"),
-                        "output": usage.get("completion_tokens"),
-                        "total": usage.get("total_tokens")
+                        "input": p_tok,
+                        "output": c_tok,
+                        "total": t_tok
                     }
                 )
+                from app.database import log_token_usage
+                log_token_usage(provider_label, self.model, feature, p_tok, c_tok, t_tok)
             else:
                 generation.update(output=content)
                 
             return content
+
+    async def generate_stream(
+        self,
+        prompt: str,
+        temperature: float = 0.7,
+        max_tokens: int = 8192,
+        feature: str = "general",
+    ):
+        if not self.api_key or not self.api_key.strip():
+            provider_name = "Groq" if "groq" in self.base_url.lower() or "groq" in self.model.lower() else "OpenAI"
+            raise RecallError(
+                ErrorCode.API_KEY_MISSING,
+                f"No API key configured for {provider_name}. Please add your {provider_name} API key in Settings → API Keys."
+            )
+
+        url = f"{self.base_url}/chat/completions"
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self.api_key}"
+        }
+        
+        payload = {
+            "model": self.model,
+            "messages": [
+                {"role": "user", "content": prompt}
+            ],
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            "stream": True,
+            "stream_options": {"include_usage": True}
+        }
+        
+        langfuse = get_client()
+        with langfuse.start_as_current_observation(
+            as_type="generation",
+            name=f"openai_generation_stream_{self.model}",
+            model=self.model,
+            input=prompt,
+        ) as generation:
+            try:
+                async with httpx.AsyncClient(timeout=120.0) as client:
+                    async with client.stream("POST", url, headers=headers, json=payload) as response:
+                        if response.status_code >= 400:
+                            await response.aread()
+                            generation.update(level="ERROR", status_message=f"HTTP {response.status_code}: {response.text}")
+                            try:
+                                response.raise_for_status()
+                            except httpx.HTTPStatusError as e:
+                                raise classify_error(e, provider_hint="openai")
+                                
+                        full_content = ""
+                        stream_usage = None
+                        async for line in response.aiter_lines():
+                            if line.startswith("data: "):
+                                data_str = line[6:]
+                                if data_str == "[DONE]":
+                                    break
+                                try:
+                                    data_json = json.loads(data_str)
+                                    if "usage" in data_json and data_json["usage"]:
+                                        stream_usage = data_json["usage"]
+                                    choices = data_json.get("choices", [])
+                                    if choices:
+                                        delta = choices[0].get("delta", {})
+                                        content = delta.get("content")
+                                        if content:
+                                            full_content += content
+                                            yield content
+                                except (KeyError, IndexError, json.JSONDecodeError):
+                                    pass
+                        provider_label = "groq" if "groq" in self.base_url.lower() else "openai"
+                        if stream_usage:
+                            p_tok = stream_usage.get("prompt_tokens", 0)
+                            c_tok = stream_usage.get("completion_tokens", 0)
+                            t_tok = stream_usage.get("total_tokens", 0)
+                            generation.update(
+                                output=full_content,
+                                usage={"input": p_tok, "output": c_tok, "total": t_tok}
+                            )
+                            from app.database import log_token_usage
+                            log_token_usage(provider_label, self.model, feature, p_tok, c_tok, t_tok)
+                        else:
+                            generation.update(output=full_content)
+            except Exception as e:
+                generation.update(level="ERROR", status_message=str(e))
+                raise classify_error(e, provider_hint="openai")

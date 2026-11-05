@@ -1,7 +1,7 @@
 import { createSlice } from '@reduxjs/toolkit';
 import type { PayloadAction } from '@reduxjs/toolkit';
 
-export type AIProviderId = 'ollama' | 'openai' | 'gemini' | 'groq';
+export type AIProviderId = 'auto' | 'ollama' | 'openai' | 'gemini' | 'groq' | 'openrouter';
 
 export interface ProvidersState {
   activeProvider: AIProviderId;
@@ -10,25 +10,31 @@ export interface ProvidersState {
   fallbackToCloudEnabled: boolean;
   showAttributionTags: boolean;
   localModel: { name: string; sizeGB: number; loaded: boolean } | null;
+  pdfExtractor: 'pymupdf4llm' | 'marker' | 'marker_api';
 }
 
 const initialState: ProvidersState = {
-  activeProvider: 'ollama',
+  activeProvider: 'auto',
   providerStatus: {
+    auto: 'connected',
     ollama: 'disconnected',
     openai: 'disconnected',
     gemini: 'disconnected',
     groq: 'disconnected',
+    openrouter: 'disconnected',
   },
   configuredProviders: {
+    auto: true,
     ollama: true, // Local usually doesn't need a key
     openai: false,
     gemini: false,
     groq: false,
+    openrouter: false,
   },
   fallbackToCloudEnabled: false,
   showAttributionTags: true,
   localModel: null,
+  pdfExtractor: 'pymupdf4llm',
 };
 
 const providersSlice = createSlice({
@@ -53,6 +59,9 @@ const providersSlice = createSlice({
     setLocalModelStatus: (state, action: PayloadAction<ProvidersState['localModel']>) => {
       state.localModel = action.payload;
     },
+    setPdfExtractor: (state, action: PayloadAction<'pymupdf4llm' | 'marker' | 'marker_api'>) => {
+      state.pdfExtractor = action.payload;
+    },
   },
 });
 
@@ -62,7 +71,8 @@ export const {
   setConfiguredProvider, 
   setFallbackToCloud,
   setShowAttributionTags,
-  setLocalModelStatus
+  setLocalModelStatus,
+  setPdfExtractor
 } = providersSlice.actions;
 
 export default providersSlice.reducer;

@@ -1,0 +1,40 @@
+# =============================================================================
+# Recall AI — Development Docker Compose Override Example
+# =============================================================================
+# To use this override for local development:
+#   copy docker-compose.override.yml.example docker-compose.override.yml
+#
+# Features:
+# - Mounts local app source for live reloading
+# - Exposes PostgreSQL on port 5432 for host database inspection
+# - Exposes backend on port 8000 for direct API access
+# - Enables NVIDIA GPU passthrough for Ollama if available
+# =============================================================================
+
+services:
+  postgres:
+    ports:
+      - "5432:5432"
+
+  backend:
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    environment:
+      DEBUG: "true"
+      ENVIRONMENT: "development"
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./app:/app/app:ro
+      - ./migrations:/app/migrations:ro
+
+  ollama:
+    ports:
+      - "11434:11434"
+    # Uncomment if NVIDIA GPU Container Toolkit is installed:
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]

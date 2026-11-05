@@ -1,63 +1,162 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { useDispatch } from 'react-redux';
-import { Book, BrainCircuit, Settings, BarChart3, Menu } from 'lucide-react';
+import { 
+  BookOpen, BrainCircuit, Settings, ChevronLeft, ChevronRight, 
+  NotebookPen, LayoutDashboard, MessageSquare, Activity, HelpCircle, RotateCcw, TrendingUp
+} from 'lucide-react';
 import { cn } from '../lib/utils';
+import { AuthButton } from './AuthButton';
 
-export function Sidebar() {
+export interface SidebarProps {
+  className?: string;
+}
+
+export function Sidebar({ className }: SidebarProps) {
   const location = useLocation();
-  const [isExpanded, setIsExpanded] = useState(false);
-  
-  const linkClass = (path: string) => cn(
-    "flex items-center rounded-lg transition-all group overflow-hidden whitespace-nowrap shrink-0",
-    isExpanded ? "p-3 w-full justify-start gap-4" : "w-10 h-10 justify-center mx-auto",
-    location.pathname === path 
-      ? "bg-primary/10 border-2 border-on-surface shadow-[2px_2px_0px_0px_#191b23] text-primary" 
-      : "text-on-surface hover:bg-surface-container border-2 border-transparent"
-  );
+  const [isExpanded, setIsExpanded] = useState(true);
 
-  const iconClass = (path: string) => cn(
-    "shrink-0",
-    location.pathname === path ? "text-primary" : "text-on-surface group-hover:text-primary transition-colors"
-  );
+  const navSections = [
+    {
+      title: 'Knowledge',
+      items: [
+        { label: 'Dashboard', path: '/app', icon: LayoutDashboard },
+        { label: 'Documents', path: '/documents', icon: BookOpen },
+        { label: 'Knowledge Hub', path: '/app/chat', icon: MessageSquare },
+        { label: 'Notes', path: '/notes', icon: NotebookPen },
+      ],
+    },
+    {
+      title: 'Study & Review',
+      items: [
+        { label: 'Review', path: '/app/review', icon: RotateCcw },
+        { label: 'Flashcards', path: '/app/flashcards', icon: BrainCircuit },
+        { label: 'Quizzes', path: '/app/quizzes', icon: HelpCircle },
+      ],
+    },
+    {
+      title: 'Insights',
+      items: [
+        { label: 'Progress', path: '/app/progress', icon: TrendingUp },
+      ],
+    },
+    {
+      title: 'Account',
+      items: [
+        { label: 'LLM Inspection', path: '/llm-inspection', icon: Activity },
+        { label: 'Settings', path: '/settings', icon: Settings },
+      ],
+    },
+  ];
+
+  const isItemActive = (path: string) => {
+    if (path === '/app') {
+      return location.pathname === '/app';
+    }
+    if (path === '/documents') {
+      return location.pathname === '/documents' || location.pathname.startsWith('/app/documents') || location.pathname.startsWith('/books') || location.pathname.startsWith('/documents');
+    }
+    if (path === '/app/chat' || path === '/chat') {
+      return location.pathname.startsWith('/chat') || location.pathname.startsWith('/app/chat');
+    }
+    if (path === '/app/review' || path === '/review') {
+      return location.pathname.startsWith('/review') || location.pathname.startsWith('/app/review');
+    }
+    if (path === '/app/flashcards' || path === '/flashcards') {
+      return location.pathname.startsWith('/app/flashcards') || location.pathname.startsWith('/flashcards');
+    }
+    if (path === '/app/quizzes' || path === '/quizzes') {
+      return location.pathname.startsWith('/app/quizzes') || location.pathname.startsWith('/quizzes');
+    }
+    if (path === '/app/progress' || path === '/progress' || path === '/analytics') {
+      return location.pathname.startsWith('/progress') || location.pathname.startsWith('/app/progress') || location.pathname.startsWith('/analytics') || location.pathname.startsWith('/app/analytics');
+    }
+    if (path === '/llm-inspection') {
+      return location.pathname.startsWith('/llm-inspection');
+    }
+    return location.pathname === path || (path !== '/' && location.pathname.startsWith(path));
+  };
+
+  const linkClass = (path: string) => {
+    const isActive = isItemActive(path);
+    return cn(
+      'flex items-center rounded-lg transition-all group overflow-hidden whitespace-nowrap shrink-0 font-bold text-xs sm:text-sm select-none',
+      isExpanded ? 'px-3 py-2.5 w-full justify-start gap-3' : 'w-10 h-10 justify-center mx-auto',
+      isActive
+        ? 'bg-primary/10 border-2 border-primary/30 text-primary shadow-neo-sm font-black'
+        : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container border-2 border-transparent'
+    );
+  };
+
+  const iconClass = (path: string) => {
+    const isActive = isItemActive(path);
+    return cn(
+      'shrink-0 transition-transform duration-120 group-hover:scale-105',
+      isActive ? 'text-primary' : 'text-on-surface-variant group-hover:text-on-surface'
+    );
+  };
 
   return (
-    <aside 
+    <aside
       className={cn(
-        "shrink-0 border-r-2 border-on-surface bg-surface-container-low flex flex-col h-[calc(100vh-64px)] sticky top-16 overflow-hidden transition-all duration-300 z-40",
-        isExpanded ? "w-64" : "w-20"
+        'shrink-0 border-r-2 border-border-default bg-surface flex flex-col h-full overflow-hidden transition-all duration-200 z-30 select-none',
+        isExpanded ? 'w-64' : 'w-18',
+        className
       )}
     >
-      <div className="p-3 flex justify-center border-b-2 border-on-surface shrink-0 h-[62px] items-center">
-        <button 
-          onClick={() => setIsExpanded(!isExpanded)}
-          className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-surface-container transition-colors shrink-0"
-          title={isExpanded ? "Collapse" : "Expand"}
-        >
-          <Menu size={20} className="text-on-surface" />
-        </button>
+      {/* Navigation Sections */}
+      <div className="flex flex-col gap-4 p-3 overflow-y-auto overflow-x-hidden hide-scrollbar flex-1">
+        {navSections.map((section, idx) => (
+          <div key={idx} className="space-y-1">
+            {isExpanded && (
+              <span className="text-[10px] font-extrabold uppercase tracking-widest text-on-surface-variant/70 px-3 py-1 block">
+                {section.title}
+              </span>
+            )}
+            {section.items.map((item) => {
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  className={linkClass(item.path)}
+                  title={!isExpanded ? item.label : undefined}
+                >
+                  <Icon size={18} strokeWidth={2} className={iconClass(item.path)} />
+                  <span className={cn('truncate', !isExpanded && 'hidden')}>
+                    {item.label}
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
+        ))}
       </div>
-      
-      <div className={cn(
-        "flex flex-col gap-2 p-3 overflow-y-auto overflow-x-hidden hide-scrollbar flex-1",
-        !isExpanded && "items-center"
-      )}>
-        <Link to="/" className={linkClass("/")} title={!isExpanded ? "Dashboard" : undefined}>
-          <Book size={20} strokeWidth={2.5} className={iconClass("/")} />
-          <span className={cn("font-bold text-sm", !isExpanded && "hidden")}>Dashboard</span>
-        </Link>
-        <Link to="/review" className={linkClass("/review")} title={!isExpanded ? "Flashcards" : undefined}>
-          <BrainCircuit size={20} strokeWidth={2.5} className={iconClass("/review")} />
-          <span className={cn("font-bold text-sm", !isExpanded && "hidden")}>Flashcards</span>
-        </Link>
-        <Link to="/analytics" className={linkClass("/analytics")} title={!isExpanded ? "Analytics" : undefined}>
-          <BarChart3 size={20} strokeWidth={2.5} className={iconClass("/analytics")} />
-          <span className={cn("font-bold text-sm", !isExpanded && "hidden")}>Analytics</span>
-        </Link>
-        <Link to="/settings" className={linkClass("/settings")} title={!isExpanded ? "Settings" : undefined}>
-          <Settings size={20} strokeWidth={2.5} className={iconClass("/settings")} />
-          <span className={cn("font-bold text-sm", !isExpanded && "hidden")}>Settings</span>
-        </Link>
+
+      {/* Unified Footer: Collapse Toggle & Auth Integration */}
+      <div className="border-t-2 border-border-default bg-surface shrink-0 flex flex-col">
+        <div className="p-2 border-b border-border-default/40 flex items-center justify-between">
+          <button
+            type="button"
+            onClick={() => setIsExpanded(!isExpanded)}
+            className={cn(
+              'flex items-center justify-center rounded-lg hover:bg-surface-container text-on-surface-variant hover:text-on-surface transition-colors shrink-0 text-xs font-bold gap-2',
+              isExpanded ? 'w-full py-1.5 px-2 justify-between' : 'w-9 h-9 mx-auto'
+            )}
+            title={isExpanded ? 'Collapse sidebar' : 'Expand sidebar'}
+            aria-label={isExpanded ? 'Collapse sidebar' : 'Expand sidebar'}
+          >
+            {isExpanded ? (
+              <>
+                <span className="text-xs">Collapse sidebar</span>
+                <ChevronLeft size={16} />
+              </>
+            ) : (
+              <ChevronRight size={16} />
+            )}
+          </button>
+        </div>
+
+        <AuthButton isExpanded={isExpanded} />
       </div>
     </aside>
   );

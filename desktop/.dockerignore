@@ -1,0 +1,14 @@
+# =============================================================================
+# Recall AI Desktop/Web Frontend — Docker Ignore List
+# =============================================================================
+
+node_modules
+dist
+src-tauri
+tests
+.tempmediaStorage
+*.log
+.env
+.env.*
+.vscode
+.idea

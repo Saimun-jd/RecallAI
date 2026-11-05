@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef, useLayoutEffect } from 'react';
-import { Sparkles, NotebookPen, CreditCard, X, Loader2 } from 'lucide-react';
+import { Sparkles, NotebookPen, CreditCard, X, Loader2, PenTool } from 'lucide-react';
 import type { PdfSelection } from './PdfViewer';
 
 import { MarkdownRenderer } from './MarkdownRenderer';
 
-export type PdfCommandType = 'generate_flashcards' | 'explain_ai' | 'add_sidenote';
+export type PdfCommandType = 'generate_flashcards' | 'explain_ai' | 'add_sidenote' | 'send_to_notes';
 
 interface PdfCommandPaletteProps {
   selection: PdfSelection;
@@ -39,6 +39,14 @@ const COMMANDS = [
     description: 'Attach a personal note to this section',
     color: 'text-amber-400',
     bgColor: 'bg-amber-500/10',
+  },
+  {
+    type: 'send_to_notes' as PdfCommandType,
+    icon: PenTool,
+    label: 'Add to Study Notes',
+    description: 'Send quotation with page anchor to notes',
+    color: 'text-purple-400',
+    bgColor: 'bg-purple-500/10',
   },
 ];
 
@@ -80,17 +88,20 @@ export function PdfCommandPalette({ selection, position, onCommand, onDismiss, i
     };
   }, [onDismiss, activeCommand, previewData]);
 
-  // Prevent palette from overflowing bottom of viewport
+  // Prevent palette from overflowing bottom of viewport without jumping far from text
   useLayoutEffect(() => {
     if (paletteRef.current) {
-      // Reset transform temporarily to measure natural position
       paletteRef.current.style.transform = 'none';
       const rect = paletteRef.current.getBoundingClientRect();
       const overflowBottom = rect.bottom - window.innerHeight;
-      
+      const overflowTop = rect.top;
+
       if (overflowBottom > 0) {
-        // Shift it up by the overflow amount plus a little padding (24px)
-        setOffsetY(-overflowBottom - 24);
+        // Shift it up only as much as needed to stay in viewport, clamped so it stays near text
+        const shift = Math.min(overflowBottom + 12, rect.height * 0.4);
+        setOffsetY(-shift);
+      } else if (overflowTop < 0) {
+        setOffsetY(Math.abs(overflowTop) + 12);
       } else {
         setOffsetY(0);
       }
@@ -126,17 +137,18 @@ export function PdfCommandPalette({ selection, position, onCommand, onDismiss, i
   const handleSubmit = async () => {
     if (!activeCommand) return;
     const isSidenote = activeCommand === 'add_sidenote';
+    const isSendToNotes = activeCommand === 'send_to_notes';
     if (isSidenote && !sidenoteText.trim()) return;
 
     setIsProcessing(true);
     try {
-      const res = await onCommand(activeCommand, { 
-        prompt: customPrompt || undefined, 
-        count: flashcardCount, 
+      const res = await onCommand(activeCommand, {
+        prompt: customPrompt || undefined,
+        count: flashcardCount,
         note: sidenoteText.trim(),
-        preview: !isSidenote
+        preview: !isSidenote && !isSendToNotes
       });
-      if (res && !isSidenote) {
+      if (res && !isSidenote && !isSendToNotes) {
         setPreviewData(res);
       }
     } catch (e) {
@@ -152,14 +164,14 @@ export function PdfCommandPalette({ selection, position, onCommand, onDismiss, i
     try {
       let pin_content = undefined;
       if (previewData) {
-        pin_content = activeCommand === 'explain_ai' 
-          ? previewData.content 
+        pin_content = activeCommand === 'explain_ai'
+          ? previewData.content
           : JSON.stringify(previewData.flashcards);
       }
 
-      await onCommand(activeCommand, { 
-        prompt: customPrompt || undefined, 
-        count: flashcardCount, 
+      await onCommand(activeCommand, {
+        prompt: customPrompt || undefined,
+        count: flashcardCount,
         note: sidenoteText.trim(),
         preview: false,
         pin_content
@@ -254,11 +266,10 @@ export function PdfCommandPalette({ selection, position, onCommand, onDismiss, i
               key={cmd.type}
               onClick={() => setActiveCommand(cmd.type)}
               onMouseEnter={() => setSelectedIdx(idx)}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all duration-100 ${
-                idx === selectedIdx
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all duration-100 ${idx === selectedIdx
                   ? 'bg-zinc-800 text-zinc-100'
                   : 'text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200'
-              }`}
+                }`}
             >
               <div className={`p-1.5 rounded-md ${cmd.bgColor}`}>
                 <cmd.icon size={15} className={cmd.color} />
@@ -377,6 +388,42 @@ export function PdfCommandPalette({ selection, position, onCommand, onDismiss, i
                 className="px-4 py-1.5 text-xs font-semibold bg-amber-500 text-zinc-950 rounded-lg hover:bg-amber-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 Save Note
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeCommand === 'send_to_notes' && !previewData && (
+        <div className="p-3 space-y-3">
+          <div>
+            <label className="text-xs text-zinc-500 font-medium mb-1 block">Comment / Annotation (optional)</label>
+            <textarea
+              ref={inputRef as React.RefObject<HTMLTextAreaElement>}
+              value={sidenoteText}
+              onChange={(e) => setSidenoteText(e.target.value)}
+              placeholder="e.g. Why this formula or concept is important..."
+              rows={3}
+              className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-purple-500/50 focus:border-purple-500/50 resize-y min-h-[60px]"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleSubmit();
+              }}
+            />
+          </div>
+          <div className="flex items-center justify-between pt-1">
+            <span className="text-[10px] text-zinc-600">Ctrl+Enter to send</span>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setActiveCommand(null)}
+                className="px-3 py-1.5 text-xs font-medium text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded-lg transition-colors"
+              >
+                Back
+              </button>
+              <button
+                onClick={handleSubmit}
+                className="px-4 py-1.5 text-xs font-semibold bg-purple-500 text-white rounded-lg hover:bg-purple-400 transition-colors"
+              >
+                Add to Notes
               </button>
             </div>
           </div>

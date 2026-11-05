@@ -11,12 +11,35 @@ logger = logging.getLogger(__name__)
 
 # Ensure it connects to cross-platform user data dir
 DATA_DIR = user_data_dir("Recall", "Recall")
-DB_PATH = os.path.join(DATA_DIR, "recall.db")
+
+ACTIVE_DB_FILE = os.path.join(DATA_DIR, "active_db.json")
+
+def _get_initial_db_path():
+    try:
+        if os.path.exists(ACTIVE_DB_FILE):
+            with open(ACTIVE_DB_FILE, "r") as f:
+                path = json.load(f).get("path")
+                if path:
+                    return path
+    except Exception:
+        pass
+    return os.path.join(DATA_DIR, "recall.db")
+
+ACTIVE_DB_PATH = _get_initial_db_path()
+
+def set_active_db_path(path: str):
+    global ACTIVE_DB_PATH
+    ACTIVE_DB_PATH = path
+    try:
+        with open(ACTIVE_DB_FILE, "w") as f:
+            json.dump({"path": path}, f)
+    except Exception as e:
+        logger.error(f"Failed to save active DB path: {e}")
 
 @contextmanager
 def get_connection():
     """Yields a database connection with Row factory enabled."""
-    conn = sqlite3.connect(DB_PATH, timeout=15.0)
+    conn = sqlite3.connect(ACTIVE_DB_PATH, timeout=15.0)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA synchronous=NORMAL")
@@ -35,7 +58,7 @@ def get_connection():
 
 def init_db():
     """Initializes the database schema if it doesn't exist."""
-    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+    os.makedirs(os.path.dirname(ACTIVE_DB_PATH), exist_ok=True)
     
     with get_connection() as conn:
         cursor = conn.cursor()
@@ -55,25 +78,36 @@ def init_db():
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS topics (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                uuid TEXT NOT NULL UNIQUE DEFAULT (
+                    lower(hex(randomblob(4))) || '-' ||
+                    lower(hex(randomblob(2))) || '-4' ||
+                    substr(lower(hex(randomblob(2))), 2) || '-a' ||
+                    substr(lower(hex(randomblob(2))), 2) || '-' ||
+                    lower(hex(randomblob(6)))
+                ),
                 book_id INTEGER NOT NULL,
                 parent_id INTEGER,
                 title TEXT NOT NULL,
                 level INTEGER NOT NULL,
                 start_page INTEGER NOT NULL,
                 end_page INTEGER NOT NULL,
+                sort_order INTEGER NOT NULL,
                 content_md TEXT,
-                summary TEXT,
                 concept_type TEXT,
                 key_terms TEXT,
-                code_snippet TEXT,
-                image_url TEXT,
+                atomic_concepts TEXT,
                 status TEXT DEFAULT 'unprocessed',
-                is_processed BOOLEAN DEFAULT 0,
-                sort_order INTEGER NOT NULL,
                 flashcard_count INTEGER DEFAULT 0,
                 breadcrumb TEXT,
                 topic_hash TEXT UNIQUE NOT NULL,
                 embedding TEXT,
+                mastery_score INTEGER,
+                mastery_status TEXT DEFAULT 'untested' CHECK (mastery_status IN ('untested', 'mastered', 'developing', 'fragile', 'misconception')),
+                last_drilled_at TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP,
+                user_id TEXT,
+                deleted_at TIMESTAMP,
                 FOREIGN KEY (book_id) REFERENCES books (id) ON DELETE CASCADE,
                 FOREIGN KEY (parent_id) REFERENCES topics (id) ON DELETE CASCADE
             )
@@ -86,17 +120,16 @@ def init_db():
         migrations = [
             ("status", "TEXT DEFAULT 'unprocessed'"),
             ("flashcard_count", "INTEGER DEFAULT 0"),
-            ("summary", "TEXT"),
             ("concept_type", "TEXT"),
             ("key_terms", "TEXT"),
-            ("code_snippet", "TEXT"),
-            ("image_url", "TEXT"),
+            ("atomic_concepts", "TEXT"),
             ("breadcrumb", "TEXT"),
             ("topic_hash", "TEXT"),
             ("embedding", "TEXT"),
             ("mastery_score", "INTEGER"),
             ("mastery_status", "TEXT DEFAULT 'untested'"),
             ("last_drilled_at", "TIMESTAMP"),
+            ("created_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
         ]
         
         for col_name, col_type in migrations:
@@ -137,12 +170,39 @@ def init_db():
             ("reps", "INTEGER DEFAULT 0"),
             ("lapses", "INTEGER DEFAULT 0"),
             ("last_review", "TEXT"),
-            ("due", "TEXT")
+            ("due", "TEXT"),
+            ("source", "TEXT DEFAULT 'extraction'"),
+            ("origin_attempt_id", "INTEGER"),
         ]
         
         for col_name, col_type in fc_migrations:
             if col_name not in fc_columns:
                 cursor.execute(f"ALTER TABLE flashcards ADD COLUMN {col_name} {col_type}")
+        
+        # Migration: Add reading state columns to books if they don't exist
+        cursor.execute("PRAGMA table_info(books)")
+        book_columns = [row['name'] for row in cursor.fetchall()]
+        book_migrations = [
+            ("last_read_at", "TIMESTAMP"),
+            ("last_read_page", "INTEGER DEFAULT 1"),
+            ("last_topic_id", "INTEGER"),
+        ]
+        book_migrations.extend([
+            ("user_id", "TEXT"),
+            ("workspace_id", "TEXT"),
+            ("uuid", "TEXT"),
+            ("updated_at", "TIMESTAMP"),
+        ])
+        for col_name, col_type in book_migrations:
+            if col_name not in book_columns:
+                cursor.execute(f"ALTER TABLE books ADD COLUMN {col_name} {col_type}")
+
+        # B19 fix: Backfill blank created_at dates on old records
+        try:
+            cursor.execute("UPDATE topics SET created_at = CURRENT_TIMESTAMP WHERE created_at IS NULL")
+            cursor.execute("UPDATE books SET created_at = CURRENT_TIMESTAMP WHERE created_at IS NULL")
+        except Exception:
+            pass
         
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS notes (
@@ -179,6 +239,17 @@ def init_db():
         """)
         
         cursor.execute("""
+            CREATE TABLE IF NOT EXISTS chat_messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                topic_id INTEGER NOT NULL,
+                role TEXT NOT NULL,
+                content TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (topic_id) REFERENCES topics (id) ON DELETE CASCADE
+            )
+        """)
+
+        cursor.execute("""
             CREATE TABLE IF NOT EXISTS undo_log (
                 id INTEGER PRIMARY KEY CHECK (id = 1),
                 flashcard_id INTEGER NOT NULL,
@@ -202,11 +273,218 @@ def init_db():
                 FOREIGN KEY (book_id) REFERENCES books (id) ON DELETE CASCADE
             )
         """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS system_prompts (
+                key TEXT PRIMARY KEY,
+                custom_prompt TEXT NOT NULL,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS token_usage_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                provider TEXT NOT NULL,
+                model TEXT NOT NULL,
+                feature TEXT NOT NULL,
+                prompt_tokens INTEGER NOT NULL DEFAULT 0,
+                completion_tokens INTEGER NOT NULL DEFAULT 0,
+                total_tokens INTEGER NOT NULL DEFAULT 0,
+                estimated_cost_usd REAL DEFAULT 0.0
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_usage_timestamp ON token_usage_logs(timestamp)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_usage_feature ON token_usage_logs(feature)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_usage_provider ON token_usage_logs(provider)")
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS drill_sessions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                uuid TEXT NOT NULL UNIQUE DEFAULT (
+                    lower(hex(randomblob(4))) || '-' ||
+                    lower(hex(randomblob(2))) || '-4' ||
+                    substr(lower(hex(randomblob(2))), 2) || '-a' ||
+                    substr(lower(hex(randomblob(2))), 2) || '-' ||
+                    lower(hex(randomblob(6)))
+                ),
+                topic_id INTEGER NOT NULL REFERENCES topics(id) ON DELETE CASCADE,
+                provider TEXT,
+                started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                completed_at TIMESTAMP,
+                total_questions INTEGER DEFAULT 0,
+                final_mastery_score INTEGER,
+                final_mastery_status TEXT,
+                user_id TEXT,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                deleted_at TIMESTAMP
+            )
+        """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS drill_attempts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                uuid TEXT NOT NULL UNIQUE DEFAULT (
+                    lower(hex(randomblob(4))) || '-' ||
+                    lower(hex(randomblob(2))) || '-4' ||
+                    substr(lower(hex(randomblob(2))), 2) || '-a' ||
+                    substr(lower(hex(randomblob(2))), 2) || '-' ||
+                    lower(hex(randomblob(6)))
+                ),
+                session_id INTEGER NOT NULL REFERENCES drill_sessions(id) ON DELETE CASCADE,
+                topic_id INTEGER NOT NULL REFERENCES topics(id) ON DELETE CASCADE,
+                question_id TEXT NOT NULL,
+                question_text TEXT NOT NULL,
+                tier TEXT NOT NULL,
+                socratic_hint TEXT,
+                student_answer TEXT NOT NULL,
+                mastery_score INTEGER NOT NULL,
+                status TEXT NOT NULL,
+                strengths_json TEXT,
+                diagnosed_gaps_json TEXT,
+                misconceptions_json TEXT,
+                socratic_nudge TEXT,
+                concept_name TEXT,
+                evaluated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                user_id TEXT,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                deleted_at TIMESTAMP
+            )
+        """)
+
+        cursor.execute("PRAGMA table_info(drill_attempts)")
+        da_cols = [row['name'] for row in cursor.fetchall()]
+        da_migrations = [
+            ("question_id", "TEXT"),
+            ("tier", "TEXT"),
+            ("socratic_hint", "TEXT"),
+            ("student_answer", "TEXT"),
+            ("mastery_score", "INTEGER"),
+            ("status", "TEXT"),
+            ("strengths_json", "TEXT"),
+            ("diagnosed_gaps_json", "TEXT"),
+            ("misconceptions_json", "TEXT"),
+            ("socratic_nudge", "TEXT"),
+            ("concept_name", "TEXT"),
+            ("evaluated_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
+        ]
+        for col_name, col_type in da_migrations:
+            if col_name not in da_cols:
+                cursor.execute(f"ALTER TABLE drill_attempts ADD COLUMN {col_name} {col_type}")
         
+        # Generic migration for sync columns
+        import uuid
+        sync_tables = ["books", "topics", "flashcards", "notes", "review_log", "pdf_annotations", "chat_messages", "drill_sessions", "drill_attempts"]
+        sync_columns = [
+            ("uuid", "TEXT"),
+            ("user_id", "TEXT"),
+            ("updated_at", "TIMESTAMP"),
+            ("deleted_at", "TIMESTAMP")
+        ]
+        
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS sync_tombstones (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                table_name TEXT NOT NULL,
+                uuid TEXT NOT NULL,
+                deleted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        # Clean up old tombstones (> 30 days) to prevent infinite growth
+        cursor.execute("DELETE FROM sync_tombstones WHERE deleted_at < datetime('now', '-30 days')")
+        
+        for table in sync_tables:
+            cursor.execute(f"PRAGMA table_info({table})")
+            existing_cols = [row['name'] for row in cursor.fetchall()]
+            for col_name, col_type in sync_columns:
+                if col_name not in existing_cols:
+                    cursor.execute(f"ALTER TABLE {table} ADD COLUMN {col_name} {col_type}")
+                    # If uuid was just added, populate it for existing rows
+                    if col_name == "uuid":
+                        cursor.execute(f"SELECT id FROM {table} WHERE uuid IS NULL")
+                        rows = cursor.fetchall()
+                        for r in rows:
+                            cursor.execute(f"UPDATE {table} SET uuid = ? WHERE id = ?", (str(uuid.uuid4()), r['id']))
+            
+            cursor.execute(f"UPDATE {table} SET updated_at = CURRENT_TIMESTAMP WHERE updated_at IS NULL")
+            cursor.execute(f"CREATE UNIQUE INDEX IF NOT EXISTS idx_{table}_uuid ON {table}(uuid)")
+
+            # Create triggers to automatically manage updated_at
+            cursor.execute(f"""
+                CREATE TRIGGER IF NOT EXISTS {table}_set_updated_at_insert
+                AFTER INSERT ON {table}
+                FOR EACH ROW
+                WHEN NEW.updated_at IS NULL
+                BEGIN
+                    UPDATE {table} SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
+                END;
+            """)
+            
+            cursor.execute(f"""
+                CREATE TRIGGER IF NOT EXISTS {table}_set_updated_at_update
+                AFTER UPDATE ON {table}
+                FOR EACH ROW
+                WHEN NEW.updated_at = OLD.updated_at OR NEW.updated_at IS NULL
+                BEGIN
+                    UPDATE {table} SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
+                END;
+            """)
+
+            cursor.execute(f"""
+                CREATE TRIGGER IF NOT EXISTS {table}_record_tombstone
+                BEFORE DELETE ON {table}
+                FOR EACH ROW
+                WHEN OLD.uuid IS NOT NULL
+                BEGIN
+                    INSERT INTO sync_tombstones (table_name, uuid) VALUES ('{table}', OLD.uuid);
+                END;
+            """)
+
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_topics_book_id ON topics(book_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_topics_parent_id ON topics(parent_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_topics_book_sort ON topics(book_id, sort_order)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_topics_mastery_status ON topics(mastery_status)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_flashcards_topic_id ON flashcards(topic_id)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_flashcards_due ON flashcards(due)")
-        
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_notes_topic_id ON notes(topic_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_chat_messages_topic_id ON chat_messages(topic_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_drill_sessions_topic_id ON drill_sessions(topic_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_drill_attempts_session ON drill_attempts(session_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_drill_attempts_topic ON drill_attempts(topic_id)")
+
+        cursor.execute("""
+            CREATE TRIGGER IF NOT EXISTS flashcards_count_after_insert
+            AFTER INSERT ON flashcards
+            BEGIN
+                UPDATE topics
+                SET flashcard_count = (SELECT COUNT(*) FROM flashcards WHERE topic_id = NEW.topic_id)
+                WHERE id = NEW.topic_id;
+            END;
+        """)
+        cursor.execute("""
+            CREATE TRIGGER IF NOT EXISTS flashcards_count_after_delete
+            AFTER DELETE ON flashcards
+            BEGIN
+                UPDATE topics
+                SET flashcard_count = (SELECT COUNT(*) FROM flashcards WHERE topic_id = OLD.topic_id)
+                WHERE id = OLD.topic_id;
+            END;
+        """)
+        cursor.execute("""
+            CREATE TRIGGER IF NOT EXISTS topics_apply_drill_result
+            AFTER INSERT ON drill_attempts
+            BEGIN
+                UPDATE topics
+                SET mastery_score = NEW.mastery_score,
+                    mastery_status = NEW.status,
+                    last_drilled_at = NEW.evaluated_at
+                WHERE id = NEW.topic_id;
+            END;
+        """)
+
+
         # Seed default settings if empty
         cursor.execute("SELECT COUNT(*) as count FROM settings")
         if cursor.fetchone()['count'] == 0:
@@ -217,22 +495,28 @@ def init_db():
             ]
             cursor.executemany("INSERT INTO settings (key, value) VALUES (?, ?)", defaults)
             
-        logger.info(f"Database initialized successfully at {DB_PATH}")
+        logger.info(f"Database initialized successfully at {ACTIVE_DB_PATH}")
 
-def save_book(title: str, file_path: str, file_hash: str, total_pages: int) -> int:
-    """Inserts a new book or returns the existing book ID if file_hash matches."""
+def save_book(title: str, file_path: str, file_hash: str, total_pages: int, user_id: Optional[str] = None, workspace_id: Optional[str] = None) -> int:
+    """Inserts a new book or returns the existing book ID if file_hash matches for this user/workspace."""
     with get_connection() as conn:
         cursor = conn.cursor()
         
-        cursor.execute("SELECT id FROM books WHERE file_hash = ?", (file_hash,))
+        if workspace_id:
+            cursor.execute("SELECT id FROM books WHERE file_hash = ? AND (workspace_id = ? OR workspace_id IS NULL)", (file_hash, workspace_id))
+        elif user_id:
+            cursor.execute("SELECT id FROM books WHERE file_hash = ? AND (user_id = ? OR user_id IS NULL)", (file_hash, user_id))
+        else:
+            cursor.execute("SELECT id FROM books WHERE file_hash = ?", (file_hash,))
         row = cursor.fetchone()
         if row:
             return row['id']
             
+        import uuid
         cursor.execute("""
-            INSERT INTO books (title, file_path, file_hash, total_pages)
-            VALUES (?, ?, ?, ?)
-        """, (title, file_path, file_hash, total_pages))
+            INSERT INTO books (title, file_path, file_hash, total_pages, uuid, user_id, workspace_id, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, strftime('%Y-%m-%d %H:%M:%f', 'now'), CURRENT_TIMESTAMP)
+        """, (title, file_path, file_hash, total_pages, str(uuid.uuid4()), user_id, workspace_id))
         
         return cursor.lastrowid
 
@@ -279,16 +563,13 @@ async def resolve_and_save_topic(
             cursor.execute(
                 """
                 UPDATE topics SET 
-                    summary = COALESCE(?, summary),
                     concept_type = COALESCE(?, concept_type),
                     key_terms = COALESCE(?, key_terms),
-                    code_snippet = COALESCE(?, code_snippet),
-                    image_url = COALESCE(?, image_url),
                     content_md = ?,
                     status = ?
                 WHERE id = ?
                 """,
-                (summary, concept_type, key_terms, code_snippet, image_url, new_content, status, row['id'])
+                (concept_type, key_terms, new_content, status, row['id'])
             )
             return row['id']
             
@@ -325,9 +606,32 @@ async def resolve_and_save_topic(
     
     with get_connection() as conn:
         cursor = conn.cursor()
+        
+        # Double-check exact topic_hash match in case of concurrent insert
+        cursor.execute("SELECT id, content_md FROM topics WHERE topic_hash = ?", (topic_hash,))
+        row = cursor.fetchone()
+        
+        if row:
+            new_content = row['content_md']
+            if content_md:
+                new_content = (row['content_md'] or "") + "\n\n" + content_md
+                
+            cursor.execute(
+                """
+                UPDATE topics SET 
+                    concept_type = COALESCE(?, concept_type),
+                    key_terms = COALESCE(?, key_terms),
+                    content_md = ?,
+                    status = ?
+                WHERE id = ?
+                """,
+                (concept_type, key_terms, new_content, status, row['id'])
+            )
+            return row['id']
+
         # Enforce book_id scoping
         cursor.execute(
-            "SELECT id, embedding, content_md, key_terms, summary, title FROM topics WHERE book_id = ? AND embedding IS NOT NULL", 
+            "SELECT id, embedding, content_md, key_terms, title FROM topics WHERE book_id = ? AND embedding IS NOT NULL", 
             (book_id,)
         )
         rows = cursor.fetchall()
@@ -351,7 +655,6 @@ async def resolve_and_save_topic(
             best_id = best_row['id']
             best_content = best_row['content_md']
             best_key_terms = best_row['key_terms']
-            best_summary = best_row['summary']
             best_title = best_row['title']
             
             new_content = best_content
@@ -373,28 +676,22 @@ async def resolve_and_save_topic(
             
             merged_kt_json = json.dumps(list(merged_kt_set)) if merged_kt_set else None
             
-            # Determine new merged summary for embedding
-            merged_summary = best_summary if best_summary else summary
-            
             # Recompute embedding for the merged concept
-            merged_text_to_embed = f"Title: {best_title}\nKey Terms: {', '.join(list(merged_kt_set))}\nSummary: {merged_summary or ''}"
+            merged_text_to_embed = f"Title: {best_title}\nKey Terms: {', '.join(list(merged_kt_set))}\nSummary: {summary or ''}"
             merged_embedding = await get_embedding(merged_text_to_embed, provider=provider)
             merged_emb_json = json.dumps(merged_embedding)
                 
             cursor.execute(
                 """
                 UPDATE topics SET 
-                    summary = COALESCE(?, summary),
                     concept_type = COALESCE(?, concept_type),
                     key_terms = ?,
-                    code_snippet = COALESCE(?, code_snippet),
-                    image_url = COALESCE(?, image_url),
                     content_md = ?,
                     embedding = ?,
                     status = ?
                 WHERE id = ?
                 """,
-                (summary, concept_type, merged_kt_json, code_snippet, image_url, new_content, merged_emb_json, status, best_id)
+                (concept_type, merged_kt_json, new_content, merged_emb_json, status, best_id)
             )
             return best_id
             
@@ -404,14 +701,14 @@ async def resolve_and_save_topic(
             INSERT INTO topics (
                 book_id, parent_id, title, level, 
                 start_page, end_page, content_md, sort_order,
-                summary, concept_type, key_terms, code_snippet, image_url,
+                concept_type, key_terms,
                 breadcrumb, topic_hash, embedding, status
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 book_id, parent_id, title, level, 
                 start_page or 0, end_page or 0, content_md, sort_order,
-                summary, concept_type, key_terms, code_snippet, image_url,
+                concept_type, key_terms,
                 breadcrumb, topic_hash, new_emb_json, status
             )
         )
@@ -479,33 +776,64 @@ def get_topic_by_id(topic_id: int) -> Optional[Dict[str, Any]]:
         row = cursor.fetchone()
         return dict(row) if row else None
 
+def get_child_topics(parent_id: int) -> List[Dict[str, Any]]:
+    """Retrieves immediate child topics for a given parent topic, sorted by sort_order and id."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM topics WHERE parent_id = ? ORDER BY sort_order ASC, id ASC", (parent_id,))
+        return [dict(row) for row in cursor.fetchall()]
+
+def get_descendant_topics(parent_id: int) -> List[Dict[str, Any]]:
+    """Recursively retrieves all descendant topics (children, grandchildren, etc.) for a given parent topic."""
+    descendants = []
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        queue = [parent_id]
+        while queue:
+            curr = queue.pop(0)
+            cursor.execute("SELECT * FROM topics WHERE parent_id = ? ORDER BY sort_order ASC, id ASC", (curr,))
+            rows = [dict(r) for r in cursor.fetchall()]
+            for r in rows:
+                descendants.append(r)
+                queue.append(r["id"])
+    return descendants
+
 def update_topic_enrichment(
     topic_id: int,
-    summary: str | None = None,
+    atomic_concepts: str | None = None,
     concept_type: str | None = None,
     key_terms: str | None = None,
-    code_snippet: str | None = None,
-    image_url: str | None = None,
     content_md: str | None = None,
-    status: str = "processed"
+    status: str = "processed",
+    **kwargs
 ):
-    """Enriches a topic in-place with AI summary, key terms, concept type, and content without creating new child rows."""
+    """Enriches a topic in-place with structured atomic concepts and content."""
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute(
             """
             UPDATE topics SET
-                summary = COALESCE(?, summary),
+                atomic_concepts = COALESCE(?, atomic_concepts),
                 concept_type = COALESCE(?, concept_type),
                 key_terms = COALESCE(?, key_terms),
-                code_snippet = COALESCE(?, code_snippet),
-                image_url = COALESCE(?, image_url),
                 content_md = COALESCE(?, content_md),
-                is_processed = 1,
                 status = ?
             WHERE id = ?
             """,
-            (summary, concept_type, key_terms, code_snippet, image_url, content_md, status, topic_id)
+            (atomic_concepts, concept_type, key_terms, content_md, status, topic_id)
+        )
+
+def update_topic_content_md(topic_id: int, content_md: str):
+    """Saves just the extracted raw markdown to the topic without marking it as fully processed."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            UPDATE topics SET
+                content_md = ?
+            WHERE id = ?
+            """,
+            (content_md, topic_id)
         )
 
 def update_topic_mastery(topic_id: int, score: int, status: str):
@@ -522,6 +850,141 @@ def update_topic_mastery(topic_id: int, score: int, status: str):
             """,
             (score, status, topic_id)
         )
+
+def update_concept_mastery(topic_id: int, concept_name: str, score: int, status: str) -> dict:
+    """
+    Updates the mastery score, status, and last_drilled_at of a specific concept in topics.atomic_concepts.
+    Also recomputes the aggregate mastery score & status for the overall topic.
+    Returns a dict with updated concept info and topic aggregate mastery.
+    """
+    from datetime import datetime, timezone
+    now_iso = datetime.now(timezone.utc).isoformat()
+
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT atomic_concepts, mastery_score, mastery_status FROM topics WHERE id = ?", (topic_id,))
+        row = cursor.fetchone()
+        if not row:
+            raise ValueError(f"Topic {topic_id} not found")
+
+        raw_concepts = row["atomic_concepts"]
+        concepts = []
+        if raw_concepts:
+            try:
+                concepts = json.loads(raw_concepts)
+            except Exception:
+                concepts = []
+
+        updated_concept = None
+        # Match concept by name (case-insensitive) or id
+        for c in concepts:
+            c_name = c.get("name", "")
+            c_id = c.get("id", "")
+            if c_name.strip().lower() == concept_name.strip().lower() or c_id == concept_name:
+                c["mastery_score"] = score
+                c["mastery_status"] = status
+                c["last_drilled_at"] = now_iso
+                updated_concept = c
+                break
+
+        if not updated_concept:
+            # If concept not found in list, append it as a new concept record
+            updated_concept = {
+                "id": f"c_{len(concepts) + 1}",
+                "name": concept_name,
+                "concept_type": "Definition",
+                "summary": "",
+                "key_terms": [concept_name],
+                "mastery_score": score,
+                "mastery_status": status,
+                "last_drilled_at": now_iso
+            }
+            concepts.append(updated_concept)
+
+        # Recompute aggregate topic mastery across all drilled concepts
+        drilled_scores = [c["mastery_score"] for c in concepts if c.get("mastery_score") is not None]
+        if drilled_scores:
+            topic_score = round(sum(drilled_scores) / len(drilled_scores))
+            if any(c.get("mastery_status") == "misconception" for c in concepts):
+                topic_status = "misconception"
+            elif topic_score >= 85:
+                topic_status = "mastered"
+            elif topic_score >= 60:
+                topic_status = "developing"
+            elif topic_score >= 35:
+                topic_status = "fragile"
+            else:
+                topic_status = "misconception"
+        else:
+            topic_score = score
+            topic_status = status
+
+        cursor.execute(
+            """
+            UPDATE topics SET
+                atomic_concepts = ?,
+                mastery_score = ?,
+                mastery_status = ?,
+                last_drilled_at = ?
+            WHERE id = ?
+            """,
+            (json.dumps(concepts), topic_score, topic_status, now_iso, topic_id)
+        )
+
+        return {
+            "concept": updated_concept,
+            "topic_score": topic_score,
+            "topic_status": topic_status,
+            "concepts": concepts
+        }
+
+def record_drill_attempt(
+    topic_id: int,
+    question_id: str,
+    question_text: str,
+    tier: str,
+    socratic_hint: str | None,
+    student_answer: str,
+    mastery_score: int,
+    status: str,
+    strengths: list[str] | None = None,
+    diagnosed_gaps: list[str] | None = None,
+    misconceptions: list[str] | None = None,
+    socratic_nudge: str | None = None,
+    concept_name: str | None = None,
+    session_id: int | None = None,
+    user_id: str | None = None
+) -> int:
+    """Records a single drill question attempt into drill_attempts and ensures a drill_session exists."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        if session_id is None:
+            cursor.execute(
+                "INSERT INTO drill_sessions (topic_id, question_count, user_id) VALUES (?, 1, ?)",
+                (topic_id, user_id)
+            )
+            session_id = cursor.lastrowid
+
+        cursor.execute(
+            """
+            INSERT INTO drill_attempts (
+                session_id, topic_id, question_id, question_text, tier,
+                socratic_hint, student_answer, mastery_score, status,
+                strengths_json, diagnosed_gaps_json, misconceptions_json,
+                socratic_nudge, concept_name, user_id
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                session_id, topic_id, question_id, question_text, tier,
+                socratic_hint, student_answer, mastery_score, status,
+                json.dumps(strengths or []),
+                json.dumps(diagnosed_gaps or []),
+                json.dumps(misconceptions or []),
+                socratic_nudge, concept_name, user_id
+            )
+        )
+        return cursor.lastrowid
 
 def prune_artificial_subtopics(book_id: Optional[int] = None) -> int:
     """
@@ -565,22 +1028,19 @@ def prune_artificial_subtopics(book_id: Optional[int] = None) -> int:
 
 
 def get_topic_content_with_fallback(topic_id: int) -> tuple[str, str]:
-    """Retrieves the topic's content_md and summary, falling back to parent topic content if needed."""
+    """Retrieves the topic's content_md, falling back to parent topic content if needed."""
     topic = get_topic_by_id(topic_id)
     if not topic:
         return "", ""
         
     content_md = topic.get("content_md") or ""
-    summary = topic.get("summary") or ""
     
     if not content_md and topic.get("parent_id"):
         parent = get_topic_by_id(topic.get("parent_id"))
         if parent:
             content_md = parent.get("content_md") or ""
-            if not summary:
-                summary = parent.get("summary") or ""
                 
-    return content_md, summary
+    return content_md, ""
 
 
 def get_setting(key: str) -> Optional[str]:
@@ -740,31 +1200,84 @@ def get_analytics_stats() -> Dict[str, Any]:
             "forecast_7d": forecast
         }
 
-def get_books(skip: int = 0, limit: int = 100) -> List[Dict[str, Any]]:
+def get_books(skip: int = 0, limit: int = 100, user_id: Optional[str] = None) -> List[Dict[str, Any]]:
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        query = """
+            SELECT b.*,
+                (SELECT COUNT(*) FROM topics t WHERE t.book_id = b.id) as total_topics,
+                (SELECT COUNT(*) FROM topics t WHERE t.book_id = b.id AND (t.status = 'processed' OR (SELECT COUNT(*) FROM flashcards f WHERE f.topic_id = t.id) > 0)) as topics_processed
+            FROM books b
+        """
+        params = []
+        if user_id:
+            query += " WHERE (b.user_id = ? OR b.user_id IS NULL)"
+            params.append(user_id)
+        query += """
+            ORDER BY COALESCE(b.last_read_at, b.created_at) DESC, b.id DESC 
+            LIMIT ? OFFSET ?
+        """
+        params.extend([limit, skip])
+        cursor.execute(query, tuple(params))
+        return [dict(row) for row in cursor.fetchall()]
+
+def update_book_reading_state(book_id: int, page_number: Optional[int] = None, topic_id: Optional[int] = None):
+    """Updates the last read position and timestamp for a book."""
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT b.*,
-                (SELECT COUNT(*) FROM topics t WHERE t.book_id = b.id) as total_topics,
-                (SELECT COUNT(*) FROM topics t WHERE t.book_id = b.id AND (t.is_processed = 1 OR t.status = 'processed' OR (SELECT COUNT(*) FROM flashcards f WHERE f.topic_id = t.id) > 0)) as topics_processed
-            FROM books b
-            ORDER BY b.created_at DESC 
-            LIMIT ? OFFSET ?
-        """, (limit, skip))
-        return [dict(row) for row in cursor.fetchall()]
+            UPDATE books SET
+                last_read_at = strftime('%Y-%m-%d %H:%M:%f', 'now'),
+                last_read_page = COALESCE(?, last_read_page),
+                last_topic_id = COALESCE(?, last_topic_id)
+            WHERE id = ?
+        """, (page_number, topic_id, book_id))
 
-def get_book_by_id(book_id: int) -> Optional[Dict[str, Any]]:
+def get_book_by_id(book_id: int, user_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
     with get_connection() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM books WHERE id = ?", (book_id,))
+        if user_id:
+            cursor.execute("SELECT * FROM books WHERE id = ? AND (user_id = ? OR user_id IS NULL)", (book_id, user_id))
+        else:
+            cursor.execute("SELECT * FROM books WHERE id = ?", (book_id,))
         row = cursor.fetchone()
         return dict(row) if row else None
 
-def delete_book(book_id: int) -> bool:
+def delete_book(book_id: int, user_id: Optional[str] = None) -> bool:
     with get_connection() as conn:
         cursor = conn.cursor()
-        cursor.execute("DELETE FROM books WHERE id = ?", (book_id,))
-        return cursor.rowcount > 0
+        if user_id:
+            cursor.execute("SELECT file_path, file_hash FROM books WHERE id = ? AND (user_id = ? OR user_id IS NULL)", (book_id, user_id))
+        else:
+            cursor.execute("SELECT file_path, file_hash FROM books WHERE id = ?", (book_id,))
+        row = cursor.fetchone()
+        file_path = row['file_path'] if row else None
+        file_hash = row['file_hash'] if row else None
+
+        if user_id:
+            cursor.execute("DELETE FROM books WHERE id = ? AND (user_id = ? OR user_id IS NULL)", (book_id, user_id))
+        else:
+            cursor.execute("DELETE FROM books WHERE id = ?", (book_id,))
+        success = cursor.rowcount > 0
+
+    if success and file_hash:
+        try:
+            # Clean up parsed document on disk if no other book references this hash
+            if file_path and os.path.exists(file_path):
+                with get_connection() as conn:
+                    c = conn.cursor()
+                    c.execute("SELECT COUNT(*) FROM books WHERE file_hash = ?", (file_hash,))
+                    if c.fetchone()[0] == 0:
+                        os.remove(file_path)
+            # Remove cover file if exists
+            covers_dir = os.path.join(DATA_DIR, "covers")
+            cover_path = os.path.join(covers_dir, f"{file_hash}.png")
+            if os.path.exists(cover_path):
+                os.remove(cover_path)
+        except Exception as e:
+            logger.warning(f"Failed to clean up files for book {book_id}: {e}")
+
+    return success
 
 def get_note_by_topic(topic_id: int) -> str:
     """Retrieves Markdown text from the notes table for a topic."""
@@ -776,14 +1289,92 @@ def get_note_by_topic(topic_id: int) -> str:
 
 def save_note_for_topic(topic_id: int, note_text: str) -> None:
     """Upserts the Markdown text in the notes table for a topic."""
+    import uuid
     with get_connection() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT id FROM notes WHERE topic_id = ?", (topic_id,))
+        cursor.execute("SELECT id, uuid FROM notes WHERE topic_id = ?", (topic_id,))
         row = cursor.fetchone()
         if row:
-            cursor.execute("UPDATE notes SET content = ?, updated_at = CURRENT_TIMESTAMP WHERE topic_id = ?", (note_text, topic_id))
+            note_uuid = row['uuid'] or str(uuid.uuid4())
+            cursor.execute("UPDATE notes SET content = ?, uuid = ?, updated_at = CURRENT_TIMESTAMP WHERE topic_id = ?", (note_text, note_uuid, topic_id))
         else:
-            cursor.execute("INSERT INTO notes (topic_id, content) VALUES (?, ?)", (topic_id, note_text))
+            cursor.execute("INSERT INTO notes (topic_id, content, uuid, updated_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)", (topic_id, note_text, str(uuid.uuid4())))
+
+def get_all_notes(book_id: Optional[int] = None, search: Optional[str] = None, user_id: Optional[str] = None) -> List[Dict[str, Any]]:
+    """Retrieves all notes joined with their topic and book metadata."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        sql = """
+            SELECT 
+                n.id,
+                n.topic_id,
+                n.content,
+                n.created_at,
+                n.updated_at,
+                n.uuid,
+                t.title AS topic_title,
+                t.breadcrumb,
+                t.level,
+                t.start_page,
+                t.end_page,
+                t.book_id,
+                b.title AS book_title
+            FROM notes n
+            JOIN topics t ON n.topic_id = t.id
+            JOIN books b ON t.book_id = b.id
+            WHERE length(trim(n.content)) > 0
+        """
+        params = []
+        if user_id:
+            sql += " AND (b.user_id = ? OR b.user_id IS NULL)"
+            params.append(user_id)
+        if book_id is not None:
+            sql += " AND t.book_id = ?"
+            params.append(book_id)
+        if search and search.strip():
+            term = f"%{search.strip()}%"
+            sql += " AND (n.content LIKE ? OR t.title LIKE ? OR b.title LIKE ?)"
+            params.extend([term, term, term])
+        sql += " ORDER BY n.updated_at DESC"
+        cursor.execute(sql, tuple(params))
+        return [dict(row) for row in cursor.fetchall()]
+
+def delete_note_by_topic(topic_id: int) -> bool:
+    """Deletes the note for a specific topic."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM notes WHERE topic_id = ?", (topic_id,))
+        return cursor.rowcount > 0
+
+def get_all_annotations(book_id: Optional[int] = None, user_id: Optional[str] = None) -> List[Dict[str, Any]]:
+    """Retrieves all PDF annotations that contain note/comment content across books."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        sql = """
+            SELECT 
+                a.id,
+                a.book_id,
+                b.title AS book_title,
+                a.page_number,
+                a.annotation_type,
+                a.selected_text,
+                a.content,
+                a.created_at,
+                a.updated_at
+            FROM pdf_annotations a
+            JOIN books b ON a.book_id = b.id
+            WHERE a.content IS NOT NULL AND length(trim(a.content)) > 0
+        """
+        params = []
+        if user_id:
+            sql += " AND (b.user_id = ? OR b.user_id IS NULL)"
+            params.append(user_id)
+        if book_id is not None:
+            sql += " AND a.book_id = ?"
+            params.append(book_id)
+        sql += " ORDER BY a.updated_at DESC"
+        cursor.execute(sql, tuple(params))
+        return [dict(row) for row in cursor.fetchall()]
 
 def get_topics(book_id: Optional[int] = None, skip: int = 0, limit: int = 10000) -> List[Dict[str, Any]]:
     with get_connection() as conn:
@@ -886,7 +1477,7 @@ def insert_topics_bulk(book_id: int, toc_entries: list) -> int:
         cursor = conn.cursor()
         
         inserted_count = 0
-        parent_stack = [] # list of (level, id)
+        parent_stack = [] # list of (level, id, title)
         
         for index, entry in enumerate(toc_entries):
             level = entry["level"]
@@ -898,15 +1489,17 @@ def insert_topics_bulk(book_id: int, toc_entries: list) -> int:
                 parent_stack.pop()
                 
             parent_id = parent_stack[-1][1] if parent_stack else None
+            breadcrumb_parts = [p[2] for p in parent_stack] + [title]
+            breadcrumb = " > ".join(breadcrumb_parts)
             topic_hash = hashlib.sha256(f"{book_id}_{title}_{start_page}_{index}".encode()).hexdigest()
             
             cursor.execute("""
-                INSERT INTO topics (book_id, parent_id, title, level, start_page, end_page, sort_order, topic_hash, status)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'unprocessed')
-            """, (book_id, parent_id, title, level, start_page, end_page, index, topic_hash))
+                INSERT INTO topics (book_id, parent_id, title, level, start_page, end_page, sort_order, topic_hash, status, breadcrumb)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'unprocessed', ?)
+            """, (book_id, parent_id, title, level, start_page, end_page, index, topic_hash, breadcrumb))
             
             topic_id = cursor.lastrowid
-            parent_stack.append((level, topic_id))
+            parent_stack.append((level, topic_id, title))
             inserted_count += 1
             
         return inserted_count
@@ -919,7 +1512,7 @@ def update_topic_status(topic_id: int, status: str):
 def update_topic_summary(topic_id: int, summary: str, content_md: str):
     with get_connection() as conn:
         cursor = conn.cursor()
-        cursor.execute("UPDATE topics SET summary = ?, content_md = ? WHERE id = ?", (summary, content_md, topic_id))
+        cursor.execute("UPDATE topics SET content_md = ? WHERE id = ?", (content_md, topic_id))
 
 # ─── PDF Annotation CRUD ───
 
@@ -982,22 +1575,221 @@ def search_all(query: str, limit: int = 20) -> List[Dict[str, Any]]:
         
         # Search topics
         cursor.execute("""
-            SELECT 'topic' as type, id, title as title, summary as subtitle
+            SELECT 'topic' as type, id, title as title, COALESCE(key_terms, breadcrumb) as subtitle, book_id
             FROM topics
-            WHERE title LIKE ? OR summary LIKE ?
+            WHERE title LIKE ? OR key_terms LIKE ?
             LIMIT ?
         """, (search_term, search_term, limit))
         topic_results = [dict(r) for r in cursor.fetchall()]
         
         # Search flashcards
         cursor.execute("""
-            SELECT 'flashcard' as type, id, question as title, answer as subtitle
-            FROM flashcards
-            WHERE question LIKE ? OR answer LIKE ?
+            SELECT 'flashcard' as type, f.id, f.question as title, f.answer as subtitle, t.book_id
+            FROM flashcards f
+            LEFT JOIN topics t ON f.topic_id = t.id
+            WHERE f.question LIKE ? OR f.answer LIKE ?
             LIMIT ?
         """, (search_term, search_term, limit))
         card_results = [dict(r) for r in cursor.fetchall()]
         
-        # Combine and sort, maybe prioritizing topics
-        results = topic_results + card_results
+        # Search notes
+        cursor.execute("""
+            SELECT 'note' as type, n.topic_id as id, t.title as title, 'Note: ' || substr(n.content, 1, 80) as subtitle, t.book_id
+            FROM notes n
+            JOIN topics t ON n.topic_id = t.id
+            WHERE n.content LIKE ? OR t.title LIKE ?
+            LIMIT ?
+        """, (search_term, search_term, limit))
+        note_results = [dict(r) for r in cursor.fetchall()]
+        
+        # Combine and sort, prioritizing topics and notes
+        results = topic_results + note_results + card_results
         return results[:limit]
+
+
+# -----------------------------------------------------------------------------
+# Token Usage & LLM Telemetry
+# -----------------------------------------------------------------------------
+
+def calculate_token_cost(provider: str, model: str, prompt_tokens: int, completion_tokens: int) -> float:
+    """Estimates the dollar cost ($ USD) for token usage based on model pricing."""
+    p = (provider or "").lower()
+    m = (model or "").lower()
+
+    if p == "ollama":
+        return 0.0
+
+    # Default commercial rates per 1,000,000 tokens
+    input_rate = 0.10
+    output_rate = 0.40
+
+    if "flash" in m:
+        input_rate = 0.075
+        output_rate = 0.30
+    elif "pro" in m:
+        input_rate = 1.25
+        output_rate = 5.00
+    elif "gpt-4o-mini" in m:
+        input_rate = 0.15
+        output_rate = 0.60
+    elif "gpt-4o" in m:
+        input_rate = 2.50
+        output_rate = 10.00
+    elif "groq" in p or "llama" in m:
+        input_rate = 0.05
+        output_rate = 0.08
+
+    cost = (prompt_tokens / 1_000_000.0) * input_rate + (completion_tokens / 1_000_000.0) * output_rate
+    return round(cost, 6)
+
+
+def log_token_usage(
+    provider: str,
+    model: str,
+    feature: str,
+    prompt_tokens: int,
+    completion_tokens: int,
+    total_tokens: Optional[int] = None,
+    cost_usd: Optional[float] = None
+) -> None:
+    """Persists a token usage log record into SQLite."""
+    prompt_tokens = max(0, prompt_tokens or 0)
+    completion_tokens = max(0, completion_tokens or 0)
+
+    if total_tokens is None or total_tokens <= 0:
+        total_tokens = prompt_tokens + completion_tokens
+
+    if total_tokens <= 0:
+        return
+
+    if cost_usd is None:
+        cost_usd = calculate_token_cost(provider, model, prompt_tokens, completion_tokens)
+
+    try:
+        with get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO token_usage_logs (provider, model, feature, prompt_tokens, completion_tokens, total_tokens, estimated_cost_usd)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (provider or "unknown", model or "unknown", feature or "general", prompt_tokens, completion_tokens, total_tokens, cost_usd))
+    except Exception as e:
+        logger.error(f"Failed to log token usage: {e}")
+
+
+def get_token_usage_summary(days: Optional[int] = None) -> Dict[str, Any]:
+    """Computes aggregated token counts, cost, daily timeline, and breakdowns."""
+    time_filter = ""
+    params = []
+    if days and days > 0:
+        time_filter = "WHERE timestamp >= datetime('now', ?)"
+        params.append(f"-{days} days")
+
+    with get_connection() as conn:
+        cursor = conn.cursor()
+
+        # Overall Totals
+        cursor.execute(f"""
+            SELECT 
+                COUNT(*) as total_requests,
+                COALESCE(SUM(prompt_tokens), 0) as total_prompt_tokens,
+                COALESCE(SUM(completion_tokens), 0) as total_completion_tokens,
+                COALESCE(SUM(total_tokens), 0) as total_tokens,
+                COALESCE(SUM(estimated_cost_usd), 0.0) as total_cost_usd
+            FROM token_usage_logs
+            {time_filter}
+        """, tuple(params))
+        totals = dict(cursor.fetchone())
+
+        # Breakdown by Feature
+        cursor.execute(f"""
+            SELECT 
+                feature,
+                COUNT(*) as requests,
+                COALESCE(SUM(prompt_tokens), 0) as prompt_tokens,
+                COALESCE(SUM(completion_tokens), 0) as completion_tokens,
+                COALESCE(SUM(total_tokens), 0) as total_tokens,
+                ROUND(COALESCE(SUM(estimated_cost_usd), 0.0), 4) as estimated_cost_usd
+            FROM token_usage_logs
+            {time_filter}
+            GROUP BY feature
+            ORDER BY total_tokens DESC
+        """, tuple(params))
+        by_feature = [dict(r) for r in cursor.fetchall()]
+
+        # Breakdown by Provider
+        cursor.execute(f"""
+            SELECT 
+                provider,
+                COUNT(*) as requests,
+                COALESCE(SUM(prompt_tokens), 0) as prompt_tokens,
+                COALESCE(SUM(completion_tokens), 0) as completion_tokens,
+                COALESCE(SUM(total_tokens), 0) as total_tokens,
+                ROUND(COALESCE(SUM(estimated_cost_usd), 0.0), 4) as estimated_cost_usd
+            FROM token_usage_logs
+            {time_filter}
+            GROUP BY provider
+            ORDER BY total_tokens DESC
+        """, tuple(params))
+        by_provider = [dict(r) for r in cursor.fetchall()]
+
+        # Breakdown by Model
+        cursor.execute(f"""
+            SELECT 
+                model,
+                provider,
+                COUNT(*) as requests,
+                COALESCE(SUM(total_tokens), 0) as total_tokens,
+                ROUND(COALESCE(SUM(estimated_cost_usd), 0.0), 4) as estimated_cost_usd
+            FROM token_usage_logs
+            {time_filter}
+            GROUP BY model, provider
+            ORDER BY total_tokens DESC
+        """, tuple(params))
+        by_model = [dict(r) for r in cursor.fetchall()]
+
+        # Daily Timeline (last 30 days default or requested days)
+        timeline_days = days if (days and days > 0) else 30
+        cursor.execute("""
+            SELECT 
+                date(timestamp) as day,
+                COUNT(*) as requests,
+                COALESCE(SUM(prompt_tokens), 0) as prompt_tokens,
+                COALESCE(SUM(completion_tokens), 0) as completion_tokens,
+                COALESCE(SUM(total_tokens), 0) as total_tokens,
+                ROUND(COALESCE(SUM(estimated_cost_usd), 0.0), 4) as estimated_cost_usd
+            FROM token_usage_logs
+            WHERE timestamp >= datetime('now', ?)
+            GROUP BY date(timestamp)
+            ORDER BY day ASC
+        """, (f"-{timeline_days} days",))
+        daily_timeline = [dict(r) for r in cursor.fetchall()]
+
+        return {
+            "totals": totals,
+            "by_feature": by_feature,
+            "by_provider": by_provider,
+            "by_model": by_model,
+            "daily_timeline": daily_timeline
+        }
+
+
+def get_token_usage_logs(limit: int = 100, offset: int = 0) -> List[Dict[str, Any]]:
+    """Retrieves recent individual token usage requests."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT id, timestamp, provider, model, feature, prompt_tokens, completion_tokens, total_tokens, estimated_cost_usd
+            FROM token_usage_logs
+            ORDER BY id DESC
+            LIMIT ? OFFSET ?
+        """, (limit, offset))
+        return [dict(r) for r in cursor.fetchall()]
+
+
+def clear_token_usage_logs() -> None:
+    """Purges all token usage log entries."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM token_usage_logs")
+    logger.info("Cleared all token usage logs")
+

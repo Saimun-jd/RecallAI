@@ -4,14 +4,14 @@ import { Command } from 'cmdk';
 import { useNavigate } from 'react-router-dom';
 import type { RootState } from '../store';
 import { setCommandOpen, setCommandQuery } from '../store';
-import { Book, Zap, Search, FileText } from 'lucide-react';
+import { Book, Zap, Search, FileText, NotebookPen } from 'lucide-react';
 import { client } from '../api/client';
 
 export function CommandPalette() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { isOpen, query } = useSelector((state: RootState) => state.command);
-  const [results, setResults] = useState<Array<{ type: string; id: number; title: string; subtitle: string }>>([]);
+  const [results, setResults] = useState<Array<{ type: string; id: number; title: string; subtitle: string; book_id?: number }>>([]);
 
   // Toggle with Cmd/Ctrl + K
   useEffect(() => {
@@ -67,9 +67,14 @@ export function CommandPalette() {
 
         <Command.Group heading="Navigation">
           <Command.Item 
-            onSelect={() => { navigate('/'); dispatch(setCommandOpen(false)); }}
+            onSelect={() => { navigate('/documents'); dispatch(setCommandOpen(false)); }}
           >
-            <Book className="w-4 h-4" strokeWidth={1.5} /> Go to Library
+            <Book className="w-4 h-4" strokeWidth={1.5} /> Go to Documents
+          </Command.Item>
+          <Command.Item 
+            onSelect={() => { navigate('/notes'); dispatch(setCommandOpen(false)); }}
+          >
+            <NotebookPen className="w-4 h-4" strokeWidth={1.5} /> Go to Notes
           </Command.Item>
           <Command.Item 
             onSelect={() => { navigate('/review'); dispatch(setCommandOpen(false)); }}
@@ -84,13 +89,23 @@ export function CommandPalette() {
               <Command.Item
                 key={`${res.type}-${res.id}`}
                 onSelect={() => {
-                  if (res.type === 'topic') {
-                    navigate(`/topics/${res.id}`);
+                  if (res.type === 'note') {
+                    navigate(`/notes?topic=${res.id}`);
+                  } else if (res.type === 'topic' && res.book_id) {
+                    navigate(`/books/${res.book_id}?topic=${res.id}`);
+                  } else if (res.type === 'flashcard' && res.book_id) {
+                    navigate(`/books/${res.book_id}`);
                   }
                   dispatch(setCommandOpen(false));
                 }}
               >
-                {res.type === 'topic' ? <FileText className="w-4 h-4 mr-2" /> : <Zap className="w-4 h-4 mr-2" />}
+                {res.type === 'note' ? (
+                  <NotebookPen className="w-4 h-4 mr-2" />
+                ) : res.type === 'topic' ? (
+                  <FileText className="w-4 h-4 mr-2" />
+                ) : (
+                  <Zap className="w-4 h-4 mr-2" />
+                )}
                 <div className="flex flex-col">
                   <span className="font-medium text-sm">{res.title}</span>
                   {res.subtitle && <span className="text-xs text-zinc-500 truncate max-w-sm">{res.subtitle}</span>}

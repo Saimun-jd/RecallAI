@@ -2,6 +2,7 @@ import httpx
 from typing import Any, Dict
 from langfuse import get_client
 from app.llm_providers.base import BaseLLMProvider
+from app.errors import RecallError, ErrorCode, classify_error
 
 class OllamaProvider(BaseLLMProvider):
     def __init__(self, host: str, model: str):
@@ -14,6 +15,7 @@ class OllamaProvider(BaseLLMProvider):
         json_schema: Dict[str, Any],
         temperature: float = 0.1,
         max_tokens: int = 4096,
+        feature: str = "general",
     ) -> str:
         langfuse = get_client()
         with langfuse.start_as_current_observation(
@@ -34,17 +36,25 @@ class OllamaProvider(BaseLLMProvider):
                             "options": {"temperature": temperature, "num_predict": max_tokens, "num_ctx": 8192},
                         },
                     )
+            except httpx.ConnectError as e:
+                generation.update(level="ERROR", status_message=str(e))
+                raise RecallError(ErrorCode.OLLAMA_UNAVAILABLE, f"Cannot connect to Ollama at {self.host}. Is it running?", e)
             except Exception as e:
                 generation.update(level="ERROR", status_message=str(e))
-                raise
+                raise classify_error(e, provider_hint="ollama")
                 
             generation.update(metadata={"status_code": r.status_code})
             
             try:
                 r.raise_for_status()
             except httpx.HTTPStatusError as e:
-                generation.update(level="ERROR", status_message=f"HTTP {r.status_code}: {r.text}")
-                raise
+                body = r.text[:1000] if r.text else ""
+                # Detect model-not-found errors from Ollama
+                if "not found" in body.lower() or r.status_code == 404:
+                    generation.update(level="ERROR", status_message=f"Model '{self.model}' not found in Ollama")
+                    raise RecallError(ErrorCode.LLM_INVALID_RESPONSE, f"Model '{self.model}' not found in Ollama. Pull it first with: ollama pull {self.model}", e)
+                generation.update(level="ERROR", status_message=f"HTTP {r.status_code}: {body}")
+                raise classify_error(e, provider_hint="ollama")
                 
             resp_data = r.json()
             content = resp_data.get("response", "")
@@ -57,7 +67,74 @@ class OllamaProvider(BaseLLMProvider):
             if usage["input"] is not None and usage["output"] is not None:
                 usage["total"] = usage["input"] + usage["output"]
                 generation.update(output=content, usage=usage)
+                from app.database import log_token_usage
+                log_token_usage("ollama", self.model, feature, usage["input"], usage["output"], usage["total"], 0.0)
             else:
                 generation.update(output=content)
                 
             return content
+
+    async def generate_stream(
+        self,
+        prompt: str,
+        temperature: float = 0.7,
+        max_tokens: int = 8192,
+        feature: str = "general",
+    ):
+        langfuse = get_client()
+        with langfuse.start_as_current_observation(
+            as_type="generation",
+            name="ollama_generation_stream",
+            model=self.model,
+            input=prompt,
+        ) as generation:
+            try:
+                import json
+                async with httpx.AsyncClient(timeout=120.0) as client:
+                    async with client.stream(
+                        "POST",
+                        f"{self.host}/api/generate",
+                        json={
+                            "model": self.model,
+                            "prompt": prompt,
+                            "stream": True,
+                            "options": {"temperature": temperature, "num_predict": max_tokens, "num_ctx": 8192},
+                        }
+                    ) as response:
+                        if response.status_code >= 400:
+                            await response.aread()
+                            generation.update(level="ERROR", status_message=f"HTTP {response.status_code}: {response.text}")
+                            try:
+                                response.raise_for_status()
+                            except httpx.HTTPStatusError as e:
+                                raise classify_error(e, provider_hint="ollama")
+                                
+                        full_content = ""
+                        stream_usage = None
+                        async for line in response.aiter_lines():
+                            if line:
+                                try:
+                                    data = json.loads(line)
+                                    chunk = data.get("response")
+                                    if chunk:
+                                        full_content += chunk
+                                        yield chunk
+                                    if data.get("done"):
+                                        p_eval = data.get("prompt_eval_count")
+                                        eval_cnt = data.get("eval_count")
+                                        if p_eval is not None and eval_cnt is not None:
+                                            stream_usage = {"input": p_eval, "output": eval_cnt, "total": p_eval + eval_cnt}
+                                except json.JSONDecodeError:
+                                    pass
+                        if stream_usage:
+                            generation.update(output=full_content, usage=stream_usage)
+                            from app.database import log_token_usage
+                            log_token_usage("ollama", self.model, feature, stream_usage["input"], stream_usage["output"], stream_usage["total"], 0.0)
+                        else:
+                            generation.update(output=full_content)
+            except httpx.ConnectError as e:
+                generation.update(level="ERROR", status_message=str(e))
+                raise RecallError(ErrorCode.OLLAMA_UNAVAILABLE, f"Cannot connect to Ollama at {self.host}. Is it running?", e)
+            except Exception as e:
+                generation.update(level="ERROR", status_message=str(e))
+                raise classify_error(e, provider_hint="ollama")

@@ -1,13 +1,23 @@
 import { createSlice } from '@reduxjs/toolkit';
 import type { PayloadAction } from '@reduxjs/toolkit';
-import type { Book, TocEntry, ProgressEvent } from '../api/client';
+import type { Book, TocEntry } from '../api/client';
 
 export interface LibraryState {
   books: Book[];
   activeBook: Book | null;
   tocTree: TocEntry[];
   isUploading: boolean;
-  ingestionProgress: { current: number; total: number; topic: string; status: 'processing' | 'complete' | 'error'; error?: string; percentage?: number; } | null;
+  ingestionProgress: {
+    current: number;
+    total: number;
+    topic: string;
+    status: 'processing' | 'complete' | 'error';
+    error?: string;
+    percentage?: number;
+    title?: string;
+    detail?: string;
+    detailLabel?: string;
+  } | null;
 }
 
 const initialState: LibraryState = {

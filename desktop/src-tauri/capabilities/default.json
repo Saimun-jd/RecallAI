@@ -18,14 +18,25 @@
     },
     "stronghold:default",
     "store:default",
+    "keyring:default",
+    {
+      "identifier": "fs:allow-remove",
+      "allow": [{ "path": "$APPLOCALDATA/**" }]
+    },
+    "core:window:allow-destroy",
     "http:default",
+    "shell:allow-open",
     {
       "identifier": "http:default",
       "allow": [
         {
           "url": "http://127.0.0.1:8000/*"
+        },
+        {
+          "url": "http://localhost:8000/*"
         }
       ]
-    }
+    },
+    "deep-link:default"
   ]
 }

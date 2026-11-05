@@ -1,0 +1,58 @@
+# =============================================================================
+# Recall AI — Docker Build Context Ignore List
+# Prevents large artifacts, secrets, virtual environments, and caches from
+# entering Docker build context.
+# =============================================================================
+
+# Version control & IDE
+.git
+.github
+.gitignore
+.kilo
+.idea
+.vscode
+*.swp
+*.swo
+
+# Python artifacts & virtual environments
+.venv
+venv
+env
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache
+.coverage
+htmlcov
+*.egg-info
+dist
+build
+
+# Test suites (not needed in production image)
+tests
+app/tests
+
+# Secrets & environment configurations
+.env
+.env.*
+!.env.example
+
+# Large logs & diagnostic dump files
+tree.txt
+*.log
+settings_log.txt
+git_log_settings.txt
+marker_help.txt
+old_settings.txt
+
+# Node / Desktop frontend build artifacts
+node_modules
+desktop/node_modules
+desktop/dist
+desktop/src-tauri/target
+desktop/.tempmediaStorage
+
+# Scratch and temporary directories
+scratch
+.tempmediaStorage

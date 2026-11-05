@@ -1,10 +1,14 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
+import remarkGfm from 'remark-gfm';
 import rehypeKatex from 'rehype-katex';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { ImageIcon, ZoomIn, X, ExternalLink } from 'lucide-react';
 import { preprocessMarkdown } from '../utils/markdown';
+import { API_BASE } from '../api/client';
 
 const parseStyle = (styleStr?: string) => {
   if (!styleStr) return {};
@@ -19,22 +23,209 @@ const parseStyle = (styleStr?: string) => {
   }, {});
 };
 
+interface DiagramImageProps {
+  src?: string;
+  alt?: string;
+  [key: string]: any;
+}
+
+export const DiagramImage: React.FC<DiagramImageProps> = ({ src, alt, ...props }) => {
+  const [hasError, setHasError] = useState(false);
+  const [isZoomed, setIsZoomed] = useState(false);
+
+  useEffect(() => {
+    if (!isZoomed) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsZoomed(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isZoomed]);
+
+  const resolveImageUrl = (rawSrc?: string) => {
+    if (!rawSrc) return '';
+    if (rawSrc.startsWith('http://') || rawSrc.startsWith('https://') || rawSrc.startsWith('data:')) {
+      return rawSrc;
+    }
+    if (rawSrc.startsWith('/static/')) {
+      return `${API_BASE}${rawSrc}`;
+    }
+    // Clean relative path (e.g. "./images/fig1.png" -> "fig1.png", "images/fig1.png" -> "fig1.png")
+    const clean = rawSrc.replace(/^\.?\/*(images\/)?/, '');
+    return `${API_BASE}/images/${clean}`;
+  };
+
+  const resolvedSrc = resolveImageUrl(src);
+
+  if (hasError || !resolvedSrc) {
+    if (!alt) return null;
+    return (
+      <span className="text-xs italic text-on-surface-variant/70 block my-1">
+        [{alt}]
+      </span>
+    );
+  }
+
+  return (
+    <>
+      <figure className="my-4 group relative rounded-xl border border-outline-variant/30 bg-surface-container-lowest overflow-hidden shadow-xs hover:border-primary/40 transition-all duration-200">
+        <div
+          className="relative overflow-hidden cursor-zoom-in flex items-center justify-center p-2 bg-surface-container-low/20"
+          onClick={() => setIsZoomed(true)}
+        >
+          <img
+            src={resolvedSrc}
+            alt={alt || 'Diagram'}
+            onError={() => setHasError(true)}
+            className="max-h-[480px] w-auto max-w-full object-contain rounded-lg transition-transform duration-200 group-hover:scale-[1.01]"
+            loading="lazy"
+            {...props}
+          />
+          {/* Zoom Hint Badge */}
+          <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-surface-container-highest/90 text-on-surface backdrop-blur-xs px-2 py-1 rounded-md text-[11px] font-medium flex items-center gap-1 shadow-xs pointer-events-none">
+            <ZoomIn className="w-3.5 h-3.5 text-primary" />
+            <span>Click to zoom</span>
+          </div>
+        </div>
+        {alt && (
+          <figcaption className="px-3.5 py-2 text-xs text-center text-on-surface-variant/90 border-t border-outline-variant/20 bg-surface-container-low/40 italic">
+            {alt}
+          </figcaption>
+        )}
+      </figure>
+
+      {/* Fullscreen Lightbox Modal */}
+      {isZoomed && typeof document !== 'undefined' && createPortal(
+        <div
+          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center p-4 animate-in fade-in duration-150"
+          onClick={() => setIsZoomed(false)}
+        >
+          <div className="absolute top-4 right-4 flex items-center gap-2 z-10">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                window.open(resolvedSrc, '_blank');
+              }}
+              className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
+              title="Open original image in new tab"
+            >
+              <ExternalLink className="w-5 h-5" />
+            </button>
+            <button
+              onClick={() => setIsZoomed(false)}
+              className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
+              title="Close preview (Esc)"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          <div
+            className="relative max-w-[90vw] max-h-[85vh] flex flex-col items-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <img
+              src={resolvedSrc}
+              alt={alt || 'Diagram view'}
+              className="max-h-[80vh] max-w-[88vw] object-contain rounded-lg shadow-2xl bg-surface-container-lowest"
+            />
+            {alt && (
+              <p className="mt-3 text-sm text-white/90 text-center max-w-2xl px-4 py-1.5 rounded-full bg-black/50 backdrop-blur-xs">
+                {alt}
+              </p>
+            )}
+          </div>
+        </div>,
+        document.body
+      )}
+    </>
+  );
+};
+
 interface MarkdownRendererProps {
   content: string;
 }
 
 export const MarkdownRendererImpl: React.FC<MarkdownRendererProps> = ({ content }) => {
   return (
-    <ReactMarkdown 
-      remarkPlugins={[remarkMath]} 
-      rehypePlugins={[rehypeKatex]}
+    <ReactMarkdown
+      remarkPlugins={[remarkMath, remarkGfm]}
+      rehypePlugins={[[rehypeKatex, { strict: false, throwOnError: false }]]}
       components={{
+        a: ({ node, href, children, ...props }: any) => {
+          const rawHref = String(href || '').trim();
+          const isSafe =
+            rawHref.startsWith('http://') ||
+            rawHref.startsWith('https://') ||
+            rawHref.startsWith('/') ||
+            rawHref.startsWith('#') ||
+            rawHref.startsWith('mailto:');
+          if (!isSafe) {
+            return <span className="text-on-surface font-medium underline underline-offset-2">{children}</span>;
+          }
+          return (
+            <a
+              href={rawHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary hover:underline font-medium"
+              {...props}
+            >
+              {children}
+            </a>
+          );
+        },
+        img: ({ node, src, alt, ...props }: any) => {
+          return <DiagramImage src={src} alt={alt} {...props} />;
+        },
+        table: ({ node, children, ...props }: any) => (
+          <div className="my-4 w-full overflow-x-auto rounded-xl border border-outline-variant/40 bg-surface-container-low/30 shadow-xs">
+            <table className="w-full text-left text-sm border-collapse" {...props}>
+              {children}
+            </table>
+          </div>
+        ),
+        thead: ({ node, children, ...props }: any) => (
+          <thead className="bg-surface-container-highest/60 border-b border-outline-variant/40 text-xs uppercase tracking-wider font-semibold text-on-surface" {...props}>
+            {children}
+          </thead>
+        ),
+        tbody: ({ node, children, ...props }: any) => (
+          <tbody className="divide-y divide-outline-variant/15 text-on-surface-variant" {...props}>
+            {children}
+          </tbody>
+        ),
+        tr: ({ node, children, ...props }: any) => (
+          <tr className="hover:bg-surface-container-highest/30 transition-colors" {...props}>
+            {children}
+          </tr>
+        ),
+        th: ({ node, children, ...props }: any) => (
+          <th className="px-4 py-2.5 font-semibold text-on-surface border-r border-outline-variant/20 last:border-r-0" {...props}>
+            {children}
+          </th>
+        ),
+        td: ({ node, children, ...props }: any) => (
+          <td className="px-4 py-2 text-on-surface-variant border-r border-outline-variant/20 last:border-r-0" {...props}>
+            {children}
+          </td>
+        ),
         span: ({ node, style, ...props }: any) => {
           const nodeStyle = node?.properties?.style;
           const parsedStyle = typeof nodeStyle === 'string' ? parseStyle(nodeStyle) : style;
           return <span style={parsedStyle} {...props} />;
         },
-        code({node, inline, className, children, ...props}: any) {
+        strong: ({ node, children, ...props }: any) => (
+          <strong className="font-bold text-inherit" {...props}>
+            {children}
+          </strong>
+        ),
+        em: ({ node, children, ...props }: any) => (
+          <em className="italic text-inherit" {...props}>
+            {children}
+          </em>
+        ),
+        code({ node, inline, className, children, ...props }: any) {
           const match = /language-(\w+)/.exec(className || '');
           const codeStr = String(children).replace(/\n$/, '');
           return !inline && match ? (
@@ -44,17 +235,25 @@ export const MarkdownRendererImpl: React.FC<MarkdownRendererProps> = ({ content 
               style={vscDarkPlus}
               language={match[1]}
               PreTag="div"
-              className="rounded-lg border border-zinc-800 !bg-zinc-900/80 !m-0 !p-4 font-sans text-sm"
+              className="rounded-lg border border-zinc-800 bg-zinc-900/80! m-0! p-4! font-sans text-sm"
             />
           ) : (
-            <code {...props} className={className ? `${className} bg-surface-container-highest border-2 border-primary rounded-sm px-1.5 py-0.5 font-mono text-[0.9em] text-primary` : 'bg-surface-container-highest border-2 border-primary rounded-sm px-1.5 py-0.5 font-mono text-[0.9em] text-primary'}>
+            <code
+              {...props}
+              className={
+                className
+                  ? `${className} bg-surface-container-highest/60 border border-outline-variant/40 rounded px-1.5 py-0.5 font-mono text-[0.9em] text-primary dark:text-sky-300 font-medium`
+                  : 'bg-surface-container-highest/60 border border-outline-variant/40 rounded px-1.5 py-0.5 font-mono text-[0.9em] text-primary dark:text-sky-300 font-medium'
+              }
+            >
               {children}
             </code>
           );
-        }
+        },
       }}
     >
       {preprocessMarkdown(content)}
     </ReactMarkdown>
   );
 };
+

@@ -1,8 +1,17 @@
 # config.py
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+import sys
+import os
+
+if hasattr(sys, '_MEIPASS'):
+    ENV_PATH = os.path.join(sys._MEIPASS, '.env')
+else:
+    ENV_PATH = '.env'
+
 class Settings(BaseSettings):
     llm_provider: str = "openai"  # "ollama" or "openai"
+    pdf_extractor: str = "pymupdf4llm"  # "pymupdf4llm", "marker", etc.
     
     # Ollama settings
     ollama_host: str = "http://localhost:11434"
@@ -15,13 +24,19 @@ class Settings(BaseSettings):
     openai_base_url: str = "https://api.openai.com/v1"
     openai_embedding_model: str = "text-embedding-3-small"
     
+    # Datalab API (Marker)
+    datalab_api_key: str = ""
+    
     # Gemini
     gemini_api_key: str = ""
-    gemini_model: str = "gemini-3.6-flash"
+    gemini_model: str = "gemini-3.5-flash-lite"
+    gemini_tier: str = "free"  # "free" (5 RPM, 2 concurrency) or "paid" (1000 RPM, 10 concurrency)
     
     # Groq
     groq_api_key: str = ""
     groq_model: str = "openai/gpt-oss-20b"
+    openrouter_api_key: str = ""
+    openrouter_model: str = "meta-llama/llama-3.3-70b-instruct"
     
     # Langfuse
     langfuse_secret_key: str = ""
@@ -32,14 +47,22 @@ class Settings(BaseSettings):
     prefilter_threshold: float = 0.55
     min_chunk_tokens: int = 40
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+    # Supabase Settings
+    supabase_url: str = ""
+    supabase_anon_key: str = ""
+
+    # Error system: debug_mode=True shows full tracebacks in API responses.
+    # Set RECALL_DEBUG=0 in production builds to hide internal details.
+    debug_mode: bool = True
+
+    model_config = SettingsConfigDict(env_file=ENV_PATH, env_file_encoding="utf-8")
 
 settings = Settings()
 
 PROVIDER_CONCURRENCY = {
     "ollama": 2,
     "openai": 10,
-    "gemini": 10,
+    "gemini": 2,
     "groq": 15,
 }
 
@@ -47,4 +70,7 @@ def get_provider_concurrency(provider_name: str | None = None) -> int:
     if not provider_name:
         provider_name = settings.llm_provider
     provider_name = provider_name.lower().strip()
+    if provider_name == "gemini":
+        tier = getattr(settings, "gemini_tier", "free").lower().strip()
+        return 10 if tier == "paid" else 2
     return PROVIDER_CONCURRENCY.get(provider_name, 5)
