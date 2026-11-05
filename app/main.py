@@ -1,3 +1,4 @@
+import hashlib
 import asyncio
 import json
 import logging
