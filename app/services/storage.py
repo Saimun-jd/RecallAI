@@ -6,7 +6,7 @@ Path format: users/{user_id}/documents/{document_id}/{file_id}.{ext}
 
 import hashlib
 import os
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Optional, Union
 from platformdirs import user_data_dir
 
@@ -75,8 +75,13 @@ class StorageService:
         Resolves storage path and strictly guarantees it remains inside the storage root directory.
         Raises ValueError if path traversal is attempted.
         """
+        windows_anchor = PureWindowsPath(storage_path).anchor
+        if storage_path.startswith(("/", "\\")) or windows_anchor:
+            raise ValueError(f"Path traversal detected: {storage_path}")
+
+        normalized_storage_path = storage_path.replace("\\", "/")
         resolved_root = cls._root_dir.resolve()
-        target = (cls._root_dir / storage_path).resolve()
+        target = (cls._root_dir / normalized_storage_path).resolve()
         try:
             target.relative_to(resolved_root)
         except ValueError:
