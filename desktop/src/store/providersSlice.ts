@@ -1,7 +1,7 @@
 import { createSlice } from '@reduxjs/toolkit';
 import type { PayloadAction } from '@reduxjs/toolkit';
 
-export type AIProviderId = 'auto' | 'ollama' | 'openai' | 'gemini' | 'groq';
+export type AIProviderId = 'auto' | 'ollama' | 'openai' | 'gemini' | 'groq' | 'openrouter';
 
 export interface ProvidersState {
   activeProvider: AIProviderId;
@@ -21,6 +21,7 @@ const initialState: ProvidersState = {
     openai: 'disconnected',
     gemini: 'disconnected',
     groq: 'disconnected',
+    openrouter: 'disconnected',
   },
   configuredProviders: {
     auto: true,
@@ -28,6 +29,7 @@ const initialState: ProvidersState = {
     openai: false,
     gemini: false,
     groq: false,
+    openrouter: false,
   },
   fallbackToCloudEnabled: false,
   showAttributionTags: true,

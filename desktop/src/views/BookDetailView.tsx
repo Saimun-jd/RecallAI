@@ -120,7 +120,7 @@ export function BookDetailView() {
   const { showToast } = useToast();
   const [annotations, setAnnotations] = useState<PdfAnnotation[]>([]);
   const [pdfScrollCommand, setPdfScrollCommand] = useState<{ page: number, ts: number } | undefined>();
-  const [viewMode, setViewMode] = useState<'topics' | 'pdf' | 'markdown'>('topics');
+  const [viewMode, setViewMode] = useState<'topics' | 'pdf' | 'markdown'>('pdf');
   const [isMdCopied, setIsMdCopied] = useState(false);
   const [isAnalyzingHandwriting, setIsAnalyzingHandwriting] = useState(false);
   const hasInitializedScrollRef = useRef(false);

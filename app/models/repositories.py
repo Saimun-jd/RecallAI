@@ -1213,10 +1213,13 @@ class MessageRepository:
         db_conn: Optional[sqlite3.Connection] = None
     ) -> List[Dict[str, Any]]:
         sql = """
-            SELECT * FROM messages 
-            WHERE conversation_id = ?
-            ORDER BY created_at ASC
-            LIMIT ?
+            SELECT * FROM (
+                SELECT rowid, * FROM messages 
+                WHERE conversation_id = ?
+                ORDER BY created_at DESC, rowid DESC
+                LIMIT ?
+            ) sub
+            ORDER BY created_at ASC, rowid ASC
         """
         params = (conversation_id, limit)
         if db_conn:

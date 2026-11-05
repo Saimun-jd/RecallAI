@@ -339,7 +339,7 @@ export function AIProviderSettings() {
 
       // Sync redux configured flags
       creds.forEach((c) => {
-        if (['openai', 'gemini', 'groq'].includes(c.provider)) {
+        if (['openai', 'gemini', 'groq', 'openrouter'].includes(c.provider)) {
           dispatch(setConfiguredProvider({ provider: c.provider as AIProviderId, isConfigured: true }));
         }
       });
@@ -399,7 +399,7 @@ export function AIProviderSettings() {
     try {
       const cred = await client.saveByokCredential(provider, key);
       setCredentials((prev) => [...prev.filter((c) => c.provider !== provider), cred]);
-      if (['openai', 'gemini', 'groq'].includes(provider)) {
+      if (['openai', 'gemini', 'groq', 'openrouter'].includes(provider)) {
         dispatch(setConfiguredProvider({ provider: provider as AIProviderId, isConfigured: true }));
       }
       showToast('success', `${provider.toUpperCase()} API key saved to encrypted vault.`);
@@ -419,7 +419,7 @@ export function AIProviderSettings() {
     try {
       await client.deleteByokCredential(provider);
       setCredentials((prev) => prev.filter((c) => c.provider !== provider));
-      if (['openai', 'gemini', 'groq'].includes(provider)) {
+      if (['openai', 'gemini', 'groq', 'openrouter'].includes(provider)) {
         dispatch(setConfiguredProvider({ provider: provider as AIProviderId, isConfigured: false }));
       }
       showToast('success', `${provider.toUpperCase()} API key removed from vault.`);
@@ -561,7 +561,7 @@ export function AIProviderSettings() {
                 </span>
               </div>
               <p className="text-xs font-medium text-on-surface-variant max-w-xl">
-                Uses Recall AI's managed cloud infrastructure. Consumes your monthly AI credits. No personal API keys needed.
+                Uses Recall AI's managed cloud infrastructure. Consumes your monthly AI credits. If hosted requests encounter issues or credit limits, configure a personal key below (OpenRouter, Gemini, OpenAI, Groq) or local Ollama.
               </p>
             </div>
 
@@ -603,7 +603,7 @@ export function AIProviderSettings() {
           <div>
             <h3 className="text-lg font-black uppercase text-on-surface tracking-tight">Cloud Provider Keys</h3>
             <p className="text-xs font-bold text-on-surface-variant">
-              Manage your personal OpenAI, Google Gemini, and Groq API keys
+              Manage your personal OpenAI, Google Gemini, Groq, and OpenRouter API keys
             </p>
           </div>
           <span className="text-[10px] font-mono font-bold text-on-surface-variant uppercase">
@@ -650,6 +650,20 @@ export function AIProviderSettings() {
             configuredCredential={credentials.find((c) => c.provider === 'groq')}
             isActive={activeProvider === 'groq'}
             onSelectActive={() => handleSetActiveProvider('groq')}
+            onSaveKey={handleSaveKey}
+            onRemoveKey={handleRemoveKey}
+          />
+
+          {/* OpenRouter */}
+          <ProviderKeyCard
+            id="openrouter"
+            name="OpenRouter"
+            badge="Multi-Model API"
+            description="Unified BYOK gateway for Claude, DeepSeek, Llama 3, and 100+ state-of-the-art models via single key."
+            docUrl="https://openrouter.ai/keys"
+            configuredCredential={credentials.find((c) => c.provider === 'openrouter')}
+            isActive={activeProvider === 'openrouter'}
+            onSelectActive={() => handleSetActiveProvider('openrouter')}
             onSaveKey={handleSaveKey}
             onRemoveKey={handleRemoveKey}
           />

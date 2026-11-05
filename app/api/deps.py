@@ -7,6 +7,7 @@ from typing import Any, Dict, Optional
 from fastapi import Depends, Header
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
+from app.core.config import settings
 from app.core.security import decode_access_token
 from app.core.errors import AuthenticationError, AuthorizationError, NotFoundError
 from app.models.repositories import UserRepository, WorkspaceRepository, DocumentRepository
@@ -119,3 +120,58 @@ def require_document_owner(
     if not document:
         raise NotFoundError("Document not found.")
     return document
+
+
+def get_current_user_optional(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security_scheme),
+    authorization: Optional[str] = Header(None)
+) -> Optional[Dict[str, Any]]:
+    """
+    Extracts and validates the JWT Bearer token if present.
+    In production mode, requires valid authentication credentials.
+    In development/test mode, resolves the user if a token is present, else returns None.
+    """
+    raw_token: Optional[str] = None
+    if credentials:
+        raw_token = credentials.credentials
+    elif authorization and authorization.startswith("Bearer "):
+        raw_token = authorization[7:].strip()
+
+    if not raw_token:
+        if settings.ENVIRONMENT == "production":
+            raise AuthenticationError("Authentication credentials required. Please provide a Bearer token.")
+        return None
+
+    try:
+        payload = decode_access_token(raw_token)
+    except ValueError as e:
+        if settings.ENVIRONMENT == "production":
+            raise AuthenticationError(f"Invalid authentication token: {str(e)}")
+        return None
+
+    user_id = payload.get("sub")
+    if not user_id:
+        if settings.ENVIRONMENT == "production":
+            raise AuthenticationError("Invalid token payload: missing subject identifier.")
+        return None
+
+    user = UserRepository.get_by_id(user_id)
+    if not user:
+        email = payload.get("email")
+        if email or user_id:
+            user_meta = payload.get("user_metadata") or {}
+            full_name = user_meta.get("full_name") or payload.get("name")
+            avatar_url = user_meta.get("avatar_url") or payload.get("picture")
+            user = UserRepository.ensure_user(
+                user_id=user_id,
+                email=email or f"{user_id}@oauth.local",
+                full_name=full_name,
+                avatar_url=avatar_url
+            )
+        elif settings.ENVIRONMENT == "production":
+            raise AuthenticationError("User account not found or has been removed.")
+
+    if user and not user.get("is_active"):
+        raise AuthenticationError("User account is currently disabled.")
+
+    return user

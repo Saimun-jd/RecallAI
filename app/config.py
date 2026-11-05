@@ -35,6 +35,8 @@ class Settings(BaseSettings):
     # Groq
     groq_api_key: str = ""
     groq_model: str = "openai/gpt-oss-20b"
+    openrouter_api_key: str = ""
+    openrouter_model: str = "meta-llama/llama-3.3-70b-instruct"
     
     # Langfuse
     langfuse_secret_key: str = ""

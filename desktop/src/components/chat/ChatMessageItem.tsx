@@ -136,8 +136,8 @@ export function ChatMessageItem({
         />
       )}
 
-      {/* Study Action Handoffs (assistant only, when generation completed) */}
-      {!isUser && !isStreaming && message.content && (
+      {/* Study Action Handoffs (assistant only, when generation completed with substantive citations) */}
+      {!isUser && !isStreaming && message.content && message.sources && message.sources.length > 0 && message.content.length > 120 && (
         <div className="mt-3 pt-2.5 border-t border-border-default/40 flex flex-wrap items-center justify-between gap-2">
           <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">
             Study Handoffs

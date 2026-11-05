@@ -58,23 +58,11 @@ export const DiagramImage: React.FC<DiagramImageProps> = ({ src, alt, ...props }
   const resolvedSrc = resolveImageUrl(src);
 
   if (hasError || !resolvedSrc) {
+    if (!alt) return null;
     return (
-      <div className="my-4 flex items-center gap-3 p-3.5 rounded-xl border border-dashed border-outline-variant/50 bg-surface-container-low/60 text-on-surface-variant text-sm select-none">
-        <div className="p-2 rounded-lg bg-surface-container-highest text-primary shrink-0">
-          <ImageIcon className="w-5 h-5 opacity-80" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="font-medium text-xs text-on-surface flex items-center gap-1.5">
-            <span>Diagram / Figure</span>
-            <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-surface-container-highest text-outline font-semibold">
-              Figure
-            </span>
-          </div>
-          <p className="text-xs text-on-surface-variant/80 mt-0.5 truncate">
-            {alt || (src ? src.split('/').pop() : 'Visual diagram or schematic')}
-          </p>
-        </div>
-      </div>
+      <span className="text-xs italic text-on-surface-variant/70 block my-1">
+        [{alt}]
+      </span>
     );
   }
 

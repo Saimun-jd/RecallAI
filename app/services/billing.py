@@ -17,6 +17,7 @@ import os
 import uuid
 from typing import Any, Dict, Optional
 
+from app.core.config import settings
 from app.core.errors import AuthenticationError, NotFoundError, ValidationError
 from app.models.repositories import (
     BillingEventRepository,
@@ -112,8 +113,10 @@ class MockBillingProvider(BaseBillingProvider):
     ) -> bool:
         if not signature:
             return False
-        # Allow test signatures directly or verify HMAC SHA256
-        if signature.startswith("sig_mock_test_valid") or signature == "valid_test_signature":
+        # Allow test signatures directly ONLY in test environment
+        if getattr(settings, "ENVIRONMENT", "") == "test" and (
+            signature.startswith("sig_mock_test_valid") or signature == "valid_test_signature"
+        ):
             return True
 
         expected = hmac.new(
@@ -237,6 +240,21 @@ class BillingService:
         sub = SubscriptionRepository.get_latest_by_workspace(workspace_id)
         if not sub:
             raise NotFoundError("No subscription found to reactivate.")
+
+        # Reactivation is only allowed for active subscriptions currently scheduled to cancel at period end
+        if sub.get("status") not in ("active", "trialing") or not bool(sub.get("cancel_at_period_end")):
+            raise ValidationError(
+                "Subscription cannot be reactivated. Only active subscriptions scheduled for cancellation can be reactivated before expiry. Please start a new subscription."
+            )
+
+        end_str = sub.get("current_period_end")
+        if end_str:
+            try:
+                end_dt = datetime.fromisoformat(end_str.replace("Z", "+00:00"))
+                if end_dt < datetime.now(timezone.utc):
+                    raise ValidationError("Subscription has expired. Please start a new checkout session.")
+            except (ValueError, TypeError):
+                pass
 
         updated = SubscriptionRepository.reactivate_subscription(sub["id"])
         if not updated:

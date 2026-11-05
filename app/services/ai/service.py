@@ -112,6 +112,15 @@ class AIService:
                     )
                     return adapter, "groq", settings.groq_model, True
 
+                elif target_provider == "openrouter":
+                    adapter = OpenAIAdapter(
+                        api_key=decrypted_key,
+                        model=getattr(settings, "openrouter_model", "meta-llama/llama-3.3-70b-instruct"),
+                        base_url="https://openrouter.ai/api/v1",
+                        provider_name="openrouter"
+                    )
+                    return adapter, "openrouter", getattr(settings, "openrouter_model", "meta-llama/llama-3.3-70b-instruct"), True
+
             except Exception as e:
                 logger.warning(
                     "Failed to decrypt BYOK credential for workspace=%s provider=%s: %s",
@@ -153,6 +162,19 @@ class AIService:
                 ),
                 "groq",
                 settings.groq_model,
+                False
+            )
+
+        if target_provider == "openrouter" and getattr(settings, "openrouter_api_key", ""):
+            return (
+                OpenAIAdapter(
+                    api_key=settings.openrouter_api_key,
+                    model=getattr(settings, "openrouter_model", "meta-llama/llama-3.3-70b-instruct"),
+                    base_url="https://openrouter.ai/api/v1",
+                    provider_name="openrouter"
+                ),
+                "openrouter",
+                getattr(settings, "openrouter_model", "meta-llama/llama-3.3-70b-instruct"),
                 False
             )
 

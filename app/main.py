@@ -9,7 +9,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 import httpx
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional
 from platformdirs import user_data_dir
 
@@ -36,6 +36,9 @@ from app.config import settings as app_settings
 
 from fastapi.exceptions import RequestValidationError
 from app.core.config import settings as core_settings
+from app.api.deps import get_current_user_optional
+from fastapi import Depends, Header
+from typing import Dict, Any
 from app.core.errors import AppException, ErrorCode as CoreErrorCode, format_error_response
 from app.api.middleware import SecurityHeadersMiddleware, RequestSizeLimitMiddleware
 from app.api.v1.router import api_v1_router
@@ -244,6 +247,7 @@ from fastapi import Header, HTTPException
 @app.get("/api/topics/{topic_id}/chat", response_model=list[ChatMessageDB])
 async def get_topic_chat_history(topic_id: int):
     logger.debug(f"Backend received GET /api/topics/{topic_id}/chat")
+    reservation = _reserve_legacy_quota(current_user, "rag_query")
     try:
         from app.database import get_connection
         with get_connection() as conn:
@@ -257,8 +261,44 @@ async def get_topic_chat_history(topic_id: int):
         from fastapi import HTTPException
         raise HTTPException(status_code=500, detail=str(e))
 
+
+def _reserve_legacy_quota(current_user: Optional[Dict[str, Any]], feature: str):
+    if not current_user or not isinstance(current_user, dict):
+        return None
+    try:
+        from app.services.entitlements import EntitlementService
+        u_id = current_user.get("id")
+        ws_id = current_user.get("default_workspace_id") or u_id
+        return EntitlementService.reserve_usage(
+            workspace_id=ws_id,
+            user_id=u_id,
+            feature=feature,
+            quantity=1,
+            is_byok=False,
+        )
+    except Exception as e:
+        logger.warning(f"Quota reservation check failed for {feature}: {e}")
+        raise
+
+def _finalize_legacy_quota(reservation: Optional[Dict[str, Any]]):
+    if reservation:
+        try:
+            from app.services.entitlements import EntitlementService
+            EntitlementService.finalize_usage(reservation)
+        except Exception as e:
+            logger.warning(f"Quota finalization failed: {e}")
+
+def _release_legacy_quota(reservation: Optional[Dict[str, Any]]):
+    if reservation:
+        try:
+            from app.services.entitlements import EntitlementService
+            EntitlementService.release_usage(reservation)
+        except Exception as e:
+            logger.warning(f"Quota release failed: {e}")
+
 @app.post("/chat")
-async def chat_endpoint(request: ChatRequest):
+async def chat_endpoint(request: ChatRequest, current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional)):
+    reservation = _reserve_legacy_quota(current_user, "rag_query")
     try:
         from app.database import get_connection
         
@@ -291,14 +331,16 @@ async def chat_endpoint(request: ChatRequest):
                 cursor.execute("INSERT INTO chat_messages (topic_id, role, content) VALUES (?, ?, ?)", 
                                (request.topic_id, "ai", answer))
                                
+        _finalize_legacy_quota(reservation)
         return {"answer": answer}
                             
     except Exception as e:
+        _release_legacy_quota(reservation)
         logger.error(f"Chat endpoint error: {e}")
         return error_response(e, include_debug=_is_debug())
 
 @app.post("/chat/stream")
-async def chat_endpoint_stream(request: ChatRequest):
+async def chat_endpoint_stream(request: ChatRequest, current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional)):
     from fastapi.responses import StreamingResponse
     import json
     
@@ -335,7 +377,9 @@ async def chat_endpoint_stream(request: ChatRequest):
                         cursor = conn.cursor()
                         cursor.execute("INSERT INTO chat_messages (topic_id, role, content) VALUES (?, ?, ?)", 
                                        (request.topic_id, "ai", full_answer))
+                _finalize_legacy_quota(reservation)
             except Exception as e:
+                _release_legacy_quota(reservation)
                 logger.error(f"Chat stream error: {e}")
                 err_dict = error_event(e, include_debug=_is_debug())
                 err_dict["error"] = err_dict.get("message")
@@ -504,6 +548,7 @@ async def delete_all_data(authorization: str = Header(None)):
 
 @app.post("/books/upload")
 async def upload_and_parse_toc(
+    request: Request,
     file: UploadFile,
     file_hash: str = Form(...),
     book_title: str = Form(...),
@@ -518,8 +563,11 @@ async def upload_and_parse_toc(
         )
 
     try:
-        # Save file to disk
-        file_path = os.path.join(PARSED_DOCS_DIR, f"{file_hash}.pdf")
+        # Secure server-side hash computation (prevents path traversal and overwrite of other files)
+        server_hash = hashlib.sha256(pdf_bytes).hexdigest()
+        file_hash = server_hash
+        os.makedirs(PARSED_DOCS_DIR, exist_ok=True)
+        file_path = os.path.join(PARSED_DOCS_DIR, f"{server_hash}.pdf")
         with open(file_path, "wb") as f:
             f.write(pdf_bytes)
             
@@ -530,7 +578,16 @@ async def upload_and_parse_toc(
 
         # Check if book exists
         from app.database import save_book, get_connection
-        book_id = save_book(title=book_title, file_path=file_path, file_hash=file_hash, total_pages=actual_total_pages)
+        user_id = None
+        auth_header = request.headers.get("authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            try:
+                from app.core.security import decode_access_token
+                token_payload = decode_access_token(auth_header.split(" ")[1])
+                user_id = token_payload.get("sub")
+            except Exception:
+                pass
+        book_id = save_book(title=book_title, file_path=file_path, file_hash=file_hash, total_pages=actual_total_pages, user_id=user_id)
         
         # Check if topics are already inserted for this book
         with get_connection() as conn:
@@ -642,16 +699,23 @@ async def get_extracted_image(
     topic_id: int | None = None,
     book_id: int | None = None
 ):
+    # Reject path traversal, absolute drive letters, or parent directory markers (B3 fix)
+    if ":" in image_name or ".." in image_name:
+        return JSONResponse(status_code=400, content={"error": "Invalid image path"})
+
+    target_path = Path(PARSED_DOCS_DIR).resolve()
     clean_subpath = os.path.normpath(image_name).lstrip("/\\")
-    target_path = Path(PARSED_DOCS_DIR)
     
     # 1. Direct path check
-    direct_file = target_path / clean_subpath
-    if direct_file.is_file():
-        return FileResponse(path=str(direct_file), media_type=_get_media_type(direct_file), filename=direct_file.name)
+    try:
+        direct_file = (target_path / clean_subpath).resolve()
+        if direct_file.is_relative_to(target_path) and direct_file.is_file():
+            return FileResponse(path=str(direct_file), media_type=_get_media_type(direct_file), filename=direct_file.name)
+    except Exception:
+        pass
         
     file_basename = os.path.basename(clean_subpath)
-    if not file_basename:
+    if not file_basename or any(c in file_basename for c in (':', '/', '\\', '..')):
         return JSONResponse(status_code=404, content={"error": "Invalid image name"})
 
     # 2. Check if filename starts with a cache_key (e.g. {hash}_p{start}-{end}_{orig_name})
@@ -659,19 +723,18 @@ async def get_extracted_image(
     if cache_match:
         cache_key = cache_match.group(1)
         orig_name = cache_match.group(2)
-        # Check inside target_path / cache_key / "images"
-        cand1 = target_path / cache_key / "images" / file_basename
-        if cand1.is_file():
+        cand1 = (target_path / cache_key / "images" / file_basename).resolve()
+        if cand1.is_relative_to(target_path) and cand1.is_file():
             return FileResponse(path=str(cand1), media_type=_get_media_type(cand1), filename=file_basename)
-        cand2 = target_path / cache_key / "images" / orig_name
-        if cand2.is_file():
+        cand2 = (target_path / cache_key / "images" / orig_name).resolve()
+        if cand2.is_relative_to(target_path) and cand2.is_file():
             return FileResponse(path=str(cand2), media_type=_get_media_type(cand2), filename=file_basename)
 
     # 3. Direct path check inside any subfolder (e.g. {cache_key}/images/{name})
     if "/" in clean_subpath or "\\" in clean_subpath:
         parts = Path(clean_subpath).parts
-        p = target_path.joinpath(*parts)
-        if p.is_file():
+        p = target_path.joinpath(*parts).resolve()
+        if p.is_relative_to(target_path) and p.is_file():
             return FileResponse(path=str(p), media_type=_get_media_type(p), filename=p.name)
 
     # 4. Context-aware resolution if topic_id / book_id provided or inferred from DB
@@ -687,7 +750,6 @@ async def get_extracted_image(
         except Exception:
             pass
 
-    # If no topic_id provided, check if any topic in DB contains this image filename in its content_md
     if not target_page_ranges and file_basename:
         try:
             with get_connection() as conn:
@@ -702,13 +764,11 @@ async def get_extracted_image(
             pass
 
     # 5. Search in cache directories
-    matches = list(target_path.rglob(file_basename))
+    matches = [m for m in target_path.rglob(file_basename) if m.resolve().is_relative_to(target_path)]
     if matches:
         if len(matches) == 1:
             return FileResponse(path=str(matches[0]), media_type=_get_media_type(matches[0]), filename=file_basename)
 
-        # Disambiguate when multiple files match:
-        # A) Prioritize candidate directories whose markdown mentions file_basename
         confirmed_matches = []
         for m_path in matches:
             parent_dir = m_path.parent.parent if m_path.parent.name == "images" else m_path.parent
@@ -722,7 +782,6 @@ async def get_extracted_image(
 
         candidates_to_filter = confirmed_matches if confirmed_matches else matches
 
-        # B) Filter by target_page_ranges if known
         if target_page_ranges:
             for cand in candidates_to_filter:
                 dir_name = cand.parent.parent.name if cand.parent.name == "images" else cand.parent.name
@@ -733,19 +792,17 @@ async def get_extracted_image(
                         if not (p_end < t_start or p_start > t_end):
                             return FileResponse(path=str(cand), media_type=_get_media_type(cand), filename=file_basename)
 
-        # C) If we have confirmed matches from markdown, return the newest one
         if confirmed_matches:
             confirmed_matches.sort(key=lambda p: p.stat().st_mtime, reverse=True)
             return FileResponse(path=str(confirmed_matches[0]), media_type=_get_media_type(confirmed_matches[0]), filename=file_basename)
 
-        # Fallback to the newest match rather than alphabetical order
         matches.sort(key=lambda p: p.stat().st_mtime, reverse=True)
         return FileResponse(path=str(matches[0]), media_type=_get_media_type(matches[0]), filename=file_basename)
 
     return JSONResponse(status_code=404, content={"error": f"Image {image_name} not found"})
 
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 class SectionSelection(BaseModel):
     title: str
@@ -933,7 +990,7 @@ def get_latest_oauth_code():
 def health():
     return {"status": "ok"}
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 class APIKeys(BaseModel):
     gemini_api_key: str | None = None
@@ -1120,7 +1177,7 @@ async def ensure_topic_markdown(topic_id: int) -> str:
     return extracted_text or ""
 
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 class FlashcardGenerationRequest(BaseModel):
     count: int = 5
@@ -1679,7 +1736,7 @@ class DrillEvaluateRequest(BaseModel):
     question_id: str
     question_text: str
     key_invariants: list[str]
-    student_answer: str
+    student_answer: str = Field(..., max_length=10000)
     tier: str | None = "causal_mechanism"
     socratic_hint: str | None = None
     concept_name: str | None = None
@@ -1811,42 +1868,45 @@ def clean_book_toc(book_id: int):
 
 @app.post("/topics/{topic_id}/flashcards")
 @observe(name="generate_topic_flashcards", as_type="span")
-async def generate_topic_flashcards(topic_id: int, req: FlashcardGenerationRequest):
+async def generate_topic_flashcards(topic_id: int, req: FlashcardGenerationRequest, current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional)):
     from app.database import get_topic_by_id, save_flashcards
     from app.llm_segment import generate_flashcards_for_topic
     
-    topic = get_topic_by_id(topic_id)
-    if not topic:
-        return JSONResponse(status_code=404, content={"error": "Topic not found"})
+    reservation = _reserve_legacy_quota(current_user, "flashcards")
+    try:
+        topic = get_topic_by_id(topic_id)
+        if not topic:
+            _release_legacy_quota(reservation)
+            return JSONResponse(status_code=404, content={"error": "Topic not found"})
 
-    if topic_id in _active_topic_extractions:
-        await wait_for_topic_extraction(topic_id)
-        refreshed = get_topic_by_id(topic_id)
-        if refreshed:
-            topic = refreshed
+        if topic_id in _active_topic_extractions:
+            await wait_for_topic_extraction(topic_id)
+            refreshed = get_topic_by_id(topic_id)
+            if refreshed:
+                topic = refreshed
         
-    summary = req.summary_override or topic.get("summary") or ""
-    topic_text = await ensure_topic_markdown(topic_id)
+        summary = req.summary_override or topic.get("summary") or ""
+        topic_text = await ensure_topic_markdown(topic_id)
             
-    target_topic_name = topic.get("title", "")
-    target_concept_type = None
-    target_key_terms = []
-    custom_prompt = req.custom_prompt or ""
+        target_topic_name = topic.get("title", "")
+        target_concept_type = None
+        target_key_terms = []
+        custom_prompt = req.custom_prompt or ""
 
-    if req.concept_name:
-        try:
-            stored_concepts = json.loads(topic.get("atomic_concepts") or "[]")
-            for c in stored_concepts:
-                c_name = c.get("name") or c.get("topic_name")
-                if c_name and c_name.strip().lower() == req.concept_name.strip().lower():
-                    target_topic_name = f"{topic.get('title', '')} → {c_name}"
-                    target_concept_type = c.get("concept_type")
-                    target_key_terms = c.get("key_terms") or []
-                    if c.get("summary"):
-                        summary = c.get("summary")
-                    break
-        except Exception as e:
-            logger.warning(f"Error parsing atomic concepts for topic {topic_id}: {e}")
+        if req.concept_name:
+            try:
+                stored_concepts = json.loads(topic.get("atomic_concepts") or "[]")
+                for c in stored_concepts:
+                    c_name = c.get("name") or c.get("topic_name")
+                    if c_name and c_name.strip().lower() == req.concept_name.strip().lower():
+                        target_topic_name = f"{topic.get('title', '')} → {c_name}"
+                        target_concept_type = c.get("concept_type")
+                        target_key_terms = c.get("key_terms") or []
+                        if c.get("summary"):
+                            summary = c.get("summary")
+                        break
+            except Exception as e:
+                logger.warning(f"Error parsing atomic concepts for topic {topic_id}: {e}")
 
         # Direct prompt specifically to the target concept
         concept_instruction = f"- Targeted Atomic Topic: Focus exclusively on '{req.concept_name}'."
@@ -1856,36 +1916,40 @@ async def generate_topic_flashcards(topic_id: int, req: FlashcardGenerationReque
             concept_instruction += f" Key terms to test: {', '.join(target_key_terms)}."
         custom_prompt = f"{custom_prompt}\n{concept_instruction}".strip()
 
-    flashcard_list = await generate_flashcards_for_topic(
-        topic_name=target_topic_name,
-        breadcrumb=topic.get("breadcrumb", ""),
-        topic_text=topic_text,
-        summary=summary,
-        count=req.count,
-        custom_prompt=custom_prompt,
-        provider_override=req.provider_override
-    )
-    
-    # Save the generated flashcards
-    # Flashcard schema needs topic_name, concept_type, etc., which are on the topic
-    cards_to_save = []
-    for fc in flashcard_list.flashcards:
-        card_dict = fc.model_dump()
-        card_dict["topic_name"] = req.concept_name if req.concept_name else topic.get("title", "")
-        card_dict["breadcrumb"] = topic.get("breadcrumb", "")
-        card_dict["source_page"] = topic.get("start_page")
-        if target_concept_type and not card_dict.get("concept_type"):
-            card_dict["concept_type"] = target_concept_type
-        cards_to_save.append(card_dict)
+        flashcard_list = await generate_flashcards_for_topic(
+            topic_name=target_topic_name,
+            breadcrumb=topic.get("breadcrumb", ""),
+            topic_text=topic_text,
+            summary=summary,
+            count=req.count,
+            custom_prompt=custom_prompt,
+            provider_override=req.provider_override
+        )
         
-    inserted = save_flashcards(topic_id, cards_to_save)
-    
-    return {
-        "status": "success",
-        "topic_id": topic_id,
-        "flashcards_generated": inserted,
-        "flashcards": cards_to_save
-    }
+        # Save the generated flashcards
+        # Flashcard schema needs topic_name, concept_type, etc., which are on the topic
+        cards_to_save = []
+        for fc in flashcard_list.flashcards:
+            card_dict = fc.model_dump()
+            card_dict["topic_name"] = req.concept_name if req.concept_name else topic.get("title", "")
+            card_dict["breadcrumb"] = topic.get("breadcrumb", "")
+            card_dict["source_page"] = topic.get("start_page")
+            if target_concept_type and not card_dict.get("concept_type"):
+                card_dict["concept_type"] = target_concept_type
+            cards_to_save.append(card_dict)
+            
+        inserted = save_flashcards(topic_id, cards_to_save)
+        
+        _finalize_legacy_quota(reservation)
+        return {
+            "status": "success",
+            "topic_id": topic_id,
+            "flashcards_generated": inserted,
+            "flashcards": cards_to_save
+        }
+    except Exception as e:
+        _release_legacy_quota(reservation)
+        raise
 
 
 @app.get("/topics/{topic_id}/related")
@@ -1928,28 +1992,28 @@ def get_related_topics(topic_id: int, limit: int = 5):
 
 
 @app.get("/flashcards")
-def get_flashcards(topic_id: int | None = None, book_id: int | None = None):
+def get_flashcards(topic_id: int | None = None, book_id: int | None = None, current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional)):
     from app.database import get_descendant_topics
+    user_id = current_user.get("id") if isinstance(current_user, dict) else None
     with get_connection() as conn:
         cursor = conn.cursor()
-        query = "SELECT f.* FROM flashcards f"
+        query = "SELECT f.* FROM flashcards f JOIN topics t ON f.topic_id = t.id JOIN books b ON t.book_id = b.id"
         params = []
+        conditions = []
+        if user_id:
+            conditions.append("(b.user_id = ? OR b.user_id IS NULL)")
+            params.append(user_id)
         if book_id is not None:
-            query += " JOIN topics t ON f.topic_id = t.id WHERE t.book_id = ?"
+            conditions.append("t.book_id = ?")
             params.append(book_id)
-            if topic_id is not None:
-                descendants = get_descendant_topics(topic_id)
-                target_ids = [topic_id] + [d["id"] for d in descendants]
-                placeholders = ",".join("?" for _ in target_ids)
-                query += f" AND f.topic_id IN ({placeholders})"
-                params.extend(target_ids)
-        elif topic_id is not None:
+        if topic_id is not None:
             descendants = get_descendant_topics(topic_id)
             target_ids = [topic_id] + [d["id"] for d in descendants]
             placeholders = ",".join("?" for _ in target_ids)
-            query += f" WHERE f.topic_id IN ({placeholders})"
+            conditions.append(f"f.topic_id IN ({placeholders})")
             params.extend(target_ids)
-            
+        if conditions:
+            query += " WHERE " + " AND ".join(conditions)
         cursor.execute(query, params)
         rows = cursor.fetchall()
         return [dict(row) for row in rows]
@@ -1962,7 +2026,7 @@ def get_all_settings():
         rows = cursor.fetchall()
         return {row["key"]: row["value"] for row in rows}
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 class SettingUpdate(BaseModel):
     value: str
 
@@ -2024,22 +2088,24 @@ def get_analytics_stats_api():
     return get_analytics_stats()
 
 @app.get("/books")
-def get_books_api(skip: int = 0, limit: int = 100):
+def get_books_api(skip: int = 0, limit: int = 100, current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional)):
     from app.database import get_books
-    return get_books(skip, limit)
+    user_id = current_user.get("id") if isinstance(current_user, dict) else None
+    return get_books(skip, limit, user_id=user_id)
 
 class ReadingStateRequest(BaseModel):
     page_number: int | None = None
     topic_id: int | None = None
 
 @app.get("/books/{book_id}")
-def get_book_by_id_api(book_id: int):
+def get_book_by_id_api(book_id: int, current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional)):
     from app.database import get_book_by_id, update_book_reading_state
-    book = get_book_by_id(book_id)
+    user_id = current_user.get("id") if isinstance(current_user, dict) else None
+    book = get_book_by_id(book_id, user_id=user_id)
     if not book:
         return JSONResponse(status_code=404, content={"error": "Book not found"})
     update_book_reading_state(book_id)
-    return get_book_by_id(book_id)
+    return get_book_by_id(book_id, user_id=user_id)
 
 @app.patch("/books/{book_id}/reading-state")
 def update_reading_state_api(book_id: int, req: ReadingStateRequest):
@@ -2086,7 +2152,8 @@ def get_book_cover_api(book_id: int):
     return FileResponse(cover_path, media_type="image/png")
 
 @app.delete("/books/{book_id}")
-def delete_book_api(book_id: int, authorization: Optional[str] = Header(None)):
+def delete_book_api(book_id: int, authorization: Optional[str] = Header(None), current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional)):
+    user_id = current_user.get("id") if isinstance(current_user, dict) else None
     from app.database import delete_book, get_connection
     
     # 1. Fetch book metadata (uuid, file_hash) before deletion
@@ -2104,7 +2171,7 @@ def delete_book_api(book_id: int, authorization: Optional[str] = Header(None)):
         logger.warning(f"Failed to fetch book uuid/file_hash before delete: {e}")
 
     # 2. Local SQLite deletion and trigger-based local tombstone
-    success = delete_book(book_id)
+    success = delete_book(book_id, user_id=user_id)
     if not success:
         return JSONResponse(status_code=404, content={"error": "Book not found"})
         
@@ -2218,14 +2285,16 @@ def delete_topic_notes_api(topic_id: int):
     return {"status": "success", "deleted": deleted}
 
 @app.get("/notes")
-def get_all_notes_api(book_id: int | None = None, search: str | None = None):
+def get_all_notes_api(book_id: int | None = None, search: str | None = None, current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional)):
     from app.database import get_all_notes
-    return get_all_notes(book_id=book_id, search=search)
+    user_id = current_user.get("id") if isinstance(current_user, dict) else None
+    return get_all_notes(book_id=book_id, search=search, user_id=user_id)
 
 @app.get("/notes/annotations")
-def get_all_annotations_api(book_id: int | None = None):
+def get_all_annotations_api(book_id: int | None = None, current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional)):
     from app.database import get_all_annotations
-    return get_all_annotations(book_id=book_id)
+    user_id = current_user.get("id") if isinstance(current_user, dict) else None
+    return get_all_annotations(book_id=book_id, user_id=user_id)
 
 
 async def generate_single_cornell_note(topic: dict, provider_override: str | None = None) -> str:
@@ -2598,7 +2667,7 @@ async def generate_note_scaffold_stream_api(topic_id: int, req: NoteScaffoldRequ
 
 
 @app.post("/topics/{topic_id}/notes/scaffold")
-async def generate_note_scaffold_api(topic_id: int, req: NoteScaffoldRequest):
+async def generate_note_scaffold_api(topic_id: int, req: NoteScaffoldRequest, current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional)):
     """
     Generate a structured Cornell Study Guide.
     If the topic has child subtopics (e.g. Chapter with 4.1, 4.2), it generates Cornell notes
@@ -2608,8 +2677,10 @@ async def generate_note_scaffold_api(topic_id: int, req: NoteScaffoldRequest):
     from app.database import get_topic_by_id, get_child_topics, get_descendant_topics, get_note_by_topic, save_note_for_topic
     from app.config import get_provider_concurrency
     
+    reservation = _reserve_legacy_quota(current_user, "cornell_note")
     topic = get_topic_by_id(topic_id)
     if not topic:
+        _release_legacy_quota(reservation)
         return JSONResponse(status_code=404, content={"error": "Topic not found"})
         
     children = get_child_topics(topic_id)
@@ -2646,6 +2717,7 @@ async def generate_note_scaffold_api(topic_id: int, req: NoteScaffoldRequest):
             master_guide = assemble_master_chapter_guide(topic, child_results)
             save_note_for_topic(topic_id, master_guide)
             
+            _finalize_legacy_quota(reservation)
             return {
                 "topic_id": topic_id,
                 "scaffold": master_guide,
@@ -2655,9 +2727,11 @@ async def generate_note_scaffold_api(topic_id: int, req: NoteScaffoldRequest):
         else:
             note = await generate_single_cornell_note(topic, req.provider_override)
             save_note_for_topic(topic_id, note)
+            _finalize_legacy_quota(reservation)
             return {"topic_id": topic_id, "scaffold": note, "note": note}
             
     except Exception as e:
+        _release_legacy_quota(reservation)
         logger.error(f"Failed to generate note scaffold: {e}")
         return error_response(e, include_debug=_is_debug())
 
@@ -2808,8 +2882,13 @@ def create_annotation(book_id: int, body: AnnotationCreate):
 
 
 @app.get("/books/{book_id}/annotations")
-def get_annotations(book_id: int, page: int = None):
+def get_annotations(book_id: int, page: int = None, current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional)):
     """Get annotations for a book, optionally filtered by page number."""
+    from app.database import get_book_by_id
+    user_id = current_user.get("id") if isinstance(current_user, dict) else None
+    book = get_book_by_id(book_id, user_id=user_id)
+    if not book:
+        return JSONResponse(status_code=404, content={"error": "Book not found"})
     if page is not None:
         return get_annotations_for_page(book_id, page)
     return get_annotations_for_book(book_id)
@@ -2882,8 +2961,9 @@ async def explain_annotation(book_id: int, body: ExplainRequest):
 
 
 @app.post("/books/{book_id}/annotations/generate-flashcards")
-async def generate_flashcards_annotation(book_id: int, body: FlashcardSelectionRequest):
+async def generate_flashcards_annotation(book_id: int, body: FlashcardSelectionRequest, current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional)):
     """Generate flashcards from selected text and save as annotation."""
+    reservation = _reserve_legacy_quota(current_user, "flashcards")
     try:
         # Get provider override from settings
         provider_override = body.provider_override
@@ -2968,6 +3048,7 @@ async def generate_flashcards_annotation(book_id: int, body: FlashcardSelectionR
                 except Exception as save_err:
                     logger.error(f"Failed to persist selection flashcards to FSRS: {save_err}")
 
+        _finalize_legacy_quota(reservation)
         return {
             "id": ann_id,
             "annotation_type": "flashcard_link",
@@ -2978,8 +3059,10 @@ async def generate_flashcards_annotation(book_id: int, body: FlashcardSelectionR
             "saved_count": saved_cards_count,
         }
     except RecallError:
+        _release_legacy_quota(reservation)
         raise
     except Exception as e:
+        _release_legacy_quota(reservation)
         logger.error(f"Flashcard generation from selection failed: {e}")
         return error_response(e, include_debug=_is_debug())
 

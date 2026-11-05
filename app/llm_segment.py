@@ -233,9 +233,9 @@ async def extract_atomic_concepts(heading: str, text: str, code_blocks: dict = N
         logger.error(f"Failed to process with LLM. Error: {e}")
         try:
             logger.error(f"Raw response: {sanitized_raw}")
-        except:
+        except Exception:
             pass
-        return SectionExtraction(section_title=heading, atomic_topics=[])
+        raise RecallError(classify_error(e), f"Concept extraction failed: {str(e)}", e)
 
 
 @observe(name="generate_flashcards_for_topic", as_type="span")
@@ -508,12 +508,22 @@ async def chat_with_topic(request) -> str:
         
     document_outline = _build_document_outline(request.book_id)
     diagrams_reference = _extract_diagrams_reference(request.context_markdown)
+    topic_notes = ""
+    if getattr(request, "topic_id", None):
+        try:
+            from app.database import get_note_by_topic
+            saved_note = get_note_by_topic(request.topic_id)
+            if saved_note and saved_note.strip():
+                topic_notes = f"\n--- Student's Saved Notes for this Topic ---\n{saved_note.strip()}\n"
+        except Exception:
+            pass
     prompt = get_prompt_template("chat_prompt").format(
         context_markdown=request.context_markdown or "No specific topic selected.",
         chat_history=history_str or "No previous history.",
         question=request.question,
         document_outline=document_outline,
         diagrams_reference=diagrams_reference,
+        saved_notes=topic_notes,
     )
     
     local_settings = copy(settings)
@@ -546,12 +556,22 @@ async def chat_with_topic_stream(request):
         
     document_outline = _build_document_outline(request.book_id)
     diagrams_reference = _extract_diagrams_reference(request.context_markdown)
+    topic_notes = ""
+    if getattr(request, "topic_id", None):
+        try:
+            from app.database import get_note_by_topic
+            saved_note = get_note_by_topic(request.topic_id)
+            if saved_note and saved_note.strip():
+                topic_notes = f"\n--- Student's Saved Notes for this Topic ---\n{saved_note.strip()}\n"
+        except Exception:
+            pass
     prompt = get_prompt_template("chat_prompt").format(
         context_markdown=request.context_markdown or "No specific topic selected.",
         chat_history=history_str or "No previous history.",
         question=request.question,
         document_outline=document_outline,
         diagrams_reference=diagrams_reference,
+        saved_notes=topic_notes,
     )
     
     local_settings = copy(settings)

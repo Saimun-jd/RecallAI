@@ -510,6 +510,12 @@ def push_changes(supabase: Client, last_sync: str, token: Optional[str] = None):
 
 def sync_with_remote(token: str):
     """Coordinates the two-way sync process."""
+    url = os.environ.get("SUPABASE_URL")
+    key = os.environ.get("SUPABASE_ANON_KEY")
+    if not url or not key:
+        logger.info("Cloud sync skipped: Supabase credentials not set.")
+        return {"status": "skipped", "message": "Supabase not configured"}
+
     try:
         supabase = get_supabase_client(token)
         last_sync = get_last_sync_time()

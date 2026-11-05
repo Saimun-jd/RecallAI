@@ -279,8 +279,11 @@ class RetrievalService:
             # Model consistency check
             emb_model = c.get("embedding_model")
             emb_version = c.get("embedding_version")
-            if emb_model != VectorSearcher.TARGET_MODEL or emb_version != VectorSearcher.TARGET_VERSION:
-                # Incompatible embedding version - skip or flag for reindex
+            active_model = EmbeddingService.get_active_model_name()
+            if emb_model and emb_model != active_model and emb_model != VectorSearcher.TARGET_MODEL:
+                # Incompatible embedding model - skip or flag for reindex
+                continue
+            if emb_version != VectorSearcher.TARGET_VERSION:
                 continue
 
             semantic_score = 0.0

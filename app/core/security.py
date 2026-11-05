@@ -107,21 +107,21 @@ def decode_access_token(token: str) -> Dict[str, Any]:
     except jwt.ExpiredSignatureError:
         raise ValueError("Token has expired.")
     except jwt.InvalidTokenError as e:
-        # Fallback: check if this is an active Supabase OAuth token
-        try:
-            unverified = jwt.decode(token, options={"verify_signature": False})
-            iss = str(unverified.get("iss", "")).lower()
-            sub = unverified.get("sub")
-            exp = unverified.get("exp")
-            now = datetime.now(timezone.utc).timestamp()
-            if exp and exp < now:
+        # Fallback: check if this is an active Supabase OAuth token with valid signature
+        supabase_secret = getattr(settings, "SUPABASE_JWT_SECRET", None) or getattr(settings, "SUPABASE_SERVICE_ROLE_KEY", None)
+        if supabase_secret:
+            try:
+                payload = jwt.decode(
+                    token,
+                    supabase_secret,
+                    algorithms=["HS256"],
+                    options={"verify_aud": False}
+                )
+                return payload
+            except jwt.ExpiredSignatureError:
                 raise ValueError("Token has expired.")
-            if sub and ("supabase" in iss or unverified.get("role") in ("authenticated", "anon")):
-                return unverified
-        except ValueError:
-            raise
-        except Exception:
-            pass
+            except jwt.InvalidTokenError:
+                pass
         raise ValueError(f"Invalid token: {e}")
 
 

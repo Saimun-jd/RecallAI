@@ -83,8 +83,10 @@ class EmbeddingService:
                     data = res.json()
                     return data["data"][0]["embedding"]
                 except Exception as e:
-                    logger.error(f"OpenAI embedding error: {e}. Falling back to deterministic vector.")
-                    return self._generate_deterministic_embedding(text)
+                    logger.error(f"OpenAI embedding error: {e}")
+                    if settings.ENVIRONMENT == "test":
+                        return self._generate_deterministic_embedding(text)
+                    raise RuntimeError(f"OpenAI embedding generation failed: {e}") from e
 
         # 2. Gemini
         elif prov == "gemini":
@@ -103,15 +105,17 @@ class EmbeddingService:
                     res.raise_for_status()
                     data = res.json()
                     vec = data.get("embedding", {}).get("values", [])
-                    # Pad or interpolate to target dimension if needed, guaranteeing unit L2 norm
-                    if len(vec) == 768:
-                        vec = vec + vec  # 768 -> 1536
+                    # Zero-pad to target dimension if needed, preserving angular geometry and cosine distance
+                    if len(vec) < TARGET_DIMENSION:
+                        vec = vec + [0.0] * (TARGET_DIMENSION - len(vec))
                         norm = math.sqrt(sum(v * v for v in vec)) or 1.0
                         vec = [round(v / norm, 6) for v in vec]
                     return vec if vec else self._generate_deterministic_embedding(text)
                 except Exception as e:
-                    logger.error(f"Gemini embedding error: {e}. Falling back to deterministic vector.")
-                    return self._generate_deterministic_embedding(text)
+                    logger.error(f"Gemini embedding error: {e}")
+                    if settings.ENVIRONMENT == "test":
+                        return self._generate_deterministic_embedding(text)
+                    raise RuntimeError(f"Gemini embedding generation failed: {e}") from e
 
         # Fallback to deterministic embedding
         return self._generate_deterministic_embedding(text)
@@ -129,16 +133,127 @@ class EmbeddingService:
         return embeddings
 
     @classmethod
+    def get_active_model_name(cls, provider: Optional[str] = None) -> str:
+        prov = (provider or settings.llm_provider).lower().strip()
+        if prov == "gemini":
+            return "text-embedding-004"
+        elif prov in ("openai", "groq"):
+            return settings.openai_embedding_model or "text-embedding-3-small"
+        elif prov == "ollama":
+            return settings.ollama_embedding_model or "nomic-embed-text"
+        return "text-embedding-3-small"
+
+    @classmethod
     def generate_embeddings(
         cls,
         texts: List[str],
         workspace_id: Optional[str] = None,
-        provider: Optional[str] = None
+        provider: Optional[str] = None,
+        api_key_override: Optional[str] = None,
     ) -> List[List[float]]:
         """
         Synchronous batch generator used by the processing pipeline.
-        Generates deterministic, unit-normalized 1536-dimensional embeddings.
+        Uses real embedding provider when keys are present; falls back to deterministic in test mode.
         """
+        if not texts:
+            return []
+
+        prov = (provider or settings.llm_provider).lower().strip()
+
+        # In test mode or when no keys configured in dev
+        if settings.ENVIRONMENT == "test":
+            return [cls._generate_deterministic_embedding(t) for t in texts]
+
+        # 1. OpenAI / OpenAI-compatible
+        if prov in ("openai", "groq"):
+            api_key = api_key_override or settings.openai_api_key
+            if not api_key:
+                if settings.ENVIRONMENT == "development":
+                    logger.warning("No OpenAI API key configured. Using deterministic vector fallback for dev.")
+                    return [cls._generate_deterministic_embedding(t) for t in texts]
+                raise ValueError("OpenAI API key is required to generate embeddings.")
+
+            url = f"{settings.openai_base_url}/embeddings"
+            headers = {
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json"
+            }
+            inputs = [t[:8000] for t in texts]
+            payload = {
+                "model": settings.openai_embedding_model or "text-embedding-3-small",
+                "input": inputs
+            }
+            try:
+                with httpx.Client(timeout=30.0) as client:
+                    res = client.post(url, headers=headers, json=payload)
+                    res.raise_for_status()
+                    data = res.json()
+                    results = sorted(data["data"], key=lambda x: x["index"])
+                    return [r["embedding"] for r in results]
+            except Exception as e:
+                logger.error(f"OpenAI embedding generation failed: {e}")
+                if settings.ENVIRONMENT == "development":
+                    return [cls._generate_deterministic_embedding(t) for t in texts]
+                raise RuntimeError(f"OpenAI embedding service error: {e}") from e
+
+        # 2. Gemini
+        elif prov == "gemini":
+            api_key = api_key_override or settings.gemini_api_key
+            if not api_key:
+                if settings.ENVIRONMENT == "development":
+                    logger.warning("No Gemini API key configured. Using deterministic vector fallback for dev.")
+                    return [cls._generate_deterministic_embedding(t) for t in texts]
+                raise ValueError("Gemini API key is required to generate embeddings.")
+
+            embeddings = []
+            try:
+                with httpx.Client(timeout=30.0) as client:
+                    for text in texts:
+                        url = f"https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key={api_key}"
+                        payload = {
+                            "model": "models/text-embedding-004",
+                            "content": {"parts": [{"text": text[:8000]}]}
+                        }
+                        res = client.post(url, json=payload)
+                        res.raise_for_status()
+                        data = res.json()
+                        vec = data.get("embedding", {}).get("values", [])
+                        if not vec:
+                            raise ValueError("Gemini returned empty embedding vector.")
+                        if len(vec) < TARGET_DIMENSION:
+                            vec = vec + [0.0] * (TARGET_DIMENSION - len(vec))
+                            norm = math.sqrt(sum(v * v for v in vec)) or 1.0
+                            vec = [round(v / norm, 6) for v in vec]
+                        embeddings.append(vec)
+                return embeddings
+            except Exception as e:
+                logger.error(f"Gemini embedding generation failed: {e}")
+                if settings.ENVIRONMENT == "development":
+                    return [cls._generate_deterministic_embedding(t) for t in texts]
+                raise RuntimeError(f"Gemini embedding service error: {e}") from e
+
+        # 3. Ollama
+        elif prov == "ollama":
+            ollama_url = f"{settings.ollama_host}/api/embeddings"
+            model_name = settings.ollama_embedding_model or "nomic-embed-text"
+            embeddings = []
+            try:
+                with httpx.Client(timeout=30.0) as client:
+                    for text in texts:
+                        payload = {"model": model_name, "prompt": text[:8000]}
+                        res = client.post(ollama_url, json=payload)
+                        res.raise_for_status()
+                        vec = res.json().get("embedding", [])
+                        if len(vec) < TARGET_DIMENSION:
+                            vec = vec + [0.0] * (TARGET_DIMENSION - len(vec))
+                        embeddings.append(vec)
+                return embeddings
+            except Exception as e:
+                logger.error(f"Ollama embedding generation failed: {e}")
+                if settings.ENVIRONMENT == "development":
+                    return [cls._generate_deterministic_embedding(t) for t in texts]
+                raise RuntimeError(f"Ollama embedding service error: {e}") from e
+
         return [cls._generate_deterministic_embedding(t) for t in texts]
 
     @classmethod
@@ -146,10 +261,12 @@ class EmbeddingService:
         cls,
         text: str,
         workspace_id: Optional[str] = None,
-        provider: Optional[str] = None
+        provider: Optional[str] = None,
+        api_key_override: Optional[str] = None,
     ) -> List[float]:
         """Synchronous single-text embedding generator."""
-        return cls._generate_deterministic_embedding(text)
+        res = cls.generate_embeddings([text], workspace_id=workspace_id, provider=provider, api_key_override=api_key_override)
+        return res[0] if res else []
 
 
 embedding_service = EmbeddingService()

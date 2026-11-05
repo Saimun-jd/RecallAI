@@ -163,10 +163,10 @@ export function TopicPracticeModal({ isOpen, onClose, topicId: _topicId, topicNa
                     <span className="truncate max-w-50">{currentCard.topic_name}</span>
                   </span>
                   <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-black uppercase tracking-widest bg-surface-container text-on-surface px-2 py-1 border-2 border-on-surface rounded shadow-[2px_2px_0px_0px_#191b23]">
+                    <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-white/20 text-white border border-white/30 select-none">
                       {currentCard.concept_type}
                     </span>
-                    <span className="text-[10px] font-black uppercase tracking-widest bg-emerald-100 text-emerald-800 px-2 py-1 border-2 border-on-surface rounded shadow-[2px_2px_0px_0px_#191b23]">
+                    <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-white/20 text-white border border-white/30 select-none">
                       {['New', 'Learning', 'Review', 'Relearning'][currentCard.state] || 'Unknown'}
                     </span>
                   </div>
@@ -203,8 +203,24 @@ export function TopicPracticeModal({ isOpen, onClose, topicId: _topicId, topicNa
           </div>
         </div>
 
-        {/* Controls */}
-        <div className="p-6 pt-4 border-t-2 border-on-surface bg-surface-container-lowest shrink-0 flex justify-center">
+        {/* Controls & Navigation Hint */}
+        <div className="p-6 pt-3 border-t-2 border-on-surface bg-surface-container-lowest shrink-0 flex flex-col items-center gap-3">
+          <div className="w-full max-w-2xl flex items-center justify-between text-xs text-on-surface-variant font-bold uppercase tracking-wider">
+            <span>{isFlipped ? "Rate your memory to advance:" : "Reveal answer with Space or click"}</span>
+            <button
+              onClick={() => {
+                if (currentIndex < sessionCards.length - 1) {
+                  setCurrentIndex(prev => prev + 1);
+                  setIsFlipped(false);
+                } else {
+                  handleCompleteSession();
+                }
+              }}
+              className="text-xs font-black uppercase text-primary hover:underline flex items-center gap-1 cursor-pointer"
+            >
+              Skip Card →
+            </button>
+          </div>
           <div className={cn(
             "w-full max-w-2xl grid grid-cols-4 gap-4 transition-all duration-300",
             !isFlipped && "opacity-20 pointer-events-none grayscale"

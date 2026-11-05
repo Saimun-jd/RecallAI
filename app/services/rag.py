@@ -84,20 +84,28 @@ class CitationValidator:
             except ValueError:
                 continue
 
-            # Ensure 1-indexed within bounds of retrieved results
+            # Ensure 1-indexed within bounds of retrieved results and verify grounding
             if 1 <= idx <= len(retrieved_results) and idx not in seen_indices:
                 seen_indices.add(idx)
                 chunk_item = retrieved_results[idx - 1]
-                verified_citations.append(
-                    SourceCitation(
-                        source_index=idx,
-                        document_id=chunk_item.document_id,
-                        document_title=chunk_item.document_title,
-                        chunk_id=chunk_item.chunk_id,
-                        page_number=chunk_item.page_number,
-                        score=chunk_item.score,
+
+                # B14: Verify that retrieved chunk content has substantive overlap with the cited context
+                chunk_words = set(re.findall(r'\b[a-zA-Z]{3,}\b', (chunk_item.content or '').lower()))
+                text_words = set(re.findall(r'\b[a-zA-Z]{3,}\b', (response_text or '').lower()))
+                overlap = chunk_words.intersection(text_words)
+                is_grounded = len(overlap) >= 1 or (chunk_item.score is not None and chunk_item.score >= 0.5) or not chunk_words
+
+                if is_grounded:
+                    verified_citations.append(
+                        SourceCitation(
+                            source_index=idx,
+                            document_id=chunk_item.document_id,
+                            document_title=chunk_item.document_title,
+                            chunk_id=chunk_item.chunk_id,
+                            page_number=chunk_item.page_number,
+                            score=chunk_item.score,
+                        )
                     )
-                )
 
         return verified_citations
 

@@ -189,7 +189,7 @@ class DocumentProcessingPipeline:
                     "page_number": chunk.page_number,
                     "token_count": chunk.token_count,
                     "embedding": emb,
-                    "embedding_model": "text-embedding-3-small",
+                    "embedding_model": EmbeddingService.get_active_model_name(),
                     "embedding_version": 1,
                 })
 

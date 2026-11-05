@@ -20,6 +20,31 @@ DATA_DIR = user_data_dir("Recall", "Recall")
 DEFAULT_SQLITE_PATH = os.path.join(DATA_DIR, "recall_saas.db")
 
 
+def _get_or_create_local_key(filename: str, length_chars: int) -> str:
+    """Generates and persists a unique local cryptographic key if not provided via environment."""
+    try:
+        os.makedirs(DATA_DIR, exist_ok=True)
+        key_file = os.path.join(DATA_DIR, filename)
+        if os.path.exists(key_file):
+            with open(key_file, "r", encoding="utf-8") as f:
+                val = f.read().strip()
+                if len(val) >= length_chars:
+                    return val
+        import secrets
+        if filename.endswith(".hex"):
+            new_key = secrets.token_hex(length_chars // 2)
+        else:
+            new_key = secrets.token_urlsafe(length_chars)
+        with open(key_file, "w", encoding="utf-8") as f:
+            f.write(new_key)
+        return new_key
+    except Exception:
+        import secrets
+        if filename.endswith(".hex"):
+            return secrets.token_hex(length_chars // 2)
+        return secrets.token_urlsafe(length_chars)
+
+
 class CoreSettings(BaseSettings):
     # Environment Mode
     ENVIRONMENT: Literal["development", "test", "production"] = "development"
@@ -84,6 +109,8 @@ class CoreSettings(BaseSettings):
     gemini_model: str = "gemini-3.6-flash"
     groq_api_key: str = ""
     groq_model: str = "openai/gpt-oss-20b"
+    openrouter_api_key: str = ""
+    openrouter_model: str = "meta-llama/llama-3.3-70b-instruct"
     langfuse_secret_key: str = ""
     langfuse_public_key: str = ""
     langfuse_host: str = "https://cloud.langfuse.com"
@@ -97,19 +124,26 @@ class CoreSettings(BaseSettings):
     @field_validator("SECRET_KEY")
     @classmethod
     def validate_secret_key(cls, v: str, info) -> str:
-        if len(v) < 32:
+        v_clean = v.strip() if v else ""
+        if not v_clean or v_clean.startswith("replace_with"):
+            return _get_or_create_local_key(".local_secret_key", 48)
+        if len(v_clean) < 32:
             raise ValueError("SECRET_KEY must be at least 32 characters long.")
-        return v
+        return v_clean
 
     @field_validator("BYOK_ENCRYPTION_KEY")
     @classmethod
     def validate_byok_key(cls, v: str) -> str:
-        v_clean = v.strip()
+        v_clean = v.strip() if v else ""
+        if not v_clean or v_clean.startswith("replace_with"):
+            return _get_or_create_local_key(".local_byok_key.hex", 64)
         try:
             raw_bytes = bytes.fromhex(v_clean)
             if len(raw_bytes) != 32:
                 raise ValueError("BYOK_ENCRYPTION_KEY must be exactly 32 bytes (64 hex characters).")
         except ValueError as e:
+            if v_clean.startswith("replace_with"):
+                return _get_or_create_local_key(".local_byok_key.hex", 64)
             raise ValueError(f"Invalid BYOK_ENCRYPTION_KEY format: {e}")
         return v_clean
 

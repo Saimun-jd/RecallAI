@@ -301,10 +301,18 @@ export function QuizDetailView() {
             <div className="divide-y divide-border-default/50 border-2 border-border-default rounded-xl overflow-hidden bg-surface-container-low">
               {attempts.map((att, idx) => {
                 const isSubmitted = att.status === 'submitted';
+                const correctCount =
+                  att.correct_answers !== undefined && att.correct_answers !== null
+                    ? att.correct_answers
+                    : (att.score !== undefined && att.score !== null
+                        ? (att.score <= 1 && att.total_questions > 0 ? Math.round(att.score * att.total_questions) : Math.round(att.score))
+                        : 0);
                 const scorePercent =
-                  att.score !== undefined && att.score !== null && att.total_questions > 0
-                    ? Math.round((att.score / att.total_questions) * 100)
-                    : null;
+                  att.percentage !== undefined && att.percentage !== null
+                    ? Math.round(att.percentage)
+                    : (att.score !== undefined && att.score !== null && att.total_questions > 0
+                        ? Math.round((att.score <= 1 ? att.score : att.score / att.total_questions) * 100)
+                        : null);
                 const attDate = new Date(att.started_at).toLocaleString('en-US', {
                   month: 'short',
                   day: 'numeric',
@@ -330,7 +338,7 @@ export function QuizDetailView() {
                             variant={isSubmitted ? (scorePercent !== null && scorePercent >= 70 ? 'success' : 'warning') : 'default'}
                             size="sm"
                           >
-                            {isSubmitted ? `${att.score}/${att.total_questions} (${scorePercent}%)` : 'In Progress'}
+                            {isSubmitted ? `${correctCount}/${att.total_questions} (${scorePercent}%)` : 'In Progress'}
                           </Tag>
                         </div>
                         <p className="text-[11px] text-on-surface-variant/70 font-medium">

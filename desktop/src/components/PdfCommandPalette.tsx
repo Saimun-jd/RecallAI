@@ -88,17 +88,20 @@ export function PdfCommandPalette({ selection, position, onCommand, onDismiss, i
     };
   }, [onDismiss, activeCommand, previewData]);
 
-  // Prevent palette from overflowing bottom of viewport
+  // Prevent palette from overflowing bottom of viewport without jumping far from text
   useLayoutEffect(() => {
     if (paletteRef.current) {
-      // Reset transform temporarily to measure natural position
       paletteRef.current.style.transform = 'none';
       const rect = paletteRef.current.getBoundingClientRect();
       const overflowBottom = rect.bottom - window.innerHeight;
+      const overflowTop = rect.top;
 
       if (overflowBottom > 0) {
-        // Shift it up by the overflow amount plus a little padding (24px)
-        setOffsetY(-overflowBottom - 24);
+        // Shift it up only as much as needed to stay in viewport, clamped so it stays near text
+        const shift = Math.min(overflowBottom + 12, rect.height * 0.4);
+        setOffsetY(-shift);
+      } else if (overflowTop < 0) {
+        setOffsetY(Math.abs(overflowTop) + 12);
       } else {
         setOffsetY(0);
       }

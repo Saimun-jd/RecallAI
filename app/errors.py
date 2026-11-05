@@ -244,7 +244,11 @@ def error_response(
 
     status_code = get_http_status(recall_err.code)
     # Prefer specific, actionable message from recall_err.detail if present
-    user_message = recall_err.detail if recall_err.detail else get_user_message(recall_err.code)
+    # A9: Ensure user_message is human-friendly and never raw HTTP/JSON errors
+    if recall_err.detail and not recall_err.detail.startswith("HTTP ") and not recall_err.detail.startswith("{") and "\"error\"" not in recall_err.detail:
+        user_message = recall_err.detail
+    else:
+        user_message = get_user_message(recall_err.code)
 
     body: dict = {
         "error_code": recall_err.code.value,
@@ -292,7 +296,11 @@ def error_event(
     else:
         recall_err = classify_error(exc)
 
-    user_message = recall_err.detail if recall_err.detail else get_user_message(recall_err.code)
+    # A9: Ensure user_message is human-friendly and never raw HTTP/JSON errors
+    if recall_err.detail and not recall_err.detail.startswith("HTTP ") and not recall_err.detail.startswith("{") and "\"error\"" not in recall_err.detail:
+        user_message = recall_err.detail
+    else:
+        user_message = get_user_message(recall_err.code)
 
     event: dict = {
         "status": "error",

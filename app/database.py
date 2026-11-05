@@ -187,9 +187,22 @@ def init_db():
             ("last_read_page", "INTEGER DEFAULT 1"),
             ("last_topic_id", "INTEGER"),
         ]
+        book_migrations.extend([
+            ("user_id", "TEXT"),
+            ("workspace_id", "TEXT"),
+            ("uuid", "TEXT"),
+            ("updated_at", "TIMESTAMP"),
+        ])
         for col_name, col_type in book_migrations:
             if col_name not in book_columns:
                 cursor.execute(f"ALTER TABLE books ADD COLUMN {col_name} {col_type}")
+
+        # B19 fix: Backfill blank created_at dates on old records
+        try:
+            cursor.execute("UPDATE topics SET created_at = CURRENT_TIMESTAMP WHERE created_at IS NULL")
+            cursor.execute("UPDATE books SET created_at = CURRENT_TIMESTAMP WHERE created_at IS NULL")
+        except Exception:
+            pass
         
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS notes (
@@ -484,21 +497,26 @@ def init_db():
             
         logger.info(f"Database initialized successfully at {ACTIVE_DB_PATH}")
 
-def save_book(title: str, file_path: str, file_hash: str, total_pages: int) -> int:
-    """Inserts a new book or returns the existing book ID if file_hash matches."""
+def save_book(title: str, file_path: str, file_hash: str, total_pages: int, user_id: Optional[str] = None, workspace_id: Optional[str] = None) -> int:
+    """Inserts a new book or returns the existing book ID if file_hash matches for this user/workspace."""
     with get_connection() as conn:
         cursor = conn.cursor()
         
-        cursor.execute("SELECT id FROM books WHERE file_hash = ?", (file_hash,))
+        if workspace_id:
+            cursor.execute("SELECT id FROM books WHERE file_hash = ? AND (workspace_id = ? OR workspace_id IS NULL)", (file_hash, workspace_id))
+        elif user_id:
+            cursor.execute("SELECT id FROM books WHERE file_hash = ? AND (user_id = ? OR user_id IS NULL)", (file_hash, user_id))
+        else:
+            cursor.execute("SELECT id FROM books WHERE file_hash = ?", (file_hash,))
         row = cursor.fetchone()
         if row:
             return row['id']
             
         import uuid
         cursor.execute("""
-            INSERT INTO books (title, file_path, file_hash, total_pages, uuid, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%d %H:%M:%f', 'now'), CURRENT_TIMESTAMP)
-        """, (title, file_path, file_hash, total_pages, str(uuid.uuid4())))
+            INSERT INTO books (title, file_path, file_hash, total_pages, uuid, user_id, workspace_id, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, strftime('%Y-%m-%d %H:%M:%f', 'now'), CURRENT_TIMESTAMP)
+        """, (title, file_path, file_hash, total_pages, str(uuid.uuid4()), user_id, workspace_id))
         
         return cursor.lastrowid
 
@@ -1182,17 +1200,25 @@ def get_analytics_stats() -> Dict[str, Any]:
             "forecast_7d": forecast
         }
 
-def get_books(skip: int = 0, limit: int = 100) -> List[Dict[str, Any]]:
+def get_books(skip: int = 0, limit: int = 100, user_id: Optional[str] = None) -> List[Dict[str, Any]]:
     with get_connection() as conn:
         cursor = conn.cursor()
-        cursor.execute("""
+        query = """
             SELECT b.*,
                 (SELECT COUNT(*) FROM topics t WHERE t.book_id = b.id) as total_topics,
                 (SELECT COUNT(*) FROM topics t WHERE t.book_id = b.id AND (t.status = 'processed' OR (SELECT COUNT(*) FROM flashcards f WHERE f.topic_id = t.id) > 0)) as topics_processed
             FROM books b
+        """
+        params = []
+        if user_id:
+            query += " WHERE (b.user_id = ? OR b.user_id IS NULL)"
+            params.append(user_id)
+        query += """
             ORDER BY COALESCE(b.last_read_at, b.created_at) DESC, b.id DESC 
             LIMIT ? OFFSET ?
-        """, (limit, skip))
+        """
+        params.extend([limit, skip])
+        cursor.execute(query, tuple(params))
         return [dict(row) for row in cursor.fetchall()]
 
 def update_book_reading_state(book_id: int, page_number: Optional[int] = None, topic_id: Optional[int] = None):
@@ -1207,22 +1233,31 @@ def update_book_reading_state(book_id: int, page_number: Optional[int] = None, t
             WHERE id = ?
         """, (page_number, topic_id, book_id))
 
-def get_book_by_id(book_id: int) -> Optional[Dict[str, Any]]:
+def get_book_by_id(book_id: int, user_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
     with get_connection() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM books WHERE id = ?", (book_id,))
+        if user_id:
+            cursor.execute("SELECT * FROM books WHERE id = ? AND (user_id = ? OR user_id IS NULL)", (book_id, user_id))
+        else:
+            cursor.execute("SELECT * FROM books WHERE id = ?", (book_id,))
         row = cursor.fetchone()
         return dict(row) if row else None
 
-def delete_book(book_id: int) -> bool:
+def delete_book(book_id: int, user_id: Optional[str] = None) -> bool:
     with get_connection() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT file_path, file_hash FROM books WHERE id = ?", (book_id,))
+        if user_id:
+            cursor.execute("SELECT file_path, file_hash FROM books WHERE id = ? AND (user_id = ? OR user_id IS NULL)", (book_id, user_id))
+        else:
+            cursor.execute("SELECT file_path, file_hash FROM books WHERE id = ?", (book_id,))
         row = cursor.fetchone()
         file_path = row['file_path'] if row else None
         file_hash = row['file_hash'] if row else None
 
-        cursor.execute("DELETE FROM books WHERE id = ?", (book_id,))
+        if user_id:
+            cursor.execute("DELETE FROM books WHERE id = ? AND (user_id = ? OR user_id IS NULL)", (book_id, user_id))
+        else:
+            cursor.execute("DELETE FROM books WHERE id = ?", (book_id,))
         success = cursor.rowcount > 0
 
     if success and file_hash:
@@ -1265,7 +1300,7 @@ def save_note_for_topic(topic_id: int, note_text: str) -> None:
         else:
             cursor.execute("INSERT INTO notes (topic_id, content, uuid, updated_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)", (topic_id, note_text, str(uuid.uuid4())))
 
-def get_all_notes(book_id: Optional[int] = None, search: Optional[str] = None) -> List[Dict[str, Any]]:
+def get_all_notes(book_id: Optional[int] = None, search: Optional[str] = None, user_id: Optional[str] = None) -> List[Dict[str, Any]]:
     """Retrieves all notes joined with their topic and book metadata."""
     with get_connection() as conn:
         cursor = conn.cursor()
@@ -1290,6 +1325,9 @@ def get_all_notes(book_id: Optional[int] = None, search: Optional[str] = None) -
             WHERE length(trim(n.content)) > 0
         """
         params = []
+        if user_id:
+            sql += " AND (b.user_id = ? OR b.user_id IS NULL)"
+            params.append(user_id)
         if book_id is not None:
             sql += " AND t.book_id = ?"
             params.append(book_id)
@@ -1308,7 +1346,7 @@ def delete_note_by_topic(topic_id: int) -> bool:
         cursor.execute("DELETE FROM notes WHERE topic_id = ?", (topic_id,))
         return cursor.rowcount > 0
 
-def get_all_annotations(book_id: Optional[int] = None) -> List[Dict[str, Any]]:
+def get_all_annotations(book_id: Optional[int] = None, user_id: Optional[str] = None) -> List[Dict[str, Any]]:
     """Retrieves all PDF annotations that contain note/comment content across books."""
     with get_connection() as conn:
         cursor = conn.cursor()
@@ -1328,6 +1366,9 @@ def get_all_annotations(book_id: Optional[int] = None) -> List[Dict[str, Any]]:
             WHERE a.content IS NOT NULL AND length(trim(a.content)) > 0
         """
         params = []
+        if user_id:
+            sql += " AND (b.user_id = ? OR b.user_id IS NULL)"
+            params.append(user_id)
         if book_id is not None:
             sql += " AND a.book_id = ?"
             params.append(book_id)

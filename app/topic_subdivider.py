@@ -502,6 +502,19 @@ async def reparse_book_with_marker(book_id: int) -> dict:
     with open(file_path, "rb") as f:
         pdf_bytes = f.read()
 
+    from app.extractors import get_extractor
+    from app.database import get_setting
+    has_api_key = bool(get_setting("datalab_api_key"))
+    try:
+        target = "marker_api" if has_api_key else "marker"
+        ext = get_extractor(target)
+        is_avail = ext and ext.is_available()
+    except Exception:
+        is_avail = False
+
+    if not is_avail:
+        raise ValueError("Handwriting analysis requires the Marker OCR tool or Datalab API key configured in Settings.")
+
     # Extract markdown with Marker (force fresh paginated extraction)
     md_text, _, _ = await extract_raw_text(pdf_bytes, 1, force_refresh=True)
 
@@ -557,6 +570,20 @@ async def reparse_book_with_marker_stream(book_id: int):
         file_path = book["file_path"]
         if not os.path.exists(file_path):
             yield f"data: {json.dumps({'status': 'error', 'message': f'PDF file {file_path} not found on disk'})}\n\n"
+            return
+
+        from app.extractors import get_extractor
+        from app.database import get_setting
+        has_api_key = bool(get_setting("datalab_api_key"))
+        try:
+            target = "marker_api" if has_api_key else "marker"
+            ext = get_extractor(target)
+            is_avail = ext and ext.is_available()
+        except Exception:
+            is_avail = False
+
+        if not is_avail:
+            yield f"data: {json.dumps({'status': 'error', 'message': 'Handwriting analysis requires the Marker OCR tool or Datalab API key configured in Settings.'})}\n\n"
             return
 
         with open(file_path, "rb") as f:

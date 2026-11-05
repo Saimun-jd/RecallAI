@@ -376,12 +376,18 @@ export function SocraticDrillWidget({ topicId, topicTitle, targetConcept, onClea
 
           {/* Answer Textarea */}
           <div className="mb-6">
-            <label className="text-label-sm font-bold uppercase tracking-wider text-on-surface-variant block mb-2">
-              Your Explanation
-            </label>
+            <div className="flex justify-between items-center mb-2">
+              <label className="text-label-sm font-bold uppercase tracking-wider text-on-surface-variant block">
+                Your Explanation
+              </label>
+              <span className={`text-xs font-mono font-bold ${answer.length >= 5000 ? 'text-red-500' : 'text-on-surface-variant'}`}>
+                {answer.length} / 5000
+              </span>
+            </div>
             <textarea
               ref={textareaRef}
               value={answer}
+              maxLength={5000}
               onChange={(e) => setAnswer(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Explain your understanding... (bullet points or paragraph)"
@@ -393,7 +399,7 @@ export function SocraticDrillWidget({ topicId, topicTitle, targetConcept, onClea
 
           <button
             onClick={handleSubmitAnswer}
-            disabled={!answer.trim()}
+            disabled={!answer.trim() || answer.length > 5000}
             className="flex items-center gap-2 px-6 py-3 bg-primary text-white font-bold border-[3px] border-primary neo-shadow-sm active-neo-press transition-all disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <ArrowRight size={18} />

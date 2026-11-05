@@ -249,6 +249,7 @@ Respond strictly with a JSON object containing a "flashcards" list:
             {"name": "chat_history", "description": "Formatted conversation history", "required": False},
             {"name": "document_outline", "description": "Catalog of all topics/slides in the document", "required": False},
             {"name": "diagrams_reference", "description": "Visual diagrams/figures extracted from topic", "required": False},
+            {"name": "saved_notes", "description": "Student saved study notes for this topic", "required": False},
         ],
         "default_template": """You are Onizuka sensei, an expert AI tutor. 
 
@@ -276,8 +277,9 @@ Rules:
 4. DIAGRAMS, FIGURES & TABLES (CRITICAL):
    - If the Context Markdown or Available Diagrams contains diagrams, graphs, circuits, flowcharts, or figures (e.g. `![caption](image_file.jpg)`):
      * YOU MUST embed the relevant diagram(s) in your explanation using their exact Markdown image syntax: `![Descriptive Caption](image_file.jpg)`.
-     * Explicitly reference and explain what the diagram illustrates (e.g., "As shown in the circuit diagram above, current $i$ flows clockwise through resistor $R$...").
+     * Explicitly reference and explain what the diagram illustrates.
      * Never drop or alter the image file path in parentheses `(...)`.
+   - STRICT RULE: Do NOT invent, guess, or hallucinate image links or paths that do not exist in the Available Diagrams or Context Markdown. If no diagrams exist in the context, do NOT output any `![...](...)` image markdown.
    - If the explanation involves comparing concepts, steps, complexity classes, or parameters, present the comparison using a clean, well-aligned Markdown table (`| Column 1 | Column 2 |`).
 5. FORMATTING & MATHEMATICS (CRITICAL):
    - ALL text MUST be strictly formatted in Markdown.
@@ -293,6 +295,7 @@ Chat History:
 Document Outline:
 {document_outline}
 
+{saved_notes}
 Context Markdown:
 <<<
 {context_markdown}
@@ -484,6 +487,7 @@ Markdown to clean:
             {"name": "concepts_summary", "description": "Summary list of atomic concepts", "required": True},
             {"name": "content_reference", "description": "Topic content reference slice", "required": True},
             {"name": "diagrams_reference", "description": "Visual diagrams/figures extracted from topic", "required": False},
+            {"name": "saved_notes", "description": "Student saved study notes for this topic", "required": False},
         ],
         "default_template": """You are a world-class university professor and master educator celebrated for explaining complex, technical subjects with crystal-clear intuition, rigorous first-principles derivations, and relatable analogies.
 
@@ -547,6 +551,106 @@ CRITICAL RULES:
 """
     },
 
+    "socratic_evaluation_prompt": {
+        "name": "Socratic Diagnostic Answer Evaluator",
+        "category": "Socratic Drills",
+        "description": "Performs Automated Short Answer Grading (ASAG), identifying invariants coverage, knowledge gaps, and misconceptions.",
+        "is_structured_json": True,
+        "variables": [
+            {"name": "question_text", "description": "The diagnostic question presented to the student", "required": True},
+            {"name": "key_invariants", "description": "JSON string of core concepts required", "required": True},
+            {"name": "concept_focus_block", "description": "Target atomic concept focus rules", "required": False},
+            {"name": "topic_content", "description": "Ground truth source material", "required": True},
+            {"name": "student_answer", "description": "The student\'s free-form answer", "required": True},
+        ],
+        "default_template": """You are an expert educational diagnostic evaluator performing Automated Short Answer Grading (ASAG) and exam preparation analysis.
+
+Task: Evaluate the student's answer to a probing question about a textbook topic. Compare their response against the source material (ground truth) and produce a structured diagnostic evaluation.
+
+Evaluation Dimensions:
+1. CORE INVARIANTS COVERAGE: Did the student identify the non-negotiable principles, mechanisms, and governing relationships?
+2. CAUSAL VALIDITY: Is their chain of reasoning logically sound, or based on surface correlation or faulty assumptions?
+3. KNOWLEDGE GAPS & CONTEXTUAL THEORY:
+   - Identify critical concepts or mechanisms omitted or only partially addressed.
+   - For every gap, you MUST provide:
+     * gap: The specific concept or invariant missed (concise title/summary).
+     * context: The complete theoretical explanation, physical/logical mechanism, and governing equations (written in LaTeX using $...$ or $$...$$). Do NOT just write "Did not mention X". Provide the actual theory from the textbook so the student can study and learn it immediately.
+     * why_it_matters: Why this principle is essential in exams and technical problem-solving.
+4. EXAM MISCONCEPTIONS & PITFALLS:
+   - Identify specific exam pitfalls, traps, or counterfactual errors in the student's answer or common to this topic.
+   - STRICT RULE: Do NOT generate condescending meta-evaluations like "Exhibits complete lack of knowledge", "Student failed to understand", or "No knowledge shown".
+   - A misconception must address what could actually be mistaken in an exam:
+     * pitfall: The specific exam trap, counterfactual error, or false intuition (e.g., "Confusing inductive energy storage with resistive dissipation").
+     * theory: The correct theoretical principles, physical mechanisms, and governing formulas ($...$) that resolve the trap.
+     * exam_tip: Actionable test-taking guidance on how examiners formulate questions around this and how to answer correctly without falling into the trap.
+   - If the student made no active errors or misconceptions, keep misconceptions empty: [].
+
+Scoring Guide:
+- 85-100 (mastered): Correctly identifies all key invariants with sound causal reasoning. Minor omissions only.
+- 60-84 (developing): Gets the core idea right but misses important nuances, secondary mechanisms, or rigorous formulation.
+- 35-59 (fragile): Partially correct but has significant gaps or shallow understanding.
+- 0-34 (misconception): Contains one or more fundamental conceptual errors, or demonstrates major confusion on foundational invariants.
+
+Flashcard Generation Rules:
+- Generate 0 flashcards if mastery_score >= 85 (the student already knows this).
+- Generate 1 flashcard if mastery_score is 60-84, targeting the most important gap.
+- Generate 1-2 flashcards if mastery_score < 60, targeting the diagnosed misconceptions or core gaps.
+- Each flashcard question should be specific and test the exact gap identified.
+- Flashcard answers must be concise (under 30 words).
+
+Socratic Nudge Rules:
+- If mastery_score >= 60, provide a follow-up thinking prompt that pushes the student to consider an edge case or deeper implication they missed.
+- If mastery_score < 60, set socratic_nudge to null (they need to re-study first).
+
+STRICT JSON: Respond ONLY with a valid JSON object matching this schema:
+{{
+  "mastery_score": 75,
+  "status": "developing",
+  "strengths": ["Clear explanation of resistor voltage drop V = IR", "Correctly identified that current cannot change instantaneously"],
+  "diagnosed_gaps": [
+    {{
+      "gap": "Energy balance and conservation in RL circuit",
+      "context": "According to energy conservation, multiplying the loop equation $V = iR + L(di/dt)$ by $i \\cdot dt$ yields $V i \\, dt = i^2 R \\, dt + L i \\, di$. Total energy supplied by the source equals thermal dissipation in the resistor plus magnetic field energy stored in the inductor ($U_B = \\frac{{1}}{{2}} L i^2$).",
+      "why_it_matters": "Essential for exam derivation questions and transient power calculations when switching between $t=0^+$ and steady-state."
+    }}
+  ],
+  "misconceptions": [
+    {{
+      "pitfall": "Treating the inductor as an energy-dissipating element like a resistor",
+      "theory": "An ideal inductor has zero resistance and dissipates zero heat ($P_{{diss}} = 0$). Instead, it stores energy in its magnetic field at rate $P = L i \\frac{{di}}{{dt}}$ during current growth, and returns that energy to the circuit when current collapses.",
+      "exam_tip": "In exam problems asking for total energy dissipated as heat over $0 \\le t < \\infty$, only integrate $i^2 R$. Do not include inductor energy as dissipated loss."
+    }}
+  ],
+  "socratic_nudge": "If the circuit is disconnected from the battery, where does the stored energy 1/2 L I^2 go?",
+  "suggested_flashcards": [
+    {{
+      "question": "What is the rate of energy storage in an inductor with current $i(t)$?",
+      "answer": "$P = L i \\frac{{di}}{{dt}}$, which integrates to $U = \\frac{{1}}{{2}} L i^2$. It stores magnetic energy rather than dissipating heat.",
+      "gap_source": "Inductor energy storage vs resistive heat dissipation"
+    }}
+  ]
+}}
+
+{concept_focus_block}
+--- CONTEXT ---
+
+Question Asked:
+{question_text}
+
+Key Invariants the student should have addressed:
+{key_invariants}
+
+Source Material (Ground Truth):
+<<<
+{topic_content}
+>>>
+
+--- STUDENT'S ANSWER ---
+<<<
+{student_answer}
+>>>
+"""
+    },
     "handwritten_outline_reconcile_prompt": {
         "name": "Handwritten Outline & Chapter Reconciler",
         "category": "Document Processing",
@@ -644,8 +748,8 @@ class SafePromptTemplate(str):
 def get_prompt_template(key: str) -> str:
     """Retrieves the active prompt template for `key`, falling back to default."""
     if key not in PROMPT_REGISTRY:
-        logger.warning(f"Requested unknown prompt key: '{key}'")
-        return SafePromptTemplate("")
+        logger.error(f"Requested unknown prompt key: '{key}'")
+        raise KeyError(f"Prompt key '{key}' is not registered in PROMPT_REGISTRY.")
 
     try:
         with get_connection() as conn:
