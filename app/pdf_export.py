@@ -7,7 +7,7 @@ import os
 import tempfile
 import json
 
-import fitz  # PyMuPDF
+import pymupdf as fitz  # PyMuPDF
 
 from app.database import get_annotations_for_book, get_connection
 

@@ -112,49 +112,49 @@ async def test_concurrency_queue_semaphore_limits_parallel_execution():
     t2_started = asyncio.Event()
 
     async def run_topic(t_id, signal_started=None, wait_for_gate=False):
-        with patch("os.path.exists", return_value=True), \
-             patch("app.main.extract_atomic_concepts", side_effect=mock_extract):
-            req = ProcessTopicRequest()
-            res = await process_topic_stream(t_id, req)
-            events = []
-            async for chunk in res.body_iterator:
-                for line in chunk.split("\n\n"):
-                    if line.startswith("data: "):
-                        ev = json.loads(line[6:])
-                        events.append(ev)
-                        if ev.get("stage") == "extracting_topics" and signal_started and not signal_started.is_set():
-                            signal_started.set()
-                            if wait_for_gate:
-                                await gate.wait()
-            return events
+        req = ProcessTopicRequest()
+        res = await process_topic_stream(t_id, req)
+        events = []
+        async for chunk in res.body_iterator:
+            for line in chunk.split("\n\n"):
+                if line.startswith("data: "):
+                    ev = json.loads(line[6:])
+                    events.append(ev)
+                    if ev.get("stage") == "extracting_topics" and signal_started and not signal_started.is_set():
+                        signal_started.set()
+                        if wait_for_gate:
+                            await gate.wait()
+        return events
 
-    # Launch Topic 1 and Topic 2 which will fill the semaphore (capacity=2)
-    task1 = asyncio.create_task(run_topic(topic1, signal_started=t1_started, wait_for_gate=True))
-    task2 = asyncio.create_task(run_topic(topic2, signal_started=t2_started, wait_for_gate=True))
+    with patch("os.path.exists", return_value=True), \
+         patch("app.main.extract_atomic_concepts", side_effect=mock_extract):
+        # Launch Topic 1 and Topic 2 which will fill the semaphore (capacity=2)
+        task1 = asyncio.create_task(run_topic(topic1, signal_started=t1_started, wait_for_gate=True))
+        task2 = asyncio.create_task(run_topic(topic2, signal_started=t2_started, wait_for_gate=True))
 
-    await t1_started.wait()
-    await t2_started.wait()
+        await t1_started.wait()
+        await t2_started.wait()
 
-    # Semaphore should now be locked
-    sem = get_topic_processing_semaphore()
-    assert sem.locked()
+        # Semaphore should now be locked
+        sem = get_topic_processing_semaphore()
+        assert sem.locked()
 
-    # Now launch Topic 3: it should receive a queued event
-    task3 = asyncio.create_task(run_topic(topic3))
+        # Now launch Topic 3: it should receive a queued event
+        task3 = asyncio.create_task(run_topic(topic3))
 
-    # Give task3 time to enter the stream and hit the queue check
-    await asyncio.sleep(0.05)
+        # Give task3 time to enter the stream and hit the queue check
+        await asyncio.sleep(0.05)
 
-    # Now open gate so topic 1 and topic 2 finish, letting topic 3 proceed
-    gate.set()
+        # Now open gate so topic 1 and topic 2 finish, letting topic 3 proceed
+        gate.set()
 
-    events1 = await task1
-    events2 = await task2
-    events3 = await task3
+        events1 = await task1
+        events2 = await task2
+        events3 = await task3
 
-    assert any(e.get("stage") == "queued" for e in events3)
-    assert any(e.get("status") == "complete" for e in events3)
-    assert len(_active_topic_extractions) == 0
+        assert any(e.get("stage") == "queued" for e in events3)
+        assert any(e.get("status") == "complete" for e in events3)
+        assert len(_active_topic_extractions) == 0
 
 @pytest.mark.anyio
 async def test_cancelled_extraction_cleans_up_active_set_and_semaphore():

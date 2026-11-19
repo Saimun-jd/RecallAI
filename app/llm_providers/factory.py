@@ -37,34 +37,29 @@ def get_llm_provider(config: Settings, provider_override: str = None) -> BaseLLM
         config, f"{target_provider}_model", DEFAULT_MODELS.get(target_provider, "gemini-1.5-flash")
     )
 
-    def log_usage(msg):
-        print(msg)
-        import tempfile
-        import os
-        log_file = os.path.join(tempfile.gettempdir(), "recall_provider_usage.log")
-        with open(log_file, "a") as f:
-            f.write(msg + "\n")
+    import logging
+    logger = logging.getLogger(__name__)
 
     if target_provider == "openai":
         api_key = get_setting("openai_api_key") or getattr(config, "openai_api_key", "")
         base_url = (db_config.get("base_url") if db_matches_target else None) \
             or getattr(config, "openai_base_url", "https://api.openai.com/v1")
-        log_usage(f"[DEBUG] LLM Factory returning OpenAIProvider. Key: {api_key[:4]}...{api_key[-4:] if len(api_key)>8 else ''}")
+        logger.debug(f"LLM Factory returning OpenAIProvider with model {model_name}")
         return OpenAIProvider(api_key=api_key, model=model_name, base_url=base_url)
 
     elif target_provider == "gemini":
         api_key = get_setting("gemini_api_key") or getattr(config, "gemini_api_key", "")
-        log_usage(f"[DEBUG] LLM Factory returning GeminiProvider. Key: {api_key[:4]}...{api_key[-4:] if len(api_key)>8 else ''}")
+        logger.debug(f"LLM Factory returning GeminiProvider with model {model_name}")
         return GeminiProvider(api_key=api_key, model=model_name)
 
     elif target_provider == "groq":
         api_key = get_setting("groq_api_key") or getattr(config, "groq_api_key", "")
-        log_usage(f"[DEBUG] LLM Factory returning GroqProvider. Key: {api_key[:4]}...{api_key[-4:] if len(api_key)>8 else ''}")
+        logger.debug(f"LLM Factory returning GroqProvider with model {model_name}")
         return GroqProvider(api_key=api_key, model=model_name)
 
     else:
         host = get_setting("ollama_host") \
             or (db_config.get("host") if db_matches_target else None) \
             or getattr(config, "ollama_host", "http://localhost:11434")
-        log_usage(f"[DEBUG] LLM Factory returning OllamaProvider on {host}")
+        logger.debug(f"LLM Factory returning OllamaProvider on {host} with model {model_name}")
         return OllamaProvider(host=host, model=model_name)

@@ -7,7 +7,7 @@ Transform static textbooks into an interactive, first-principles learning pipeli
 Combines **Marker-powered LaTeX PDF parsing**, an **authentic student handwritten Cornell notebook**, **per-concept Socratic diagnostic drills**, and the state-of-the-art **FSRS memory algorithm**.
 
 [![Tauri v2](https://img.shields.io/badge/Tauri-v2.0-24C8D8?style=for-the-badge&logo=tauri&logoColor=white)](https://tauri.app/)
-[![React 18](https://img.shields.io/badge/React-18.3-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://reactjs.org/)
+[![React 19](https://img.shields.io/badge/React-19.2-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://reactjs.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
 [![FSRS-4.5](https://img.shields.io/badge/Algorithm-FSRS--4.5-FF6B6B?style=for-the-badge)](https://github.com/open-spaced-repetition/fsrs4anki)

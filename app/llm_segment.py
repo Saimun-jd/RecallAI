@@ -226,14 +226,14 @@ async def extract_atomic_concepts(heading: str, text: str, code_blocks: dict = N
         logger.error(f"Failed to parse LLM JSON response. Error: {e}")
         try:
             logger.error(f"Raw response: {sanitized_raw}")
-        except:
+        except Exception:
             pass
         raise RecallError(ErrorCode.LLM_INVALID_RESPONSE, f"LLM returned invalid JSON: {e}", e)
     except Exception as e:
         logger.error(f"Failed to process with LLM. Error: {e}")
         try:
             logger.error(f"Raw response: {sanitized_raw}")
-        except:
+        except Exception:
             pass
         return SectionExtraction(section_title=heading, atomic_topics=[])
 

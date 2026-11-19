@@ -8,7 +8,7 @@ import os
 import shutil
 import tempfile
 import unittest
-import fitz  # PyMuPDF
+import pymupdf as fitz  # PyMuPDF
 from fastapi.testclient import TestClient
 
 from app.main import app

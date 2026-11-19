@@ -2,7 +2,7 @@ import logging
 import re
 import hashlib
 from typing import List, Dict, Any, Optional
-import fitz
+import pymupdf as fitz
 from app.database import get_connection, get_topic_by_id, get_book_by_id
 from app.heading_detect import detect_headings
 

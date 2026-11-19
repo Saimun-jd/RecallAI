@@ -525,7 +525,7 @@ async def upload_and_parse_toc(
             f.write(pdf_bytes)
             
         # Always determine exact total_pages directly from the PDF file
-        import fitz
+        import pymupdf as fitz
         with fitz.open(stream=pdf_bytes, filetype="pdf") as doc_check:
             actual_total_pages = doc_check.page_count
 
@@ -543,7 +543,7 @@ async def upload_and_parse_toc(
             return {"book_id": book_id, "status": "cached", "topic_count": existing_topics}
         
         from fastapi.concurrency import run_in_threadpool
-        import fitz
+        import pymupdf as fitz
         from app.toc_parser import get_toc_entries, build_granular_toc
         from app.topic_subdivider import is_scanned_pdf, subdivide_topic_from_markdown
 
@@ -760,7 +760,7 @@ class ProcessRequest(BaseModel):
 @app.post("/books/{book_id}/process-stream")
 async def process_book_stream(book_id: int, req: ProcessRequest):
     from app.database import get_book_by_id
-    import fitz
+    import pymupdf as fitz
     
     book = get_book_by_id(book_id)
     if not book:
@@ -1063,13 +1063,13 @@ async def verify_api_key(req: VerifyKeyRequest):
                     return {"valid": False, "error": "Invalid Datalab API key"}
                 return {"valid": True, "error": None}
 
-        return {"valid": True, "error": None}
+        return {"valid": False, "error": f"Unknown or unsupported provider: '{provider}'"}
     except Exception as e:
         return {"valid": False, "error": f"Verification failed: {str(e)}"}
 async def ensure_topic_markdown(topic_id: int) -> str:
     """Ensures the topic has extracted markdown content. If missing, runs the extraction pipeline and saves it."""
     from app.database import get_topic_by_id, get_book_by_id, update_topic_content_md
-    import fitz
+    import pymupdf as fitz
     import os
     
     topic = get_topic_by_id(topic_id)
@@ -1170,7 +1170,7 @@ async def process_topic_stream(topic_id: int, req: ProcessTopicRequest):
     )
     from app.pdf_extract import extract_raw_text, extract_page_range_chunked
     from app.markdown_slicer import match_concept_to_section_heading
-    import fitz
+    import pymupdf as fitz
     
     topic = get_topic_by_id(topic_id)
     if not topic:
@@ -2056,7 +2056,7 @@ def get_book_cover_api(book_id: int):
     from app.database import get_book_by_id
     from fastapi.responses import FileResponse
     import os
-    import fitz
+    import pymupdf as fitz
     
     book = get_book_by_id(book_id)
     if not book:
@@ -2208,7 +2208,9 @@ def get_topic_notes_api(topic_id: int):
 
 @app.put("/topics/{topic_id}/notes")
 def update_topic_notes_api(topic_id: int, req: NoteUpdate):
-    from app.database import save_note_for_topic
+    from app.database import get_topic_by_id, save_note_for_topic
+    if not get_topic_by_id(topic_id):
+        raise HTTPException(status_code=404, detail=f"Topic {topic_id} not found")
     save_note_for_topic(topic_id, req.note)
     return {"status": "success"}
 

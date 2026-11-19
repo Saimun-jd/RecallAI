@@ -7,7 +7,7 @@ Produces normalized, structured textual content with page boundaries.
 import re
 from typing import List, Optional, Tuple, Union
 from pydantic import BaseModel
-import fitz  # PyMuPDF
+import pymupdf as fitz  # PyMuPDF
 
 
 class ExtractionError(Exception):

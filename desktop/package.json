@@ -64,10 +64,7 @@
     "typescript": "~6.0.2",
     "vite": "^8.1.5"
   },
-  "pnpm": {
-    "builtDependencies": [
-      "canvas",
-      "puppeteer"
-    ]
+  "overrides": {
+    "tar": ">=7.5.19"
   }
 }

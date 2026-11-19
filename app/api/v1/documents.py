@@ -156,7 +156,7 @@ async def upload_document(
     # If this is a PDF, also ingest into core learning workspace (recall.db) and parse TOC
     if source_type == "pdf":
         try:
-            import fitz
+            import pymupdf as fitz
             from app.database import DATA_DIR, save_book, get_connection, insert_topics_bulk
             from app.toc_parser import get_toc_entries, build_granular_toc
 

@@ -1,6 +1,6 @@
 import hashlib
 from pathlib import Path
-import fitz
+import pymupdf as fitz
 from app.extractors import get_extractor
 from platformdirs import user_data_dir
 import os
@@ -182,7 +182,7 @@ async def extract_page_range_chunked(
         tuple[str, str, int]: (combined_markdown, primary_cache_key, start_page)
     """
     import asyncio
-    import fitz
+    import pymupdf as fitz
     
     start_page = max(1, start_page)
     end_page = max(start_page, end_page)

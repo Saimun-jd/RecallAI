@@ -1,2 +1,5 @@
 packages:
   - "."
+allowBuilds:
+  canvas: false
+  puppeteer: false

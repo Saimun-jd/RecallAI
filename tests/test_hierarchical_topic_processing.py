@@ -67,7 +67,7 @@ async def test_extract_page_range_chunked_splitting():
         mock_calls.append(start_page)
         return f"# Markdown for page {start_page}", f"cache_p{start_page}", start_page
 
-    with patch("fitz.open") as mock_fitz, \
+    with patch("app.pdf_extract.fitz.open") as mock_fitz, \
          patch("app.pdf_extract.extract_raw_text", side_effect=fake_extract_raw_text):
         
         mock_doc = MagicMock()
