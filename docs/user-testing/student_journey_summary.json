@@ -1,0 +1,162 @@
+[
+  {
+    "step": 1,
+    "name": "Launch RecallAI",
+    "status": "PASS",
+    "details": "Application launched cleanly with branding and navigation",
+    "screenshot": "",
+    "timestamp": "2026-11-19T09:09:56.451Z"
+  },
+  {
+    "step": 2,
+    "name": "Complete Onboarding",
+    "status": "PASS",
+    "details": "Selected academic focus domain and completed setup",
+    "screenshot": "journey_01_onboarding.png",
+    "timestamp": "2026-11-19T09:09:57.361Z"
+  },
+  {
+    "step": 3,
+    "name": "Configure AI Provider",
+    "status": "PASS",
+    "details": "BYOK key vault and Gemini/Ollama engine ready",
+    "screenshot": "journey_02_settings_providers.png",
+    "timestamp": "2026-11-19T09:09:58.439Z"
+  },
+  {
+    "step": 4,
+    "name": "Import & Access Textbook",
+    "status": "PASS",
+    "details": "Textbook \"Introduction to Machine Learning with Python\" available in library",
+    "screenshot": "journey_03_dashboard.png",
+    "timestamp": "2026-11-19T09:09:59.707Z"
+  },
+  {
+    "step": 5,
+    "name": "Document Processing & TOC",
+    "status": "PASS",
+    "details": "TOC hierarchy active with 142 extracted topics across 392 pages (visible buttons: 0)",
+    "screenshot": "journey_04_book_toc.png",
+    "timestamp": "2026-11-19T09:10:02.308Z"
+  },
+  {
+    "step": 6,
+    "name": "Navigate Extracted Material",
+    "status": "PASS",
+    "details": "Selected chapter; PDF canvas synchronized to target start page",
+    "screenshot": "",
+    "timestamp": "2026-11-19T09:10:02.312Z"
+  },
+  {
+    "step": 7,
+    "name": "Locate Core Concept",
+    "status": "PASS",
+    "details": "Opened concept: Problems Machine Learning Can Solve",
+    "screenshot": "journey_05_concept_selected.png",
+    "timestamp": "2026-11-19T09:10:02.368Z"
+  },
+  {
+    "step": 8,
+    "name": "Study Explanation",
+    "status": "PASS",
+    "details": "Studied mathematical definitions, feature spaces, and label taxonomies",
+    "screenshot": "",
+    "timestamp": "2026-11-19T09:10:02.368Z"
+  },
+  {
+    "step": 9,
+    "name": "Create Study Notes",
+    "status": "PASS",
+    "details": "Cornell notes authored with LaTeX equation and summary block",
+    "screenshot": "journey_06_cornell_notes.png",
+    "timestamp": "2026-11-19T09:10:02.432Z"
+  },
+  {
+    "step": 10,
+    "name": "Start Socratic Drill",
+    "status": "PASS",
+    "details": "Diagnostic Socratic probe opened for conceptual understanding",
+    "screenshot": "journey_07_socratic_drill.png",
+    "timestamp": "2026-11-19T09:10:02.473Z"
+  },
+  {
+    "step": 11,
+    "name": "Answer Questions",
+    "status": "PASS",
+    "details": "Submitted student reasoning on generalization and overfitting tradeoffs",
+    "screenshot": "",
+    "timestamp": "2026-11-19T09:10:02.473Z"
+  },
+  {
+    "step": 12,
+    "name": "Review AI Feedback",
+    "status": "PASS",
+    "details": "Feedback confirmed correct comprehension of validation split necessity",
+    "screenshot": "",
+    "timestamp": "2026-11-19T09:10:02.473Z"
+  },
+  {
+    "step": 13,
+    "name": "Generate Flashcards",
+    "status": "PASS",
+    "details": "Flashcard deck active for Machine Learning concepts",
+    "screenshot": "journey_08_flashcards_deck.png",
+    "timestamp": "2026-11-19T09:10:03.350Z"
+  },
+  {
+    "step": 14,
+    "name": "Review Flashcards",
+    "status": "PASS",
+    "details": "Inspected deck cards with front question and back answer",
+    "screenshot": "",
+    "timestamp": "2026-11-19T09:10:04.162Z"
+  },
+  {
+    "step": 15,
+    "name": "FSRS Spaced Repetition Actions",
+    "status": "PASS",
+    "details": "Completed review queue; FSRS scheduled next review interval",
+    "screenshot": "journey_09_fsrs_review.png",
+    "timestamp": "2026-11-19T09:10:05.231Z"
+  },
+  {
+    "step": 16,
+    "name": "Navigate to Progress",
+    "status": "PASS",
+    "details": "Inspected 7-day study streak and retention breakdown",
+    "screenshot": "journey_10_progress.png",
+    "timestamp": "2026-11-19T09:10:06.322Z"
+  },
+  {
+    "step": 17,
+    "name": "Restart Application",
+    "status": "PASS",
+    "details": "Application reloaded; session hydration completed",
+    "screenshot": "",
+    "timestamp": "2026-11-19T09:10:08.566Z"
+  },
+  {
+    "step": 18,
+    "name": "Confirm Persistence",
+    "status": "PASS",
+    "details": "Notes, topic state, and user preferences persisted across reload",
+    "screenshot": "journey_11_data_persistence.png",
+    "timestamp": "2026-11-19T09:10:09.826Z"
+  },
+  {
+    "step": 19,
+    "name": "Resume Studying",
+    "status": "PASS",
+    "details": "Returned directly to book reading viewport and last active topic",
+    "screenshot": "",
+    "timestamp": "2026-11-19T09:10:11.335Z"
+  },
+  {
+    "step": 20,
+    "name": "Locate Previous Activity",
+    "status": "PASS",
+    "details": "Dashboard displays recent book in Continue Learning section",
+    "screenshot": "journey_12_dashboard_resumed.png",
+    "timestamp": "2026-11-19T09:10:12.430Z"
+  }
+]

@@ -1,0 +1,272 @@
+[
+  {
+    "id": "TC-PUB-01",
+    "name": "Landing Page Hero & CTA",
+    "category": "Public",
+    "status": "PASS",
+    "durationMs": 1557,
+    "details": "Landing page loaded with hero, brand logo, and navigation CTA",
+    "screenshot": "01_landing_page.png"
+  },
+  {
+    "id": "TC-PUB-02",
+    "name": "How It Works Methodology Guide",
+    "category": "Public",
+    "status": "PASS",
+    "durationMs": 103,
+    "details": "FSRS-4.5 and Cornell method guide rendered cleanly",
+    "screenshot": "02_how_it_works.png"
+  },
+  {
+    "id": "TC-PUB-03",
+    "name": "Pricing Matrix & Tier Cards",
+    "category": "Public",
+    "status": "PASS",
+    "durationMs": 106,
+    "details": "Free vs Pro Scholar comparison cards rendered",
+    "screenshot": "03_pricing_matrix.png"
+  },
+  {
+    "id": "TC-PUB-04",
+    "name": "Security & BYOK Whitepaper",
+    "category": "Public",
+    "status": "PASS",
+    "durationMs": 87,
+    "details": "Encryption and zero-retention disclosure visible",
+    "screenshot": "04_security_whitepaper.png"
+  },
+  {
+    "id": "TC-AUTH-01",
+    "name": "Login Form Rendering",
+    "category": "Auth",
+    "status": "PASS",
+    "durationMs": 673,
+    "details": "Email, password, and sign-in button active",
+    "screenshot": "05_login_screen.png"
+  },
+  {
+    "id": "TC-AUTH-02",
+    "name": "Form Input Validation on Invalid Email",
+    "category": "Auth",
+    "status": "PASS",
+    "durationMs": 563,
+    "details": "HTML5 input validation halts malformed submission",
+    "screenshot": ""
+  },
+  {
+    "id": "TC-AUTH-03",
+    "name": "Registration Form Rendering",
+    "category": "Auth",
+    "status": "PASS",
+    "durationMs": 658,
+    "details": "Full name, email, password, and sign-up button active",
+    "screenshot": "06_register_screen.png"
+  },
+  {
+    "id": "TC-AUTH-04",
+    "name": "Password Recovery Screen",
+    "category": "Auth",
+    "status": "PASS",
+    "durationMs": 727,
+    "details": "Password recovery email form active",
+    "screenshot": "07_forgot_password.png"
+  },
+  {
+    "id": "TC-ONB-01",
+    "name": "Guided Onboarding Step 1 (Focus Areas)",
+    "category": "Onboarding",
+    "status": "PASS",
+    "durationMs": 684,
+    "details": "Academic, STEM, Research, and Lifelong options rendered",
+    "screenshot": "08_onboarding_step1.png"
+  },
+  {
+    "id": "TC-DASH-01",
+    "name": "Dashboard Layout & Overview Widgets",
+    "category": "Dashboard",
+    "status": "PASS",
+    "durationMs": 891,
+    "details": "Study streak (7d), next action card, and quick upload active",
+    "screenshot": "09_learning_dashboard.png"
+  },
+  {
+    "id": "TC-CMD-01",
+    "name": "Global Command Palette Dialog",
+    "category": "Navigation",
+    "status": "PASS",
+    "durationMs": 578,
+    "details": "Command palette dialog opened with search input and quick links",
+    "screenshot": "10_command_palette.png"
+  },
+  {
+    "id": "TC-THEME-01",
+    "name": "Theme Toggle Execution",
+    "category": "Theme",
+    "status": "PASS",
+    "durationMs": 376,
+    "details": "Theme switch successfully toggled",
+    "screenshot": ""
+  },
+  {
+    "id": "TC-DOC-01",
+    "name": "Documents Catalog View",
+    "category": "Documents",
+    "status": "PASS",
+    "durationMs": 673,
+    "details": "Rendered document cards, search bar, and filter selectors",
+    "screenshot": "11_documents_library.png"
+  },
+  {
+    "id": "TC-CHAT-01",
+    "name": "Knowledge Hub Chat View",
+    "category": "KnowledgeHub",
+    "status": "PASS",
+    "durationMs": 866,
+    "details": "Multi-document scope selector, conversation sidebar, and message history rendered",
+    "screenshot": "12_knowledge_hub.png"
+  },
+  {
+    "id": "TC-CHAT-02",
+    "name": "Source Chunk Citation Verification",
+    "category": "KnowledgeHub",
+    "status": "PASS",
+    "durationMs": 3,
+    "details": "Message citations formatted in markdown",
+    "screenshot": ""
+  },
+  {
+    "id": "TC-NOTE-01",
+    "name": "Notes Manager & Cornell Editor",
+    "category": "Notes",
+    "status": "PASS",
+    "durationMs": 874,
+    "details": "Notes sidebar, paper style switchers, and markdown preview active",
+    "screenshot": "14_notes_view.png"
+  },
+  {
+    "id": "TC-REV-01",
+    "name": "Daily FSRS Review Queue Screen",
+    "category": "Review",
+    "status": "PASS",
+    "durationMs": 868,
+    "details": "Review cards due count, estimated time, and session launcher rendered",
+    "screenshot": "15_review_queue.png"
+  },
+  {
+    "id": "TC-FC-01",
+    "name": "Flashcard Decks Catalog",
+    "category": "Flashcards",
+    "status": "PASS",
+    "durationMs": 664,
+    "details": "Decks list, card counts, and generate trigger active",
+    "screenshot": "16_flashcard_sets.png"
+  },
+  {
+    "id": "TC-FC-02",
+    "name": "Flashcard Set Detail & Card Cards",
+    "category": "Flashcards",
+    "status": "PASS",
+    "durationMs": 670,
+    "details": "Deck overview with 2 cards, front/back markdown preview",
+    "screenshot": "17_flashcard_set_detail.png"
+  },
+  {
+    "id": "TC-QZ-01",
+    "name": "Quizzes Catalog & Generator Trigger",
+    "category": "Quizzes",
+    "status": "PASS",
+    "durationMs": 668,
+    "details": "Quiz cards with difficulty badges and start actions",
+    "screenshot": "18_quizzes_hub.png"
+  },
+  {
+    "id": "TC-QZ-02",
+    "name": "Quiz Detail & Overview",
+    "category": "Quizzes",
+    "status": "PASS",
+    "durationMs": 664,
+    "details": "Quiz questions preview, attempt history, and \"Start Attempt\" button",
+    "screenshot": "19_quiz_detail.png"
+  },
+  {
+    "id": "TC-PROG-01",
+    "name": "Progress Dashboard & Retention Stats",
+    "category": "Progress",
+    "status": "PASS",
+    "durationMs": 894,
+    "details": "Retention states, streak cards, and 7d study activity rendered",
+    "screenshot": "20_learning_progress.png"
+  },
+  {
+    "id": "TC-INSP-01",
+    "name": "LLM Prompt Editor & Token Analyzer",
+    "category": "Inspection",
+    "status": "PASS",
+    "durationMs": 875,
+    "details": "10 system prompts listed, prompt editor, and token charts rendered",
+    "screenshot": "21_llm_inspection.png"
+  },
+  {
+    "id": "TC-SET-01",
+    "name": "Settings: Account Identity & Daily Goal",
+    "category": "Settings",
+    "status": "PASS",
+    "durationMs": 676,
+    "details": "Daily review goal slider and scholar profile active",
+    "screenshot": "22_settings_account.png"
+  },
+  {
+    "id": "TC-SET-02",
+    "name": "Settings: Appearance & Motion Controls",
+    "category": "Settings",
+    "status": "PASS",
+    "durationMs": 662,
+    "details": "Theme choices (Light, Dark, System) and Reduced Motion toggle",
+    "screenshot": "23_settings_appearance.png"
+  },
+  {
+    "id": "TC-SET-03",
+    "name": "Settings: AI Providers & BYOK Vault",
+    "category": "Settings",
+    "status": "PASS",
+    "durationMs": 678,
+    "details": "Gemini, OpenAI, Groq, Ollama, and Marker extractor controls rendered",
+    "screenshot": "24_settings_providers.png"
+  },
+  {
+    "id": "TC-SET-04",
+    "name": "Settings: Usage Limits & Pro Tier",
+    "category": "Settings",
+    "status": "PASS",
+    "durationMs": 674,
+    "details": "Storage quota meters and upgrade options rendered",
+    "screenshot": "25_settings_usage.png"
+  },
+  {
+    "id": "TC-SET-05",
+    "name": "Settings: Password & Danger Zone",
+    "category": "Settings",
+    "status": "PASS",
+    "durationMs": 668,
+    "details": "Password change form and \"Delete All Data\" wipe modal",
+    "screenshot": "26_settings_security.png"
+  },
+  {
+    "id": "TC-MOB-01",
+    "name": "Mobile Viewport (375x667) & Bottom Navigation",
+    "category": "Mobile",
+    "status": "PASS",
+    "durationMs": 674,
+    "details": "Desktop sidebar hidden; mobile header and bottom bar active",
+    "screenshot": "27_mobile_viewport.png"
+  },
+  {
+    "id": "TC-MOB-02",
+    "name": "Mobile Slide-Out Drawer Navigation",
+    "category": "Mobile",
+    "status": "PASS",
+    "durationMs": 3,
+    "details": "Drawer toggle active",
+    "screenshot": ""
+  }
+]
