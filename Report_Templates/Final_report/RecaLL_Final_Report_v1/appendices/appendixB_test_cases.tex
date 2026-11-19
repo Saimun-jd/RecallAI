@@ -1,0 +1,48 @@
+\chapter{Complete Test Cases (Detailed Tables)}\label{app:tests}
+
+This appendix summarises the automated test run of 16 November 2026 at commit \texttt{60d40f9}
+(Windows~11, Python~3.13, no provider keys) for \texttt{app/tests}. \Cref{tab:fulltc} gives one row per
+test file. The complete list of the individual tests with their results and run times is kept as JUnit XML
+in the report's source folder (\texttt{tools/test\_results/junit\_app\_tests.xml}). The module-level system test cases with expected and
+actual results are in \Cref{ch:test}.
+
+{\small\setstretch{1.1}
+\begin{longtable}{@{}l l r r r r@{}}
+\caption{Automated test results per test file}\label{tab:fulltc}\\
+\toprule
+\textbf{Suite} & \textbf{Test file} & \textbf{Tests} & \textbf{Passed} & \textbf{Failed} & \textbf{Skipped}\\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Suite} & \textbf{Test file} & \textbf{Tests} & \textbf{Passed} & \textbf{Failed} & \textbf{Skipped}\\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+\texttt{app/tests} & \texttt{test\_ai\_rag\_evaluation.py} & 11 & 11 & 0 & 0\\
+\texttt{app/tests} & \texttt{test\_analytics.py} & 12 & 12 & 0 & 0\\
+\texttt{app/tests} & \texttt{test\_attempts.py} & 11 & 11 & 0 & 0\\
+\texttt{app/tests} & \texttt{test\_auth.py} & 5 & 5 & 0 & 0\\
+\texttt{app/tests} & \texttt{test\_authorization.py} & 2 & 2 & 0 & 0\\
+\texttt{app/tests} & \texttt{test\_database.py} & 7 & 7 & 0 & 0\\
+\texttt{app/tests} & \texttt{test\_database\_pgvector.py} & 8 & 8 & 0 & 0\\
+\texttt{app/tests} & \texttt{test\_deletion\_sync.py} & 11 & 11 & 0 & 0\\
+\texttt{app/tests} & \texttt{test\_documents.py} & 10 & 10 & 0 & 0\\
+\texttt{app/tests} & \texttt{test\_entitlements.py} & 12 & 12 & 0 & 0\\
+\texttt{app/tests} & \texttt{test\_flashcards.py} & 10 & 10 & 0 & 0\\
+\texttt{app/tests} & \texttt{test\_health.py} & 3 & 3 & 0 & 0\\
+\texttt{app/tests} & \texttt{test\_knowledge.py} & 26 & 26 & 0 & 0\\
+\texttt{app/tests} & \texttt{test\_production\_hardening.py} & 6 & 6 & 0 & 0\\
+\texttt{app/tests} & \texttt{test\_quizzes.py} & 13 & 13 & 0 & 0\\
+\texttt{app/tests} & \texttt{test\_rag.py} & 10 & 10 & 0 & 0\\
+\texttt{app/tests} & \texttt{test\_retrieval.py} & 11 & 11 & 0 & 0\\
+\texttt{app/tests} & \texttt{test\_reviews.py} & 11 & 11 & 0 & 0\\
+\texttt{app/tests} & \texttt{test\_security.py} & 10 & 10 & 0 & 0\\
+\texttt{app/tests} & \texttt{test\_settings\_byok.py} & 4 & 4 & 0 & 0\\
+\texttt{app/tests} & \texttt{test\_user\_isolation\_matrix.py} & 26 & 26 & 0 & 0\\
+\texttt{app/tests} & \texttt{test\_validation.py} & 4 & 4 & 0 & 0\\
+\midrule
+\multicolumn{2}{@{}l}{\textbf{Total}} & \textbf{223} & \textbf{223} & \textbf{0} & \textbf{0}\\
+\end{longtable}}
+
+All 223 tests passed; no test failed or was skipped.

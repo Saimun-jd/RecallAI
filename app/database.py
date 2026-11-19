@@ -129,7 +129,7 @@ def init_db():
             ("mastery_score", "INTEGER"),
             ("mastery_status", "TEXT DEFAULT 'untested'"),
             ("last_drilled_at", "TIMESTAMP"),
-            ("created_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
+            ("created_at", "TIMESTAMP"),
         ]
         
         for col_name, col_type in migrations:
@@ -367,7 +367,7 @@ def init_db():
             ("misconceptions_json", "TEXT"),
             ("socratic_nudge", "TEXT"),
             ("concept_name", "TEXT"),
-            ("evaluated_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
+            ("evaluated_at", "TIMESTAMP"),
         ]
         for col_name, col_type in da_migrations:
             if col_name not in da_cols:

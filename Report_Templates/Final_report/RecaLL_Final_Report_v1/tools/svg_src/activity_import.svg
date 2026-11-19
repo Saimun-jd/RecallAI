@@ -1,0 +1,109 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1320" width="1000" height="1320" font-family="'Segoe UI', Inter, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#000000"/>
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="1000" height="1320" fill="#ffffff"/>
+
+  <!-- Swimlanes -->
+  <rect x="20" y="10" width="960" height="1300" fill="none" stroke="#7F7F7F" stroke-width="1.5"/>
+  <rect x="20" y="10" width="960" height="44" fill="#F2F2F2" stroke="#7F7F7F" stroke-width="1.5"/>
+  <path d="M230,10 V1310 M730,10 V1310" stroke="#7F7F7F" stroke-width="1.5" stroke-dasharray="8 6"/>
+  <g font-size="20" font-weight="700" text-anchor="middle" fill="#000">
+    <text x="125" y="39">Student</text>
+    <text x="480" y="39">Recall app</text>
+    <text x="855" y="39">AI provider</text>
+  </g>
+
+  <!-- Arrows first -->
+  <g stroke="#000" stroke-width="2" fill="none">
+    <path d="M125,90 V106" marker-end="url(#arrow)"/>
+    <path d="M220,140 H326" marker-end="url(#arrow)"/>
+    <path d="M480,170 V191" marker-end="url(#arrow)"/>
+    <!-- too big -->
+    <path d="M360,240 H224" marker-end="url(#arrow)"/>
+    <path d="M125,270 V292" marker-end="url(#arrow)"/>
+    <path d="M480,285 V316" marker-end="url(#arrow)"/>
+    <path d="M480,380 V401" marker-end="url(#arrow)"/>
+    <!-- topics already saved: skip to reader -->
+    <path d="M310,450 H292 Q280,450 280,462 V826 Q280,838 292,838 H378 Q390,838 390,850 V856" marker-end="url(#arrow)"/>
+    <path d="M480,495 V511" marker-end="url(#arrow)"/>
+    <!-- scanned: AI outline -->
+    <path d="M650,560 H736" marker-end="url(#arrow)"/>
+    <path d="M855,590 V768 Q855,780 843,780 H634" marker-end="url(#arrow)"/>
+    <path d="M480,605 V636" marker-end="url(#arrow)"/>
+    <path d="M480,700 V746" marker-end="url(#arrow)"/>
+    <path d="M480,810 V856" marker-end="url(#arrow)"/>
+    <!-- reader to student -->
+    <path d="M330,890 H137 Q125,890 125,902 V956" marker-end="url(#arrow)"/>
+    <path d="M220,990 H326" marker-end="url(#arrow)"/>
+    <path d="M630,990 H736" marker-end="url(#arrow)"/>
+    <path d="M855,1020 V1078 Q855,1090 843,1090 H624" marker-end="url(#arrow)"/>
+    <!-- AI failed -->
+    <path d="M336,1090 H224" marker-end="url(#arrow)"/>
+    <path d="M125,1120 V1162" marker-end="url(#arrow)"/>
+    <path d="M480,1135 V1176" marker-end="url(#arrow)"/>
+    <path d="M480,1236 V1262" marker-end="url(#arrow)"/>
+  </g>
+
+  <!-- Branch labels -->
+  <g font-size="18" font-weight="600" fill="#000">
+    <text x="300" y="230" text-anchor="middle">Yes</text>
+    <text x="492" y="306">No</text>
+    <text x="296" y="438" text-anchor="middle">Yes</text>
+    <text x="492" y="508">No</text>
+    <text x="693" y="548" text-anchor="middle">Yes</text>
+    <text x="492" y="628">No</text>
+    <text x="280" y="1080" text-anchor="middle">No</text>
+    <text x="492" y="1160">Yes</text>
+  </g>
+
+  <!-- Start and end nodes -->
+  <circle cx="125" cy="78" r="12" fill="#000"/>
+  <circle cx="125" cy="310" r="14" fill="#fff" stroke="#000" stroke-width="2"/><circle cx="125" cy="310" r="8" fill="#000"/>
+  <circle cx="125" cy="1180" r="14" fill="#fff" stroke="#000" stroke-width="2"/><circle cx="125" cy="1180" r="8" fill="#000"/>
+  <circle cx="480" cy="1280" r="14" fill="#fff" stroke="#000" stroke-width="2"/><circle cx="480" cy="1280" r="8" fill="#000"/>
+
+  <!-- Actions -->
+  <g font-size="20" text-anchor="middle" fill="#000">
+    <rect x="35" y="110" width="185" height="60" rx="16" fill="#fff" stroke="#000" stroke-width="2"/>
+    <text x="127" y="147">Choose a PDF</text>
+    <rect x="330" y="110" width="300" height="60" rx="16" fill="#fff" stroke="#000" stroke-width="2"/>
+    <text x="480" y="147">Upload and check size</text>
+    <rect x="35" y="210" width="185" height="60" rx="16" fill="#fff" stroke="#000" stroke-width="2" stroke-dasharray="8 6"/>
+    <text x="127" y="247">See size error</text>
+    <rect x="330" y="320" width="300" height="60" rx="16" fill="#fff" stroke="#000" stroke-width="2"/>
+    <text x="480" y="357">Hash file, save book</text>
+    <rect x="740" y="530" width="230" height="60" rx="16" fill="#fff" stroke="#000" stroke-width="2"/>
+    <text x="855" y="567">Outline from OCR text</text>
+    <rect x="330" y="640" width="300" height="60" rx="16" fill="#fff" stroke="#000" stroke-width="2"/>
+    <text x="480" y="677">Parse table of contents</text>
+    <rect x="330" y="750" width="300" height="60" rx="16" fill="#fff" stroke="#000" stroke-width="2"/>
+    <text x="480" y="787">Save topics, copy chunks</text>
+    <rect x="330" y="860" width="300" height="60" rx="16" fill="#fff" stroke="#000" stroke-width="2"/>
+    <text x="480" y="897">Open the reader</text>
+    <rect x="35" y="960" width="185" height="60" rx="16" fill="#fff" stroke="#000" stroke-width="2"/>
+    <text x="127" y="997">Pick a topic</text>
+    <rect x="330" y="960" width="300" height="60" rx="16" fill="#fff" stroke="#000" stroke-width="2"/>
+    <text x="480" y="997">Extract topic text</text>
+    <rect x="740" y="960" width="230" height="60" rx="16" fill="#fff" stroke="#000" stroke-width="2"/>
+    <text x="855" y="997">Extract key concepts</text>
+    <rect x="35" y="1060" width="185" height="60" rx="16" fill="#fff" stroke="#000" stroke-width="2" stroke-dasharray="8 6"/>
+    <text x="127" y="1097">See error, retry</text>
+    <rect x="330" y="1180" width="300" height="56" rx="16" fill="#000" stroke="#000" stroke-width="2"/>
+    <text x="480" y="1215" font-weight="700" fill="#fff">Topic ready to study</text>
+  </g>
+
+  <!-- Decisions -->
+  <g font-size="20" text-anchor="middle" fill="#000">
+    <path d="M480,195 L600,240 L480,285 L360,240 Z" fill="#fff" stroke="#000" stroke-width="2" stroke-linejoin="round"/>
+    <text x="480" y="247">Over 50 MB?</text>
+    <path d="M480,405 L650,450 L480,495 L310,450 Z" fill="#fff" stroke="#000" stroke-width="2" stroke-linejoin="round"/>
+    <text x="480" y="457">Topics already saved?</text>
+    <path d="M480,515 L650,560 L480,605 L310,560 Z" fill="#fff" stroke="#000" stroke-width="2" stroke-linejoin="round"/>
+    <text x="480" y="567">Scanned, OCR ready?</text>
+    <path d="M480,1045 L620,1090 L480,1135 L340,1090 Z" fill="#fff" stroke="#000" stroke-width="2" stroke-linejoin="round"/>
+    <text x="480" y="1097">AI call worked?</text>
+  </g>
+</svg>

@@ -1,0 +1,24 @@
+\chapter{Sample Screenshots of the Working System}\label{app:screens}
+
+The screenshots below were taken from the running application (development build, commit
+\texttt{60d40f9}) using documents the team had uploaded, including a CUET lecture on Artificial
+Intelligence. A saved key hint is masked in \Cref{fig:ss-providers}.
+
+\newcommand{\screen}[3]{%
+  \begin{figure}[H]\centering
+    \includegraphics[width=0.92\textwidth,height=0.38\textheight,keepaspectratio]{screenshots/#1.png}
+    \caption{#2}\label{#3}
+  \end{figure}}
+
+The dashboard is shown in \Cref{fig:gui_screen} next to its wireframe.
+
+\screen{documents}{Documents page with processing status, search and filters}{fig:ss-documents}
+\screen{reader_pdf}{Document reader: PDF beside the detected topic tree}{fig:ss-reader}
+\screen{cornell}{AI-generated Cornell note: core intuition and definitions}{fig:ss-cornell}
+\screen{cornell_analogy}{Cornell note: analogy and first-principles breakdown}{fig:ss-cornell2}
+\screen{socratic_drill}{Socratic drill question generated from a lecture topic}{fig:ss-drill}
+\screen{flashcard}{Flashcard study view linked to its source page}{fig:ss-flashcard}
+\screen{knowledge_hub}{Knowledge Hub answer grounded in an uploaded chapter, with source marker [S1]}{fig:ss-hub}
+\screen{quiz}{Generated quiz questions}{fig:ss-quiz}
+\screen{progress}{Progress page: study consistency over time}{fig:ss-progress}
+\screen{providers}{Settings: AI providers with personal keys (key hint masked)}{fig:ss-providers}

@@ -1,0 +1,293 @@
+\chapter{Introduction}\label{ch:intro}
+
+University students spend much of their study time inside PDF textbooks and lecture
+slides. Reading is comfortable, but it gives little evidence of whether anything has
+actually been understood. A chapter can feel clear on the page and still be forgotten
+by the time of the examination. Good study techniques, such as structured note-taking,
+self-testing and spaced revision, are well known and well supported by research
+\cite{roediger2006,cepeda2006,dunlosky2013}, yet doing them by hand takes more time
+than most students can give to every topic.
+
+\textbf{RecaLL} (also called ``Recall AI''; the installed product is named
+\emph{Recall}, version~0.1.5) was developed to close this gap. It is a local-first
+desktop application that takes an academic document and turns it into a guided study
+path: a table of contents and topic tree, Cornell-style study notes for each topic,
+Socratic questions that probe understanding, flashcards scheduled by the Free Spaced
+Repetition Scheduler (FSRS), generated quizzes, and a chat assistant whose answers cite
+the uploaded documents. This report documents how the system was planned, specified,
+designed, built, tested and released.
+
+\section{Goals and Objectives of the Project}
+
+The main \textbf{goal} of RecaLL is to move students from \emph{passive reading} to
+\emph{active recall}. The system should take care of the mechanical work (structuring a
+document, drafting notes, writing questions and scheduling revision) so that the
+student's time goes to the part that builds understanding: explaining ideas in their
+own words, being questioned on them, and revising them at the right moment. It should
+do this on the student's own computer, with the student's own choice of AI model, and
+without locking their study material into one vendor's cloud.
+
+The project was motivated by four recurring problems in ordinary study:
+\begin{itemize}
+  \item \textbf{Passive learning.} Reading encourages recognition rather than recall, so
+  a topic can seem understood without ever being tested \cite{roediger2006}.
+  \item \textbf{Time-consuming note-taking.} Preparing structured notes from a textbook
+  takes significant effort, particularly for mathematical and technical subjects.
+  \item \textbf{Poor retention.} Without systematic, spaced revision, learned concepts
+  fade, and students often notice this only close to an examination \cite{cepeda2006}.
+  \item \textbf{Lack of personalised assessment.} Ordinary study material cannot identify
+  the specific misunderstanding behind a wrong explanation.
+\end{itemize}
+
+The specific objectives below are written in SMART form (specific, measurable,
+achievable, relevant and time-bound). All of them were to be met by the final
+submission in November~2026. Where a figure has not yet been measured, it is marked for
+the testing chapter (\Cref{ch:test}).
+
+\begin{enumerate}
+  \item \textbf{Document import.} Accept PDF, Markdown and plain-text files of up to
+  50~MB, validate them (including the \texttt{\%PDF} file signature), and turn each one
+  into a topic tree and a set of overlapping text chunks (target 1{,}500 characters,
+  150-character overlap), reporting progress to the interface while it works. Result: the text of a 930-page textbook is
+  extracted in 3.1~s, and a topic is processed with AI in a median of 18.4~s (\Cref{ch:test}).
+  \item \textbf{Structured notes.} Generate, for any topic, a Cornell-style note with a
+  fixed seven-part structure (core intuition, invariants and definitions, mechanisms,
+  worked example, comparisons, exam pitfalls, self-test cues) with mathematics rendered
+  by KaTeX, streamed to the interface as it is produced.
+  \item \textbf{Socratic assessment.} For any topic or extracted concept, generate
+  exactly two diagnostic questions (causal mechanism first, then counterfactual or
+  applied scenario), grade the student's free-text answer on a 0--100 mastery scale in
+  four bands, and propose 0, 1 or 1--2 targeted flashcards depending on the score.
+  \item \textbf{Spaced revision.} Schedule every flashcard with FSRS-6 (\texttt{fsrs}
+  library 6.3.2) at a desired retention of 0.9 and a maximum interval of 36{,}500
+  days, with the four ratings Again, Hard, Good and Easy \cite{ye2022fsrs,pyfsrs}.
+  \item \textbf{Grounded answers.} Answer questions over the student's own documents
+  using the five best-matching chunks, stream the answer token by token, and keep only
+  citations (\texttt{[S1]}, \texttt{[S2]}, \ldots) that point to chunks that were
+  actually retrieved. Target: 0 fabricated citations shown to the user.
+  \item \textbf{Self-testing.} Generate multiple-choice and true/false quizzes of 1--50
+  questions at three difficulty levels, and score every attempt deterministically on
+  the server.
+  \item \textbf{Provider choice and key safety.} Support at least four AI providers
+  (Gemini, OpenAI, Groq and a local Ollama server), switchable at run time, with BYOK keys
+  saved from the AI Providers settings encrypted by AES-256-GCM and passwords hashed with PBKDF2-HMAC-SHA256 at
+  600{,}000 iterations.
+  \item \textbf{Quality and delivery.} Run the backend test suite, linting, the
+  production build and end-to-end browser journeys automatically on every push to
+  \texttt{main}, and build a Windows installer automatically from a version tag.
+  Result: the \texttt{v0.1.5} installer was published as a GitHub pre-release; test figures are reported in
+  \Cref{ch:test} (all 223 backend tests pass; 50.5\% statement coverage).
+\end{enumerate}
+
+\section{Scope of the Work}
+
+\paragraph{In scope.}
+Local account registration and login (with optional Supabase sign-in); import of PDF,
+Markdown and text documents with table-of-contents and heading detection; a PDF reader
+with highlights, annotations, ``explain this passage'' and export of an annotated PDF;
+AI-generated Cornell notes with a notebook-style editor; Socratic drills per topic and per
+concept, with misconception detection and flashcard suggestions; flashcard sets generated
+from documents, topics or highlighted passages; FSRS-based review sessions; the
+Knowledge Hub chat with source citations; quiz generation, attempts and results; a
+dashboard and learning-progress analytics; AI provider settings with bring-your-own-key
+(BYOK) credentials; an editor for the system prompts; a token-usage inspection page; and
+a packaged Windows desktop installer built from a version tag.
+
+\paragraph{Out of scope.}
+Real payment processing;
+a hosted multi-user web service or mobile apps; real-time collaboration between students;
+built-in OCR in the default installation (scanned or handwritten PDFs are read with the
+optional Marker extractor); training or fine-tuning a custom AI model (all models are used through
+their providers' APIs or a local Ollama server); signed installers for macOS and Linux
+(the release workflow builds for Windows); and cloud synchronisation, which is left as
+future work.
+
+\subsection{Current Situation and Context}
+
+Software that supports academic study generally falls into three categories. The first
+is the \textbf{PDF reader}, which displays a document and allows highlighting but offers
+no way to check understanding. The second is the \textbf{document chat tool}, which
+answers questions about an uploaded file. These tools are fast and convenient, but the
+student remains the one asking, and a good answer from the tool does not show that the
+student could have produced it. The third is the \textbf{flashcard application}, which is
+effective for long-term retention through spaced repetition but depends on the quality of
+the cards, and writing good cards from a long textbook is slow.
+
+Research on learning explains why this matters. Retrieval practice (testing oneself)
+produces better long-term retention than re-reading the same material
+\cite{roediger2006}, and spacing revision over time is more effective than massing it
+\cite{cepeda2006}. A large review of study techniques rated practice testing and
+distributed practice as the two most useful, and rated highlighting and re-reading as
+having low utility \cite{dunlosky2013}. Yet highlighting and re-reading are exactly what a
+PDF reader encourages. The Cornell note-taking method \cite{pauk2011} adds a structured
+summary and cue questions to each page of notes, but it is rarely followed because it
+doubles the effort of note-taking.
+
+In practice, a student who wants all of these techniques must combine several tools: a
+PDF reader for the text, a chat tool for explanations, a notes application, and a
+flashcard application into which cards are typed by hand. Material is copied between them,
+the link back to the source page is lost, and the student's own AI key or local model can
+rarely be used.
+
+\subsection{Competing Products (Available in Market)}
+
+\Cref{tab:competitors} compares RecaLL with five well-known products that address parts of
+the same problem \cite{notebooklm,chatpdf,anki,quizlet,remnote}. The descriptions are
+based on each vendor's published information at the time of writing. These products change
+quickly, so the comparison reflects their documentation, not a full evaluation.
+
+\begin{table}[htbp]
+\centering
+\caption{Comparison with existing products}\label{tab:competitors}
+\small
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{2.0cm} X X X@{}}
+\toprule
+\textbf{Product} & \textbf{Key Features} & \textbf{Limitations (for our goal)} & \textbf{Our Advantage}\\
+\midrule
+NotebookLM & Answers from uploaded sources with inline citations; can generate
+flashcards and practice quizzes & Hosted service with a fixed model provider; no FSRS
+revision schedule; no Cornell notes & Scheduled FSRS revision, Cornell notes, Socratic
+grading; runs on the desktop with a model of the student's choice\\
+\addlinespace
+ChatPDF & Chat with an uploaded PDF; citations that jump to the passage & Focus is
+answering the student's questions, not questioning the student; no revision path &
+Socratic drills that question the student and turn gaps into flashcards\\
+\addlinespace
+Anki & Mature open-source flashcards; FSRS available as an optional scheduler since
+version 23.10 & Cards are written or imported by the student; no link from a card to its
+source page & Cards generated from the source and linked back to the document and page\\
+\addlinespace
+Quizlet & Large study platform; AI-generated study guides and flashcards; adaptive Learn
+mode & Hosted service; data and model choice controlled by the vendor & Local-first
+storage; BYOK or a fully local Ollama model\\
+\addlinespace
+RemNote & Notes connected to spaced repetition; flashcards from notes and PDFs; FSRS
+support & Card generation from the student's own notes and PDFs, but no grading of a
+student's free-text explanation & Socratic grading with misconception diagnosis and
+targeted cards; local-model option\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Each of these tools is strong in its own area. RecaLL's contribution is to join the
+complete path, from structuring a PDF to note-making, Socratic questioning, flashcard
+generation and FSRS revision, in one desktop application with a free choice of AI
+provider, including a model that runs entirely on the student's computer.
+
+\section{System Overview}
+
+RecaLL is a desktop application for students. Its user interface is a React~19 and
+TypeScript single-page application inside a Tauri~v2 shell. The interface talks over HTTP
+to a local FastAPI backend that listens only on \texttt{127.0.0.1}. In the installed
+build, the backend is a PyInstaller executable started by Tauri as a ``sidecar''; during
+development it is started by \texttt{run.bat} on port 8000 next to the Vite development
+server on port 5173.
+
+The backend owns all processing and storage. Documents, notes, flashcards, conversations
+and progress are kept in two local SQLite databases in Write-Ahead Logging (WAL) mode
+(an application database, \texttt{recall\_saas.db}, and a per-user study database,
+\texttt{user\_<id>\_recall.db}), and uploaded files are kept in the user's application-data
+folder. Every AI request goes through one provider layer, which can call Gemini, OpenAI,
+Groq or OpenRouter in the cloud, or an Ollama server on the same machine. Cloud
+synchronisation through Supabase and tracing through Langfuse are optional and are off
+unless configured.
+
+A typical session follows the study path in \Cref{fig:overview}. The student imports a
+lecture PDF, reads it in the built-in reader, generates a Cornell note for a topic, takes
+a Socratic drill, saves the suggested flashcards, and later reviews the cards that FSRS
+reports as due. At any point the student can ask the Knowledge Hub a question about their
+documents or generate a quiz, and the dashboard and progress page show what has been
+studied and what needs attention next.
+
+\figplaceholder[0.92\textwidth]{system_overview.pdf}{System overview of RecaLL: the student,
+the desktop application, the local backend, local storage and the optional AI providers}{fig:overview}
+
+The AI capability is the core of the product, but it is used through providers rather than
+trained by the team. The system decides \emph{what} to ask the model (prompts from a central
+registry, which the student can edit), \emph{which context} to send (selected chunks and
+topic text, isolated as untrusted data), and \emph{how to check} the reply (JSON repair,
+schema validation and citation checking). These parts are specified in \Cref{sec:ai-req}
+and designed in \Cref{ch:arch,ch:design}.
+
+\section{Structure of the Document}
+
+The rest of this report is organised as follows. \Cref{ch:pm} gives the project
+management plan: team organisation and contributions, the incremental process model,
+risks, constraints, tools, the timeline, the budget and the impact of the project.
+\Cref{ch:req} specifies the requirements through stakeholders, twelve use cases with
+textual descriptions, activity, class and sequence diagrams, and the security and AI
+requirements. \Cref{ch:arch} describes the layered local client--server architecture, the
+technology stack, the AI-integration architecture, the CI/CD pipeline and the Git
+workflow. \Cref{ch:design} details the component and low-level design, the two database
+schemas, the user interface, the API and the test plan. \Cref{ch:impl} explains how the
+key modules were implemented. \Cref{ch:test} reports unit, integration, end-to-end,
+security and AI-specific testing with the results obtained. \Cref{ch:deploy} covers
+packaging, release and go-live, and \Cref{ch:sustain} presents the sustainability plan and
+ethical considerations. The appendices hold the repository details, the full test-case
+list, screenshots, meeting minutes, additional diagrams and the AI model card.
+
+\section{Terms, Acronyms, and Abbreviations Used}
+
+\Cref{tab:terms} defines the technical terms and abbreviations used in this report.
+
+\begin{small}\setstretch{1.15}
+\begin{longtable}{@{}>{\raggedright\arraybackslash}p{3.0cm} >{\raggedright\arraybackslash}p{0.68\textwidth}@{}}
+\caption{Terms, acronyms and abbreviations}\label{tab:terms}\\
+\toprule
+\textbf{Term} & \textbf{Definition}\\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Term} & \textbf{Definition}\\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+AES-GCM & Advanced Encryption Standard in Galois/Counter Mode, an authenticated cipher. RecaLL
+uses AES-256-GCM with a 12-byte nonce to encrypt the BYOK keys saved in its key vault \cite{nist80038d}\\
+API & Application Programming Interface\\
+BYOK & Bring Your Own Key: the student supplies a personal API key for an AI provider;
+requests made with it use no RecaLL credits\\
+Chunk & A piece of document text (about 1{,}500 characters) stored with its page number and
+used as context for AI features\\
+CI/CD & Continuous Integration / Continuous Delivery\\
+Cornell note & A note format with main notes, cue questions and a summary \cite{pauk2011};
+RecaLL's version has seven fixed parts\\
+CORS & Cross-Origin Resource Sharing, the browser rule that limits which origins may call
+the local backend\\
+E2E & End-to-end (test), here run with Playwright against the built interface\\
+Embedding & A numeric vector that represents a piece of text for similarity search\\
+FSRS & Free Spaced Repetition Scheduler, an algorithm that models each card's difficulty,
+stability and retrievability to choose the next review date \cite{ye2022fsrs}; RecaLL uses
+FSRS-6 through the \texttt{fsrs} library\\
+IDOR & Insecure Direct Object Reference: reading another user's record by changing an ID\\
+JWT & JSON Web Token, a signed token used for stateless authentication \cite{rfc7519};
+RecaLL signs its tokens with HS256\\
+KaTeX & A JavaScript library that renders LaTeX mathematics in the browser\\
+LLM & Large Language Model\\
+Mastery score & The 0--100 grade given to a Socratic-drill answer: mastered (85--100),
+developing (60--84), fragile (35--59) or misconception (0--34)\\
+OCR & Optical Character Recognition, needed for scanned or handwritten PDFs\\
+Ollama & A program that runs open-weight language models on the local machine\\
+PBKDF2 & Password-Based Key Derivation Function 2; RecaLL hashes passwords with
+PBKDF2-HMAC-SHA256, 600{,}000 iterations and a 16-byte random salt \cite{owaspPassword}\\
+RAG & Retrieval-Augmented Generation: retrieving relevant text and giving it to the model
+as context for its answer \cite{lewis2020rag}\\
+SemVer & Semantic Versioning (for example \texttt{v0.1.5}), used for release tags\\
+Sidecar & A helper executable shipped with and started by the Tauri application; in RecaLL
+it is the packaged FastAPI backend\\
+Socratic drill & A short session in which the system asks ``why'' and ``what if'' questions
+and grades the student's explanation\\
+SQLite & An embedded, file-based relational database\\
+SSE & Server-Sent Events: a one-way HTTP stream used to send tokens and progress updates
+to the interface\\
+Tauri & A framework for building small desktop applications with a web interface and a
+Rust core\\
+UAT & User Acceptance Testing\\
+VAPT & Vulnerability Assessment and Penetration Testing\\
+WAL & Write-Ahead Logging, an SQLite journal mode that lets readers work while a writer
+commits\\
+Workspace & The personal data space that owns a user's documents, conversations and
+flashcards in the application database\\
+\end{longtable}
+\end{small}

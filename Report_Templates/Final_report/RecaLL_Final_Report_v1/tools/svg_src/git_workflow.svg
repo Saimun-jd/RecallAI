@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 580" width="1000" height="580" font-family="'Segoe UI', Inter, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#000000"/>
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="1000" height="580" fill="#ffffff"/>
+
+  <!-- Legend -->
+  <path d="M20,34 H70" stroke="#000" stroke-width="3" stroke-dasharray="8 6"/>
+  <text x="82" y="40" font-size="18" fill="#555555">branch not merged into main</text>
+
+  <!-- Lines first -->
+  <!-- main -->
+  <path d="M90,280 H950" stroke="#000" stroke-width="4" fill="none"/>
+  <!-- shared trunk from the v0.1.5 commit -->
+  <path d="M260,280 V112 Q260,100 272,100 H380" stroke="#000" stroke-width="3" fill="none"/>
+  <path d="M260,202 Q260,190 272,190 H848 Q860,190 860,202 V270" stroke="#000" stroke-width="3" fill="none"/>
+  <!-- fix-failing-github-actions-job: not merged -->
+  <path d="M380,100 H890" stroke="#000" stroke-width="3" fill="none" stroke-dasharray="8 6"/>
+  <path d="M866,268 L894,114" stroke="#000" stroke-width="2" fill="none" stroke-dasharray="8 6" marker-end="url(#arrow)"/>
+  <!-- parallel work on main, merged 16 Sep -->
+  <path d="M460,280 V358 Q460,370 472,370 H588 Q600,370 600,358 V290" stroke="#000" stroke-width="3" fill="none"/>
+  <!-- fix-backend-pytest-suite-failure: not merged -->
+  <path d="M790,280 V448 Q790,460 802,460 H940" stroke="#000" stroke-width="3" fill="none" stroke-dasharray="8 6"/>
+  <!-- tag to release -->
+  <path d="M260,344 V386" stroke="#000" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+
+  <!-- Branch labels -->
+  <g font-size="18" fill="#000">
+    <text x="20" y="287" font-size="22" font-weight="700">main</text>
+    <text x="420" y="88">copilot/fix-failing-github-actions-job</text>
+    <text x="420" y="178">PR #1 · copilot/fix-release-windows-latest</text>
+    <text x="482" y="402">parallel pushes, merged</text>
+    <text x="980" y="492" text-anchor="end">copilot/fix-backend-pytest-suite-failure</text>
+  </g>
+
+  <!-- Commits -->
+  <g fill="#fff" stroke="#000" stroke-width="2.5">
+    <circle cx="90" cy="280" r="10"/>
+    <circle cx="260" cy="280" r="10"/>
+    <circle cx="460" cy="280" r="10"/>
+    <circle cx="530" cy="280" r="10"/>
+    <circle cx="600" cy="280" r="10"/>
+    <circle cx="720" cy="280" r="10"/>
+    <circle cx="790" cy="280" r="10"/>
+    <circle cx="860" cy="280" r="10"/>
+    <circle cx="950" cy="280" r="10"/>
+    <circle cx="320" cy="100" r="10"/>
+    <circle cx="380" cy="100" r="10"/>
+    <circle cx="900" cy="100" r="10"/>
+    <circle cx="320" cy="190" r="10"/>
+    <circle cx="380" cy="190" r="10"/>
+    <circle cx="530" cy="370" r="10"/>
+    <circle cx="840" cy="460" r="10"/>
+    <circle cx="890" cy="460" r="10"/>
+    <circle cx="940" cy="460" r="10"/>
+  </g>
+
+  <!-- Tag, release, HEAD -->
+  <rect x="215" y="306" width="90" height="38" rx="8" fill="#fff" stroke="#000" stroke-width="2"/>
+  <text x="260" y="332" font-size="20" text-anchor="middle">v0.1.5</text>
+  <rect x="150" y="390" width="220" height="56" rx="10" fill="#fff" stroke="#000" stroke-width="2"/>
+  <text x="260" y="425" font-size="20" text-anchor="middle">Release workflow</text>
+  <rect x="890" y="306" width="100" height="38" rx="8" fill="#000" stroke="#000" stroke-width="2"/>
+  <text x="940" y="332" font-size="20" font-weight="700" text-anchor="middle" fill="#fff">HEAD</text>
+
+  <!-- Date axis (not to scale) -->
+  <path d="M90,530 H950" stroke="#7F7F7F" stroke-width="1.5"/>
+  <g stroke="#7F7F7F" stroke-width="1.5">
+    <path d="M90,524 V536"/><path d="M260,524 V536"/><path d="M460,524 V536"/>
+    <path d="M600,524 V536"/><path d="M720,524 V536"/><path d="M860,524 V536"/>
+  </g>
+  <g font-size="18" text-anchor="middle" fill="#555555">
+    <text x="90" y="562">22 Jul</text>
+    <text x="260" y="562">24 Aug</text>
+    <text x="460" y="562">14 Sep</text>
+    <text x="600" y="562">16 Sep</text>
+    <text x="720" y="562">29 Sep</text>
+    <text x="860" y="562">5 Nov</text>
+  </g>
+</svg>

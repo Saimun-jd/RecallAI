@@ -1,0 +1,103 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1400" width="1000" height="1400" font-family="'Segoe UI', Inter, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#000000"/>
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="1000" height="1400" fill="#ffffff"/>
+
+  <!-- Swimlanes -->
+  <rect x="20" y="10" width="960" height="1380" fill="none" stroke="#7F7F7F" stroke-width="1.5"/>
+  <rect x="20" y="10" width="960" height="44" fill="#F2F2F2" stroke="#7F7F7F" stroke-width="1.5"/>
+  <path d="M250,10 V1390 M560,10 V1390" stroke="#7F7F7F" stroke-width="1.5" stroke-dasharray="8 6"/>
+  <g font-size="20" font-weight="700" text-anchor="middle" fill="#000">
+    <text x="135" y="39">Student</text>
+    <text x="405" y="39">Desktop UI</text>
+    <text x="770" y="39">Review service</text>
+  </g>
+
+  <!-- Arrows first -->
+  <g stroke="#000" stroke-width="2" fill="none">
+    <path d="M135,81 V102" marker-end="url(#arrow)"/>
+    <path d="M230,136 H616" marker-end="url(#arrow)"/>
+    <path d="M770,166 V194" marker-end="url(#arrow)"/>
+    <!-- nothing due -->
+    <path d="M640,240 H549" marker-end="url(#arrow)"/>
+    <path d="M405,270 V292" marker-end="url(#arrow)"/>
+    <path d="M770,282 V316" marker-end="url(#arrow)"/>
+    <path d="M770,380 V416" marker-end="url(#arrow)"/>
+    <path d="M620,450 H549" marker-end="url(#arrow)"/>
+    <path d="M405,480 V538 Q405,550 393,550 H234" marker-end="url(#arrow)"/>
+    <path d="M135,580 V638 Q135,650 147,650 H261" marker-end="url(#arrow)"/>
+    <path d="M405,680 V738 Q405,750 393,750 H234" marker-end="url(#arrow)"/>
+    <path d="M135,780 V788 Q135,800 147,800 H758 Q770,800 770,812 V814" marker-end="url(#arrow)"/>
+    <!-- rating rejected -->
+    <path d="M640,860 H549" marker-end="url(#arrow)"/>
+    <path d="M265,860 H102 Q90,860 90,848 V784" marker-end="url(#arrow)"/>
+    <path d="M770,902 V936" marker-end="url(#arrow)"/>
+    <path d="M770,1000 V1036" marker-end="url(#arrow)"/>
+    <path d="M770,1100 V1134" marker-end="url(#arrow)"/>
+    <!-- more cards: loop -->
+    <path d="M900,1180 H948 Q960,1180 960,1168 V462 Q960,450 948,450 H924" marker-end="url(#arrow)"/>
+    <path d="M770,1222 V1256" marker-end="url(#arrow)"/>
+    <path d="M620,1290 H549" marker-end="url(#arrow)"/>
+    <path d="M405,1320 V1342" marker-end="url(#arrow)"/>
+  </g>
+
+  <!-- Branch labels -->
+  <g font-size="18" font-weight="600" fill="#000">
+    <text x="597" y="230" text-anchor="middle">No</text>
+    <text x="782" y="304">Yes</text>
+    <text x="597" y="850" text-anchor="middle">No</text>
+    <text x="782" y="924">Yes</text>
+    <text x="928" y="1170" text-anchor="middle">No</text>
+    <text x="782" y="1244">Yes</text>
+  </g>
+
+  <!-- Start and end nodes -->
+  <circle cx="135" cy="70" r="11" fill="#000"/>
+  <circle cx="405" cy="310" r="14" fill="#fff" stroke="#000" stroke-width="2"/><circle cx="405" cy="310" r="8" fill="#000"/>
+  <circle cx="405" cy="1360" r="14" fill="#fff" stroke="#000" stroke-width="2"/><circle cx="405" cy="1360" r="8" fill="#000"/>
+
+  <!-- Actions -->
+  <g font-size="20" text-anchor="middle" fill="#000">
+    <rect x="40" y="106" width="190" height="60" rx="16" fill="#fff" stroke="#000" stroke-width="2"/>
+    <text x="135" y="143">Start a review</text>
+    <rect x="620" y="106" width="300" height="60" rx="16" fill="#fff" stroke="#000" stroke-width="2"/>
+    <text x="770" y="143">Collect due cards</text>
+    <rect x="265" y="210" width="280" height="60" rx="16" fill="#fff" stroke="#000" stroke-width="2"/>
+    <text x="405" y="247">Show "all caught up"</text>
+    <rect x="620" y="320" width="300" height="60" rx="16" fill="#fff" stroke="#000" stroke-width="2"/>
+    <text x="770" y="357">Create review session</text>
+    <rect x="620" y="420" width="300" height="60" rx="16" fill="#fff" stroke="#000" stroke-width="2"/>
+    <text x="770" y="457">Send next card, hidden</text>
+    <rect x="265" y="420" width="280" height="60" rx="16" fill="#fff" stroke="#000" stroke-width="2"/>
+    <text x="405" y="457">Show the question</text>
+    <rect x="40" y="520" width="190" height="60" rx="16" fill="#fff" stroke="#000" stroke-width="2"/>
+    <text x="135" y="557">Recall, reveal</text>
+    <rect x="265" y="620" width="280" height="60" rx="16" fill="#fff" stroke="#000" stroke-width="2"/>
+    <text x="405" y="657">Show the answer</text>
+    <rect x="40" y="720" width="190" height="60" rx="16" fill="#fff" stroke="#000" stroke-width="2"/>
+    <text x="135" y="757">Rate Again–Easy</text>
+    <rect x="265" y="830" width="280" height="60" rx="16" fill="#fff" stroke="#000" stroke-width="2" stroke-dasharray="8 6"/>
+    <text x="405" y="867">Show error, keep card</text>
+    <rect x="620" y="940" width="300" height="60" rx="16" fill="#fff" stroke="#000" stroke-width="2"/>
+    <text x="770" y="977">FSRS sets next due date</text>
+    <rect x="620" y="1040" width="300" height="60" rx="16" fill="#fff" stroke="#000" stroke-width="2"/>
+    <text x="770" y="1077">Save progress, log event</text>
+    <rect x="620" y="1260" width="300" height="60" rx="16" fill="#fff" stroke="#000" stroke-width="2"/>
+    <text x="770" y="1297">Complete the session</text>
+    <rect x="265" y="1260" width="280" height="60" rx="16" fill="#000" stroke="#000" stroke-width="2"/>
+    <text x="405" y="1297" font-weight="700" fill="#fff">Show session summary</text>
+  </g>
+
+  <!-- Decisions -->
+  <g font-size="20" text-anchor="middle" fill="#000">
+    <path d="M770,198 L900,240 L770,282 L640,240 Z" fill="#fff" stroke="#000" stroke-width="2" stroke-linejoin="round"/>
+    <text x="770" y="247">Any cards due?</text>
+    <path d="M770,818 L900,860 L770,902 L640,860 Z" fill="#fff" stroke="#000" stroke-width="2" stroke-linejoin="round"/>
+    <text x="770" y="867">Rating accepted?</text>
+    <path d="M770,1138 L900,1180 L770,1222 L640,1180 Z" fill="#fff" stroke="#000" stroke-width="2" stroke-linejoin="round"/>
+    <text x="770" y="1187">All cards rated?</text>
+  </g>
+</svg>

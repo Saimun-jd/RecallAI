@@ -1,0 +1,422 @@
+\chapter{Project Management Plan}\label{ch:pm}
+
+\section{Project Organization}
+
+The project was carried out by a four-member team for the course teachers Mir Md.\ Saki
+Kowsar and Md.\ Refaj Hossan, Department of CSE, CUET. The team was led by Turjo (Al
+Rubayet). Work was divided by role so that the backend, the frontend, the database and
+testing could move forward in parallel. The roles were, using the nicknames the team uses
+internally:
+\begin{itemize}
+  \item \textbf{Turjo (Al Rubayet, 2204002)} -- team lead and frontend developer.
+  \item \textbf{Saimun (Imteajul Islam, 2204015)} -- project idea, initial plan and backend
+  developer.
+  \item \textbf{Tahsin (Tahsin Ahmed Chowdhury, 2204028)} -- database design.
+  \item \textbf{Rony (Md.~Rony Hossain, 2204005)} -- unit and integration testing,
+  real-user testing and interface work.
+\end{itemize}
+Saimun drafted the initial plan; the whole team then sat together, finalised the plan and
+agreed the future work.
+
+\paragraph{Communication and coordination.}
+All four members live in the university hall. The team met in person every week before
+the lab session to plan the next steps, work together and check each other's work; no
+formal minutes were recorded, and Appendix~D gives a progress log reconstructed from the
+Git history. All code was shared through one GitHub repository (\texttt{Saimun-jd/RecallAI},
+branch \texttt{main}). Most work was committed directly to \texttt{main}; one change (a fix
+to the pnpm workspace configuration for the release build) arrived as pull request~\#1 from
+a GitHub Copilot agent branch and was merged on 5~November~2026 (\Cref{ch:arch} describes
+the Git workflow).
+
+\subsection{Individual Contribution to the Project}
+
+\Cref{tab:contrib} summarises the work distribution, and the paragraphs below describe each
+member's contribution. Of the 48 commits on \texttt{main} between 22~July and
+5~November~2026, 31 were made from the GitHub account \texttt{Saimun-jd} (Saimun), 14 from
+\texttt{rubayet2027} and one from \texttt{Al Rubayet} (both Turjo's account; the latter is
+the pull-request merge), and two came from the Copilot agent. Most of the
+\texttt{rubayet2027} commits, including the backend work of September, were made on
+Saimun's computer while it was logged in to Turjo's account, so the commit author does not
+show who wrote the code. Commit counts also do not measure planning, design, testing or
+documentation work.
+
+\begin{table}[htbp]
+\centering
+\caption{Individual contribution to the project}\label{tab:contrib}
+\scriptsize\setlength{\tabcolsep}{2.2pt}
+\begin{tabular}{|l|c|c|c|c|c|c|c|c|}
+\hline
+\textbf{Member} & \makecell{\textbf{Req.}\\\textbf{Spec.}} & \textbf{Planning} & \textbf{Design} &
+\makecell{\textbf{AI / Model}\\\textbf{Integration}} & \makecell{\textbf{User}\\\textbf{Interface}} & \textbf{Testing} &
+\textbf{Deployment} & \textbf{Docs}\\
+\hline
+Al Rubayet (Turjo)               & \cmark & \cmark & \cmark &        & \cmark &        &        & \cmark \\ \hline
+Imteajul Islam (Saimun)          & \cmark & \cmark & \cmark & \cmark &        &        & \cmark & \cmark \\ \hline
+Tahsin Ahmed Chowdhury (Tahsin)  & \cmark & \cmark & \cmark &        &        & \cmark &        & \cmark \\ \hline
+Md.~Rony Hossain (Rony)          & \cmark & \cmark &        &        & \cmark & \cmark &        & \cmark \\ \hline
+\end{tabular}
+\end{table}
+
+\begin{itemize}
+  \item \textbf{Al Rubayet (Turjo, 2204002).} Led the team and developed the frontend of
+  the desktop application. Also took part in the requirements, planning, design and
+  documentation work.
+  \item \textbf{Imteajul Islam (Saimun, 2204015).} Proposed the project idea, drafted the
+  initial plan and wrote the backend code, including the AI provider integration. Also
+  handled deployment (the Windows release) and took part in the requirements, design and
+  documentation work.
+  \item \textbf{Tahsin Ahmed Chowdhury (Tahsin, 2204028).} Designed the database and took
+  part in the requirements, planning, design, testing and documentation work.
+  \item \textbf{Md.~Rony Hossain (Rony, 2204005).} Carried out the unit and integration
+  testing, organised the real-user testing sessions and worked on the user interface. Also
+  took part in the requirements, planning and documentation work.
+\end{itemize}
+
+\section{Process Model Used}
+
+The team used an \textbf{incremental model with iterative refinement}
+\cite{pressman2019,sommerville2016}. A first, narrow version of the core idea (turning a PDF
+into on-demand flashcards) was built as a command-line prototype. The system was then
+grown in increments. Each increment went through design, implementation, testing against
+documents the team had uploaded, and integration into \texttt{main}, and each produced a
+version of the product that could be run and demonstrated. Later increments also revisited
+earlier ones: the interface was redesigned twice in August, and the study features built
+in August were reconciled with the new \texttt{/api/v1} platform in September.
+
+The increments, dated from the repository history, are listed in \Cref{tab:increments},
+and \Cref{fig:process} shows how the model was applied.
+
+\begin{table}[htbp]
+\centering
+\caption{Increments of RecaLL, dated from the Git history}\label{tab:increments}
+\small
+\begin{tabularx}{\textwidth}{@{}l >{\raggedright\arraybackslash}p{2.3cm} X r@{}}
+\toprule
+\textbf{Inc.} & \textbf{Dates (2026)} & \textbf{Main deliverables} & \textbf{Commits}\\
+\midrule
+1 & 22--24 Jul & Python command-line prototype: PDF text, code and diagram extraction with
+source pages; on-demand flashcards with topic similarity; hardened API and storage & 9\\
+2 & 5 Aug & Tauri desktop application and Notion-style Markdown note editor; hard-coded
+API keys removed & 3\\
+3 & 19--25 Aug & Socratic drill learning mechanism; LaTeX rendering fixes; two interface
+redesigns; release workflow and first Windows executable (23~Aug); pre-release
+\texttt{v0.1.5} (24~Aug); sidecar packaging fix & 10\\
+4 & 26 Aug--9 Sep & Supabase integration and sign-in flow; Marker OCR extraction; chat with
+an AI teacher and topic-specific chat; per-concept drills; new notes feature; chunked
+processing of long documents & 7\\
+5 & 12--21 Sep & \texttt{/api/v1} core: document ingestion pipeline, grounded chat,
+flashcard sets, quizzes and attempts, spaced review; reconcile merge with the earlier study
+features (16~Sep); review-queue interface; backend hardening & 11\\
+6 & 25--29 Sep & Production hardening, tenant-isolation test matrix, container files,
+\texttt{ci.yml} (25~Sep), code clean-up, Knowledge Hub and interface fixes & 4\\
+7 & October & University closed; no project work and no commits & 0\\
+8 & 5 Nov & Review and stabilisation: fixes for the security, user-experience and logic
+findings of the code review; PR~\#1 merged; optional Supabase sync made skippable
+& 4\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\figplaceholder[0.9\textwidth]{process_model.pdf}{Incremental process model as applied to
+RecaLL}{fig:process}
+
+\subsection{Rationale for Choosing Lifecycle Model}
+
+\begin{itemize}
+  \item \textbf{Project size and modularity.} The product splits into loosely coupled
+  features (import, reader, notes, drill, flashcards, review, chat, quizzes, settings).
+  Each can be built and tested on its own and added to a running product, which is what
+  increments are designed for.
+  \item \textbf{Requirement stability.} The core idea (PDF to active recall) was stable from
+  the start, but the details were not: on-demand card generation replaced batch
+  generation on 24~July, the drill was redesigned per concept in September, and the
+  interface changed several times. Increments allowed the stable core to be built early and
+  the volatile parts to change later without re-planning the whole project.
+  \item \textbf{Team size and skills.} A four-person student team, sharing the term with
+  other courses, cannot run the full ceremony of Scrum (product owner, scrum master, sprint
+  reviews and retrospectives), but still benefits from frequent working builds.
+  \item \textbf{Risk.} The riskiest technical parts (PDF extraction, LLM output quality and
+  desktop packaging) were tried first, in the prototype and the first three increments. An
+  installer existed by 23~August, so packaging problems were found early rather than at the
+  end of the term.
+  \item \textbf{Customer involvement.} The course teachers act as the customer and see progress
+  in the sessional classes. A working increment is easy to demonstrate.
+\end{itemize}
+
+\paragraph{Rejected alternatives.} \emph{Waterfall} was rejected because it produces no
+working software until late in the term and copes badly with the interface and prompt
+changes that this project needed. \emph{Spiral} requires a formal risk analysis in every
+loop, which is too heavy for a student project. \emph{Pure Scrum} was rejected for the
+ceremony overhead described above. \emph{Throw-away prototyping} would have discarded the
+command-line prototype, whose extraction and flashcard code was carried into the desktop
+application instead.
+
+\section{Risk Analysis}
+
+Risk exposure is computed as probability $\times$ impact on a 1--3 scale (Low~=~1,
+Medium~=~2, High~=~3). \Cref{tab:risk} lists the risks identified, their exposure and the
+mitigation used in the delivered system.
+
+\begin{small}\setstretch{1.1}
+\begin{longtable}{@{}l >{\raggedright\arraybackslash}p{3.6cm} c c c >{\raggedright\arraybackslash}p{6.0cm}@{}}
+\caption{Risk analysis}\label{tab:risk}\\
+\toprule
+\textbf{ID} & \textbf{Risk} & \textbf{Prob.} & \textbf{Impact} & \textbf{Exp.} & \textbf{Mitigation}\\
+\midrule
+\endfirsthead
+\toprule
+\textbf{ID} & \textbf{Risk} & \textbf{Prob.} & \textbf{Impact} & \textbf{Exp.} & \textbf{Mitigation}\\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+R1 & AI provider unavailable, slow or out of quota & High & Med & 6 & Four providers
+including local Ollama; per-provider rate limiter (for example 5 requests/min on the Gemini
+free tier); retry with exponential back-off on HTTP 429/502/503/504\\
+R2 & AI produces wrong or invented content in notes, cards or answers & Med & High & 6 &
+Prompts ground the model in the source text; citations checked against retrieved chunks;
+cards and notes link to their source page and remain editable\\
+R3 & LLM returns malformed JSON & High & Med & 6 & \texttt{json-repair}, a truncation-repair
+pass and Pydantic schema validation before anything is saved\\
+R4 & Prompt injection through document content & Med & High & 6 & Document text is wrapped in
+\texttt{<reference\_data>} blocks, closing tags are sanitised, and the system prompt tells
+the model never to follow instructions inside them\\
+R5 & Leakage of personal API keys & Med & High & 6 & AES-256-GCM vault with per-install key;
+only the last four characters are shown (\Cref{sec:security})\\
+R6 & Another program on the computer calls the local backend & Med & High & 6 &
+Backend binds to \texttt{127.0.0.1} only; CORS allow-list of the local origins\\
+R7 & Two databases (application and per-user study) drift apart & Med & Med & 4 &
+\texttt{BookSyncService} mirrors books into workspaces; upload writes both stores in one
+request\\
+R8 & Scanned or handwritten PDFs yield no text & Med & Med & 4 & Optional Marker extractor
+(local or through the Datalab API) on the book and topic path\\
+R9 & Desktop packaging of the Python sidecar fails & Med & High & 6 & Installer built from the
+third increment on; release workflow on \texttt{windows-latest} builds the PyInstaller
+sidecar and runs \texttt{tauri-action} on every \texttt{v*} tag\\
+R10 & Team member unavailable (examinations, illness) & Med & High & 6 & Shared repository,
+README and diagram documents so another member can continue a module\\
+R11 & Schedule slip near the end of term & High & Med & 6 & Incremental delivery keeps a
+working build; scope cut by priority (real payments and cloud sync left out)\\
+R12 & Dependency drift breaks the build (\texttt{requirements.txt} is unpinned except
+\texttt{json-repair}) & Med & Med & 4 & CI installs and tests on every push; lock file for
+the frontend (\texttt{pnpm-lock.yaml}). Planned: pin backend versions\\
+\end{longtable}
+\end{small}
+
+\section{Constraints to Project Implementation}
+
+\begin{itemize}
+  \item \textbf{Schedule.} The project ran from 20~July~2026 (the first commit was on
+  22~July) to the submission on 19~November~2026, shared with other courses and
+  examinations. The university was closed in October 2026, so no project work was done
+  that month.
+  \item \textbf{Budget.} No funding. Only free and open-source tools, free API tiers and the
+  team's own laptops could be used (\Cref{sec:budget}).
+  \item \textbf{Hardware.} Development on personal laptops without a dedicated GPU, which
+  rules out training a model and limits the size of a local Ollama model.
+  \item \textbf{AI services.} Cloud providers impose request quotas (the free Gemini tier is
+  configured at 5 requests per minute) and need an internet connection; output quality and
+  latency vary between providers and models.
+  \item \textbf{Data.} By the project's own rule (\texttt{AGENTS.md}), the system is tested
+  only with documents the users have actually uploaded, never with synthetic documents. This
+  keeps the tests realistic but limits the size of the test set.
+  \item \textbf{Platform.} The release workflow builds a Windows installer, the platform the
+  team develops and tests on. Tauri can also target macOS and Linux.
+  \item \textbf{Legal.} Students' documents may be copyrighted; RecaLL stores them only on the
+  student's computer. Personal data must be handled according to Bangladesh's data-protection
+  rules, the Personal Data Protection Ordinance 2025 (PDPO 2025) \cite{pdpo2025}, and, for any EU user, the
+  GDPR \cite{gdpr2016}. Each AI provider's terms of use apply to the text sent to it.
+  \item \textbf{Skills.} The team had to learn FastAPI, Tauri~v2, React~19, prompt design and
+  FSRS scheduling during the project.
+\end{itemize}
+
+\section{Tools/Languages Requirements}
+
+\subsection{Hardware Requirements}
+
+\Cref{tab:hw} lists the hardware used for development and build, and the hardware a student
+needs to run RecaLL.
+
+\begin{table}[htbp]
+\centering
+\caption{Hardware requirements}\label{tab:hw}
+\small
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{3.0cm} X X@{}}
+\toprule
+\textbf{Purpose} & \textbf{Minimum} & \textbf{Used / recommended}\\
+\midrule
+Development machines & 64-bit CPU, 8~GB RAM, 10~GB free disk & Four Windows laptops with a
+512~GB SSD each: Intel Core~i5 with 32~GB RAM (Saimun); AMD Ryzen~5 with 16~GB (Turjo); AMD
+Ryzen~7 with 16~GB (Rony); Intel Core~i5 with 16~GB (Tahsin)\\
+CI build & GitHub-hosted runner & \texttt{ubuntu-latest} (tests, lint, build, E2E)\\
+Release build & GitHub-hosted Windows runner & \texttt{windows-latest} (PyInstaller sidecar,
+Tauri installer)\\
+Student computer & 64-bit Windows; the backend used 119~MB of RAM idle and at most 381~MB
+during AI processing; the team's library of 11 documents occupies about 120~MB of disk &
+16~GB RAM and an SSD, as on the team's laptops\\
+Local AI (optional) & Additional RAM for the chosen Ollama model; default
+\texttt{gemma3:4b} & A GPU speeds up generation but is not required\\
+Network & Needed only for cloud AI providers and optional sync & Offline use with Ollama\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Software Requirements}
+
+\Cref{tab:sw} lists the software stack. Backend versions are the ones installed in the
+project's virtual environment (\texttt{requirements.txt} does not pin most versions), and
+frontend versions are the ones installed from \texttt{desktop/package.json} and its lock
+file.
+
+\begin{small}
+\begin{longtable}{@{}>{\raggedright\arraybackslash}p{2.8cm} >{\raggedright\arraybackslash}p{5.8cm} >{\raggedright\arraybackslash}p{5.4cm}@{}}
+\caption{Software requirements (installed versions)}\label{tab:sw}\\
+\toprule
+\textbf{Category} & \textbf{Tool / library (version)} & \textbf{Use}\\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Category} & \textbf{Tool / library (version)} & \textbf{Use}\\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+Languages & Python 3.13.5 (local), 3.12 (CI); TypeScript 6.0.3; Rust (edition 2021); SQL &
+Backend, frontend, desktop shell, schema\\
+Backend framework & FastAPI 0.162.0, Starlette 1.10.0, Uvicorn 0.54.0 & REST API and ASGI
+server\\
+Validation / config & Pydantic 2.14.2, pydantic-settings 2.16.2 & Request schemas,
+environment settings\\
+Documents & PyMuPDF 2.1, pymupdf4llm 2.1; Marker (optional) & PDF parsing, Markdown
+extraction, OCR\\
+Scheduling & fsrs 6.3.2 & FSRS-6 spaced repetition\\
+AI and HTTP & httpx 0.28.1, json-repair 0.63.3, numpy 2.5.4, langfuse 5.1.0 (optional) &
+Provider calls, JSON repair, vector maths, tracing\\
+Security & PyJWT 2.15.1, cryptography 50.0.2 & HS256 tokens, AES-256-GCM\\
+Storage and sync & SQLite (WAL mode), platformdirs 4.14.3, supabase 2.33.0 (optional) &
+Local databases, data folder, cloud sync\\
+Frontend & React 19.2.8, react-router-dom 7.18.1, Redux Toolkit 2.12.0, Tailwind CSS 4.3.3,
+Vite 8.1.5 & Interface, routing, state, styling, build\\
+Frontend libraries & KaTeX 0.18.1, pdfjs-dist 6.1.200, Recharts 3.10.1, BlockNote 0.52.1 &
+Maths, PDF viewer, charts, note editor\\
+Desktop & Tauri 2.11.3 (core), @tauri-apps/cli 2.11.4, @tauri-apps/api 2.11.1 & Desktop
+shell, sidecar, installer\\
+Packaging & PyInstaller 6.22.3 & Backend sidecar executable\\
+Testing and quality & pytest 9.2.0, Playwright 1.62.1, oxlint 1.75.0 & Unit and integration
+tests, E2E journeys, linting\\
+Build tools & Node.js 22.22.2 (local), 20 (CI); pnpm 12.18.0 (local), 9 (CI) & Frontend
+toolchain\\
+AI providers & Gemini, OpenAI, Groq, OpenRouter (cloud); Ollama (local) & Language models\\
+DevOps and collaboration & Git 2.47.1, GitHub, GitHub Actions, GitHub Copilot agent & Version
+control, CI/CD, one automated pull request\\
+Editors and IDEs & Antigravity (with its AI agent) and VS Code & Development\\
+\end{longtable}
+\end{small}
+
+\section{Project Timeline and Schedule}
+
+\Cref{fig:gantt} shows the project timeline in calendar weeks from 20~July to
+22~November~2026. The bars for the increments are taken from the dates of the commits in
+\Cref{tab:increments}. Testing was done alongside each increment rather than as a separate
+phase; the final automated test run used in \Cref{ch:test} was on 16~November~2026. The
+university was closed in October, and the report was submitted on 19~November~2026.
+
+\begin{figure}[htbp]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{ganttchart}[hgrid, vgrid={*{1}{draw=black!30, dotted}}, x unit=0.62cm,
+  y unit title=0.6cm, y unit chart=0.62cm,
+  title label font=\scriptsize, bar label font=\small, milestone label font=\small\itshape,
+  title/.append style={fill=white, draw=black},
+  bar/.append style={fill=black!15, draw=black},
+  milestone/.append style={fill=black, draw=black}]{1}{18}
+\gantttitle{2026 (week starting Monday)}{18}\\
+\gantttitle{Jul}{2}\gantttitle{Aug}{5}\gantttitle{Sep}{4}\gantttitle{Oct}{4}\gantttitle{Nov}{3}\\
+\gantttitlelist{1,...,18}{1}\\
+\ganttbar{Idea and planning}{1}{1}\\
+\ganttbar{Inc.~1: CLI prototype}{1}{1}\\
+\ganttbar{Inc.~2: desktop app, notes}{3}{3}\\
+\ganttbar{Inc.~3: drill, new UI, release}{5}{6}\\
+\ganttbar{Inc.~4: login, OCR, AI chat}{6}{8}\\
+\ganttbar{Inc.~5: \texttt{/api/v1} core}{8}{10}\\
+\ganttbar{Inc.~6: hardening, CI}{10}{11}\\
+\ganttbar{University closed (no work)}{12}{15}\\
+\ganttbar{Inc.~8: review fixes}{16}{16}\\
+\ganttbar{Final test run and report}{18}{18}\\
+\ganttmilestone{Pre-release v0.1.5 (24 Aug)}{6}\\
+\ganttmilestone{\texttt{ci.yml} added (25 Sep)}{10}\\
+\ganttmilestone{PR \#1 merged (HEAD 60d40f9)}{16}\\
+\ganttmilestone{Submission (19 Nov)}{18}
+\end{ganttchart}}
+\caption{Project timeline (Gantt chart). Week 1 starts on 20~July~2026}\label{fig:gantt}
+\end{figure}
+
+\section{Estimated Budget}\label{sec:budget}
+
+RecaLL is a desktop application that runs on the student's own computer, so it needs no
+server, domain or hosting. No money was spent on the project: every tool and service the
+team used was free. Some optional AI providers in the application need a paid key, but the
+team did not use them. \Cref{tab:budget} lists the items.
+
+\begin{table}[htbp]
+\centering
+\caption{Project budget}\label{tab:budget}
+\small
+\begin{tabularx}{\textwidth}{@{}X l r r@{}}
+\toprule
+\textbf{Item} & \textbf{Unit} & \textbf{Qty} & \textbf{Cost (BDT)}\\
+\midrule
+Development tools (Python, Node.js, Tauri, Antigravity, VS Code) & -- & -- & 0\\
+GitHub repository and GitHub Actions minutes (free tier) & month & 4 & 0\\
+Hosting, domain and TLS certificate (not needed for a desktop app) & -- & -- & 0\\
+Local AI through Ollama & -- & -- & 0\\
+Gemini API, free tier & month & 4 & 0\\
+Paid AI provider keys (optional in the app; not used by the team) & -- & -- & 0\\
+Supabase (optional) & -- & -- & 0\\
+Code-signing certificate for the installer (not purchased) & year & 0 & 0\\
+\midrule
+\multicolumn{3}{@{}l}{\textbf{Total cash cost}} & \textbf{0}\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+For a student using RecaLL, the running cost is zero with Ollama or a free API tier. With a
+paid provider, the student pays that provider directly through their own key (BYOK); RecaLL
+charges nothing and counts such requests as zero credits.
+
+\section{Technological, Societal, \& Environmental Impact of the Project}
+
+\paragraph{Positive impacts.}
+\begin{itemize}
+  \item \textbf{Individuals.} Students spend less time on the mechanical parts of studying
+  (structuring, note drafting, card writing, scheduling) and more on retrieval practice and
+  spaced revision, the two techniques with the strongest evidence \cite{dunlosky2013}. The
+  Socratic drill shows a student \emph{what} they misunderstood, not only that an answer was
+  wrong.
+  \item \textbf{Privacy and ownership.} Study material, notes and progress stay on the
+  student's computer. With Ollama, no document text leaves the machine at all.
+  \item \textbf{Cost and access.} The product is free to run with a local model or a free API
+  tier, which matters for students who cannot pay for subscription study tools.
+  \item \textbf{Technology.} The project shows a reusable pattern for student teams: a local
+  Python AI backend packaged as a sidecar inside a small Tauri desktop application, with a
+  provider-neutral AI layer and a CI-built installer.
+\end{itemize}
+
+\paragraph{Negative impacts and mitigations.}
+\begin{itemize}
+  \item \textbf{Over-reliance and academic integrity.} Students may accept AI-written notes
+  without checking them, or use generated material in assessed work. Notes are editable,
+  cards and answers link to their source page, and the drill requires the student to write
+  their own explanation.
+  \item \textbf{Errors in AI output.} A model can be confidently wrong, and a wrong flashcard
+  is then revised repeatedly. Citations are checked against retrieved chunks, and every card
+  can be edited or deleted. \Cref{ch:sustain} discusses this further.
+  \item \textbf{Energy use.} Every cloud LLM call uses data-centre energy, and a local model
+  uses the student's own power. RecaLL limits context (five chunks, at most 3{,}000 tokens of
+  reference text and six history messages per chat turn) and generates content on demand
+  rather than for a whole book at once.
+  \item \textbf{Digital divide.} Cloud models need an internet connection; the application
+  itself is free, and Ollama allows offline use.
+  \item \textbf{Copyright.} Uploaded textbooks are processed locally and never shared; their text
+  reaches a cloud provider only when an AI feature uses one.
+\end{itemize}

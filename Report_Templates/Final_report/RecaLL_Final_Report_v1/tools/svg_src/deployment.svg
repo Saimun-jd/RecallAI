@@ -1,0 +1,152 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1640 1000" width="1640" height="1000" font-family="'Segoe UI', Inter, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#000000"/>
+    </marker>
+  </defs>
+  <rect width="1640" height="1000" fill="#ffffff"/>
+  <g font-size="14" fill="#000000">
+    <rect x="1240" y="20" width="370" height="96" rx="8" fill="#ffffff" stroke="#000000"/>
+    <line x1="1256" y1="44" x2="1304" y2="44" stroke="#000000" stroke-width="2.4" marker-end="url(#arrow)"/>
+    <text x="1314" y="49">request / uses</text>
+    <line x1="1430" y1="44" x2="1478" y2="44" stroke="#000000" stroke-width="2.4" stroke-dasharray="8 6" marker-end="url(#arrow)"/>
+    <text x="1488" y="49">configured, unused</text>
+    <rect x="1256" y="64" width="20" height="14" rx="3" fill="#ffffff" stroke="#000000" stroke-width="2"/><text x="1284" y="76">outside</text>
+    <rect x="1350" y="64" width="20" height="14" rx="6" fill="#ffffff" stroke="#000000" stroke-width="2"/><text x="1378" y="76">process / container</text>
+    <circle cx="1266" cy="98" r="8" fill="#ffffff" stroke="#000000" stroke-width="2"/><text x="1284" y="103">files / volume</text>
+    <rect x="1430" y="91" width="20" height="14" rx="3" fill="#ffffff" stroke="#000000" stroke-width="2" stroke-dasharray="7 5"/><text x="1458" y="103">warning</text>
+  </g>
+
+  <!-- Groups -->
+  <rect x="30" y="130" width="770" height="850" rx="14" fill="none" stroke="#000000" stroke-width="2" stroke-dasharray="6 6"/>
+  <text x="50" y="160" font-size="18" font-weight="700" fill="#000000">A · Desktop install (student's Windows PC)</text>
+  <rect x="440" y="190" width="340" height="770" rx="12" fill="none" stroke="#000000" stroke-width="1.5" stroke-dasharray="6 6"/>
+  <text x="456" y="216" font-size="15" font-weight="700" fill="#000000">%LOCALAPPDATA%\Recall\Recall\</text>
+
+  <rect x="830" y="130" width="780" height="850" rx="14" fill="none" stroke="#000000" stroke-width="2" stroke-dasharray="6 6"/>
+  <text x="850" y="160" font-size="18" font-weight="700" fill="#000000">B · Docker setup (docker-compose.yml)</text>
+
+  <!-- Arrows -->
+  <g fill="none" stroke="#000000" stroke-width="2.4">
+    <path d="M220,352 V416" marker-end="url(#arrow)"/>
+    <path d="M382,450 L536,330" marker-end="url(#arrow)"/>
+    <path d="M382,505 H532" marker-end="url(#arrow)"/>
+    <path d="M382,560 L538,662" marker-end="url(#arrow)"/>
+    <path d="M220,594 V766" marker-end="url(#arrow)"/>
+
+    <path d="M1100,252 V306" marker-end="url(#arrow)"/>
+    <path d="M1050,442 V516" marker-end="url(#arrow)"/>
+    <path d="M1202,590 H1256" marker-end="url(#arrow)"/>
+    <path d="M1190,518 V480 H1330 V446" stroke-dasharray="8 6" marker-end="url(#arrow)"/>
+    <path d="M980,662 V746" marker-end="url(#arrow)"/>
+    <path d="M1150,662 V746" marker-end="url(#arrow)"/>
+    <path d="M1202,650 L1262,748" marker-end="url(#arrow)"/>
+  </g>
+  <g font-size="14" fill="#000000">
+    <text x="230" y="390">HTTP localhost</text>
+    <text x="440" y="378" text-anchor="end">SQL</text>
+    <text x="230" y="690">HTTPS</text>
+    <text x="1110" y="285">:80</text>
+    <text x="1060" y="485">/api/ proxy</text>
+    <text x="1229" y="580" text-anchor="middle">LLM</text>
+    <text x="1340" y="472">DATABASE_URL set, but unused</text>
+    <text x="990" y="712">SQLite</text>
+    <text x="1160" y="712">uploads</text>
+    <text x="1236" y="744" text-anchor="end">HTTPS</text>
+  </g>
+
+  <!-- Desktop shapes -->
+  <rect x="60" y="200" width="320" height="150" rx="40" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+  <g text-anchor="middle" fill="#000000">
+    <text x="220" y="255" font-size="20" font-weight="700">Recall.exe (Tauri)</text>
+    <text x="220" y="282" font-size="15">WebView2 shows the React UI</text>
+    <text x="220" y="304" font-size="15">starts the backend sidecar</text>
+  </g>
+  <rect x="60" y="420" width="320" height="172" rx="40" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+  <g text-anchor="middle" fill="#000000">
+    <text x="220" y="468" font-size="20" font-weight="700">recall-backend.exe</text>
+    <text x="220" y="495" font-size="15">FastAPI built with PyInstaller</text>
+    <text x="220" y="517" font-size="15">listens on 127.0.0.1:8000</text>
+    <text x="220" y="545" font-size="13" fill="#000000">.env bundled inside the exe</text>
+  </g>
+  <rect x="60" y="770" width="320" height="110" rx="6" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+  <g text-anchor="middle" fill="#000000">
+    <text x="220" y="812" font-size="18" font-weight="700">Cloud AI APIs</text>
+    <text x="220" y="838" font-size="15">Gemini · OpenAI · Groq · OpenRouter</text>
+    <text x="220" y="860" font-size="13">(or Ollama on the same PC)</text>
+  </g>
+
+  <circle cx="610" cy="320" r="78" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+  <g text-anchor="middle" fill="#000000">
+    <text x="610" y="314" font-size="16" font-weight="700">recall_saas.db</text>
+    <text x="610" y="336" font-size="13">SQLite, /api/v1 data</text>
+  </g>
+  <circle cx="610" cy="505" r="78" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+  <g text-anchor="middle" fill="#000000">
+    <text x="610" y="490" font-size="15" font-weight="700">user_&lt;id&gt;_recall.db</text>
+    <text x="610" y="512" font-size="13">SQLite, legacy data</text>
+    <text x="610" y="530" font-size="13">one file per user</text>
+  </g>
+  <circle cx="610" cy="690" r="78" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+  <g text-anchor="middle" fill="#000000">
+    <text x="610" y="684" font-size="16" font-weight="700">storage/ +</text>
+    <text x="610" y="704" font-size="16" font-weight="700">parsed_docs/</text>
+    <text x="610" y="724" font-size="13">PDFs, images</text>
+  </g>
+  <rect x="470" y="830" width="280" height="100" rx="6" fill="#ffffff" stroke="#000000" stroke-width="2" stroke-dasharray="7 5"/>
+  <g text-anchor="middle" fill="#000000">
+    <text x="610" y="862" font-size="15" font-weight="700">active_db.json</text>
+    <text x="610" y="886" font-size="13">names the ONE legacy file the</text>
+    <text x="610" y="904" font-size="13">server uses for every request</text>
+  </g>
+
+  <!-- Docker shapes -->
+  <rect x="1050" y="170" width="340" height="80" rx="6" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+  <g text-anchor="middle" fill="#000000">
+    <text x="1220" y="204" font-size="18" font-weight="700">User's browser</text>
+    <text x="1220" y="230" font-size="14">http://host:80</text>
+  </g>
+  <rect x="900" y="310" width="300" height="130" rx="34" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+  <g text-anchor="middle" fill="#000000">
+    <text x="1050" y="350" font-size="18" font-weight="700">recall-frontend</text>
+    <text x="1050" y="375" font-size="14">nginx :80 (published port)</text>
+    <text x="1050" y="397" font-size="14">serves the React build</text>
+    <text x="1050" y="419" font-size="14">proxies only /api/ and /health</text>
+  </g>
+  <rect x="900" y="520" width="300" height="140" rx="34" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+  <g text-anchor="middle" fill="#000000">
+    <text x="1050" y="562" font-size="18" font-weight="700">recall-backend</text>
+    <text x="1050" y="587" font-size="14">uvicorn :8000, 2 workers</text>
+    <text x="1050" y="609" font-size="14">internal network only</text>
+    <text x="1050" y="631" font-size="14">ENVIRONMENT=production</text>
+  </g>
+  <rect x="1260" y="310" width="320" height="134" rx="34" fill="#ffffff" stroke="#000000" stroke-width="2" stroke-dasharray="7 5"/>
+  <g text-anchor="middle" fill="#000000">
+    <text x="1420" y="350" font-size="18" font-weight="700">recall-postgres</text>
+    <text x="1420" y="375" font-size="14">pgvector/pgvector:pg16</text>
+    <text x="1420" y="397" font-size="14">started, but the code</text>
+    <text x="1420" y="419" font-size="14">only writes SQLite</text>
+  </g>
+  <rect x="1260" y="520" width="320" height="140" rx="34" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+  <g text-anchor="middle" fill="#000000">
+    <text x="1420" y="562" font-size="18" font-weight="700">recall-ollama</text>
+    <text x="1420" y="587" font-size="14">:11434, local models</text>
+    <text x="1420" y="609" font-size="14">default gemma3:4b</text>
+    <text x="1420" y="631" font-size="13">volume: ollama_data</text>
+  </g>
+  <circle cx="980" cy="822" r="74" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+  <g text-anchor="middle" fill="#000000">
+    <text x="980" y="816" font-size="16" font-weight="700">app_data</text>
+    <text x="980" y="838" font-size="13">SQLite DB files</text>
+  </g>
+  <circle cx="1150" cy="822" r="74" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+  <g text-anchor="middle" fill="#000000">
+    <text x="1150" y="816" font-size="16" font-weight="700">uploads_data</text>
+    <text x="1150" y="838" font-size="13">PDFs</text>
+  </g>
+  <rect x="1270" y="752" width="310" height="100" rx="6" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+  <g text-anchor="middle" fill="#000000">
+    <text x="1425" y="794" font-size="18" font-weight="700">Cloud AI APIs</text>
+    <text x="1425" y="820" font-size="14">keys from env variables</text>
+  </g>
+</svg>

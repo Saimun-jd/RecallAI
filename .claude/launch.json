@@ -1,0 +1,24 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "recall-backend",
+      "runtimeExecutable": "D:\\Projects\\Recall-Ai\\.venv\\Scripts\\python.exe",
+      "runtimeArgs": ["-m", "uvicorn", "app.main:app", "--app-dir", "D:\\Projects\\Recall-Ai", "--port", "8000"],
+      "cwd": "scripts",
+      "port": 8000
+    },
+    {
+      "name": "deeptutor",
+      "runtimeExecutable": "docker",
+      "runtimeArgs": ["run", "--rm", "--name", "deeptutor", "-p", "127.0.0.1:3782:3782", "-v", "deeptutor-data:/app/data", "ghcr.io/hkuds/deeptutor:latest"],
+      "port": 3782
+    },
+    {
+      "name": "recall-frontend",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--dir", "desktop", "dev"],
+      "port": 5173
+    }
+  ]
+}

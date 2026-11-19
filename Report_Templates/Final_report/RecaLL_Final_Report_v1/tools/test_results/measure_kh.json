@@ -1,0 +1,203 @@
+{
+ "notes": [],
+ "env": {
+  "python": "3.13.5"
+ },
+ "import_seconds": 1.49,
+ "rss_idle_mb": 118.6,
+ "topics_used": [
+  [
+   10,
+   "AI & ML",
+   5
+  ],
+  [
+   36,
+   "The Promise and Perils of Strong AI",
+   19
+  ],
+  [
+   47,
+   "Acting humanly: The Turing Test",
+   25
+  ]
+ ],
+ "process": [],
+ "cornell": [],
+ "drill_generate": [],
+ "drill_evaluate": [],
+ "kh_conv_status": 201,
+ "kh": [
+  {
+   "status": 200,
+   "first_event_s": 4.87,
+   "total_s": 6.17,
+   "events": 13,
+   "last": "{\"type\": \"done\", \"message_id\": \"a1d5ba8d-f7ee-4c63-af9c-8dcf37c44ae3\", \"conversation_title\": \"measurement\", \"sources\": [{\"source_index\": 1, \"document_id\": \"7\", \"document_title\": \"8.Game Playing\", \"chunk_id\": \"9b667d8f-5299-405b-a1bf-6dfadc7ffbf8\", \"page_number\": 17, \"score\": 0.4461}, {\"source_index\"",
+   "question": "What does alpha-beta pruning do, and does it change the result of minimax?",
+   "document_id": "7"
+  },
+  {
+   "status": 200,
+   "first_event_s": 5.69,
+   "total_s": 6.35,
+   "events": 8,
+   "last": "{\"type\": \"done\", \"message_id\": \"03ca7c85-c54f-41f8-8d5f-7773ef3a529b\", \"conversation_title\": \"measurement\", \"sources\": [{\"source_index\": 2, \"document_id\": \"7\", \"document_title\": \"8.Game Playing\", \"chunk_id\": \"3e9ca02e-9c8a-490e-8776-63e995694f40\", \"page_number\": 7, \"score\": 0.4583}, {\"source_index\":",
+   "question": "In a two-player game tree, what do Max and Min represent?",
+   "document_id": "7"
+  },
+  {
+   "status": 200,
+   "first_event_s": 43.73,
+   "total_s": 44.84,
+   "events": 12,
+   "last": "{\"type\": \"done\", \"message_id\": \"11896537-47f9-4102-9e8f-d55f108b4890\", \"conversation_title\": \"measurement\", \"sources\": [{\"source_index\": 2, \"document_id\": \"2\", \"document_title\": \"Lecturer 1\", \"chunk_id\": \"144d6a86-a63a-473c-bcf0-9b01e9a07861\", \"page_number\": 25, \"score\": 0.4276}, {\"source_index\": 3,",
+   "question": "What is the Turing Test and who proposed it?",
+   "document_id": "2"
+  },
+  {
+   "status": 200,
+   "first_event_s": 25.55,
+   "total_s": 26.6,
+   "events": 13,
+   "last": "{\"type\": \"done\", \"message_id\": \"fad7fc55-cae3-46d8-aaa3-58bcd823efdd\", \"conversation_title\": \"measurement\", \"sources\": [{\"source_index\": 1, \"document_id\": \"6\", \"document_title\": \"Ch 12 User Experience Design\", \"chunk_id\": \"2e3db7d5-e4d2-4c02-a472-216176713fba\", \"page_number\": 1, \"score\": 0.5845}], \"",
+   "question": "What is user experience design?",
+   "document_id": "6"
+  },
+  {
+   "status": 200,
+   "first_event_s": 25.14,
+   "total_s": 25.53,
+   "events": 7,
+   "last": "{\"type\": \"done\", \"message_id\": \"59a6947f-6494-4366-8632-ca2bc7758177\", \"conversation_title\": \"measurement\", \"sources\": [{\"source_index\": 1, \"document_id\": \"2\", \"document_title\": \"Lecturer 1\", \"chunk_id\": \"fabebc07-15db-4baf-a23f-b520a0b23bf9\", \"page_number\": 43, \"score\": 0.4276}], \"credits_remaining",
+   "question": "Who was Claude Shannon according to the lecture?",
+   "document_id": "2"
+  },
+  {
+   "status": 200,
+   "first_event_s": 4.17,
+   "total_s": 4.87,
+   "events": 8,
+   "last": "{\"type\": \"done\", \"message_id\": \"ede988de-2df5-4f7b-b4a7-acc4abddef67\", \"conversation_title\": \"measurement\", \"sources\": [], \"credits_remaining\": 9999, \"provider\": \"gemini\", \"model\": \"gemini-3.6-flash\", \"is_byok\": true}",
+   "question": "What does the document say about quantum error correction?",
+   "document_id": "6"
+  }
+ ],
+ "kh_answers": [
+  {
+   "answer": "Based on the provided study materials, here is what alpha-beta pruning does and how it affects the result of minimax:\n\n### What Alpha-Beta Pruning Does\n* **Improves Algorithm Performance:** Alpha-beta pruning is an optimization for the minimax algorithm that eliminates unnecessary computations [S1]. \n* **Skips Irrelevant Nodes:** It avoids evaluating branches or nodes in the game tree when it determines that their values cannot affect the final decision at the root node [S1]. As quoted in the materials: *\"If you have an idea that is surely bad, don't take the time to see how truly awful it is.",
+   "citations": [
+    {
+     "source_index": 1,
+     "document_id": "7",
+     "document_title": "8.Game Playing",
+     "chunk_id": "9b667d8f-5299-405b-a1bf-6dfadc7ffbf8",
+     "page_number": 17,
+     "score": 0.4461
+    },
+    {
+     "source_index": 3,
+     "document_id": "7",
+     "document_title": "8.Game Playing",
+     "chunk_id": "f1b8d132-e6d8-4af1-8ef1-08f1ee33de64",
+     "page_number": 50,
+     "score": 0.437
+    }
+   ]
+  },
+  {
+   "answer": "Based on the provided study materials, **MAX** and **MIN** represent the two opposing players taking alternating turns in a game tree [S2]:\n\n* **MAX (The Player / Computer):** Represents the player trying to maximize the score or evaluation of the game state [S4, S5]. At a MAX node, the agent seeks the highest-value choice available [S5].\n* **MIN (The Opponent):** Represents the opponent's choice of move [S1]. The computer assumes that the opponent will choose moves that minimize the value for MAX, seeking the choice that results in the lowest/least value for the computer [S1, S5]. \n\nIn the se",
+   "citations": [
+    {
+     "source_index": 2,
+     "document_id": "7",
+     "document_title": "8.Game Playing",
+     "chunk_id": "3e9ca02e-9c8a-490e-8776-63e995694f40",
+     "page_number": 7,
+     "score": 0.4583
+    },
+    {
+     "source_index": 5,
+     "document_id": "7",
+     "document_title": "8.Game Playing",
+     "chunk_id": "1bc579f4-e613-4573-9595-06cc2c9cc463",
+     "page_number": 49,
+     "score": 0.4284
+    },
+    {
+     "source_index": 1,
+     "document_id": "7",
+     "document_title": "8.Game Playing",
+     "chunk_id": "d4629d85-d3ef-442b-a697-bce315d99ce4",
+     "page_number": 12,
+     "score": 0.4587
+    }
+   ]
+  },
+  {
+   "answer": "Based on the provided study materials:\n\n### Who Proposed It?\nThe Turing Test was proposed by **Alan Turing** in his 1950 paper, *\"Computing machinery & intelligence\"* [S2, S3].\n\n---\n\n### What is the Turing Test?\n* **Operational Test for Intelligent Behavior:** Originally referred to as the \"Imitation Game,\" it is a test designed to evaluate intelligent behavior by shifting the question from *\"Can machines think?\"* to *\"Can machines behave intelligently?\"* [S2].\n* **Debate on Consciousness:** It represents a major contribution to the debate over whether it is possible for a machine to be consci",
+   "citations": [
+    {
+     "source_index": 2,
+     "document_id": "2",
+     "document_title": "Lecturer 1",
+     "chunk_id": "144d6a86-a63a-473c-bcf0-9b01e9a07861",
+     "page_number": 25,
+     "score": 0.4276
+    },
+    {
+     "source_index": 3,
+     "document_id": "2",
+     "document_title": "Lecturer 1",
+     "chunk_id": "e3317b4a-fa3d-4c1f-a637-b83facff2bc5",
+     "page_number": 42,
+     "score": 0.4237
+    }
+   ]
+  },
+  {
+   "answer": "Based on the provided study materials, **User Experience (UX) Design** is the process of enhancing user satisfaction with a product by creating a usable, accessible, and pleasurable interaction between the product and its users [S1].\n\n### Key Details from the Materials:\n\n* **Why It Matters:** UX design shapes a user's perception of software [S1]. If a system is difficult to use, frustrates users, or forces them into mistakes, they will dislike it regardless of how powerful, functional, or feature-rich it is [S1].\n* **Four Main Aspects of UX Design [S1]:**\n  1. **Information Architecture:** Org",
+   "citations": [
+    {
+     "source_index": 1,
+     "document_id": "6",
+     "document_title": "Ch 12 User Experience Design",
+     "chunk_id": "2e3db7d5-e4d2-4c02-a472-216176713fba",
+     "page_number": 1,
+     "score": 0.5845
+    }
+   ]
+  },
+  {
+   "answer": "According to the lecture, **Claude Shannon (1916\u20132001)** was an American electrical engineer and mathematician known as *\"the father of information theory\"* [S1]. \n\nKey facts about him provided in the lecture include:\n* **Digital Circuit Design:** He is credited with founding both digital computer and digital circuit design theory in 1937 [S1].\n* **MIT Master's Thesis:** As a 21-year-old master's student at MIT, he wrote a thesis demonstrating that applying Boolean algebra to electrical circuits could construct and resolve any logical or numerical relationship [S1].",
+   "citations": [
+    {
+     "source_index": 1,
+     "document_id": "2",
+     "document_title": "Lecturer 1",
+     "chunk_id": "fabebc07-15db-4baf-a23f-b520a0b23bf9",
+     "page_number": 43,
+     "score": 0.4276
+    }
+   ]
+  },
+  {
+   "answer": "The uploaded study materials do not contain sufficient information to answer this question. The provided documents focus exclusively on user experience design, user interfaces, usability guidelines, personas, and task analysis.\n\n***\n\n### General Knowledge Overview (Not included in your study materials)\nFor context, **quantum error correction (QEC)** is a set of techniques used in quantum computing to protect quantum information from errors caused by environmental noise (decoherence) and imperfect quantum operations. Unlike classical error correction, which can simply copy bits (e.g., using rep",
+   "citations": []
+  }
+ ],
+ "volume": {
+  "file_mb": 20.0,
+  "pages": 930,
+  "chars": 2516393,
+  "extract_seconds": 3.1,
+  "saas_db_mb": 20.8,
+  "chunks_total": 1070,
+  "largest_doc_chunks": 933,
+  "topics_total": 1326,
+  "search_seconds_largest_doc": 0.72,
+  "search_status": 200
+ },
+ "rss_peak_mb": 185.4,
+ "real_folder_changed": []
+}

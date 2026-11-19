@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1640 920" width="1640" height="920" font-family="'Segoe UI', Inter, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#000000"/>
+    </marker>
+  </defs>
+  <rect width="1640" height="920" fill="#ffffff"/>
+
+  <text x="40" y="58" font-size="28" font-weight="700" fill="#000000">Recall AI — context diagram (DFD level 0)</text>
+  <text x="40" y="88" font-size="16" fill="#000000">The whole system as one process, and the data it exchanges with everyone outside it.</text>
+  <g font-size="14" fill="#000000">
+    <rect x="1240" y="24" width="370" height="104" rx="8" fill="#ffffff" stroke="#000000"/>
+    <rect x="1258" y="42" width="22" height="16" rx="3" fill="#ffffff" stroke="#000000" stroke-width="2"/><text x="1290" y="55">external entity</text>
+    <circle cx="1430" cy="50" r="10" fill="#ffffff" stroke="#000000" stroke-width="2"/><text x="1448" y="55">process</text>
+    <line x1="1258" y1="80" x2="1306" y2="80" stroke="#000000" stroke-width="2.4" marker-end="url(#arrow)"/>
+    <text x="1316" y="85">data flow: request / data sent</text>
+    <line x1="1258" y1="108" x2="1306" y2="108" stroke="#000000" stroke-width="2.4" stroke-dasharray="8 6" marker-end="url(#arrow)"/>
+    <text x="1316" y="113">data flow: reply / data returned</text>
+  </g>
+
+  <g fill="none" stroke="#000000" stroke-width="2.4">
+    <path d="M342,470 H669" marker-end="url(#arrow)"/>
+    <path d="M671,540 H344" stroke-dasharray="8 6" marker-end="url(#arrow)"/>
+    <path d="M969,470 H1296" marker-end="url(#arrow)"/>
+    <path d="M1298,540 H971" stroke-dasharray="8 6" marker-end="url(#arrow)"/>
+    <path d="M780,351 V268" marker-end="url(#arrow)"/>
+    <path d="M860,268 V351" stroke-dasharray="8 6" marker-end="url(#arrow)"/>
+    <path d="M745,630 L642,754" marker-end="url(#arrow)"/>
+    <path d="M560,756 L712,608" stroke-dasharray="8 6" marker-end="url(#arrow)"/>
+    <path d="M895,630 L998,754" marker-end="url(#arrow)"/>
+    <path d="M1080,756 L928,608" stroke-dasharray="8 6" marker-end="url(#arrow)"/>
+  </g>
+  <g font-size="15" fill="#000000">
+    <text x="506" y="458" text-anchor="middle">PDFs, questions, typed answers, ratings</text>
+    <text x="506" y="562" text-anchor="middle">answers, flashcards, quizzes, scores, progress</text>
+    <text x="1132" y="458" text-anchor="middle">prompts + document text</text>
+    <text x="1132" y="562" text-anchor="middle">generated text / JSON</text>
+    <text x="770" y="315" text-anchor="end">push local changes</text>
+    <text x="870" y="315">pull changes, login token</text>
+    <text x="706" y="710">checkout request</text>
+    <text x="626" y="676" text-anchor="end">webhook (payment event)</text>
+    <text x="934" y="710" text-anchor="end">scanned pages</text>
+    <text x="1016" y="676">extracted markdown</text>
+  </g>
+
+  <circle cx="820" cy="500" r="150" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+  <g text-anchor="middle" fill="#000000">
+    <text x="820" y="470" font-size="18" fill="#000000">0</text>
+    <text x="820" y="505" font-size="28" font-weight="700">Recall AI</text>
+    <text x="820" y="535" font-size="16" fill="#000000">study assistant</text>
+  </g>
+
+  <rect x="80" y="430" width="260" height="150" rx="6" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+  <g text-anchor="middle" fill="#000000">
+    <text x="210" y="498" font-size="22" font-weight="700">Student</text>
+    <text x="210" y="526" font-size="15">desktop app user</text>
+  </g>
+  <rect x="1300" y="430" width="260" height="150" rx="6" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+  <g text-anchor="middle" fill="#000000">
+    <text x="1430" y="490" font-size="22" font-weight="700">AI provider</text>
+    <text x="1430" y="518" font-size="15">Gemini · OpenAI · Groq</text>
+    <text x="1430" y="540" font-size="15">or local Ollama</text>
+  </g>
+  <rect x="690" y="150" width="260" height="116" rx="6" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+  <g text-anchor="middle" fill="#000000">
+    <text x="820" y="200" font-size="22" font-weight="700">Supabase</text>
+    <text x="820" y="228" font-size="15">auth + cloud sync (optional)</text>
+  </g>
+  <rect x="420" y="758" width="280" height="110" rx="6" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+  <g text-anchor="middle" fill="#000000">
+    <text x="560" y="806" font-size="22" font-weight="700">Billing provider</text>
+    <text x="560" y="834" font-size="15">mock Stripe</text>
+  </g>
+  <rect x="940" y="758" width="280" height="110" rx="6" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+  <g text-anchor="middle" fill="#000000">
+    <text x="1080" y="806" font-size="22" font-weight="700">OCR service</text>
+    <text x="1080" y="834" font-size="15">Marker / Datalab</text>
+  </g>
+</svg>

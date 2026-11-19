@@ -1,0 +1,1266 @@
+[
+{
+"file": "v1\\account.py",
+"m": "GET",
+"path": "/account/overview",
+"fn": "get_account_overview",
+"auth": false,
+"doc": "Returns full account overview: active plan, limits, active subscription,"
+},
+{
+"file": "v1\\account.py",
+"m": "GET",
+"path": "/account/plan",
+"fn": "get_current_plan",
+"auth": false,
+"doc": "Returns the workspace's effective plan (resolving active subscription or default free tier)."
+},
+{
+"file": "v1\\account.py",
+"m": "GET",
+"path": "/account/entitlements",
+"fn": "get_all_entitlements",
+"auth": false,
+"doc": "Returns the map of all feature entitlement flags and resource limits for the workspace."
+},
+{
+"file": "v1\\account.py",
+"m": "GET",
+"path": "/account/entitlements/check",
+"fn": "check_feature_entitlement",
+"auth": false,
+"doc": "Checks if the workspace is entitled to use a specific feature."
+},
+{
+"file": "v1\\account.py",
+"m": "GET",
+"path": "/account/usage",
+"fn": "get_usage",
+"auth": false,
+"doc": "Returns detailed usage breakdown for the current billing cycle:"
+},
+{
+"file": "v1\\account.py",
+"m": "GET",
+"path": "/account/byok/credentials",
+"fn": "list_byok_credentials",
+"auth": false,
+"doc": "Returns list of configured BYOK credentials for the workspace."
+},
+{
+"file": "v1\\account.py",
+"m": "POST",
+"path": "/account/byok/credentials",
+"fn": "save_byok_credential",
+"auth": false,
+"doc": "Saves and encrypts a provider API key into the workspace's secure BYOK vault."
+},
+{
+"file": "v1\\account.py",
+"m": "DELETE",
+"path": "/account/byok/credentials/{provider}",
+"fn": "delete_byok_credential",
+"auth": false,
+"doc": "Deletes a BYOK credential from the workspace vault."
+},
+{
+"file": "v1\\account.py",
+"m": "POST",
+"path": "/account/byok/test",
+"fn": "test_byok_provider",
+"auth": false,
+"doc": "Tests connection with an AI provider using either the provided key or the saved workspace credential."
+},
+{
+"file": "v1\\attempts.py",
+"m": "GET",
+"path": "/quiz-attempts/{attempt_id}",
+"fn": "get_attempt",
+"auth": true,
+"doc": "Retrieves the status of an attempt."
+},
+{
+"file": "v1\\attempts.py",
+"m": "POST",
+"path": "/quiz-attempts/{attempt_id}/answers",
+"fn": "record_answer",
+"auth": true,
+"doc": "Saves an interim answer while the attempt is in progress."
+},
+{
+"file": "v1\\attempts.py",
+"m": "POST",
+"path": "/quiz-attempts/{attempt_id}/submit",
+"fn": "submit_attempt",
+"auth": true,
+"doc": "Deterministically evaluates all answers server-side, calculates the score and percentage,"
+},
+{
+"file": "v1\\auth.py",
+"m": "POST",
+"path": "/auth/signup",
+"fn": "signup",
+"auth": false,
+"doc": ""
+},
+{
+"file": "v1\\auth.py",
+"m": "POST",
+"path": "/auth/login",
+"fn": "login",
+"auth": false,
+"doc": ""
+},
+{
+"file": "v1\\auth.py",
+"m": "POST",
+"path": "/auth/logout",
+"fn": "logout",
+"auth": true,
+"doc": ""
+},
+{
+"file": "v1\\auth.py",
+"m": "GET",
+"path": "/auth/me",
+"fn": "get_me",
+"auth": true,
+"doc": ""
+},
+{
+"file": "v1\\auth.py",
+"m": "POST",
+"path": "/auth/change-password",
+"fn": "change_password",
+"auth": true,
+"doc": ""
+},
+{
+"file": "v1\\billing.py",
+"m": "GET",
+"path": "/billing/plans",
+"fn": "list_plans",
+"auth": false,
+"doc": "Returns the list of available subscription plans with limits and feature flags."
+},
+{
+"file": "v1\\billing.py",
+"m": "GET",
+"path": "/billing/subscription",
+"fn": "get_subscription",
+"auth": false,
+"doc": "Retrieves the active subscription for the authenticated user's workspace."
+},
+{
+"file": "v1\\billing.py",
+"m": "POST",
+"path": "/billing/checkout",
+"fn": "create_checkout",
+"auth": true,
+"doc": "Creates a hosted checkout session to upgrade or subscribe to a paid plan."
+},
+{
+"file": "v1\\billing.py",
+"m": "POST",
+"path": "/billing/cancel",
+"fn": "cancel_subscription",
+"auth": false,
+"doc": "Cancels the active subscription. By default, access continues until the end of the billing period."
+},
+{
+"file": "v1\\billing.py",
+"m": "POST",
+"path": "/billing/reactivate",
+"fn": "reactivate_subscription",
+"auth": false,
+"doc": "Reactivates a subscription scheduled for cancellation before its period ends."
+},
+{
+"file": "v1\\billing.py",
+"m": "POST",
+"path": "/billing/webhook",
+"fn": "billing_webhook",
+"auth": false,
+"doc": "Ingests asynchronous billing webhook notifications (Stripe / Mock)."
+},
+{
+"file": "v1\\conversations.py",
+"m": "POST",
+"path": "/conversations",
+"fn": "create_conversation",
+"auth": true,
+"doc": "Initializes a new scoped conversation session within the active workspace."
+},
+{
+"file": "v1\\conversations.py",
+"m": "GET",
+"path": "/conversations",
+"fn": "list_conversations",
+"auth": true,
+"doc": "Lists conversations sorted by most recently updated in the active workspace."
+},
+{
+"file": "v1\\conversations.py",
+"m": "GET",
+"path": "/conversations/{conversation_id}",
+"fn": "get_conversation",
+"auth": true,
+"doc": "Retrieves a conversation and its complete ordered message history."
+},
+{
+"file": "v1\\conversations.py",
+"m": "PATCH",
+"path": "/conversations/{conversation_id}",
+"fn": "update_conversation",
+"auth": true,
+"doc": "Updates the title of an existing conversation in the workspace."
+},
+{
+"file": "v1\\conversations.py",
+"m": "DELETE",
+"path": "/conversations/{conversation_id}",
+"fn": "delete_conversation",
+"auth": true,
+"doc": "Soft-deletes a conversation from the active workspace."
+},
+{
+"file": "v1\\conversations.py",
+"m": "POST",
+"path": "/conversations/{conversation_id}/messages",
+"fn": "send_message",
+"auth": true,
+"doc": "Sends a query into a conversation and generates an academically grounded response"
+},
+{
+"file": "v1\\documents.py",
+"m": "POST",
+"path": "/documents/upload",
+"fn": "upload_document",
+"auth": true,
+"doc": "Ingests and securely stores a learning document."
+},
+{
+"file": "v1\\documents.py",
+"m": "GET",
+"path": "/documents",
+"fn": "list_documents",
+"auth": false,
+"doc": "Retrieves all documents belonging to the authenticated user's workspace."
+},
+{
+"file": "v1\\documents.py",
+"m": "GET",
+"path": "/documents/{document_id}",
+"fn": "get_document",
+"auth": true,
+"doc": "Retrieves metadata and status of a specific document (IDOR protected)."
+},
+{
+"file": "v1\\documents.py",
+"m": "GET",
+"path": "/documents/{document_id}/status",
+"fn": "get_document_status",
+"auth": true,
+"doc": "Returns the live stage progress and error details of a document's processing job."
+},
+{
+"file": "v1\\documents.py",
+"m": "GET",
+"path": "/documents/{document_id}/chunks",
+"fn": "get_document_chunks",
+"auth": true,
+"doc": "Retrieves paginated semantic chunks extracted and stored for the document."
+},
+{
+"file": "v1\\documents.py",
+"m": "DELETE",
+"path": "/documents/{document_id}",
+"fn": "delete_document",
+"auth": true,
+"doc": "Cascading deletion of document, chunks, processing jobs, and stored physical file."
+},
+{
+"file": "v1\\documents.py",
+"m": "GET",
+"path": "/documents/{document_id}/related",
+"fn": "get_related_documents",
+"auth": true,
+"doc": "Surfaces related documents in the same workspace using embedding centroid comparison."
+},
+{
+"file": "v1\\documents.py",
+"m": "POST",
+"path": "/documents/{document_id}/reindex",
+"fn": "reindex_document",
+"auth": true,
+"doc": "Clears and re-processes document chunks idempotently."
+},
+{
+"file": "v1\\flashcards.py",
+"m": "POST",
+"path": "/flashcards/generate",
+"fn": "generate_flashcards",
+"auth": true,
+"doc": "Triggers AI-powered flashcard generation grounded in the user's selected study documents."
+},
+{
+"file": "v1\\flashcards.py",
+"m": "GET",
+"path": "/flashcards/sets",
+"fn": "list_flashcard_sets",
+"auth": true,
+"doc": "Lists flashcard sets in the workspace ordered by recent updates."
+},
+{
+"file": "v1\\flashcards.py",
+"m": "GET",
+"path": "/flashcards/sets/{set_id}",
+"fn": "get_flashcard_set",
+"auth": true,
+"doc": "Retrieves a flashcard set and its complete ordered collection of cards."
+},
+{
+"file": "v1\\flashcards.py",
+"m": "PATCH",
+"path": "/flashcards/sets/{set_id}",
+"fn": "update_flashcard_set",
+"auth": true,
+"doc": "Updates the metadata of an existing flashcard set."
+},
+{
+"file": "v1\\flashcards.py",
+"m": "DELETE",
+"path": "/flashcards/sets/{set_id}",
+"fn": "delete_flashcard_set",
+"auth": true,
+"doc": "Soft-deletes a flashcard set from the workspace."
+},
+{
+"file": "v1\\flashcards.py",
+"m": "PATCH",
+"path": "/flashcards/cards/{card_id}",
+"fn": "update_flashcard",
+"auth": true,
+"doc": "Updates the content or position of a single flashcard belonging to the active workspace."
+},
+{
+"file": "v1\\flashcards.py",
+"m": "DELETE",
+"path": "/flashcards/cards/{card_id}",
+"fn": "delete_flashcard",
+"auth": true,
+"doc": "Deletes an individual flashcard and decrements the set's card count."
+},
+{
+"file": "v1\\flashcards.py",
+"m": "GET",
+"path": "/flashcards",
+"fn": "list_flashcard_sets_alias",
+"auth": true,
+"doc": ""
+},
+{
+"file": "v1\\flashcards.py",
+"m": "GET",
+"path": "/flashcards/{set_id}",
+"fn": "get_flashcard_set_alias",
+"auth": true,
+"doc": ""
+},
+{
+"file": "v1\\flashcards.py",
+"m": "PATCH",
+"path": "/flashcards/{set_id}",
+"fn": "update_flashcard_set_alias",
+"auth": true,
+"doc": ""
+},
+{
+"file": "v1\\flashcards.py",
+"m": "DELETE",
+"path": "/flashcards/{set_id}",
+"fn": "delete_flashcard_set_alias",
+"auth": true,
+"doc": ""
+},
+{
+"file": "v1\\health.py",
+"m": "GET",
+"path": "/health",
+"fn": "liveness_check",
+"auth": false,
+"doc": "Returns 200 OK if server process is running."
+},
+{
+"file": "v1\\health.py",
+"m": "GET",
+"path": "/health/db",
+"fn": "database_health_check",
+"auth": false,
+"doc": "Returns 200 OK if database is responsive, 503 Service Unavailable otherwise."
+},
+{
+"file": "v1\\health.py",
+"m": "GET",
+"path": "/health/ready",
+"fn": "readiness_check",
+"auth": false,
+"doc": "Evaluates core subsystem readiness for serving traffic."
+},
+{
+"file": "v1\\knowledge.py",
+"m": "GET",
+"path": "/documents/{document_id}/summary",
+"fn": "get_document_summary",
+"auth": true,
+"doc": "Returns a persisted document summary without making AI calls or consuming credits."
+},
+{
+"file": "v1\\knowledge.py",
+"m": "POST",
+"path": "/documents/{document_id}/summary",
+"fn": "generate_document_summary",
+"auth": true,
+"doc": "Generates an AI-powered document summary."
+},
+{
+"file": "v1\\knowledge.py",
+"m": "GET",
+"path": "/documents/{document_id}/concepts",
+"fn": "get_document_concepts",
+"auth": true,
+"doc": "Returns persisted concepts without making AI calls or consuming credits."
+},
+{
+"file": "v1\\knowledge.py",
+"m": "POST",
+"path": "/documents/{document_id}/concepts",
+"fn": "generate_document_concepts",
+"auth": true,
+"doc": "Extracts key concepts from a document using AI."
+},
+{
+"file": "v1\\knowledge.py",
+"m": "GET",
+"path": "/concepts/{concept_id}",
+"fn": "get_concept",
+"auth": true,
+"doc": "Returns a single concept with tenant isolation."
+},
+{
+"file": "v1\\learning.py",
+"m": "GET",
+"path": "/learning/dashboard",
+"fn": "get_dashboard",
+"auth": true,
+"doc": "Returns high-level learning dashboard metrics:"
+},
+{
+"file": "v1\\learning.py",
+"m": "GET",
+"path": "/learning/activity",
+"fn": "get_study_activity",
+"auth": true,
+"doc": "Returns daily aggregates of reviews, quizzes, and correct/incorrect answers."
+},
+{
+"file": "v1\\learning.py",
+"m": "GET",
+"path": "/learning/statistics/reviews",
+"fn": "get_review_statistics",
+"auth": true,
+"doc": "Returns detailed workload statistics, rating counts and percentages (again, hard, good, easy),"
+},
+{
+"file": "v1\\learning.py",
+"m": "GET",
+"path": "/learning/statistics/quizzes",
+"fn": "get_quiz_statistics",
+"auth": true,
+"doc": "Returns quiz metrics: total attempts, completed attempts, average score,"
+},
+{
+"file": "v1\\learning.py",
+"m": "GET",
+"path": "/learning/statistics/flashcards",
+"fn": "get_flashcard_statistics",
+"auth": true,
+"doc": "Returns flashcard metrics: total cards, active cards, reviewed count,"
+},
+{
+"file": "v1\\learning.py",
+"m": "GET",
+"path": "/learning/progress/documents",
+"fn": "get_document_progress",
+"auth": true,
+"doc": "Answers 'How much have I learned from each document?'."
+},
+{
+"file": "v1\\learning.py",
+"m": "GET",
+"path": "/learning/progress/concepts",
+"fn": "get_concept_progress",
+"auth": true,
+"doc": "Returns learning progress aggregated across concepts/topics."
+},
+{
+"file": "v1\\learning.py",
+"m": "GET",
+"path": "/learning/sessions",
+"fn": "list_study_sessions",
+"auth": true,
+"doc": "Returns paginated historical study sessions with duration, items reviewed, and rating distribution."
+},
+{
+"file": "v1\\learning.py",
+"m": "GET",
+"path": "/learning/progress",
+"fn": "get_progress_summary",
+"auth": true,
+"doc": "Returns summary statistics: total items, reviewed items, correct rate, and items currently due."
+},
+{
+"file": "v1\\learning.py",
+"m": "GET",
+"path": "/learning/due",
+"fn": "list_due_items",
+"auth": true,
+"doc": "Returns learning items whose next_review_at timestamp is past or equal to the current time."
+},
+{
+"file": "v1\\quizzes.py",
+"m": "POST",
+"path": "/quizzes/generate",
+"fn": "generate_quiz",
+"auth": true,
+"doc": "Triggers AI-powered quiz generation grounded in the user's selected study documents."
+},
+{
+"file": "v1\\quizzes.py",
+"m": "GET",
+"path": "/quizzes",
+"fn": "list_quizzes",
+"auth": true,
+"doc": "Lists quizzes in the workspace ordered by recent updates."
+},
+{
+"file": "v1\\quizzes.py",
+"m": "GET",
+"path": "/quizzes/{quiz_id}",
+"fn": "get_quiz_detail",
+"auth": true,
+"doc": "Retrieves a single quiz along with all its ordered assessment questions."
+},
+{
+"file": "v1\\quizzes.py",
+"m": "PATCH",
+"path": "/quizzes/{quiz_id}",
+"fn": "update_quiz",
+"auth": true,
+"doc": "Updates the title or description of an owned quiz."
+},
+{
+"file": "v1\\quizzes.py",
+"m": "DELETE",
+"path": "/quizzes/{quiz_id}",
+"fn": "delete_quiz",
+"auth": true,
+"doc": "Soft-deletes a quiz within the authenticated workspace."
+},
+{
+"file": "v1\\quizzes.py",
+"m": "PATCH",
+"path": "/quizzes/questions/{question_id}",
+"fn": "update_question",
+"auth": true,
+"doc": "Updates the prompt, options, correct answer, explanation, or position of an owned question."
+},
+{
+"file": "v1\\quizzes.py",
+"m": "DELETE",
+"path": "/quizzes/questions/{question_id}",
+"fn": "delete_question",
+"auth": true,
+"doc": "Deletes an individual quiz question and decrements the parent quiz's question_count."
+},
+{
+"file": "v1\\quizzes.py",
+"m": "POST",
+"path": "/quizzes/{quiz_id}/attempts",
+"fn": "start_quiz_attempt",
+"auth": true,
+"doc": "Initializes a new attempt on an owned quiz."
+},
+{
+"file": "v1\\quizzes.py",
+"m": "GET",
+"path": "/quizzes/{quiz_id}/attempts",
+"fn": "list_quiz_attempts",
+"auth": true,
+"doc": "Lists past attempts for the current user on the specified quiz."
+},
+{
+"file": "v1\\reviews.py",
+"m": "GET",
+"path": "/reviews/queue",
+"fn": "get_review_queue",
+"auth": true,
+"doc": "Returns prioritized list of due items (overdue -> due now -> new)."
+},
+{
+"file": "v1\\reviews.py",
+"m": "GET",
+"path": "/reviews/statistics",
+"fn": "get_review_statistics",
+"auth": true,
+"doc": "Calculates due counts, overdue counts, reviews today, and success rates."
+},
+{
+"file": "v1\\reviews.py",
+"m": "POST",
+"path": "/reviews/sessions",
+"fn": "start_review_session",
+"auth": true,
+"doc": "Creates an active review session containing due items."
+},
+{
+"file": "v1\\reviews.py",
+"m": "GET",
+"path": "/reviews/sessions/{session_id}",
+"fn": "get_review_session",
+"auth": true,
+"doc": "Retrieves progress of an active, completed, or abandoned session."
+},
+{
+"file": "v1\\reviews.py",
+"m": "GET",
+"path": "/reviews/sessions/{session_id}/next",
+"fn": "get_next_review_item",
+"auth": true,
+"doc": "Returns the next unreviewed item with front prompt only."
+},
+{
+"file": "v1\\reviews.py",
+"m": "POST",
+"path": "/reviews/{review_id}/reveal",
+"fn": "reveal_review_item",
+"auth": true,
+"doc": "Transitions the item to revealed and returns stored answer and explanation."
+},
+{
+"file": "v1\\reviews.py",
+"m": "POST",
+"path": "/reviews/{review_id}/rate",
+"fn": "rate_review_item",
+"auth": true,
+"doc": "Applies the controlled rating, updates FSRS state atomically,"
+},
+{
+"file": "v1\\reviews.py",
+"m": "POST",
+"path": "/reviews/sessions/{session_id}/complete",
+"fn": "complete_review_session",
+"auth": true,
+"doc": "Marks the session completed. All completed reviews remain recorded."
+},
+{
+"file": "v1\\reviews.py",
+"m": "POST",
+"path": "/reviews/sessions/{session_id}/abandon",
+"fn": "abandon_review_session",
+"auth": true,
+"doc": "Marks the session abandoned. Completed reviews remain intact; unreviewed items are not penalized."
+},
+{
+"file": "v1\\search.py",
+"m": "GET",
+"path": "/search",
+"fn": "execute_search",
+"auth": true,
+"doc": "Retrieves authorized knowledge chunks from the user's workspace documents."
+},
+{
+"file": "v1\\users.py",
+"m": "GET",
+"path": "/users/me/preferences",
+"fn": "get_preferences",
+"auth": true,
+"doc": ""
+},
+{
+"file": "v1\\users.py",
+"m": "PUT",
+"path": "/users/me/preferences",
+"fn": "update_preferences",
+"auth": true,
+"doc": ""
+},
+{
+"file": "main.py",
+"m": "GET",
+"path": "/api/topics/{topic_id}/chat",
+"fn": "get_topic_chat_history",
+"auth": false,
+"doc": ""
+},
+{
+"file": "main.py",
+"m": "POST",
+"path": "/chat",
+"fn": "chat_endpoint",
+"auth": true,
+"doc": ""
+},
+{
+"file": "main.py",
+"m": "POST",
+"path": "/chat/stream",
+"fn": "chat_endpoint_stream",
+"auth": true,
+"doc": ""
+},
+{
+"file": "main.py",
+"m": "POST",
+"path": "/api/sync",
+"fn": "sync_data",
+"auth": false,
+"doc": ""
+},
+{
+"file": "main.py",
+"m": "POST",
+"path": "/api/set-user",
+"fn": "set_active_user",
+"auth": false,
+"doc": ""
+},
+{
+"file": "main.py",
+"m": "POST",
+"path": "/api/delete-all-data",
+"fn": "delete_all_data",
+"auth": false,
+"doc": ""
+},
+{
+"file": "main.py",
+"m": "POST",
+"path": "/books/upload",
+"fn": "upload_and_parse_toc",
+"auth": false,
+"doc": ""
+},
+{
+"file": "main.py",
+"m": "GET",
+"path": "/books/{book_id}/pdf",
+"fn": "get_book_pdf",
+"auth": false,
+"doc": ""
+},
+{
+"file": "main.py",
+"m": "GET",
+"path": "/images/{image_name:path}",
+"fn": "get_extracted_image",
+"auth": false,
+"doc": ""
+},
+{
+"file": "main.py",
+"m": "POST",
+"path": "/books/{book_id}/process-stream",
+"fn": "process_book_stream",
+"auth": false,
+"doc": ""
+},
+{
+"file": "main.py",
+"m": "GET",
+"path": "/auth-success",
+"fn": "auth_success",
+"auth": false,
+"doc": ""
+},
+{
+"file": "main.py",
+"m": "GET",
+"path": "/api/auth/latest-oauth-code",
+"fn": "get_latest_oauth_code",
+"auth": false,
+"doc": ""
+},
+{
+"file": "main.py",
+"m": "GET",
+"path": "/health",
+"fn": "health",
+"auth": false,
+"doc": ""
+},
+{
+"file": "main.py",
+"m": "POST",
+"path": "/settings/api-keys",
+"fn": "save_api_keys",
+"auth": false,
+"doc": ""
+},
+{
+"file": "main.py",
+"m": "GET",
+"path": "/settings/api-keys",
+"fn": "get_api_keys",
+"auth": false,
+"doc": ""
+},
+{
+"file": "main.py",
+"m": "GET",
+"path": "/settings/verify-ollama",
+"fn": "verify_ollama",
+"auth": false,
+"doc": ""
+},
+{
+"file": "main.py",
+"m": "POST",
+"path": "/settings/verify-key",
+"fn": "verify_api_key",
+"auth": false,
+"doc": ""
+},
+{
+"file": "main.py",
+"m": "POST",
+"path": "/topics/{topic_id}/process-stream",
+"fn": "process_topic_stream",
+"auth": false,
+"doc": ""
+},
+{
+"file": "main.py",
+"m": "POST",
+"path": "/topics/{topic_id}/drill/generate",
+"fn": "drill_generate_questions",
+"auth": false,
+"doc": "Generate 2 tiered diagnostic questions for a topic or targeted atomic concept."
+},
+{
+"file": "main.py",
+"m": "POST",
+"path": "/topics/{topic_id}/drill/evaluate",
+"fn": "drill_evaluate_answer",
+"auth": false,
+"doc": "Evaluate a student's answer and return diagnostic feedback."
+},
+{
+"file": "main.py",
+"m": "POST",
+"path": "/topics/{topic_id}/drill/save-cards",
+"fn": "drill_save_flashcards",
+"auth": false,
+"doc": "Save targeted flashcards from a drill evaluation into the FSRS deck."
+},
+{
+"file": "main.py",
+"m": "POST",
+"path": "/books/{book_id}/clean-toc",
+"fn": "clean_book_toc",
+"auth": false,
+"doc": ""
+},
+{
+"file": "main.py",
+"m": "POST",
+"path": "/topics/{topic_id}/flashcards",
+"fn": "generate_topic_flashcards",
+"auth": true,
+"doc": ""
+},
+{
+"file": "main.py",
+"m": "GET",
+"path": "/topics/{topic_id}/related",
+"fn": "get_related_topics",
+"auth": false,
+"doc": ""
+},
+{
+"file": "main.py",
+"m": "GET",
+"path": "/flashcards",
+"fn": "get_flashcards",
+"auth": true,
+"doc": ""
+},
+{
+"file": "main.py",
+"m": "GET",
+"path": "/settings",
+"fn": "get_all_settings",
+"auth": false,
+"doc": ""
+},
+{
+"file": "main.py",
+"m": "PUT",
+"path": "/settings/{key}",
+"fn": "update_setting",
+"auth": false,
+"doc": ""
+},
+{
+"file": "main.py",
+"m": "GET",
+"path": "/flashcards/due",
+"fn": "get_due_flashcards_api",
+"auth": false,
+"doc": ""
+},
+{
+"file": "main.py",
+"m": "POST",
+"path": "/flashcards/{card_id}/review",
+"fn": "review_flashcard_api",
+"auth": false,
+"doc": ""
+},
+{
+"file": "main.py",
+"m": "POST",
+"path": "/flashcards/{card_id}/undo-review",
+"fn": "undo_review_api",
+"auth": false,
+"doc": ""
+},
+{
+"file": "main.py",
+"m": "GET",
+"path": "/analytics/stats",
+"fn": "get_analytics_stats_api",
+"auth": false,
+"doc": ""
+},
+{
+"file": "main.py",
+"m": "GET",
+"path": "/books",
+"fn": "get_books_api",
+"auth": true,
+"doc": ""
+},
+{
+"file": "main.py",
+"m": "GET",
+"path": "/books/{book_id}",
+"fn": "get_book_by_id_api",
+"auth": true,
+"doc": ""
+},
+{
+"file": "main.py",
+"m": "PATCH",
+"path": "/books/{book_id}/reading-state",
+"fn": "update_reading_state_api",
+"auth": false,
+"doc": ""
+},
+{
+"file": "main.py",
+"m": "GET",
+"path": "/books/{book_id}/cover",
+"fn": "get_book_cover_api",
+"auth": false,
+"doc": ""
+},
+{
+"file": "main.py",
+"m": "DELETE",
+"path": "/books/{book_id}",
+"fn": "delete_book_api",
+"auth": true,
+"doc": ""
+},
+{
+"file": "main.py",
+"m": "GET",
+"path": "/topics",
+"fn": "get_topics_api",
+"auth": false,
+"doc": ""
+},
+{
+"file": "main.py",
+"m": "GET",
+"path": "/topics/{topic_id}",
+"fn": "get_topic_by_id_api",
+"auth": false,
+"doc": ""
+},
+{
+"file": "main.py",
+"m": "GET",
+"path": "/topics/{topic_id}/notes",
+"fn": "get_topic_notes_api",
+"auth": false,
+"doc": ""
+},
+{
+"file": "main.py",
+"m": "PUT",
+"path": "/topics/{topic_id}/notes",
+"fn": "update_topic_notes_api",
+"auth": false,
+"doc": ""
+},
+{
+"file": "main.py",
+"m": "DELETE",
+"path": "/topics/{topic_id}/notes",
+"fn": "delete_topic_notes_api",
+"auth": false,
+"doc": ""
+},
+{
+"file": "main.py",
+"m": "GET",
+"path": "/notes",
+"fn": "get_all_notes_api",
+"auth": true,
+"doc": ""
+},
+{
+"file": "main.py",
+"m": "GET",
+"path": "/notes/annotations",
+"fn": "get_all_annotations_api",
+"auth": true,
+"doc": ""
+},
+{
+"file": "main.py",
+"m": "POST",
+"path": "/topics/{topic_id}/notes/scaffold-stream",
+"fn": "generate_note_scaffold_stream_api",
+"auth": false,
+"doc": "Streaming SSE endpoint for Cornell Study Guide generation."
+},
+{
+"file": "main.py",
+"m": "POST",
+"path": "/topics/{topic_id}/notes/scaffold",
+"fn": "generate_note_scaffold_api",
+"auth": true,
+"doc": "Generate a structured Cornell Study Guide."
+},
+{
+"file": "main.py",
+"m": "POST",
+"path": "/topics/{topic_id}/notes/append",
+"fn": "append_topic_notes_api",
+"auth": false,
+"doc": "Appends Markdown content to a topic's study notes."
+},
+{
+"file": "main.py",
+"m": "POST",
+"path": "/notes/upload-image",
+"fn": "upload_note_image_api",
+"auth": false,
+"doc": "Uploads an image or diagram to attach to study notes."
+},
+{
+"file": "main.py",
+"m": "GET",
+"path": "/flashcards/export",
+"fn": "export_flashcards_api",
+"auth": false,
+"doc": ""
+},
+{
+"file": "main.py",
+"m": "GET",
+"path": "/flashcards/{card_id}",
+"fn": "get_flashcard_by_id_api",
+"auth": false,
+"doc": ""
+},
+{
+"file": "main.py",
+"m": "PUT",
+"path": "/flashcards/{card_id}",
+"fn": "update_flashcard_api",
+"auth": false,
+"doc": ""
+},
+{
+"file": "main.py",
+"m": "DELETE",
+"path": "/flashcards/{card_id}",
+"fn": "delete_flashcard_api",
+"auth": false,
+"doc": ""
+},
+{
+"file": "main.py",
+"m": "POST",
+"path": "/flashcards/{card_id}/reset",
+"fn": "reset_flashcard_api",
+"auth": false,
+"doc": ""
+},
+{
+"file": "main.py",
+"m": "POST",
+"path": "/books/{book_id}/annotations",
+"fn": "create_annotation",
+"auth": false,
+"doc": "Create a new annotation (sidenote, etc.)."
+},
+{
+"file": "main.py",
+"m": "GET",
+"path": "/books/{book_id}/annotations",
+"fn": "get_annotations",
+"auth": true,
+"doc": "Get annotations for a book, optionally filtered by page number."
+},
+{
+"file": "main.py",
+"m": "PUT",
+"path": "/annotations/{annotation_id}",
+"fn": "update_annotation_endpoint",
+"auth": false,
+"doc": "Update an annotation's content."
+},
+{
+"file": "main.py",
+"m": "DELETE",
+"path": "/annotations/{annotation_id}",
+"fn": "delete_annotation_endpoint",
+"auth": false,
+"doc": "Delete an annotation."
+},
+{
+"file": "main.py",
+"m": "POST",
+"path": "/books/{book_id}/annotations/explain",
+"fn": "explain_annotation",
+"auth": false,
+"doc": "AI-explain selected text and save as annotation."
+},
+{
+"file": "main.py",
+"m": "POST",
+"path": "/books/{book_id}/annotations/generate-flashcards",
+"fn": "generate_flashcards_annotation",
+"auth": true,
+"doc": "Generate flashcards from selected text and save as annotation."
+},
+{
+"file": "main.py",
+"m": "GET",
+"path": "/books/{book_id}/export-annotated",
+"fn": "export_annotated_pdf",
+"auth": false,
+"doc": "Export the PDF with all annotations embedded as sticky notes and highlights."
+},
+{
+"file": "main.py",
+"m": "GET",
+"path": "/search",
+"fn": "search",
+"auth": false,
+"doc": ""
+},
+{
+"file": "main.py",
+"m": "POST",
+"path": "/chunk/stream",
+"fn": "chunk_stream_endpoint",
+"auth": false,
+"doc": ""
+},
+{
+"file": "main.py",
+"m": "GET",
+"path": "/api/sync/pdfs",
+"fn": "sync_pdfs_endpoint",
+"auth": false,
+"doc": ""
+},
+{
+"file": "main.py",
+"m": "POST",
+"path": "/books/{book_id}/reparse-handwriting",
+"fn": "reparse_handwriting_endpoint",
+"auth": false,
+"doc": "Extracts handwritten notes with Marker and updates the topic hierarchy."
+},
+{
+"file": "main.py",
+"m": "POST",
+"path": "/books/{book_id}/reparse-handwriting-stream",
+"fn": "reparse_handwriting_stream_endpoint",
+"auth": false,
+"doc": "Streams SSE progress events while extracting handwritten notes with Marker."
+},
+{
+"file": "main.py",
+"m": "GET",
+"path": "/api/prompts",
+"fn": "get_all_system_prompts",
+"auth": false,
+"doc": "Returns all system prompts, their categories, variables, and current custom values."
+},
+{
+"file": "main.py",
+"m": "PUT",
+"path": "/api/prompts/{key}",
+"fn": "update_system_prompt_endpoint",
+"auth": false,
+"doc": "Updates a system prompt override after validating placeholder syntax."
+},
+{
+"file": "main.py",
+"m": "POST",
+"path": "/api/prompts/{key}/reset",
+"fn": "reset_system_prompt_endpoint",
+"auth": false,
+"doc": "Reverts a system prompt to its factory default."
+},
+{
+"file": "main.py",
+"m": "POST",
+"path": "/api/prompts/reset-all",
+"fn": "reset_all_prompts_endpoint",
+"auth": false,
+"doc": "Reverts all system prompts to their factory defaults."
+},
+{
+"file": "main.py",
+"m": "GET",
+"path": "/api/token-usage/summary",
+"fn": "get_token_usage_summary_endpoint",
+"auth": false,
+"doc": "Returns aggregated token usage statistics, breakdowns, and timeline."
+},
+{
+"file": "main.py",
+"m": "GET",
+"path": "/api/token-usage/history",
+"fn": "get_token_usage_history_endpoint",
+"auth": false,
+"doc": "Returns paginated individual token usage request logs."
+},
+{
+"file": "main.py",
+"m": "DELETE",
+"path": "/api/token-usage",
+"fn": "clear_token_usage_endpoint",
+"auth": false,
+"doc": "Clears all token usage history."
+}
+]

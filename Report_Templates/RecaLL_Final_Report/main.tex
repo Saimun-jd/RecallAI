@@ -1,0 +1,502 @@
+% RecaLL final report. Compile on Overleaf with pdfLaTeX or XeLaTeX (Menu > Compiler).
+% If the page numbers or contents look wrong after the first run, recompile once.
+\documentclass[12pt,a4paper]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[margin=30mm]{geometry}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{array}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{fancyhdr}
+\usepackage{lastpage}
+\usepackage{setspace}
+\usepackage{hyperref}
+
+% Text and links are black. Change this one colour to blue to match the FocusGuard report.
+\definecolor{linkcol}{HTML}{000000}
+\hypersetup{colorlinks=true,linkcolor=linkcol,urlcolor=linkcol,citecolor=linkcol,
+  pdftitle={RecaLL: An AI-Powered Academic Learning Companion},
+  pdfauthor={Al Rubayet, Md. Rony Hossain, Imteajul Islam, Tahsin Ahmed Chowdhury}}
+
+\setcounter{tocdepth}{3}
+\setcounter{secnumdepth}{3}
+\graphicspath{{figures/}}
+\sloppy
+\setlength{\parskip}{0pt}
+
+\newcommand{\code}[1]{\texttt{#1}}
+\newcommand{\shot}[4][\linewidth]{%
+  \begin{figure}[H]
+    \centering
+    \includegraphics[width=#1]{#2}
+    \caption{#3}
+    \label{#4}
+  \end{figure}}
+
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0pt}
+\fancyfoot[R]{\thepage\ of \pageref{LastPage}}
+
+\begin{document}
+
+% ------------------------------------------------------------------ Cover
+\pagenumbering{alph}
+\begin{titlepage}
+  \centering
+  {\Large Software Development Project (Sessional) [CSE-300]\par}
+  \vspace{10mm}
+  \includegraphics[width=42mm]{cuet_logo}\par
+  \vspace{14mm}
+  {\Large Final Report on:\par}
+  \vspace{2mm}
+  {\LARGE\bfseries RecaLL: An AI-Powered Academic\\ Learning Companion\par}
+  \vspace{14mm}
+  \begin{tabular}{|p{70mm}|p{35mm}|}
+    \hline
+    \textbf{Name} & \textbf{Student ID} \\ \hline
+    Al Rubayet & 2204002 \\ \hline
+    Md. Rony Hossain & 2204005 \\ \hline
+    Imteajul Islam & 2204015 \\ \hline
+    Tahsin Ahmed Chowdhury & 2204028 \\ \hline
+  \end{tabular}\par
+  \vspace{14mm}
+  Submitted to:\par
+  \textbf{Sharmistha Chanda Tista}\par
+  Assistant Professor,\par
+  Department of CSE, CUET\par
+  \vfill
+  \rule{\linewidth}{0.6pt}\par
+  \vspace{2mm}
+  {\large Department of Computer Science and Engineering (CSE)\par}
+  {\large\bfseries Chittagong University of Engineering \& Technology (CUET)\par}
+  {\large Chattogram-4349, Bangladesh\par}
+\end{titlepage}
+
+% ------------------------------------------------------------------ Contents
+\pagenumbering{roman}
+\setcounter{page}{1}
+\pagestyle{empty}
+\tableofcontents
+\clearpage
+\pagestyle{fancy}
+\pagenumbering{arabic}
+\setcounter{page}{1}
+
+% ------------------------------------------------------------------ 1
+\section{Title}
+RecaLL: An AI-Powered Academic Learning Companion
+
+% ------------------------------------------------------------------ 2
+\section{Introduction}
+University students spend much of their study time inside PDF textbooks and lecture
+slides. Reading is comfortable, but it gives little evidence of whether anything has
+actually been understood. A chapter can feel clear on the page and still be forgotten
+by the time of the examination. Good study techniques, such as structured note-taking,
+self-testing and spaced revision, are well known, yet doing them by hand takes more
+time than most students can give to every topic.
+
+\textbf{RecaLL} was developed to close this gap. It is a desktop application that takes
+an academic PDF and turns it into a guided study path: a table of contents and topic
+tree, handwritten-style Cornell notes for each topic, Socratic questions that probe
+understanding, flashcards scheduled by the Free Spaced Repetition Scheduler (FSRS),
+and a chat assistant whose answers cite the uploaded documents.
+
+This report documents the design, architecture and implementation of RecaLL as
+delivered. It covers the background and motivation of the project, its layered
+architecture, a walkthrough of each implemented module, a comparison with existing
+tools, and the conclusions drawn from the development process.
+
+% ------------------------------------------------------------------ 3
+\section{Background and Present State}
+Software that supports academic study generally falls into three categories. The first
+is the \textbf{PDF reader}, which displays a document and allows highlighting but offers
+no way to check understanding. The second is the \textbf{document chat tool}, which
+answers questions about an uploaded file. These tools are fast and convenient, but the
+student remains the one asking, and a good answer from the tool does not show that the
+student could have produced it. The third is the \textbf{flashcard application}, which
+is effective for long-term retention through spaced repetition but depends on the
+quality of the cards, and writing good cards from a long textbook is slow.
+
+Recent products have begun to combine these categories, and Section~\ref{sec:related}
+compares several of them. What remains less common is a single tool that follows the
+material from the original PDF through to questioning and scheduled revision, runs as a
+desktop application, and lets the student choose between cloud and local AI models.
+RecaLL was built around this complete path.
+
+% ------------------------------------------------------------------ 4
+\section{Motivation}
+The motivation for RecaLL came from four recurring problems in ordinary study:
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Passive learning.} Reading a PDF encourages recognition rather than
+  recall, so a topic can seem understood without being tested.
+  \item \textbf{Time-consuming note-taking.} Preparing structured notes from a textbook
+  takes significant effort, particularly for mathematical and technical subjects.
+  \item \textbf{Poor retention.} Without systematic revision, previously learned
+  concepts fade, and students often notice this only close to an examination.
+  \item \textbf{Lack of personalised assessment.} Ordinary study materials cannot
+  identify the specific misunderstanding behind a wrong explanation.
+\end{itemize}
+
+A single tool that handles the mechanical work of structuring, note-making and
+scheduling leaves the student more time for the part that builds understanding:
+explaining ideas and being questioned on them.
+
+% ------------------------------------------------------------------ 5
+\section{Specific Objectives and Outcomes}
+The specific objectives of the project were:
+
+\begin{itemize}[leftmargin=*]
+  \item To automatically extract the structure of an academic PDF and organise it into
+  chapters and topics.
+  \item To generate structured, handwritten-style Cornell notes for individual topics,
+  with mathematical notation rendered correctly.
+  \item To evaluate understanding through Socratic questions that test reasoning rather
+  than simple recall.
+  \item To identify knowledge gaps and misconceptions and turn them into targeted
+  flashcards.
+  \item To schedule flashcard revision using the FSRS algorithm.
+  \item To answer questions from the uploaded documents, with citations to the sources.
+  \item To provide generated quizzes and a transparent view of learning progress.
+  \item To support several AI providers, including an optional local model, with
+  personal API keys stored in encrypted form.
+\end{itemize}
+
+The outcome is a working desktop application that delivers these features through one
+interface, as described in Section~\ref{sec:implementation}.
+
+% ------------------------------------------------------------------ 6
+\section{Outline of Methodology}
+RecaLL follows a layered architecture in which each layer has a clear responsibility.
+The desktop interface communicates with a local backend, the backend owns all processing
+and storage, and every AI request passes through a single provider layer.
+Figure~\ref{fig:architecture} shows this structure, and Figure~\ref{fig:workflow} shows
+the overall workflow followed by a student.
+
+\shot{architecture}{System architecture of RecaLL}{fig:architecture}
+
+\shot{workflow}{System workflow}{fig:workflow}
+
+\subsection{Desktop and User Interface Layer}
+The application is packaged as a desktop program using Tauri~v2. Its interface is built
+with React~19 and TypeScript, styled with Tailwind~CSS, with React Router handling
+navigation and Redux Toolkit managing shared state. Mathematical notation is rendered
+with KaTeX, and PDF pages are displayed with PDF.js (\code{pdfjs-dist}).
+
+\subsection{Backend API Layer}
+A FastAPI backend written in Python runs locally and serves the interface over HTTP.
+It exposes two groups of routes. The application API under \code{/api/v1} covers
+documents, conversations, flashcards, quizzes, reviews and learning analytics, and uses
+token-based authentication. A second group of study routes covers books, topics, notes,
+annotations and the Socratic drill.
+
+\subsection{Document Processing Layer}
+Uploaded documents pass through a staged pipeline: validation, extraction,
+normalisation, chunking, embedding and indexing. Text extraction is implemented as a
+plugin system with PyMuPDF4LLM as the default, and Marker available as an optional
+extractor for scanned or handwritten documents.
+
+\subsection{AI Provider Layer}
+All providers implement a common interface, \code{BaseLLMProvider}, and a factory selects
+the provider for each request, so features do not depend on any one vendor. Gemini,
+OpenAI, Groq and a local Ollama server are supported. The layer also applies rate
+limiting and retries transient failures with increasing delays. Prompts are kept in a
+central registry, and each can be customised without changing the code.
+
+\subsection{Storage Layer}
+Data is stored locally. SQLite in Write-Ahead Logging (WAL) mode holds an application
+database for accounts, documents, chunks, conversations, flashcards, quizzes and reviews,
+and a per-user study database for books, topics, notes, annotations and drill records.
+Uploaded PDFs and images are kept in local file storage.
+
+\subsection{Core Features}
+The features delivered on this architecture are document import and processing, a PDF
+reader with topic navigation, AI-generated Cornell notes, Socratic drills, misconception
+detection with flashcard generation, FSRS-based review, the Knowledge Hub, generated
+quizzes, a dashboard with learning progress, and AI provider and security settings.
+
+% ------------------------------------------------------------------ 7
+\section{Implementation}
+\label{sec:implementation}
+This section describes each implemented module in terms of its frontend, its backend and
+its resulting functionality. The screenshots were taken from the running application
+using documents uploaded by the team, including a CUET lecture on Artificial Intelligence.
+
+% ---- 7.1
+\subsection{Document Import and Processing}
+\subsubsection{Frontend}
+The Documents page lists every uploaded document as a card showing its type, age, page
+count and processing status. Students can search by title, filter by status (All, Ready,
+Processing or Failed) and sort the list. The Add Knowledge action starts an upload, and a
+progress dialog reports each stage of processing.
+
+\subsubsection{Backend}
+The \code{/books/upload} route reads the PDF's built-in table of contents and, when none
+exists, falls back to detecting headings from the text. Front-matter entries such as
+covers and copyright pages are filtered out before the topic tree is built. A document
+identified as scanned is routed to the Marker extractor when it is available. The
+processing pipeline records its current stage and progress in a job table, so that
+progress can be reported to the interface. The chunker splits text along headings,
+paragraphs and page boundaries, with a configurable overlap between chunks.
+
+\subsubsection{Functionality}
+A student uploads a PDF and receives a navigable topic tree along with text chunks that
+later features use as source material.
+
+\shot{pipeline_flow}{Document processing pipeline}{fig:pipeline}
+
+\shot{documents}{Uploaded documents with processing status}{fig:documents}
+
+% ---- 7.2
+\subsection{PDF Reader and Topic Navigation}
+\subsubsection{Frontend}
+The Document Reader presents the topic tree in a sidebar with a filter box. Selecting a
+topic shows its study actions: View PDF, Extract Concepts, Generate Flashcards, Study
+Notes and View Markdown. The reader displays the original PDF pages and supports
+highlights and annotations. An AI chat sidebar is available beside the document.
+
+\subsubsection{Backend}
+Annotations are saved per book through the \code{/books/\{book\_id\}/annotations} routes.
+Further routes explain a highlighted passage or generate flashcards from it, and the
+annotated document can be exported as a PDF.
+
+\subsubsection{Functionality}
+Students can read the source material and study from it in one place, moving between a
+topic and its exact page, as shown in Figure~\ref{fig:reader}.
+
+\shot{reader_pdf}{PDF reader beside the detected topics}{fig:reader}
+
+% ---- 7.3
+\subsection{AI-Generated Cornell Notes}
+\subsubsection{Frontend}
+The notes editor presents notes on notebook paper with ruled, grid or plain styles, a
+handwritten font and highlighter effects, and renders mathematics with KaTeX. Students can
+edit notes, add images and generate a Cornell note with one button, while a progress bar
+reports the state of generation. A separate Notes Hub groups notes into smart views and by
+book.
+
+\subsubsection{Backend}
+The \code{/topics/\{topic\_id\}/notes/scaffold-stream} route generates the note and streams
+progress events to the interface. It uses the \code{cornell\_scaffold\_prompt} template,
+which asks for a fixed structure: a core intuition, invariants and definitions, step-by-step
+mechanisms, a worked example, visual comparisons, common exam pitfalls and self-testing cue
+questions. Notes are stored against their topic.
+
+\subsubsection{Functionality}
+Each topic can be given a complete, consistently structured note in seconds, which the
+student can then edit. Figures~\ref{fig:cornell} and~\ref{fig:cornell2} show a note generated
+from one slide of a CUET lecture.
+
+\shot[0.8\linewidth]{cornell}{Cornell note: core intuition and definitions}{fig:cornell}
+
+\shot[0.8\linewidth]{cornell_analogy}{Cornell note: analogy and first-principles breakdown}{fig:cornell2}
+
+% ---- 7.4
+\subsection{Socratic Diagnostic Drills}
+\subsubsection{Frontend}
+The Socratic Drill widget appears on each topic and can also target one extracted concept.
+It presents one question at a time, labelled with its question type, together with an
+optional hint and a text box in which the student explains their reasoning.
+
+\subsubsection{Backend}
+The \code{/topics/\{topic\_id\}/drill/generate} route sends the topic content to the selected
+provider with the \code{socratic\_question\_prompt} template. Each drill contains exactly two
+questions drawn from three types: causal mechanism, counterfactual and applied scenario.
+Simple recall questions are excluded by the prompt. Each question carries the key invariants
+that a good answer should address and a leading hint. Because model output can be malformed,
+the response passes through a repair step and is validated against a Pydantic schema.
+
+\subsubsection{Functionality}
+Instead of asking the student to repeat a definition, the drill asks why something works and
+what would happen if conditions changed. Figure~\ref{fig:drill} shows a question generated from
+the lecture on rational agents.
+
+\shot{drill_flow}{Socratic drill flow}{fig:drillflow}
+
+\shot{socratic_drill}{Drill question generated from a CUET lecture}{fig:drill}
+
+% ---- 7.5
+% TEAM: this section describes grading as designed. In the code reviewed for this report,
+% app/socratic_drill.py requests "socratic_evaluation_prompt", which is NOT registered in
+% app/prompt_manager.py, so grading receives an empty prompt. Fix this before submitting,
+% or rewrite this section and the matching text in the Conclusion.
+\subsection{Misconception Detection and Flashcard Generation}
+\subsubsection{Frontend}
+After an answer is submitted, the widget shows a mastery score, the knowledge gaps, the
+misconceptions and a Socratic nudge. Students can pin the gaps to their study notes and save
+the suggested flashcards to their review deck.
+
+\subsubsection{Backend}
+The \code{/topics/\{topic\_id\}/drill/evaluate} route compares the answer against the question's
+key invariants and the source content. The score falls into one of four bands: mastered
+(85--100), developing (60--84), fragile (35--59) and misconception (0--34). Each gap includes
+an explanation and the reason it matters, and each misconception includes the pitfall, the
+correct theory and an examination tip. The number of suggested flashcards depends on the
+score: none at 85 or above, one from 60 to 84, and one or two below 60. The attempt is recorded
+and the topic's mastery score is updated, while \code{/drill/save-cards} stores accepted cards.
+
+\subsubsection{Functionality}
+A wrong explanation becomes useful study material, since the flashcards produced target what
+that student actually misunderstood, as summarised in Figure~\ref{fig:misconception}.
+
+\shot{misconception}{Misconception detection and flashcard generation}{fig:misconception}
+
+% ---- 7.6
+\subsection{Flashcards and FSRS Review}
+\subsubsection{Frontend}
+The Flashcards page lists generated sets, each with its card and source counts, and a dialog
+generates new sets from selected documents. The study view shows one question at a time and
+links it to its source document and page. After revealing the answer, the student rates the
+card as Again, Hard, Good or Easy. A Review page gathers all cards that are due.
+
+\subsubsection{Backend}
+Flashcards are generated from retrieved document chunks and validated before being saved.
+Review sessions are handled through the \code{/api/v1/reviews} routes, with services to start a
+session, fetch the next item, reveal an answer and rate an item. Scheduling sits behind an
+abstract \code{ReviewScheduler} interface. Its default implementation uses the \code{fsrs}
+library (FSRS version~6) with a desired retention of 90\% and a maximum interval of 36,500 days.
+
+\subsubsection{Functionality}
+FSRS models each card using its difficulty, stability and retrievability, as shown in
+Figure~\ref{fig:fsrs}. Cards the student finds hard return sooner, and easy cards return later,
+so revision time goes where it is most needed.
+
+\shot[0.62\linewidth]{fsrs_cycle}{FSRS review cycle}{fig:fsrs}
+
+\shot[0.72\linewidth]{flashcard}{Flashcard linked back to its source page}{fig:flashcard}
+
+% ---- 7.7
+\subsection{Knowledge Hub}
+\subsubsection{Frontend}
+The Knowledge Hub is a chat page with a list of saved conversations, suggested prompts and a
+scope selector that limits the search to chosen documents or covers all of them. Each answer
+shows its source references and offers study handoffs: Make Flashcard and Test Knowledge.
+
+\subsubsection{Backend}
+The question is processed by a retrieval service that scores document chunks using keyword
+and vector similarity and then filters the results for diversity. In the current build, the
+stored vectors are deterministic placeholder values rather than AI embeddings, so ranking
+depends mainly on keyword matching. The selected chunks are passed to the model as untrusted
+reference data, and the system prompt instructs the model not to follow any instructions found
+inside them. A citation validator then checks each citation against the chunks that were
+actually retrieved. Responses are streamed to the interface as server-sent events.
+
+\subsubsection{Functionality}
+Students can ask questions across their own material and check where each claim came from,
+as shown in Figure~\ref{fig:hub}.
+
+\shot{rag_flow}{Knowledge Hub answer flow}{fig:ragflow}
+
+\shot{knowledge_hub}{Answer grounded in an uploaded chapter, with source marker [S1]}{fig:hub}
+
+% ---- 7.8
+\subsection{Quizzes}
+\subsubsection{Frontend}
+The Quizzes page lists generated quizzes with their difficulty, question count and sources.
+The quiz detail page shows past attempts and an overview of the questions, and dedicated pages
+handle taking a quiz and viewing its results.
+
+\subsubsection{Backend}
+The quiz service retrieves chunks from the selected documents, generates questions at the
+requested difficulty and validates them before saving. Multiple-choice and true/false questions
+are supported. The attempt service starts an attempt, records each answer and scores the attempt
+on submission.
+
+\subsubsection{Functionality}
+Students can assess a whole lecture or document at any time and keep a record of attempts, which
+also feeds into their progress statistics.
+
+\shot[0.8\linewidth]{quiz}{Generated quiz questions}{fig:quiz}
+
+% ---- 7.9
+\subsection{Dashboard and Learning Progress}
+\subsubsection{Frontend}
+The Dashboard opens with the number of reviews due and a summary of the student's knowledge.
+The Progress page reports review workload, daily activity, quiz accuracy and tracked knowledge.
+Charts drawn with Recharts show reviews and quiz attempts over 7, 30 or 90 days, with a table view
+as an alternative.
+
+\subsubsection{Backend}
+A learning analytics service provides the dashboard summary, review, quiz and flashcard statistics,
+daily activity, and progress per document, per concept and per study session, through the
+\code{/api/v1/learning} routes.
+
+\subsubsection{Functionality}
+The figures are computed from recorded activity, giving students a realistic view of what they have
+studied and what needs attention next.
+
+\shot{dashboard}{Student dashboard}{fig:dashboard}
+
+\shot{progress}{Study consistency over time}{fig:progress}
+
+% ---- 7.10
+\subsection{AI Providers, Settings and Security}
+\subsubsection{Frontend}
+The Settings page is organised into tabs, including Account, Appearance, AI \& Providers and
+Security. The AI \& Providers tab shows a card for each provider, where the student can save and test
+a personal key and choose the active provider. Only a short hint of a saved key is displayed.
+
+\subsubsection{Backend}
+Personal API keys are encrypted with AES-256-GCM before being stored. Passwords are hashed using
+PBKDF2-HMAC-SHA256 with 600,000 rounds, and authenticated requests to the application API use JSON
+Web Tokens. Routes under \code{/api/v1/account/byok} save, delete and test credentials.
+
+\subsubsection{Functionality}
+Students can use their preferred cloud provider or a local Ollama model and can change between them
+without affecting their study material.
+
+\shot{providers}{Provider keys in the Settings page}{fig:providers}
+
+% ------------------------------------------------------------------ 8
+\section{Existing Related Work}
+\label{sec:related}
+Several existing tools address parts of the problem that RecaLL targets. A concise comparison based
+on the vendors' published information is presented below. These products change quickly, so the
+descriptions reflect their documentation at the time of writing.
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{NotebookLM} (\url{https://notebooklm.google}) --- Google's AI research assistant
+  answers from uploaded sources with inline citations, and can generate flashcards and practice quizzes.
+  It is the closest tool in scope. Its published features emphasise working with sources, whereas RecaLL
+  adds a scheduled revision path through FSRS and handwritten-style Cornell notes in a desktop application.
+  \item \textbf{ChatPDF} (\url{https://www.chatpdf.com}) --- A chat tool that answers questions about
+  uploaded PDFs, with clickable citations that lead to the relevant passage. It is convenient for finding
+  information, but its focus is answering the student's questions rather than questioning the student.
+  \item \textbf{Anki} (\url{https://apps.ankiweb.net}) --- A widely used open-source flashcard application,
+  which has offered FSRS as an optional scheduler since version 23.10. Its scheduling is strong, but students
+  generally create or import their own cards, whereas RecaLL generates cards from the source material.
+  \item \textbf{Quizlet} (\url{https://quizlet.com}) --- A popular study platform whose AI tools generate
+  study guides and flashcards from course materials, along with an adaptive Learn mode. It is a hosted
+  service, whereas RecaLL keeps its data locally and lets the student choose the AI model.
+  \item \textbf{RemNote} (\url{https://www.remnote.com}) --- A note-taking and spaced-repetition application
+  that generates flashcards from notes and PDFs and supports FSRS. It is similar in its aim of connecting notes
+  with revision. RecaLL differs in its Socratic drills, which turn a student's explanation into targeted
+  flashcards, and in its option of a local model.
+\end{enumerate}
+
+Each of these tools is strong in its own area. RecaLL's contribution is to join the complete path, from
+structuring a PDF to note-making, Socratic questioning, flashcard generation and FSRS revision, in one desktop
+application with a choice of AI provider.
+
+% ------------------------------------------------------------------ 9
+\section{Conclusion}
+RecaLL began as a response to a familiar problem: students read their textbooks carefully and still forget
+what they read. The project developed into a desktop application that structures academic PDFs, writes Cornell
+notes, questions the student through Socratic drills, turns gaps into flashcards and schedules revision with
+FSRS. The Knowledge Hub and quizzes support this path, and the progress page keeps the student's activity visible.
+
+The project also has clear limitations. Scanned PDFs require the optional Marker extractor, which is not part of
+the default installation. Document search currently relies mainly on keyword matching, because AI embeddings are
+not yet generated for stored chunks. Cloud AI requires an API key and an internet connection, local AI speed depends
+on the student's hardware, and AI-generated content can still need checking against the source.
+
+These limitations also indicate the direction of future work: built-in OCR for scanned documents, AI embeddings for
+semantic search, smarter scheduling across subjects, and web and mobile access. Beyond the finished software, the
+project reinforced the value of checking a system against its real behaviour and real documents, rather than relying
+on what the code or its documentation appears to promise.
+
+\end{document}

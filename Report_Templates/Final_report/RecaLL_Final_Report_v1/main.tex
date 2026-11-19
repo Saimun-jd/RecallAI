@@ -1,0 +1,66 @@
+%==============================================================
+%  CSE-356  Software Engineering (Sessional) -- Final Report
+%  Department of CSE, CUET
+%
+%  HOW TO USE
+%   1. Edit config.tex   (title, team members, guide on/off)
+%   2. Write each chapter in chapters/chXX_*.tex
+%   3. Put images in images/diagrams/ and cite them with \cref{fig:...}
+%   4. Add references to references.bib and cite with \cite{key}
+%   5. Compile with pdfLaTeX (Overleaf default) -- see README.md
+%==============================================================
+\documentclass[12pt,a4paper]{report}
+
+\input{preamble}
+\input{config}      % must come AFTER preamble (uses \member)
+
+\begin{document}
+
+%----------------------- FRONT MATTER --------------------------
+\pagenumbering{gobble}
+\input{frontmatter/cover}
+\clearpage
+\pagenumbering{roman}
+\setcounter{page}{2}
+\input{frontmatter/team}
+\clearpage
+\input{frontmatter/executive_summary}
+
+\tableofcontents
+\clearpage
+\listoffigures
+\addcontentsline{toc}{chapter}{List of Figures}  % harmless if already listed
+\clearpage
+\listoftables
+\addcontentsline{toc}{chapter}{List of Tables}
+\clearpage
+
+%----------------------- MAIN MATTER ---------------------------
+\pagenumbering{arabic}
+\input{chapters/ch01_introduction}
+\input{chapters/ch02_project_management}
+\input{chapters/ch03_requirements}
+\input{chapters/ch04_architecture}
+\input{chapters/ch05_design}
+\input{chapters/ch06_implementation}
+\input{chapters/ch07_testing}
+\input{chapters/ch08_deployment}
+\input{chapters/ch09_sustainability}
+
+%----------------------- BACK MATTER ---------------------------
+\input{frontmatter/acknowledgement}
+
+\bibliographystyle{ieeetr}   % numeric IEEE-like style (works everywhere)
+% \bibliographystyle{IEEEtran}  % <- use this on Overleaf for strict IEEE format
+\bibliography{references}
+\addcontentsline{toc}{chapter}{References}
+
+\appendix
+\input{appendices/appendixA_source_code}
+\input{appendices/appendixB_test_cases}
+\input{appendices/appendixC_screenshots}
+\input{appendices/appendixD_meeting_minutes}
+\input{appendices/appendixE_additional_diagrams}
+\input{appendices/appendixF_ai_documentation}
+
+\end{document}

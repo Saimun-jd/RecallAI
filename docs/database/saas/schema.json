@@ -1,0 +1,4654 @@
+{
+  "name": "Recall AI – SaaS DB (recall_saas.db)",
+  "tables": [
+    {
+      "name": "users",
+      "type": "table",
+      "columns": [
+        {
+          "name": "id",
+          "type": "TEXT",
+          "nullable": true
+        },
+        {
+          "name": "email",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "password_hash",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "full_name",
+          "type": "TEXT",
+          "nullable": true
+        },
+        {
+          "name": "avatar_url",
+          "type": "TEXT",
+          "nullable": true
+        },
+        {
+          "name": "is_active",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": "1"
+        },
+        {
+          "name": "created_at",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "strftime('%Y-%m-%dT%H:%M:%SZ', 'now')"
+        },
+        {
+          "name": "updated_at",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "strftime('%Y-%m-%dT%H:%M:%SZ', 'now')"
+        },
+        {
+          "name": "deleted_at",
+          "type": "TEXT",
+          "nullable": true
+        }
+      ],
+      "indexes": [
+        {
+          "name": "idx_users_email",
+          "def": "CREATE INDEX idx_users_email ON users(email)",
+          "table": "users",
+          "columns": [
+            "email"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_users_2",
+          "def": "UNIQUE (email)",
+          "table": "users",
+          "columns": [
+            "email"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_users_1",
+          "def": "PRIMARY KEY (id)",
+          "table": "users",
+          "columns": [
+            "id"
+          ]
+        }
+      ],
+      "constraints": [
+        {
+          "name": "id",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (id)",
+          "table": "users",
+          "columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_users_2",
+          "type": "UNIQUE",
+          "def": "UNIQUE (email)",
+          "table": "users",
+          "columns": [
+            "email"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_users_1",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (id)",
+          "table": "users",
+          "columns": [
+            "id"
+          ]
+        }
+      ],
+      "def": "CREATE TABLE users (\n                id TEXT PRIMARY KEY,\n                email TEXT NOT NULL UNIQUE COLLATE NOCASE,\n                password_hash TEXT NOT NULL,\n                full_name TEXT,\n                avatar_url TEXT,\n                is_active INTEGER NOT NULL DEFAULT 1,\n                created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),\n                updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),\n                deleted_at TEXT\n            )"
+    },
+    {
+      "name": "workspaces",
+      "type": "table",
+      "columns": [
+        {
+          "name": "id",
+          "type": "TEXT",
+          "nullable": true
+        },
+        {
+          "name": "owner_id",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "name",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "'Personal Workspace'"
+        },
+        {
+          "name": "created_at",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "strftime('%Y-%m-%dT%H:%M:%SZ', 'now')"
+        },
+        {
+          "name": "updated_at",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "strftime('%Y-%m-%dT%H:%M:%SZ', 'now')"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "idx_workspaces_owner",
+          "def": "CREATE INDEX idx_workspaces_owner ON workspaces(owner_id)",
+          "table": "workspaces",
+          "columns": [
+            "owner_id"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_workspaces_2",
+          "def": "UNIQUE (owner_id)",
+          "table": "workspaces",
+          "columns": [
+            "owner_id"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_workspaces_1",
+          "def": "PRIMARY KEY (id)",
+          "table": "workspaces",
+          "columns": [
+            "id"
+          ]
+        }
+      ],
+      "constraints": [
+        {
+          "name": "id",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (id)",
+          "table": "workspaces",
+          "columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "- (Foreign key ID: 0)",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (owner_id) REFERENCES users (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE",
+          "table": "workspaces",
+          "referenced_table": "users",
+          "columns": [
+            "owner_id"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_workspaces_2",
+          "type": "UNIQUE",
+          "def": "UNIQUE (owner_id)",
+          "table": "workspaces",
+          "columns": [
+            "owner_id"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_workspaces_1",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (id)",
+          "table": "workspaces",
+          "columns": [
+            "id"
+          ]
+        }
+      ],
+      "def": "CREATE TABLE workspaces (\n                id TEXT PRIMARY KEY,\n                owner_id TEXT NOT NULL UNIQUE,\n                name TEXT NOT NULL DEFAULT 'Personal Workspace',\n                created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),\n                updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),\n                FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE\n            )"
+    },
+    {
+      "name": "user_preferences",
+      "type": "table",
+      "columns": [
+        {
+          "name": "user_id",
+          "type": "TEXT",
+          "nullable": true
+        },
+        {
+          "name": "theme",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "'neo-brutalist'"
+        },
+        {
+          "name": "daily_review_goal",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": "20"
+        },
+        {
+          "name": "preferred_llm_provider",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "'auto'"
+        },
+        {
+          "name": "preferences",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "'{}'"
+        },
+        {
+          "name": "updated_at",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "strftime('%Y-%m-%dT%H:%M:%SZ', 'now')"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "sqlite_autoindex_user_preferences_1",
+          "def": "PRIMARY KEY (user_id)",
+          "table": "user_preferences",
+          "columns": [
+            "user_id"
+          ]
+        }
+      ],
+      "constraints": [
+        {
+          "name": "user_id",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (user_id)",
+          "table": "user_preferences",
+          "columns": [
+            "user_id"
+          ]
+        },
+        {
+          "name": "- (Foreign key ID: 0)",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (user_id) REFERENCES users (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE",
+          "table": "user_preferences",
+          "referenced_table": "users",
+          "columns": [
+            "user_id"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_user_preferences_1",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (user_id)",
+          "table": "user_preferences",
+          "columns": [
+            "user_id"
+          ]
+        },
+        {
+          "name": "-",
+          "type": "CHECK",
+          "def": "CHECK (daily_review_goal \u003e 0)",
+          "table": "user_preferences",
+          "columns": [
+            "daily_review_goal"
+          ]
+        }
+      ],
+      "def": "CREATE TABLE user_preferences (\n                user_id TEXT PRIMARY KEY,\n                theme TEXT NOT NULL DEFAULT 'neo-brutalist',\n                daily_review_goal INTEGER NOT NULL DEFAULT 20 CHECK (daily_review_goal \u003e 0),\n                preferred_llm_provider TEXT NOT NULL DEFAULT 'auto',\n                preferences TEXT NOT NULL DEFAULT '{}',\n                updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),\n                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE\n            )"
+    },
+    {
+      "name": "plans",
+      "type": "table",
+      "columns": [
+        {
+          "name": "id",
+          "type": "TEXT",
+          "nullable": true
+        },
+        {
+          "name": "name",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "price_cents",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": "0"
+        },
+        {
+          "name": "billing_interval",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "'month'"
+        },
+        {
+          "name": "monthly_credits",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": "50"
+        },
+        {
+          "name": "max_documents",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": "5"
+        },
+        {
+          "name": "max_storage_mb",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": "50"
+        },
+        {
+          "name": "byok_allowed",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": "1"
+        },
+        {
+          "name": "features",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "'{}'"
+        },
+        {
+          "name": "is_active",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": "1"
+        },
+        {
+          "name": "created_at",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "strftime('%Y-%m-%dT%H:%M:%SZ', 'now')"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "sqlite_autoindex_plans_1",
+          "def": "PRIMARY KEY (id)",
+          "table": "plans",
+          "columns": [
+            "id"
+          ]
+        }
+      ],
+      "constraints": [
+        {
+          "name": "id",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (id)",
+          "table": "plans",
+          "columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_plans_1",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (id)",
+          "table": "plans",
+          "columns": [
+            "id"
+          ]
+        }
+      ],
+      "def": "CREATE TABLE plans (\n                id TEXT PRIMARY KEY,\n                name TEXT NOT NULL,\n                price_cents INTEGER NOT NULL DEFAULT 0,\n                billing_interval TEXT NOT NULL DEFAULT 'month',\n                monthly_credits INTEGER NOT NULL DEFAULT 50,\n                max_documents INTEGER NOT NULL DEFAULT 5,\n                max_storage_mb INTEGER NOT NULL DEFAULT 50,\n                byok_allowed INTEGER NOT NULL DEFAULT 1,\n                features TEXT NOT NULL DEFAULT '{}',\n                is_active INTEGER NOT NULL DEFAULT 1,\n                created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))\n            )"
+    },
+    {
+      "name": "files",
+      "type": "table",
+      "columns": [
+        {
+          "name": "id",
+          "type": "TEXT",
+          "nullable": true
+        },
+        {
+          "name": "workspace_id",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "storage_provider",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "'local'"
+        },
+        {
+          "name": "storage_path",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "original_filename",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "mime_type",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "size_bytes",
+          "type": "INTEGER",
+          "nullable": false
+        },
+        {
+          "name": "sha256_checksum",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "created_at",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "strftime('%Y-%m-%dT%H:%M:%SZ', 'now')"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "idx_files_workspace",
+          "def": "CREATE INDEX idx_files_workspace ON files(workspace_id)",
+          "table": "files",
+          "columns": [
+            "workspace_id"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_files_2",
+          "def": "UNIQUE (storage_path)",
+          "table": "files",
+          "columns": [
+            "storage_path"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_files_1",
+          "def": "PRIMARY KEY (id)",
+          "table": "files",
+          "columns": [
+            "id"
+          ]
+        }
+      ],
+      "constraints": [
+        {
+          "name": "id",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (id)",
+          "table": "files",
+          "columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "- (Foreign key ID: 0)",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (workspace_id) REFERENCES workspaces (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE",
+          "table": "files",
+          "referenced_table": "workspaces",
+          "columns": [
+            "workspace_id"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_files_2",
+          "type": "UNIQUE",
+          "def": "UNIQUE (storage_path)",
+          "table": "files",
+          "columns": [
+            "storage_path"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_files_1",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (id)",
+          "table": "files",
+          "columns": [
+            "id"
+          ]
+        }
+      ],
+      "def": "CREATE TABLE files (\n                id TEXT PRIMARY KEY,\n                workspace_id TEXT NOT NULL,\n                storage_provider TEXT NOT NULL DEFAULT 'local',\n                storage_path TEXT NOT NULL UNIQUE,\n                original_filename TEXT NOT NULL,\n                mime_type TEXT NOT NULL,\n                size_bytes INTEGER NOT NULL,\n                sha256_checksum TEXT NOT NULL,\n                created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),\n                FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE\n            )"
+    },
+    {
+      "name": "documents",
+      "type": "table",
+      "columns": [
+        {
+          "name": "id",
+          "type": "TEXT",
+          "nullable": true
+        },
+        {
+          "name": "workspace_id",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "file_id",
+          "type": "TEXT",
+          "nullable": true
+        },
+        {
+          "name": "title",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "source_type",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "'pdf'"
+        },
+        {
+          "name": "total_pages",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": "1"
+        },
+        {
+          "name": "status",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "'ready'"
+        },
+        {
+          "name": "processing_error",
+          "type": "TEXT",
+          "nullable": true
+        },
+        {
+          "name": "metadata",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "'{}'"
+        },
+        {
+          "name": "created_at",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "strftime('%Y-%m-%dT%H:%M:%SZ', 'now')"
+        },
+        {
+          "name": "updated_at",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "strftime('%Y-%m-%dT%H:%M:%SZ', 'now')"
+        },
+        {
+          "name": "deleted_at",
+          "type": "TEXT",
+          "nullable": true
+        }
+      ],
+      "indexes": [
+        {
+          "name": "idx_documents_ws_created",
+          "def": "CREATE INDEX idx_documents_ws_created ON documents(workspace_id, deleted_at, created_at DESC)",
+          "table": "documents",
+          "columns": [
+            "workspace_id",
+            "deleted_at",
+            "created_at"
+          ]
+        },
+        {
+          "name": "idx_documents_workspace",
+          "def": "CREATE INDEX idx_documents_workspace ON documents(workspace_id, status)",
+          "table": "documents",
+          "columns": [
+            "workspace_id",
+            "status"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_documents_1",
+          "def": "PRIMARY KEY (id)",
+          "table": "documents",
+          "columns": [
+            "id"
+          ]
+        }
+      ],
+      "constraints": [
+        {
+          "name": "id",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (id)",
+          "table": "documents",
+          "columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "- (Foreign key ID: 0)",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (file_id) REFERENCES files (id) ON UPDATE NO ACTION ON DELETE SET NULL MATCH NONE",
+          "table": "documents",
+          "referenced_table": "files",
+          "columns": [
+            "file_id"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "- (Foreign key ID: 1)",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (workspace_id) REFERENCES workspaces (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE",
+          "table": "documents",
+          "referenced_table": "workspaces",
+          "columns": [
+            "workspace_id"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_documents_1",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (id)",
+          "table": "documents",
+          "columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "-",
+          "type": "CHECK",
+          "def": "CHECK (total_pages \u003e= 0)",
+          "table": "documents",
+          "columns": [
+            "total_pages"
+          ]
+        },
+        {
+          "name": "-",
+          "type": "CHECK",
+          "def": "CHECK (status IN ('uploading', 'processing', 'ready', 'failed', 'deleted'))",
+          "table": "documents",
+          "columns": [
+            "status"
+          ]
+        }
+      ],
+      "def": "CREATE TABLE documents (\n                id TEXT PRIMARY KEY,\n                workspace_id TEXT NOT NULL,\n                file_id TEXT,\n                title TEXT NOT NULL,\n                source_type TEXT NOT NULL DEFAULT 'pdf',\n                total_pages INTEGER NOT NULL DEFAULT 1 CHECK (total_pages \u003e= 0),\n                status TEXT NOT NULL DEFAULT 'ready' CHECK (status IN ('uploading', 'processing', 'ready', 'failed', 'deleted')),\n                processing_error TEXT,\n                metadata TEXT NOT NULL DEFAULT '{}',\n                created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),\n                updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),\n                deleted_at TEXT,\n                FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE,\n                FOREIGN KEY (file_id) REFERENCES files(id) ON DELETE SET NULL\n            )"
+    },
+    {
+      "name": "document_chunks",
+      "type": "table",
+      "columns": [
+        {
+          "name": "id",
+          "type": "TEXT",
+          "nullable": true
+        },
+        {
+          "name": "document_id",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "chunk_index",
+          "type": "INTEGER",
+          "nullable": false
+        },
+        {
+          "name": "content",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "page_number",
+          "type": "INTEGER",
+          "nullable": true
+        },
+        {
+          "name": "token_count",
+          "type": "INTEGER",
+          "nullable": false
+        },
+        {
+          "name": "embedding",
+          "type": "TEXT",
+          "nullable": true
+        },
+        {
+          "name": "embedding_model",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "'text-embedding-3-small'"
+        },
+        {
+          "name": "embedding_version",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": "1"
+        },
+        {
+          "name": "created_at",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "strftime('%Y-%m-%dT%H:%M:%SZ', 'now')"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "idx_chunks_doc_created",
+          "def": "CREATE INDEX idx_chunks_doc_created ON document_chunks(document_id, created_at DESC)",
+          "table": "document_chunks",
+          "columns": [
+            "document_id",
+            "created_at"
+          ]
+        },
+        {
+          "name": "idx_chunks_doc",
+          "def": "CREATE INDEX idx_chunks_doc ON document_chunks(document_id, chunk_index)",
+          "table": "document_chunks",
+          "columns": [
+            "document_id",
+            "chunk_index"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_document_chunks_2",
+          "def": "UNIQUE (document_id, chunk_index)",
+          "table": "document_chunks",
+          "columns": [
+            "document_id",
+            "chunk_index"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_document_chunks_1",
+          "def": "PRIMARY KEY (id)",
+          "table": "document_chunks",
+          "columns": [
+            "id"
+          ]
+        }
+      ],
+      "constraints": [
+        {
+          "name": "id",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (id)",
+          "table": "document_chunks",
+          "columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "- (Foreign key ID: 0)",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (document_id) REFERENCES documents (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE",
+          "table": "document_chunks",
+          "referenced_table": "documents",
+          "columns": [
+            "document_id"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_document_chunks_2",
+          "type": "UNIQUE",
+          "def": "UNIQUE (document_id, chunk_index)",
+          "table": "document_chunks",
+          "columns": [
+            "document_id",
+            "chunk_index"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_document_chunks_1",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (id)",
+          "table": "document_chunks",
+          "columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "-",
+          "type": "CHECK",
+          "def": "CHECK (chunk_index \u003e= 0)",
+          "table": "document_chunks",
+          "columns": [
+            "chunk_index"
+          ]
+        },
+        {
+          "name": "-",
+          "type": "CHECK",
+          "def": "CHECK (token_count \u003e 0)",
+          "table": "document_chunks",
+          "columns": [
+            "token_count"
+          ]
+        }
+      ],
+      "def": "CREATE TABLE document_chunks (\n                id TEXT PRIMARY KEY,\n                document_id TEXT NOT NULL,\n                chunk_index INTEGER NOT NULL CHECK (chunk_index \u003e= 0),\n                content TEXT NOT NULL,\n                page_number INTEGER,\n                token_count INTEGER NOT NULL CHECK (token_count \u003e 0),\n                embedding TEXT,\n                embedding_model TEXT NOT NULL DEFAULT 'text-embedding-3-small',\n                embedding_version INTEGER NOT NULL DEFAULT 1,\n                created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),\n                FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE,\n                CONSTRAINT uq_document_chunk UNIQUE (document_id, chunk_index)\n            )"
+    },
+    {
+      "name": "processing_jobs",
+      "type": "table",
+      "columns": [
+        {
+          "name": "id",
+          "type": "TEXT",
+          "nullable": true
+        },
+        {
+          "name": "workspace_id",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "document_id",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "status",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "'pending'"
+        },
+        {
+          "name": "current_stage",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "'validation'"
+        },
+        {
+          "name": "attempt_count",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": "0"
+        },
+        {
+          "name": "max_attempts",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": "3"
+        },
+        {
+          "name": "error_code",
+          "type": "TEXT",
+          "nullable": true
+        },
+        {
+          "name": "error_message",
+          "type": "TEXT",
+          "nullable": true
+        },
+        {
+          "name": "stage_progress",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": "0"
+        },
+        {
+          "name": "idempotency_key",
+          "type": "TEXT",
+          "nullable": true
+        },
+        {
+          "name": "started_at",
+          "type": "TEXT",
+          "nullable": true
+        },
+        {
+          "name": "completed_at",
+          "type": "TEXT",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "strftime('%Y-%m-%dT%H:%M:%SZ', 'now')"
+        },
+        {
+          "name": "updated_at",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "strftime('%Y-%m-%dT%H:%M:%SZ', 'now')"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "idx_processing_jobs_doc",
+          "def": "CREATE INDEX idx_processing_jobs_doc ON processing_jobs(document_id, status)",
+          "table": "processing_jobs",
+          "columns": [
+            "document_id",
+            "status"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_processing_jobs_2",
+          "def": "UNIQUE (idempotency_key)",
+          "table": "processing_jobs",
+          "columns": [
+            "idempotency_key"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_processing_jobs_1",
+          "def": "PRIMARY KEY (id)",
+          "table": "processing_jobs",
+          "columns": [
+            "id"
+          ]
+        }
+      ],
+      "constraints": [
+        {
+          "name": "id",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (id)",
+          "table": "processing_jobs",
+          "columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "- (Foreign key ID: 0)",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (document_id) REFERENCES documents (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE",
+          "table": "processing_jobs",
+          "referenced_table": "documents",
+          "columns": [
+            "document_id"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "- (Foreign key ID: 1)",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (workspace_id) REFERENCES workspaces (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE",
+          "table": "processing_jobs",
+          "referenced_table": "workspaces",
+          "columns": [
+            "workspace_id"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_processing_jobs_2",
+          "type": "UNIQUE",
+          "def": "UNIQUE (idempotency_key)",
+          "table": "processing_jobs",
+          "columns": [
+            "idempotency_key"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_processing_jobs_1",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (id)",
+          "table": "processing_jobs",
+          "columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "-",
+          "type": "CHECK",
+          "def": "CHECK (status IN ('pending', 'running', 'completed', 'failed', 'retrying', 'cancelled'))",
+          "table": "processing_jobs",
+          "columns": [
+            "status"
+          ]
+        },
+        {
+          "name": "-",
+          "type": "CHECK",
+          "def": "CHECK (stage_progress BETWEEN 0 AND 100)",
+          "table": "processing_jobs",
+          "columns": [
+            "stage_progress"
+          ]
+        }
+      ],
+      "def": "CREATE TABLE processing_jobs (\n                id TEXT PRIMARY KEY,\n                workspace_id TEXT NOT NULL,\n                document_id TEXT NOT NULL,\n                status TEXT NOT NULL DEFAULT 'pending' \n                    CHECK (status IN ('pending', 'running', 'completed', 'failed', 'retrying', 'cancelled')),\n                current_stage TEXT NOT NULL DEFAULT 'validation',\n                attempt_count INTEGER NOT NULL DEFAULT 0,\n                max_attempts INTEGER NOT NULL DEFAULT 3,\n                error_code TEXT,\n                error_message TEXT,\n                stage_progress INTEGER NOT NULL DEFAULT 0 CHECK (stage_progress BETWEEN 0 AND 100),\n                idempotency_key TEXT UNIQUE,\n                started_at TEXT,\n                completed_at TEXT,\n                created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),\n                updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),\n                FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE,\n                FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE\n            )"
+    },
+    {
+      "name": "provider_credentials",
+      "type": "table",
+      "columns": [
+        {
+          "name": "id",
+          "type": "TEXT",
+          "nullable": true
+        },
+        {
+          "name": "workspace_id",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "user_id",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "provider",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "encrypted_key",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "key_nonce",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "key_tag",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "key_version",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": "1"
+        },
+        {
+          "name": "key_hint",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "is_valid",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": "1"
+        },
+        {
+          "name": "last_tested_at",
+          "type": "TEXT",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "strftime('%Y-%m-%dT%H:%M:%SZ', 'now')"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "idx_provider_credentials_ws",
+          "def": "CREATE INDEX idx_provider_credentials_ws ON provider_credentials(workspace_id)",
+          "table": "provider_credentials",
+          "columns": [
+            "workspace_id"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_provider_credentials_2",
+          "def": "UNIQUE (workspace_id, provider)",
+          "table": "provider_credentials",
+          "columns": [
+            "workspace_id",
+            "provider"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_provider_credentials_1",
+          "def": "PRIMARY KEY (id)",
+          "table": "provider_credentials",
+          "columns": [
+            "id"
+          ]
+        }
+      ],
+      "constraints": [
+        {
+          "name": "id",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (id)",
+          "table": "provider_credentials",
+          "columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "- (Foreign key ID: 0)",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (user_id) REFERENCES users (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE",
+          "table": "provider_credentials",
+          "referenced_table": "users",
+          "columns": [
+            "user_id"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "- (Foreign key ID: 1)",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (workspace_id) REFERENCES workspaces (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE",
+          "table": "provider_credentials",
+          "referenced_table": "workspaces",
+          "columns": [
+            "workspace_id"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_provider_credentials_2",
+          "type": "UNIQUE",
+          "def": "UNIQUE (workspace_id, provider)",
+          "table": "provider_credentials",
+          "columns": [
+            "workspace_id",
+            "provider"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_provider_credentials_1",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (id)",
+          "table": "provider_credentials",
+          "columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "-",
+          "type": "CHECK",
+          "def": "CHECK (provider IN ('gemini', 'openai', 'groq', 'ollama'))",
+          "table": "provider_credentials",
+          "columns": [
+            "id",
+            "provider"
+          ]
+        }
+      ],
+      "def": "CREATE TABLE provider_credentials (\n                id TEXT PRIMARY KEY,\n                workspace_id TEXT NOT NULL,\n                user_id TEXT NOT NULL,\n                provider TEXT NOT NULL CHECK (provider IN ('gemini', 'openai', 'groq', 'ollama')),\n                encrypted_key TEXT NOT NULL,\n                key_nonce TEXT NOT NULL,\n                key_tag TEXT NOT NULL,\n                key_version INTEGER NOT NULL DEFAULT 1,\n                key_hint TEXT NOT NULL,\n                is_valid INTEGER NOT NULL DEFAULT 1,\n                last_tested_at TEXT,\n                created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),\n                FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE,\n                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,\n                CONSTRAINT uq_workspace_provider UNIQUE (workspace_id, provider)\n            )"
+    },
+    {
+      "name": "conversations",
+      "type": "table",
+      "columns": [
+        {
+          "name": "id",
+          "type": "TEXT",
+          "nullable": true
+        },
+        {
+          "name": "workspace_id",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "user_id",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "title",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "'New Conversation'"
+        },
+        {
+          "name": "created_at",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "strftime('%Y-%m-%dT%H:%M:%SZ', 'now')"
+        },
+        {
+          "name": "updated_at",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "strftime('%Y-%m-%dT%H:%M:%SZ', 'now')"
+        },
+        {
+          "name": "deleted_at",
+          "type": "TEXT",
+          "nullable": true
+        }
+      ],
+      "indexes": [
+        {
+          "name": "idx_conversations_workspace",
+          "def": "CREATE INDEX idx_conversations_workspace ON conversations(workspace_id, updated_at DESC)",
+          "table": "conversations",
+          "columns": [
+            "workspace_id",
+            "updated_at"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_conversations_1",
+          "def": "PRIMARY KEY (id)",
+          "table": "conversations",
+          "columns": [
+            "id"
+          ]
+        }
+      ],
+      "constraints": [
+        {
+          "name": "id",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (id)",
+          "table": "conversations",
+          "columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "- (Foreign key ID: 0)",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (user_id) REFERENCES users (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE",
+          "table": "conversations",
+          "referenced_table": "users",
+          "columns": [
+            "user_id"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "- (Foreign key ID: 1)",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (workspace_id) REFERENCES workspaces (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE",
+          "table": "conversations",
+          "referenced_table": "workspaces",
+          "columns": [
+            "workspace_id"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_conversations_1",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (id)",
+          "table": "conversations",
+          "columns": [
+            "id"
+          ]
+        }
+      ],
+      "def": "CREATE TABLE conversations (\n                id TEXT PRIMARY KEY,\n                workspace_id TEXT NOT NULL,\n                user_id TEXT NOT NULL,\n                title TEXT NOT NULL DEFAULT 'New Conversation',\n                created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),\n                updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),\n                deleted_at TEXT,\n                FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE,\n                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE\n            )"
+    },
+    {
+      "name": "messages",
+      "type": "table",
+      "columns": [
+        {
+          "name": "id",
+          "type": "TEXT",
+          "nullable": true
+        },
+        {
+          "name": "conversation_id",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "role",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "content",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "sources",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "'[]'"
+        },
+        {
+          "name": "token_count",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": "0"
+        },
+        {
+          "name": "created_at",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "strftime('%Y-%m-%dT%H:%M:%SZ', 'now')"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "idx_messages_conversation",
+          "def": "CREATE INDEX idx_messages_conversation ON messages(conversation_id, created_at ASC)",
+          "table": "messages",
+          "columns": [
+            "conversation_id",
+            "created_at"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_messages_1",
+          "def": "PRIMARY KEY (id)",
+          "table": "messages",
+          "columns": [
+            "id"
+          ]
+        }
+      ],
+      "constraints": [
+        {
+          "name": "id",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (id)",
+          "table": "messages",
+          "columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "- (Foreign key ID: 0)",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (conversation_id) REFERENCES conversations (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE",
+          "table": "messages",
+          "referenced_table": "conversations",
+          "columns": [
+            "conversation_id"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_messages_1",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (id)",
+          "table": "messages",
+          "columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "-",
+          "type": "CHECK",
+          "def": "CHECK (role IN ('user', 'assistant', 'system'))",
+          "table": "messages",
+          "columns": [
+            "role"
+          ]
+        }
+      ],
+      "def": "CREATE TABLE messages (\n                id TEXT PRIMARY KEY,\n                conversation_id TEXT NOT NULL,\n                role TEXT NOT NULL CHECK (role IN ('user', 'assistant', 'system')),\n                content TEXT NOT NULL,\n                sources TEXT NOT NULL DEFAULT '[]',\n                token_count INTEGER NOT NULL DEFAULT 0,\n                created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),\n                FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE\n            )"
+    },
+    {
+      "name": "usage_records",
+      "type": "table",
+      "columns": [
+        {
+          "name": "id",
+          "type": "TEXT",
+          "nullable": true
+        },
+        {
+          "name": "workspace_id",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "user_id",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "operation_type",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "provider",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "model",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "input_tokens",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": "0"
+        },
+        {
+          "name": "output_tokens",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": "0"
+        },
+        {
+          "name": "credits_used",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": "1"
+        },
+        {
+          "name": "created_at",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "strftime('%Y-%m-%dT%H:%M:%SZ', 'now')"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "idx_usage_records_ws",
+          "def": "CREATE INDEX idx_usage_records_ws ON usage_records(workspace_id, created_at)",
+          "table": "usage_records",
+          "columns": [
+            "workspace_id",
+            "created_at"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_usage_records_1",
+          "def": "PRIMARY KEY (id)",
+          "table": "usage_records",
+          "columns": [
+            "id"
+          ]
+        }
+      ],
+      "constraints": [
+        {
+          "name": "id",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (id)",
+          "table": "usage_records",
+          "columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "- (Foreign key ID: 0)",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (user_id) REFERENCES users (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE",
+          "table": "usage_records",
+          "referenced_table": "users",
+          "columns": [
+            "user_id"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "- (Foreign key ID: 1)",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (workspace_id) REFERENCES workspaces (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE",
+          "table": "usage_records",
+          "referenced_table": "workspaces",
+          "columns": [
+            "workspace_id"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_usage_records_1",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (id)",
+          "table": "usage_records",
+          "columns": [
+            "id"
+          ]
+        }
+      ],
+      "def": "CREATE TABLE usage_records (\n                id TEXT PRIMARY KEY,\n                workspace_id TEXT NOT NULL,\n                user_id TEXT NOT NULL,\n                operation_type TEXT NOT NULL,\n                provider TEXT NOT NULL,\n                model TEXT NOT NULL,\n                input_tokens INTEGER NOT NULL DEFAULT 0,\n                output_tokens INTEGER NOT NULL DEFAULT 0,\n                credits_used INTEGER NOT NULL DEFAULT 1,\n                created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),\n                FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE,\n                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE\n            )"
+    },
+    {
+      "name": "flashcard_sets",
+      "type": "table",
+      "columns": [
+        {
+          "name": "id",
+          "type": "TEXT",
+          "nullable": true
+        },
+        {
+          "name": "workspace_id",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "user_id",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "title",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "description",
+          "type": "TEXT",
+          "nullable": true
+        },
+        {
+          "name": "source_document_ids",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "'[]'"
+        },
+        {
+          "name": "card_count",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": "0"
+        },
+        {
+          "name": "created_at",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "strftime('%Y-%m-%dT%H:%M:%SZ', 'now')"
+        },
+        {
+          "name": "updated_at",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "strftime('%Y-%m-%dT%H:%M:%SZ', 'now')"
+        },
+        {
+          "name": "deleted_at",
+          "type": "TEXT",
+          "nullable": true
+        }
+      ],
+      "indexes": [
+        {
+          "name": "idx_flashcard_sets_ws_active",
+          "def": "CREATE INDEX idx_flashcard_sets_ws_active ON flashcard_sets(workspace_id, deleted_at, updated_at DESC)",
+          "table": "flashcard_sets",
+          "columns": [
+            "workspace_id",
+            "deleted_at",
+            "updated_at"
+          ]
+        },
+        {
+          "name": "idx_flashcard_sets_ws",
+          "def": "CREATE INDEX idx_flashcard_sets_ws ON flashcard_sets(workspace_id, updated_at DESC)",
+          "table": "flashcard_sets",
+          "columns": [
+            "workspace_id",
+            "updated_at"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_flashcard_sets_1",
+          "def": "PRIMARY KEY (id)",
+          "table": "flashcard_sets",
+          "columns": [
+            "id"
+          ]
+        }
+      ],
+      "constraints": [
+        {
+          "name": "id",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (id)",
+          "table": "flashcard_sets",
+          "columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "- (Foreign key ID: 0)",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (user_id) REFERENCES users (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE",
+          "table": "flashcard_sets",
+          "referenced_table": "users",
+          "columns": [
+            "user_id"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "- (Foreign key ID: 1)",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (workspace_id) REFERENCES workspaces (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE",
+          "table": "flashcard_sets",
+          "referenced_table": "workspaces",
+          "columns": [
+            "workspace_id"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_flashcard_sets_1",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (id)",
+          "table": "flashcard_sets",
+          "columns": [
+            "id"
+          ]
+        }
+      ],
+      "def": "CREATE TABLE flashcard_sets (\n                id TEXT PRIMARY KEY,\n                workspace_id TEXT NOT NULL,\n                user_id TEXT NOT NULL,\n                title TEXT NOT NULL,\n                description TEXT,\n                source_document_ids TEXT NOT NULL DEFAULT '[]',\n                card_count INTEGER NOT NULL DEFAULT 0,\n                created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),\n                updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),\n                deleted_at TEXT,\n                FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE,\n                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE\n            )"
+    },
+    {
+      "name": "flashcards",
+      "type": "table",
+      "columns": [
+        {
+          "name": "id",
+          "type": "TEXT",
+          "nullable": true
+        },
+        {
+          "name": "flashcard_set_id",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "front",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "back",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "source_metadata",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "'[]'"
+        },
+        {
+          "name": "position",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": "0"
+        },
+        {
+          "name": "created_at",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "strftime('%Y-%m-%dT%H:%M:%SZ', 'now')"
+        },
+        {
+          "name": "updated_at",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "strftime('%Y-%m-%dT%H:%M:%SZ', 'now')"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "idx_flashcards_set",
+          "def": "CREATE INDEX idx_flashcards_set ON flashcards(flashcard_set_id, position ASC)",
+          "table": "flashcards",
+          "columns": [
+            "flashcard_set_id",
+            "position"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_flashcards_1",
+          "def": "PRIMARY KEY (id)",
+          "table": "flashcards",
+          "columns": [
+            "id"
+          ]
+        }
+      ],
+      "constraints": [
+        {
+          "name": "id",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (id)",
+          "table": "flashcards",
+          "columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "- (Foreign key ID: 0)",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (flashcard_set_id) REFERENCES flashcard_sets (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE",
+          "table": "flashcards",
+          "referenced_table": "flashcard_sets",
+          "columns": [
+            "flashcard_set_id"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_flashcards_1",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (id)",
+          "table": "flashcards",
+          "columns": [
+            "id"
+          ]
+        }
+      ],
+      "def": "CREATE TABLE flashcards (\n                id TEXT PRIMARY KEY,\n                flashcard_set_id TEXT NOT NULL,\n                front TEXT NOT NULL,\n                back TEXT NOT NULL,\n                source_metadata TEXT NOT NULL DEFAULT '[]',\n                position INTEGER NOT NULL DEFAULT 0,\n                created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),\n                updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),\n                FOREIGN KEY (flashcard_set_id) REFERENCES flashcard_sets(id) ON DELETE CASCADE\n            )"
+    },
+    {
+      "name": "quizzes",
+      "type": "table",
+      "columns": [
+        {
+          "name": "id",
+          "type": "TEXT",
+          "nullable": true
+        },
+        {
+          "name": "workspace_id",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "user_id",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "title",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "description",
+          "type": "TEXT",
+          "nullable": true
+        },
+        {
+          "name": "source_document_ids",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "'[]'"
+        },
+        {
+          "name": "question_count",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": "0"
+        },
+        {
+          "name": "difficulty",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "'medium'"
+        },
+        {
+          "name": "created_at",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "strftime('%Y-%m-%dT%H:%M:%SZ', 'now')"
+        },
+        {
+          "name": "updated_at",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "strftime('%Y-%m-%dT%H:%M:%SZ', 'now')"
+        },
+        {
+          "name": "deleted_at",
+          "type": "TEXT",
+          "nullable": true
+        }
+      ],
+      "indexes": [
+        {
+          "name": "idx_quizzes_ws_active",
+          "def": "CREATE INDEX idx_quizzes_ws_active ON quizzes(workspace_id, deleted_at, updated_at DESC)",
+          "table": "quizzes",
+          "columns": [
+            "workspace_id",
+            "deleted_at",
+            "updated_at"
+          ]
+        },
+        {
+          "name": "idx_quizzes_ws",
+          "def": "CREATE INDEX idx_quizzes_ws ON quizzes(workspace_id, updated_at DESC)",
+          "table": "quizzes",
+          "columns": [
+            "workspace_id",
+            "updated_at"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_quizzes_1",
+          "def": "PRIMARY KEY (id)",
+          "table": "quizzes",
+          "columns": [
+            "id"
+          ]
+        }
+      ],
+      "constraints": [
+        {
+          "name": "id",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (id)",
+          "table": "quizzes",
+          "columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "- (Foreign key ID: 0)",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (user_id) REFERENCES users (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE",
+          "table": "quizzes",
+          "referenced_table": "users",
+          "columns": [
+            "user_id"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "- (Foreign key ID: 1)",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (workspace_id) REFERENCES workspaces (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE",
+          "table": "quizzes",
+          "referenced_table": "workspaces",
+          "columns": [
+            "workspace_id"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_quizzes_1",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (id)",
+          "table": "quizzes",
+          "columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "-",
+          "type": "CHECK",
+          "def": "CHECK (difficulty IN ('easy', 'medium', 'hard'))",
+          "table": "quizzes",
+          "columns": [
+            "difficulty"
+          ]
+        }
+      ],
+      "def": "CREATE TABLE quizzes (\n                id TEXT PRIMARY KEY,\n                workspace_id TEXT NOT NULL,\n                user_id TEXT NOT NULL,\n                title TEXT NOT NULL,\n                description TEXT,\n                source_document_ids TEXT NOT NULL DEFAULT '[]',\n                question_count INTEGER NOT NULL DEFAULT 0,\n                difficulty TEXT NOT NULL DEFAULT 'medium' CHECK (difficulty IN ('easy', 'medium', 'hard')),\n                created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),\n                updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),\n                deleted_at TEXT,\n                FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE,\n                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE\n            )"
+    },
+    {
+      "name": "quiz_questions",
+      "type": "table",
+      "columns": [
+        {
+          "name": "id",
+          "type": "TEXT",
+          "nullable": true
+        },
+        {
+          "name": "quiz_id",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "type",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "question",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "options",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "'[]'"
+        },
+        {
+          "name": "correct_answer",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "explanation",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "source_metadata",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "'[]'"
+        },
+        {
+          "name": "position",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": "0"
+        },
+        {
+          "name": "created_at",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "strftime('%Y-%m-%dT%H:%M:%SZ', 'now')"
+        },
+        {
+          "name": "updated_at",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "strftime('%Y-%m-%dT%H:%M:%SZ', 'now')"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "idx_quiz_questions_quiz",
+          "def": "CREATE INDEX idx_quiz_questions_quiz ON quiz_questions(quiz_id, position ASC)",
+          "table": "quiz_questions",
+          "columns": [
+            "quiz_id",
+            "position"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_quiz_questions_1",
+          "def": "PRIMARY KEY (id)",
+          "table": "quiz_questions",
+          "columns": [
+            "id"
+          ]
+        }
+      ],
+      "constraints": [
+        {
+          "name": "id",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (id)",
+          "table": "quiz_questions",
+          "columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "- (Foreign key ID: 0)",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (quiz_id) REFERENCES quizzes (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE",
+          "table": "quiz_questions",
+          "referenced_table": "quizzes",
+          "columns": [
+            "quiz_id"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_quiz_questions_1",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (id)",
+          "table": "quiz_questions",
+          "columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "-",
+          "type": "CHECK",
+          "def": "CHECK (type IN ('multiple_choice', 'true_false'))",
+          "table": "quiz_questions",
+          "columns": [
+            "type"
+          ]
+        }
+      ],
+      "def": "CREATE TABLE quiz_questions (\n                id TEXT PRIMARY KEY,\n                quiz_id TEXT NOT NULL,\n                type TEXT NOT NULL CHECK (type IN ('multiple_choice', 'true_false')),\n                question TEXT NOT NULL,\n                options TEXT NOT NULL DEFAULT '[]',\n                correct_answer TEXT NOT NULL,\n                explanation TEXT NOT NULL,\n                source_metadata TEXT NOT NULL DEFAULT '[]',\n                position INTEGER NOT NULL DEFAULT 0,\n                created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),\n                updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),\n                FOREIGN KEY (quiz_id) REFERENCES quizzes(id) ON DELETE CASCADE\n            )"
+    },
+    {
+      "name": "quiz_attempts",
+      "type": "table",
+      "columns": [
+        {
+          "name": "id",
+          "type": "TEXT",
+          "nullable": true
+        },
+        {
+          "name": "workspace_id",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "user_id",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "quiz_id",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "status",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "'in_progress'"
+        },
+        {
+          "name": "started_at",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "strftime('%Y-%m-%dT%H:%M:%SZ', 'now')"
+        },
+        {
+          "name": "submitted_at",
+          "type": "TEXT",
+          "nullable": true
+        },
+        {
+          "name": "score",
+          "type": "REAL",
+          "nullable": false,
+          "default": "0.0"
+        },
+        {
+          "name": "percentage",
+          "type": "REAL",
+          "nullable": false,
+          "default": "0.0"
+        },
+        {
+          "name": "total_questions",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": "0"
+        },
+        {
+          "name": "correct_answers",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": "0"
+        },
+        {
+          "name": "created_at",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "strftime('%Y-%m-%dT%H:%M:%SZ', 'now')"
+        },
+        {
+          "name": "updated_at",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "strftime('%Y-%m-%dT%H:%M:%SZ', 'now')"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "idx_quiz_attempts_submitted",
+          "def": "CREATE INDEX idx_quiz_attempts_submitted ON quiz_attempts(workspace_id, user_id, status, submitted_at DESC)",
+          "table": "quiz_attempts",
+          "columns": [
+            "workspace_id",
+            "user_id",
+            "status",
+            "submitted_at"
+          ]
+        },
+        {
+          "name": "idx_quiz_attempts_quiz",
+          "def": "CREATE INDEX idx_quiz_attempts_quiz ON quiz_attempts(quiz_id)",
+          "table": "quiz_attempts",
+          "columns": [
+            "quiz_id"
+          ]
+        },
+        {
+          "name": "idx_quiz_attempts_ws_user",
+          "def": "CREATE INDEX idx_quiz_attempts_ws_user ON quiz_attempts(workspace_id, user_id, updated_at DESC)",
+          "table": "quiz_attempts",
+          "columns": [
+            "workspace_id",
+            "user_id",
+            "updated_at"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_quiz_attempts_1",
+          "def": "PRIMARY KEY (id)",
+          "table": "quiz_attempts",
+          "columns": [
+            "id"
+          ]
+        }
+      ],
+      "constraints": [
+        {
+          "name": "id",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (id)",
+          "table": "quiz_attempts",
+          "columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "- (Foreign key ID: 0)",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (quiz_id) REFERENCES quizzes (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE",
+          "table": "quiz_attempts",
+          "referenced_table": "quizzes",
+          "columns": [
+            "quiz_id"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "- (Foreign key ID: 1)",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (user_id) REFERENCES users (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE",
+          "table": "quiz_attempts",
+          "referenced_table": "users",
+          "columns": [
+            "user_id"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "- (Foreign key ID: 2)",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (workspace_id) REFERENCES workspaces (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE",
+          "table": "quiz_attempts",
+          "referenced_table": "workspaces",
+          "columns": [
+            "workspace_id"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_quiz_attempts_1",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (id)",
+          "table": "quiz_attempts",
+          "columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "-",
+          "type": "CHECK",
+          "def": "CHECK (status IN ('in_progress', 'submitted', 'abandoned'))",
+          "table": "quiz_attempts",
+          "columns": [
+            "status"
+          ]
+        }
+      ],
+      "def": "CREATE TABLE quiz_attempts (\n                id TEXT PRIMARY KEY,\n                workspace_id TEXT NOT NULL,\n                user_id TEXT NOT NULL,\n                quiz_id TEXT NOT NULL,\n                status TEXT NOT NULL DEFAULT 'in_progress' CHECK (status IN ('in_progress', 'submitted', 'abandoned')),\n                started_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),\n                submitted_at TEXT,\n                score REAL NOT NULL DEFAULT 0.0,\n                percentage REAL NOT NULL DEFAULT 0.0,\n                total_questions INTEGER NOT NULL DEFAULT 0,\n                correct_answers INTEGER NOT NULL DEFAULT 0,\n                created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),\n                updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),\n                FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE,\n                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,\n                FOREIGN KEY (quiz_id) REFERENCES quizzes(id) ON DELETE CASCADE\n            )"
+    },
+    {
+      "name": "quiz_answers",
+      "type": "table",
+      "columns": [
+        {
+          "name": "id",
+          "type": "TEXT",
+          "nullable": true
+        },
+        {
+          "name": "attempt_id",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "question_id",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "selected_answer",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "is_correct",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": "0"
+        },
+        {
+          "name": "answered_at",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "strftime('%Y-%m-%dT%H:%M:%SZ', 'now')"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "idx_quiz_answers_attempt",
+          "def": "CREATE INDEX idx_quiz_answers_attempt ON quiz_answers(attempt_id)",
+          "table": "quiz_answers",
+          "columns": [
+            "attempt_id"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_quiz_answers_2",
+          "def": "UNIQUE (attempt_id, question_id)",
+          "table": "quiz_answers",
+          "columns": [
+            "attempt_id",
+            "question_id"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_quiz_answers_1",
+          "def": "PRIMARY KEY (id)",
+          "table": "quiz_answers",
+          "columns": [
+            "id"
+          ]
+        }
+      ],
+      "constraints": [
+        {
+          "name": "id",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (id)",
+          "table": "quiz_answers",
+          "columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "- (Foreign key ID: 0)",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (question_id) REFERENCES quiz_questions (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE",
+          "table": "quiz_answers",
+          "referenced_table": "quiz_questions",
+          "columns": [
+            "question_id"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "- (Foreign key ID: 1)",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (attempt_id) REFERENCES quiz_attempts (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE",
+          "table": "quiz_answers",
+          "referenced_table": "quiz_attempts",
+          "columns": [
+            "attempt_id"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_quiz_answers_2",
+          "type": "UNIQUE",
+          "def": "UNIQUE (attempt_id, question_id)",
+          "table": "quiz_answers",
+          "columns": [
+            "attempt_id",
+            "question_id"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_quiz_answers_1",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (id)",
+          "table": "quiz_answers",
+          "columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "-",
+          "type": "CHECK",
+          "def": "CHECK (is_correct IN (0, 1))",
+          "table": "quiz_answers",
+          "columns": [
+            "is_correct"
+          ]
+        }
+      ],
+      "def": "CREATE TABLE quiz_answers (\n                id TEXT PRIMARY KEY,\n                attempt_id TEXT NOT NULL,\n                question_id TEXT NOT NULL,\n                selected_answer TEXT NOT NULL,\n                is_correct INTEGER NOT NULL DEFAULT 0 CHECK (is_correct IN (0, 1)),\n                answered_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),\n                FOREIGN KEY (attempt_id) REFERENCES quiz_attempts(id) ON DELETE CASCADE,\n                FOREIGN KEY (question_id) REFERENCES quiz_questions(id) ON DELETE CASCADE,\n                CONSTRAINT uq_attempt_question UNIQUE (attempt_id, question_id)\n            )"
+    },
+    {
+      "name": "learning_items",
+      "type": "table",
+      "columns": [
+        {
+          "name": "id",
+          "type": "TEXT",
+          "nullable": true
+        },
+        {
+          "name": "workspace_id",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "user_id",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "content_type",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "content_id",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "source_reference",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "'{}'"
+        },
+        {
+          "name": "correct_count",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": "0"
+        },
+        {
+          "name": "incorrect_count",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": "0"
+        },
+        {
+          "name": "last_seen_at",
+          "type": "TEXT",
+          "nullable": true
+        },
+        {
+          "name": "next_review_at",
+          "type": "TEXT",
+          "nullable": true
+        },
+        {
+          "name": "scheduling_metadata",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "'{}'"
+        },
+        {
+          "name": "created_at",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "strftime('%Y-%m-%dT%H:%M:%SZ', 'now')"
+        },
+        {
+          "name": "updated_at",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "strftime('%Y-%m-%dT%H:%M:%SZ', 'now')"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "idx_learning_items_due_eval",
+          "def": "CREATE INDEX idx_learning_items_due_eval ON learning_items(workspace_id, user_id, content_type, next_review_at ASC)",
+          "table": "learning_items",
+          "columns": [
+            "workspace_id",
+            "user_id",
+            "content_type",
+            "next_review_at"
+          ]
+        },
+        {
+          "name": "idx_learning_items_ws_user_content",
+          "def": "CREATE INDEX idx_learning_items_ws_user_content ON learning_items(workspace_id, user_id, content_type)",
+          "table": "learning_items",
+          "columns": [
+            "workspace_id",
+            "user_id",
+            "content_type"
+          ]
+        },
+        {
+          "name": "idx_learning_items_due",
+          "def": "CREATE INDEX idx_learning_items_due ON learning_items(workspace_id, user_id, next_review_at ASC)",
+          "table": "learning_items",
+          "columns": [
+            "workspace_id",
+            "user_id",
+            "next_review_at"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_learning_items_2",
+          "def": "UNIQUE (workspace_id, user_id, content_type, content_id)",
+          "table": "learning_items",
+          "columns": [
+            "workspace_id",
+            "user_id",
+            "content_type",
+            "content_id"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_learning_items_1",
+          "def": "PRIMARY KEY (id)",
+          "table": "learning_items",
+          "columns": [
+            "id"
+          ]
+        }
+      ],
+      "constraints": [
+        {
+          "name": "id",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (id)",
+          "table": "learning_items",
+          "columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "- (Foreign key ID: 0)",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (user_id) REFERENCES users (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE",
+          "table": "learning_items",
+          "referenced_table": "users",
+          "columns": [
+            "user_id"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "- (Foreign key ID: 1)",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (workspace_id) REFERENCES workspaces (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE",
+          "table": "learning_items",
+          "referenced_table": "workspaces",
+          "columns": [
+            "workspace_id"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_learning_items_2",
+          "type": "UNIQUE",
+          "def": "UNIQUE (workspace_id, user_id, content_type, content_id)",
+          "table": "learning_items",
+          "columns": [
+            "workspace_id",
+            "user_id",
+            "content_type",
+            "content_id"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_learning_items_1",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (id)",
+          "table": "learning_items",
+          "columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "-",
+          "type": "CHECK",
+          "def": "CHECK (content_type IN ('quiz_question', 'flashcard', 'concept'))",
+          "table": "learning_items",
+          "columns": [
+            "content_type"
+          ]
+        }
+      ],
+      "def": "CREATE TABLE learning_items (\n                id TEXT PRIMARY KEY,\n                workspace_id TEXT NOT NULL,\n                user_id TEXT NOT NULL,\n                content_type TEXT NOT NULL CHECK (content_type IN ('quiz_question', 'flashcard', 'concept')),\n                content_id TEXT NOT NULL,\n                source_reference TEXT NOT NULL DEFAULT '{}',\n                correct_count INTEGER NOT NULL DEFAULT 0,\n                incorrect_count INTEGER NOT NULL DEFAULT 0,\n                last_seen_at TEXT,\n                next_review_at TEXT,\n                scheduling_metadata TEXT NOT NULL DEFAULT '{}',\n                created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),\n                updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),\n                FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE,\n                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,\n                CONSTRAINT uq_learning_item UNIQUE (workspace_id, user_id, content_type, content_id)\n            )"
+    },
+    {
+      "name": "review_events",
+      "type": "table",
+      "columns": [
+        {
+          "name": "id",
+          "type": "TEXT",
+          "nullable": true
+        },
+        {
+          "name": "workspace_id",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "user_id",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "learning_item_id",
+          "type": "TEXT",
+          "nullable": true
+        },
+        {
+          "name": "content_type",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "content_id",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "result",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "rating",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "'good'"
+        },
+        {
+          "name": "previous_state",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "'{}'"
+        },
+        {
+          "name": "new_state",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "'{}'"
+        },
+        {
+          "name": "previous_due",
+          "type": "TEXT",
+          "nullable": true
+        },
+        {
+          "name": "new_due",
+          "type": "TEXT",
+          "nullable": true
+        },
+        {
+          "name": "source_type",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "'quiz_attempt'"
+        },
+        {
+          "name": "source_id",
+          "type": "TEXT",
+          "nullable": true
+        },
+        {
+          "name": "session_id",
+          "type": "TEXT",
+          "nullable": true
+        },
+        {
+          "name": "reviewed_at",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "strftime('%Y-%m-%dT%H:%M:%SZ', 'now')"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "idx_review_events_item",
+          "def": "CREATE INDEX idx_review_events_item ON review_events(learning_item_id)",
+          "table": "review_events",
+          "columns": [
+            "learning_item_id"
+          ]
+        },
+        {
+          "name": "idx_review_events_user",
+          "def": "CREATE INDEX idx_review_events_user ON review_events(workspace_id, user_id, reviewed_at DESC)",
+          "table": "review_events",
+          "columns": [
+            "workspace_id",
+            "user_id",
+            "reviewed_at"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_review_events_1",
+          "def": "PRIMARY KEY (id)",
+          "table": "review_events",
+          "columns": [
+            "id"
+          ]
+        }
+      ],
+      "constraints": [
+        {
+          "name": "id",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (id)",
+          "table": "review_events",
+          "columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "- (Foreign key ID: 0)",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (learning_item_id) REFERENCES learning_items (id) ON UPDATE NO ACTION ON DELETE SET NULL MATCH NONE",
+          "table": "review_events",
+          "referenced_table": "learning_items",
+          "columns": [
+            "learning_item_id"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "- (Foreign key ID: 1)",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (user_id) REFERENCES users (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE",
+          "table": "review_events",
+          "referenced_table": "users",
+          "columns": [
+            "user_id"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "- (Foreign key ID: 2)",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (workspace_id) REFERENCES workspaces (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE",
+          "table": "review_events",
+          "referenced_table": "workspaces",
+          "columns": [
+            "workspace_id"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_review_events_1",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (id)",
+          "table": "review_events",
+          "columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "-",
+          "type": "CHECK",
+          "def": "CHECK (rating IN ('again', 'hard', 'good', 'easy', 'correct', 'incorrect'))",
+          "table": "review_events",
+          "columns": [
+            "rating"
+          ]
+        }
+      ],
+      "def": "CREATE TABLE review_events (\n                id TEXT PRIMARY KEY,\n                workspace_id TEXT NOT NULL,\n                user_id TEXT NOT NULL,\n                learning_item_id TEXT,\n                content_type TEXT NOT NULL,\n                content_id TEXT NOT NULL,\n                result TEXT NOT NULL,\n                rating TEXT NOT NULL DEFAULT 'good' CHECK (rating IN ('again', 'hard', 'good', 'easy', 'correct', 'incorrect')),\n                previous_state TEXT NOT NULL DEFAULT '{}',\n                new_state TEXT NOT NULL DEFAULT '{}',\n                previous_due TEXT,\n                new_due TEXT,\n                source_type TEXT NOT NULL DEFAULT 'quiz_attempt',\n                source_id TEXT,\n                session_id TEXT,\n                reviewed_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),\n                FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE,\n                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,\n                FOREIGN KEY (learning_item_id) REFERENCES learning_items(id) ON DELETE SET NULL\n            )"
+    },
+    {
+      "name": "review_sessions",
+      "type": "table",
+      "columns": [
+        {
+          "name": "id",
+          "type": "TEXT",
+          "nullable": true
+        },
+        {
+          "name": "workspace_id",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "user_id",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "status",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "'active'"
+        },
+        {
+          "name": "started_at",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "strftime('%Y-%m-%dT%H:%M:%SZ', 'now')"
+        },
+        {
+          "name": "completed_at",
+          "type": "TEXT",
+          "nullable": true
+        },
+        {
+          "name": "total_items",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": "0"
+        },
+        {
+          "name": "reviewed_items",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": "0"
+        },
+        {
+          "name": "metadata",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "'{}'"
+        },
+        {
+          "name": "created_at",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "strftime('%Y-%m-%dT%H:%M:%SZ', 'now')"
+        },
+        {
+          "name": "updated_at",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "strftime('%Y-%m-%dT%H:%M:%SZ', 'now')"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "idx_review_sessions_started",
+          "def": "CREATE INDEX idx_review_sessions_started ON review_sessions(workspace_id, user_id, started_at DESC)",
+          "table": "review_sessions",
+          "columns": [
+            "workspace_id",
+            "user_id",
+            "started_at"
+          ]
+        },
+        {
+          "name": "idx_review_sessions_user",
+          "def": "CREATE INDEX idx_review_sessions_user ON review_sessions(workspace_id, user_id, status)",
+          "table": "review_sessions",
+          "columns": [
+            "workspace_id",
+            "user_id",
+            "status"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_review_sessions_1",
+          "def": "PRIMARY KEY (id)",
+          "table": "review_sessions",
+          "columns": [
+            "id"
+          ]
+        }
+      ],
+      "constraints": [
+        {
+          "name": "id",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (id)",
+          "table": "review_sessions",
+          "columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "- (Foreign key ID: 0)",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (user_id) REFERENCES users (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE",
+          "table": "review_sessions",
+          "referenced_table": "users",
+          "columns": [
+            "user_id"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "- (Foreign key ID: 1)",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (workspace_id) REFERENCES workspaces (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE",
+          "table": "review_sessions",
+          "referenced_table": "workspaces",
+          "columns": [
+            "workspace_id"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_review_sessions_1",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (id)",
+          "table": "review_sessions",
+          "columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "-",
+          "type": "CHECK",
+          "def": "CHECK (status IN ('active', 'completed', 'abandoned'))",
+          "table": "review_sessions",
+          "columns": [
+            "status"
+          ]
+        }
+      ],
+      "def": "CREATE TABLE review_sessions (\n                id TEXT PRIMARY KEY,\n                workspace_id TEXT NOT NULL,\n                user_id TEXT NOT NULL,\n                status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'completed', 'abandoned')),\n                started_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),\n                completed_at TEXT,\n                total_items INTEGER NOT NULL DEFAULT 0,\n                reviewed_items INTEGER NOT NULL DEFAULT 0,\n                metadata TEXT NOT NULL DEFAULT '{}',\n                created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),\n                updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),\n                FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE,\n                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE\n            )"
+    },
+    {
+      "name": "review_session_items",
+      "type": "table",
+      "columns": [
+        {
+          "name": "id",
+          "type": "TEXT",
+          "nullable": true
+        },
+        {
+          "name": "session_id",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "learning_item_id",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "order_index",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": "0"
+        },
+        {
+          "name": "status",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "'pending'"
+        },
+        {
+          "name": "rating",
+          "type": "TEXT",
+          "nullable": true
+        },
+        {
+          "name": "reviewed_at",
+          "type": "TEXT",
+          "nullable": true
+        },
+        {
+          "name": "review_event_id",
+          "type": "TEXT",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "strftime('%Y-%m-%dT%H:%M:%SZ', 'now')"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "idx_session_items_status",
+          "def": "CREATE INDEX idx_session_items_status ON review_session_items(session_id, status)",
+          "table": "review_session_items",
+          "columns": [
+            "session_id",
+            "status"
+          ]
+        },
+        {
+          "name": "idx_session_items_order",
+          "def": "CREATE INDEX idx_session_items_order ON review_session_items(session_id, order_index ASC)",
+          "table": "review_session_items",
+          "columns": [
+            "session_id",
+            "order_index"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_review_session_items_2",
+          "def": "UNIQUE (session_id, learning_item_id)",
+          "table": "review_session_items",
+          "columns": [
+            "session_id",
+            "learning_item_id"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_review_session_items_1",
+          "def": "PRIMARY KEY (id)",
+          "table": "review_session_items",
+          "columns": [
+            "id"
+          ]
+        }
+      ],
+      "constraints": [
+        {
+          "name": "id",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (id)",
+          "table": "review_session_items",
+          "columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "- (Foreign key ID: 0)",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (review_event_id) REFERENCES review_events (id) ON UPDATE NO ACTION ON DELETE SET NULL MATCH NONE",
+          "table": "review_session_items",
+          "referenced_table": "review_events",
+          "columns": [
+            "review_event_id"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "- (Foreign key ID: 1)",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (learning_item_id) REFERENCES learning_items (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE",
+          "table": "review_session_items",
+          "referenced_table": "learning_items",
+          "columns": [
+            "learning_item_id"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "- (Foreign key ID: 2)",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (session_id) REFERENCES review_sessions (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE",
+          "table": "review_session_items",
+          "referenced_table": "review_sessions",
+          "columns": [
+            "session_id"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_review_session_items_2",
+          "type": "UNIQUE",
+          "def": "UNIQUE (session_id, learning_item_id)",
+          "table": "review_session_items",
+          "columns": [
+            "session_id",
+            "learning_item_id"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_review_session_items_1",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (id)",
+          "table": "review_session_items",
+          "columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "-",
+          "type": "CHECK",
+          "def": "CHECK (status IN ('pending', 'revealed', 'completed', 'skipped'))",
+          "table": "review_session_items",
+          "columns": [
+            "status"
+          ]
+        },
+        {
+          "name": "-",
+          "type": "CHECK",
+          "def": "CHECK (rating IN ('again', 'hard', 'good', 'easy'))",
+          "table": "review_session_items",
+          "columns": [
+            "rating"
+          ]
+        }
+      ],
+      "def": "CREATE TABLE review_session_items (\n                id TEXT PRIMARY KEY,\n                session_id TEXT NOT NULL,\n                learning_item_id TEXT NOT NULL,\n                order_index INTEGER NOT NULL DEFAULT 0,\n                status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'revealed', 'completed', 'skipped')),\n                rating TEXT CHECK (rating IN ('again', 'hard', 'good', 'easy')),\n                reviewed_at TEXT,\n                review_event_id TEXT,\n                created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),\n                FOREIGN KEY (session_id) REFERENCES review_sessions(id) ON DELETE CASCADE,\n                FOREIGN KEY (learning_item_id) REFERENCES learning_items(id) ON DELETE CASCADE,\n                FOREIGN KEY (review_event_id) REFERENCES review_events(id) ON DELETE SET NULL,\n                CONSTRAINT uq_session_item UNIQUE (session_id, learning_item_id)\n            )"
+    },
+    {
+      "name": "document_summaries",
+      "type": "table",
+      "columns": [
+        {
+          "name": "id",
+          "type": "TEXT",
+          "nullable": true
+        },
+        {
+          "name": "document_id",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "workspace_id",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "user_id",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "summary_type",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "'standard'"
+        },
+        {
+          "name": "summary",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "key_points",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "'[]'"
+        },
+        {
+          "name": "source_references",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "'[]'"
+        },
+        {
+          "name": "content_version",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "model_metadata",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "'{}'"
+        },
+        {
+          "name": "created_at",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "strftime('%Y-%m-%dT%H:%M:%SZ', 'now')"
+        },
+        {
+          "name": "updated_at",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "strftime('%Y-%m-%dT%H:%M:%SZ', 'now')"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "idx_doc_summaries_user",
+          "def": "CREATE INDEX idx_doc_summaries_user ON document_summaries(workspace_id, user_id)",
+          "table": "document_summaries",
+          "columns": [
+            "workspace_id",
+            "user_id"
+          ]
+        },
+        {
+          "name": "idx_doc_summaries_doc",
+          "def": "CREATE INDEX idx_doc_summaries_doc ON document_summaries(document_id, summary_type)",
+          "table": "document_summaries",
+          "columns": [
+            "document_id",
+            "summary_type"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_document_summaries_2",
+          "def": "UNIQUE (document_id, summary_type)",
+          "table": "document_summaries",
+          "columns": [
+            "document_id",
+            "summary_type"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_document_summaries_1",
+          "def": "PRIMARY KEY (id)",
+          "table": "document_summaries",
+          "columns": [
+            "id"
+          ]
+        }
+      ],
+      "constraints": [
+        {
+          "name": "id",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (id)",
+          "table": "document_summaries",
+          "columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "- (Foreign key ID: 0)",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (user_id) REFERENCES users (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE",
+          "table": "document_summaries",
+          "referenced_table": "users",
+          "columns": [
+            "user_id"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "- (Foreign key ID: 1)",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (workspace_id) REFERENCES workspaces (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE",
+          "table": "document_summaries",
+          "referenced_table": "workspaces",
+          "columns": [
+            "workspace_id"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "- (Foreign key ID: 2)",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (document_id) REFERENCES documents (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE",
+          "table": "document_summaries",
+          "referenced_table": "documents",
+          "columns": [
+            "document_id"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_document_summaries_2",
+          "type": "UNIQUE",
+          "def": "UNIQUE (document_id, summary_type)",
+          "table": "document_summaries",
+          "columns": [
+            "document_id",
+            "summary_type"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_document_summaries_1",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (id)",
+          "table": "document_summaries",
+          "columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "-",
+          "type": "CHECK",
+          "def": "CHECK (summary_type IN ('short', 'standard', 'detailed'))",
+          "table": "document_summaries",
+          "columns": [
+            "summary_type",
+            "summary"
+          ]
+        }
+      ],
+      "def": "CREATE TABLE document_summaries (\n                id TEXT PRIMARY KEY,\n                document_id TEXT NOT NULL,\n                workspace_id TEXT NOT NULL,\n                user_id TEXT NOT NULL,\n                summary_type TEXT NOT NULL DEFAULT 'standard'\n                    CHECK (summary_type IN ('short', 'standard', 'detailed')),\n                summary TEXT NOT NULL,\n                key_points TEXT NOT NULL DEFAULT '[]',\n                source_references TEXT NOT NULL DEFAULT '[]',\n                content_version TEXT NOT NULL,\n                model_metadata TEXT NOT NULL DEFAULT '{}',\n                created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),\n                updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),\n                FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE,\n                FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE,\n                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,\n                CONSTRAINT uq_doc_summary UNIQUE (document_id, summary_type)\n            )"
+    },
+    {
+      "name": "concepts",
+      "type": "table",
+      "columns": [
+        {
+          "name": "id",
+          "type": "TEXT",
+          "nullable": true
+        },
+        {
+          "name": "document_id",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "workspace_id",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "user_id",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "name",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "normalized_name",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "description",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "importance",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "'medium'"
+        },
+        {
+          "name": "source_references",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "'[]'"
+        },
+        {
+          "name": "content_version",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "created_at",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "strftime('%Y-%m-%dT%H:%M:%SZ', 'now')"
+        },
+        {
+          "name": "updated_at",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "strftime('%Y-%m-%dT%H:%M:%SZ', 'now')"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "idx_concepts_ws_user",
+          "def": "CREATE INDEX idx_concepts_ws_user ON concepts(workspace_id, user_id)",
+          "table": "concepts",
+          "columns": [
+            "workspace_id",
+            "user_id"
+          ]
+        },
+        {
+          "name": "idx_concepts_doc",
+          "def": "CREATE INDEX idx_concepts_doc ON concepts(document_id)",
+          "table": "concepts",
+          "columns": [
+            "document_id"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_concepts_2",
+          "def": "UNIQUE (document_id, normalized_name)",
+          "table": "concepts",
+          "columns": [
+            "document_id",
+            "normalized_name"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_concepts_1",
+          "def": "PRIMARY KEY (id)",
+          "table": "concepts",
+          "columns": [
+            "id"
+          ]
+        }
+      ],
+      "constraints": [
+        {
+          "name": "id",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (id)",
+          "table": "concepts",
+          "columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "- (Foreign key ID: 0)",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (user_id) REFERENCES users (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE",
+          "table": "concepts",
+          "referenced_table": "users",
+          "columns": [
+            "user_id"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "- (Foreign key ID: 1)",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (workspace_id) REFERENCES workspaces (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE",
+          "table": "concepts",
+          "referenced_table": "workspaces",
+          "columns": [
+            "workspace_id"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "- (Foreign key ID: 2)",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (document_id) REFERENCES documents (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE",
+          "table": "concepts",
+          "referenced_table": "documents",
+          "columns": [
+            "document_id"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_concepts_2",
+          "type": "UNIQUE",
+          "def": "UNIQUE (document_id, normalized_name)",
+          "table": "concepts",
+          "columns": [
+            "document_id",
+            "normalized_name"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_concepts_1",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (id)",
+          "table": "concepts",
+          "columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "-",
+          "type": "CHECK",
+          "def": "CHECK (importance IN ('high', 'medium', 'low'))",
+          "table": "concepts",
+          "columns": [
+            "importance"
+          ]
+        }
+      ],
+      "def": "CREATE TABLE concepts (\n                id TEXT PRIMARY KEY,\n                document_id TEXT NOT NULL,\n                workspace_id TEXT NOT NULL,\n                user_id TEXT NOT NULL,\n                name TEXT NOT NULL,\n                normalized_name TEXT NOT NULL,\n                description TEXT NOT NULL,\n                importance TEXT NOT NULL DEFAULT 'medium'\n                    CHECK (importance IN ('high', 'medium', 'low')),\n                source_references TEXT NOT NULL DEFAULT '[]',\n                content_version TEXT NOT NULL,\n                created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),\n                updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),\n                FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE,\n                FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE,\n                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,\n                CONSTRAINT uq_doc_concept UNIQUE (document_id, normalized_name)\n            )"
+    },
+    {
+      "name": "subscriptions",
+      "type": "table",
+      "columns": [
+        {
+          "name": "id",
+          "type": "TEXT",
+          "nullable": true
+        },
+        {
+          "name": "workspace_id",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "user_id",
+          "type": "TEXT",
+          "nullable": true
+        },
+        {
+          "name": "plan_id",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "status",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "'active'"
+        },
+        {
+          "name": "provider",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "'stripe'"
+        },
+        {
+          "name": "provider_customer_id",
+          "type": "TEXT",
+          "nullable": true
+        },
+        {
+          "name": "provider_subscription_id",
+          "type": "TEXT",
+          "nullable": true
+        },
+        {
+          "name": "current_period_start",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "current_period_end",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "cancel_at_period_end",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": "0"
+        },
+        {
+          "name": "canceled_at",
+          "type": "TEXT",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "strftime('%Y-%m-%dT%H:%M:%SZ', 'now')"
+        },
+        {
+          "name": "updated_at",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "strftime('%Y-%m-%dT%H:%M:%SZ', 'now')"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "idx_subscriptions_provider",
+          "def": "CREATE INDEX idx_subscriptions_provider ON subscriptions(provider_subscription_id)",
+          "table": "subscriptions",
+          "columns": [
+            "provider_subscription_id"
+          ]
+        },
+        {
+          "name": "idx_subscriptions_ws",
+          "def": "CREATE INDEX idx_subscriptions_ws ON subscriptions(workspace_id, status)",
+          "table": "subscriptions",
+          "columns": [
+            "workspace_id",
+            "status"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_subscriptions_2",
+          "def": "UNIQUE (provider_subscription_id)",
+          "table": "subscriptions",
+          "columns": [
+            "provider_subscription_id"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_subscriptions_1",
+          "def": "PRIMARY KEY (id)",
+          "table": "subscriptions",
+          "columns": [
+            "id"
+          ]
+        }
+      ],
+      "constraints": [
+        {
+          "name": "id",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (id)",
+          "table": "subscriptions",
+          "columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "- (Foreign key ID: 0)",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (plan_id) REFERENCES plans (id) ON UPDATE NO ACTION ON DELETE NO ACTION MATCH NONE",
+          "table": "subscriptions",
+          "referenced_table": "plans",
+          "columns": [
+            "plan_id"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "- (Foreign key ID: 1)",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (user_id) REFERENCES users (id) ON UPDATE NO ACTION ON DELETE SET NULL MATCH NONE",
+          "table": "subscriptions",
+          "referenced_table": "users",
+          "columns": [
+            "user_id"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "- (Foreign key ID: 2)",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (workspace_id) REFERENCES workspaces (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE",
+          "table": "subscriptions",
+          "referenced_table": "workspaces",
+          "columns": [
+            "workspace_id"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_subscriptions_2",
+          "type": "UNIQUE",
+          "def": "UNIQUE (provider_subscription_id)",
+          "table": "subscriptions",
+          "columns": [
+            "provider_subscription_id"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_subscriptions_1",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (id)",
+          "table": "subscriptions",
+          "columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "-",
+          "type": "CHECK",
+          "def": "CHECK (status IN ('active', 'trialing', 'past_due', 'canceled', 'expired'))",
+          "table": "subscriptions",
+          "columns": [
+            "status"
+          ]
+        }
+      ],
+      "def": "CREATE TABLE subscriptions (\n                id TEXT PRIMARY KEY,\n                workspace_id TEXT NOT NULL,\n                user_id TEXT,\n                plan_id TEXT NOT NULL,\n                status TEXT NOT NULL DEFAULT 'active'\n                    CHECK (status IN ('active', 'trialing', 'past_due', 'canceled', 'expired')),\n                provider TEXT NOT NULL DEFAULT 'stripe',\n                provider_customer_id TEXT,\n                provider_subscription_id TEXT UNIQUE,\n                current_period_start TEXT NOT NULL,\n                current_period_end TEXT NOT NULL,\n                cancel_at_period_end INTEGER NOT NULL DEFAULT 0,\n                canceled_at TEXT,\n                created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),\n                updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),\n                FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE,\n                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,\n                FOREIGN KEY (plan_id) REFERENCES plans(id)\n            )"
+    },
+    {
+      "name": "billing_events",
+      "type": "table",
+      "columns": [
+        {
+          "name": "id",
+          "type": "TEXT",
+          "nullable": true
+        },
+        {
+          "name": "event_id",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "provider",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "'stripe'"
+        },
+        {
+          "name": "event_type",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "payload",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "status",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "'processed'"
+        },
+        {
+          "name": "processed_at",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "strftime('%Y-%m-%dT%H:%M:%SZ', 'now')"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "idx_billing_events_id",
+          "def": "CREATE INDEX idx_billing_events_id ON billing_events(event_id)",
+          "table": "billing_events",
+          "columns": [
+            "event_id"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_billing_events_2",
+          "def": "UNIQUE (event_id)",
+          "table": "billing_events",
+          "columns": [
+            "event_id"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_billing_events_1",
+          "def": "PRIMARY KEY (id)",
+          "table": "billing_events",
+          "columns": [
+            "id"
+          ]
+        }
+      ],
+      "constraints": [
+        {
+          "name": "id",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (id)",
+          "table": "billing_events",
+          "columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_billing_events_2",
+          "type": "UNIQUE",
+          "def": "UNIQUE (event_id)",
+          "table": "billing_events",
+          "columns": [
+            "event_id"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_billing_events_1",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (id)",
+          "table": "billing_events",
+          "columns": [
+            "id"
+          ]
+        }
+      ],
+      "def": "CREATE TABLE billing_events (\n                id TEXT PRIMARY KEY,\n                event_id TEXT NOT NULL UNIQUE,\n                provider TEXT NOT NULL DEFAULT 'stripe',\n                event_type TEXT NOT NULL,\n                payload TEXT NOT NULL,\n                status TEXT NOT NULL DEFAULT 'processed',\n                processed_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))\n            )"
+    },
+    {
+      "name": "usage_reservations",
+      "type": "table",
+      "columns": [
+        {
+          "name": "id",
+          "type": "TEXT",
+          "nullable": true
+        },
+        {
+          "name": "workspace_id",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "user_id",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "feature",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "quantity",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": "1"
+        },
+        {
+          "name": "status",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "'pending'"
+        },
+        {
+          "name": "expires_at",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "created_at",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "strftime('%Y-%m-%dT%H:%M:%SZ', 'now')"
+        },
+        {
+          "name": "finalized_at",
+          "type": "TEXT",
+          "nullable": true
+        },
+        {
+          "name": "released_at",
+          "type": "TEXT",
+          "nullable": true
+        }
+      ],
+      "indexes": [
+        {
+          "name": "idx_reservations_ws_status",
+          "def": "CREATE INDEX idx_reservations_ws_status ON usage_reservations(workspace_id, status, expires_at)",
+          "table": "usage_reservations",
+          "columns": [
+            "workspace_id",
+            "status",
+            "expires_at"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_usage_reservations_1",
+          "def": "PRIMARY KEY (id)",
+          "table": "usage_reservations",
+          "columns": [
+            "id"
+          ]
+        }
+      ],
+      "constraints": [
+        {
+          "name": "id",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (id)",
+          "table": "usage_reservations",
+          "columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "- (Foreign key ID: 0)",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (user_id) REFERENCES users (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE",
+          "table": "usage_reservations",
+          "referenced_table": "users",
+          "columns": [
+            "user_id"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "- (Foreign key ID: 1)",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (workspace_id) REFERENCES workspaces (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE",
+          "table": "usage_reservations",
+          "referenced_table": "workspaces",
+          "columns": [
+            "workspace_id"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_usage_reservations_1",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (id)",
+          "table": "usage_reservations",
+          "columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "-",
+          "type": "CHECK",
+          "def": "CHECK (status IN ('pending', 'finalized', 'released', 'expired'))",
+          "table": "usage_reservations",
+          "columns": [
+            "status"
+          ]
+        }
+      ],
+      "def": "CREATE TABLE usage_reservations (\n                id TEXT PRIMARY KEY,\n                workspace_id TEXT NOT NULL,\n                user_id TEXT NOT NULL,\n                feature TEXT NOT NULL,\n                quantity INTEGER NOT NULL DEFAULT 1,\n                status TEXT NOT NULL DEFAULT 'pending'\n                    CHECK (status IN ('pending', 'finalized', 'released', 'expired')),\n                expires_at TEXT NOT NULL,\n                created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),\n                finalized_at TEXT,\n                released_at TEXT,\n                FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE,\n                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE\n            )"
+    },
+    {
+      "name": "account_overrides",
+      "type": "table",
+      "columns": [
+        {
+          "name": "id",
+          "type": "TEXT",
+          "nullable": true
+        },
+        {
+          "name": "workspace_id",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "feature_or_limit",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "override_value",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "reason",
+          "type": "TEXT",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "strftime('%Y-%m-%dT%H:%M:%SZ', 'now')"
+        },
+        {
+          "name": "updated_at",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "strftime('%Y-%m-%dT%H:%M:%SZ', 'now')"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "idx_overrides_ws",
+          "def": "CREATE INDEX idx_overrides_ws ON account_overrides(workspace_id)",
+          "table": "account_overrides",
+          "columns": [
+            "workspace_id"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_account_overrides_2",
+          "def": "UNIQUE (workspace_id, feature_or_limit)",
+          "table": "account_overrides",
+          "columns": [
+            "workspace_id",
+            "feature_or_limit"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_account_overrides_1",
+          "def": "PRIMARY KEY (id)",
+          "table": "account_overrides",
+          "columns": [
+            "id"
+          ]
+        }
+      ],
+      "constraints": [
+        {
+          "name": "id",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (id)",
+          "table": "account_overrides",
+          "columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "- (Foreign key ID: 0)",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (workspace_id) REFERENCES workspaces (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE",
+          "table": "account_overrides",
+          "referenced_table": "workspaces",
+          "columns": [
+            "workspace_id"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_account_overrides_2",
+          "type": "UNIQUE",
+          "def": "UNIQUE (workspace_id, feature_or_limit)",
+          "table": "account_overrides",
+          "columns": [
+            "workspace_id",
+            "feature_or_limit"
+          ]
+        },
+        {
+          "name": "sqlite_autoindex_account_overrides_1",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (id)",
+          "table": "account_overrides",
+          "columns": [
+            "id"
+          ]
+        }
+      ],
+      "def": "CREATE TABLE account_overrides (\n                id TEXT PRIMARY KEY,\n                workspace_id TEXT NOT NULL,\n                feature_or_limit TEXT NOT NULL,\n                override_value TEXT NOT NULL,\n                reason TEXT,\n                created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),\n                updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),\n                FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE,\n                CONSTRAINT uq_ws_override UNIQUE (workspace_id, feature_or_limit)\n            )"
+    }
+  ],
+  "relations": [
+    {
+      "table": "workspaces",
+      "columns": [
+        "owner_id"
+      ],
+      "cardinality": "zero_or_one",
+      "parent_table": "users",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "exactly_one",
+      "def": "FOREIGN KEY (owner_id) REFERENCES users (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE"
+    },
+    {
+      "table": "user_preferences",
+      "columns": [
+        "user_id"
+      ],
+      "cardinality": "zero_or_one",
+      "parent_table": "users",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "zero_or_one",
+      "def": "FOREIGN KEY (user_id) REFERENCES users (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE"
+    },
+    {
+      "table": "files",
+      "columns": [
+        "workspace_id"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "workspaces",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "exactly_one",
+      "def": "FOREIGN KEY (workspace_id) REFERENCES workspaces (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE"
+    },
+    {
+      "table": "documents",
+      "columns": [
+        "file_id"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "files",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "zero_or_one",
+      "def": "FOREIGN KEY (file_id) REFERENCES files (id) ON UPDATE NO ACTION ON DELETE SET NULL MATCH NONE"
+    },
+    {
+      "table": "documents",
+      "columns": [
+        "workspace_id"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "workspaces",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "exactly_one",
+      "def": "FOREIGN KEY (workspace_id) REFERENCES workspaces (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE"
+    },
+    {
+      "table": "document_chunks",
+      "columns": [
+        "document_id"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "documents",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "exactly_one",
+      "def": "FOREIGN KEY (document_id) REFERENCES documents (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE"
+    },
+    {
+      "table": "processing_jobs",
+      "columns": [
+        "document_id"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "documents",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "exactly_one",
+      "def": "FOREIGN KEY (document_id) REFERENCES documents (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE"
+    },
+    {
+      "table": "processing_jobs",
+      "columns": [
+        "workspace_id"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "workspaces",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "exactly_one",
+      "def": "FOREIGN KEY (workspace_id) REFERENCES workspaces (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE"
+    },
+    {
+      "table": "provider_credentials",
+      "columns": [
+        "user_id"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "users",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "exactly_one",
+      "def": "FOREIGN KEY (user_id) REFERENCES users (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE"
+    },
+    {
+      "table": "provider_credentials",
+      "columns": [
+        "workspace_id"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "workspaces",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "exactly_one",
+      "def": "FOREIGN KEY (workspace_id) REFERENCES workspaces (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE"
+    },
+    {
+      "table": "conversations",
+      "columns": [
+        "user_id"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "users",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "exactly_one",
+      "def": "FOREIGN KEY (user_id) REFERENCES users (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE"
+    },
+    {
+      "table": "conversations",
+      "columns": [
+        "workspace_id"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "workspaces",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "exactly_one",
+      "def": "FOREIGN KEY (workspace_id) REFERENCES workspaces (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE"
+    },
+    {
+      "table": "messages",
+      "columns": [
+        "conversation_id"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "conversations",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "exactly_one",
+      "def": "FOREIGN KEY (conversation_id) REFERENCES conversations (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE"
+    },
+    {
+      "table": "usage_records",
+      "columns": [
+        "user_id"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "users",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "exactly_one",
+      "def": "FOREIGN KEY (user_id) REFERENCES users (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE"
+    },
+    {
+      "table": "usage_records",
+      "columns": [
+        "workspace_id"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "workspaces",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "exactly_one",
+      "def": "FOREIGN KEY (workspace_id) REFERENCES workspaces (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE"
+    },
+    {
+      "table": "flashcard_sets",
+      "columns": [
+        "user_id"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "users",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "exactly_one",
+      "def": "FOREIGN KEY (user_id) REFERENCES users (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE"
+    },
+    {
+      "table": "flashcard_sets",
+      "columns": [
+        "workspace_id"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "workspaces",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "exactly_one",
+      "def": "FOREIGN KEY (workspace_id) REFERENCES workspaces (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE"
+    },
+    {
+      "table": "flashcards",
+      "columns": [
+        "flashcard_set_id"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "flashcard_sets",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "exactly_one",
+      "def": "FOREIGN KEY (flashcard_set_id) REFERENCES flashcard_sets (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE"
+    },
+    {
+      "table": "quizzes",
+      "columns": [
+        "user_id"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "users",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "exactly_one",
+      "def": "FOREIGN KEY (user_id) REFERENCES users (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE"
+    },
+    {
+      "table": "quizzes",
+      "columns": [
+        "workspace_id"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "workspaces",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "exactly_one",
+      "def": "FOREIGN KEY (workspace_id) REFERENCES workspaces (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE"
+    },
+    {
+      "table": "quiz_questions",
+      "columns": [
+        "quiz_id"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "quizzes",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "exactly_one",
+      "def": "FOREIGN KEY (quiz_id) REFERENCES quizzes (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE"
+    },
+    {
+      "table": "quiz_attempts",
+      "columns": [
+        "quiz_id"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "quizzes",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "exactly_one",
+      "def": "FOREIGN KEY (quiz_id) REFERENCES quizzes (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE"
+    },
+    {
+      "table": "quiz_attempts",
+      "columns": [
+        "user_id"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "users",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "exactly_one",
+      "def": "FOREIGN KEY (user_id) REFERENCES users (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE"
+    },
+    {
+      "table": "quiz_attempts",
+      "columns": [
+        "workspace_id"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "workspaces",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "exactly_one",
+      "def": "FOREIGN KEY (workspace_id) REFERENCES workspaces (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE"
+    },
+    {
+      "table": "quiz_answers",
+      "columns": [
+        "question_id"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "quiz_questions",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "exactly_one",
+      "def": "FOREIGN KEY (question_id) REFERENCES quiz_questions (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE"
+    },
+    {
+      "table": "quiz_answers",
+      "columns": [
+        "attempt_id"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "quiz_attempts",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "exactly_one",
+      "def": "FOREIGN KEY (attempt_id) REFERENCES quiz_attempts (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE"
+    },
+    {
+      "table": "learning_items",
+      "columns": [
+        "user_id"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "users",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "exactly_one",
+      "def": "FOREIGN KEY (user_id) REFERENCES users (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE"
+    },
+    {
+      "table": "learning_items",
+      "columns": [
+        "workspace_id"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "workspaces",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "exactly_one",
+      "def": "FOREIGN KEY (workspace_id) REFERENCES workspaces (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE"
+    },
+    {
+      "table": "review_events",
+      "columns": [
+        "learning_item_id"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "learning_items",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "zero_or_one",
+      "def": "FOREIGN KEY (learning_item_id) REFERENCES learning_items (id) ON UPDATE NO ACTION ON DELETE SET NULL MATCH NONE"
+    },
+    {
+      "table": "review_events",
+      "columns": [
+        "user_id"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "users",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "exactly_one",
+      "def": "FOREIGN KEY (user_id) REFERENCES users (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE"
+    },
+    {
+      "table": "review_events",
+      "columns": [
+        "workspace_id"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "workspaces",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "exactly_one",
+      "def": "FOREIGN KEY (workspace_id) REFERENCES workspaces (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE"
+    },
+    {
+      "table": "review_sessions",
+      "columns": [
+        "user_id"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "users",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "exactly_one",
+      "def": "FOREIGN KEY (user_id) REFERENCES users (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE"
+    },
+    {
+      "table": "review_sessions",
+      "columns": [
+        "workspace_id"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "workspaces",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "exactly_one",
+      "def": "FOREIGN KEY (workspace_id) REFERENCES workspaces (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE"
+    },
+    {
+      "table": "review_session_items",
+      "columns": [
+        "review_event_id"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "review_events",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "zero_or_one",
+      "def": "FOREIGN KEY (review_event_id) REFERENCES review_events (id) ON UPDATE NO ACTION ON DELETE SET NULL MATCH NONE"
+    },
+    {
+      "table": "review_session_items",
+      "columns": [
+        "learning_item_id"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "learning_items",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "exactly_one",
+      "def": "FOREIGN KEY (learning_item_id) REFERENCES learning_items (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE"
+    },
+    {
+      "table": "review_session_items",
+      "columns": [
+        "session_id"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "review_sessions",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "exactly_one",
+      "def": "FOREIGN KEY (session_id) REFERENCES review_sessions (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE"
+    },
+    {
+      "table": "document_summaries",
+      "columns": [
+        "user_id"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "users",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "exactly_one",
+      "def": "FOREIGN KEY (user_id) REFERENCES users (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE"
+    },
+    {
+      "table": "document_summaries",
+      "columns": [
+        "workspace_id"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "workspaces",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "exactly_one",
+      "def": "FOREIGN KEY (workspace_id) REFERENCES workspaces (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE"
+    },
+    {
+      "table": "document_summaries",
+      "columns": [
+        "document_id"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "documents",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "exactly_one",
+      "def": "FOREIGN KEY (document_id) REFERENCES documents (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE"
+    },
+    {
+      "table": "concepts",
+      "columns": [
+        "user_id"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "users",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "exactly_one",
+      "def": "FOREIGN KEY (user_id) REFERENCES users (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE"
+    },
+    {
+      "table": "concepts",
+      "columns": [
+        "workspace_id"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "workspaces",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "exactly_one",
+      "def": "FOREIGN KEY (workspace_id) REFERENCES workspaces (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE"
+    },
+    {
+      "table": "concepts",
+      "columns": [
+        "document_id"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "documents",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "exactly_one",
+      "def": "FOREIGN KEY (document_id) REFERENCES documents (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE"
+    },
+    {
+      "table": "subscriptions",
+      "columns": [
+        "plan_id"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "plans",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "exactly_one",
+      "def": "FOREIGN KEY (plan_id) REFERENCES plans (id) ON UPDATE NO ACTION ON DELETE NO ACTION MATCH NONE"
+    },
+    {
+      "table": "subscriptions",
+      "columns": [
+        "user_id"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "users",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "zero_or_one",
+      "def": "FOREIGN KEY (user_id) REFERENCES users (id) ON UPDATE NO ACTION ON DELETE SET NULL MATCH NONE"
+    },
+    {
+      "table": "subscriptions",
+      "columns": [
+        "workspace_id"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "workspaces",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "exactly_one",
+      "def": "FOREIGN KEY (workspace_id) REFERENCES workspaces (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE"
+    },
+    {
+      "table": "usage_reservations",
+      "columns": [
+        "user_id"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "users",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "exactly_one",
+      "def": "FOREIGN KEY (user_id) REFERENCES users (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE"
+    },
+    {
+      "table": "usage_reservations",
+      "columns": [
+        "workspace_id"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "workspaces",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "exactly_one",
+      "def": "FOREIGN KEY (workspace_id) REFERENCES workspaces (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE"
+    },
+    {
+      "table": "account_overrides",
+      "columns": [
+        "workspace_id"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "workspaces",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "exactly_one",
+      "def": "FOREIGN KEY (workspace_id) REFERENCES workspaces (id) ON UPDATE NO ACTION ON DELETE CASCADE MATCH NONE"
+    }
+  ],
+  "driver": {
+    "name": "sqlite",
+    "database_version": "3.53.4"
+  }
+}

@@ -1,0 +1,93 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 720" width="1000" height="720" font-family="'Segoe UI', Inter, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#000000"/>
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="1000" height="720" fill="#ffffff"/>
+  <!-- Flows -->
+  <path d="M180,60 H296" stroke="#000000" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+  <text x="238" y="50" font-size="18" text-anchor="middle" fill="#000000">start</text>
+  <path d="M720,60 H584" stroke="#000000" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+  <text x="652" y="50" font-size="18" text-anchor="middle" fill="#000000">due items</text>
+  <path d="M584,180 H716" stroke="#000000" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+  <text x="650" y="170" font-size="18" text-anchor="middle" fill="#000000">session, items</text>
+  <path d="M184,300 H296" stroke="#000000" stroke-width="2" fill="none" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+  <text x="240" y="290" font-size="18" text-anchor="middle" fill="#000000">card, reveal</text>
+  <path d="M720,300 H584" stroke="#000000" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+  <text x="652" y="290" font-size="18" text-anchor="middle" fill="#000000">front, back</text>
+  <path d="M180,420 H296" stroke="#000000" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+  <text x="238" y="410" font-size="18" text-anchor="middle" fill="#000000">rating</text>
+  <path d="M720,420 H584" stroke="#000000" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+  <text x="652" y="410" font-size="18" text-anchor="middle" fill="#000000">FSRS state</text>
+  <path d="M584,540 H716" stroke="#000000" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+  <text x="650" y="530" font-size="18" text-anchor="middle" fill="#000000">state, due</text>
+  <path d="M584,660 H716" stroke="#000000" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+  <text x="650" y="650" font-size="18" text-anchor="middle" fill="#000000">review event</text>
+  <path d="M300,660 H184" stroke="#000000" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+  <text x="242" y="650" font-size="18" text-anchor="middle" fill="#000000">next due</text>
+  <path d="M440,100 V136" stroke="#000000" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+  <path d="M440,220 V256" stroke="#000000" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+  <path d="M440,340 V376" stroke="#000000" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+  <path d="M440,460 V496" stroke="#000000" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+  <path d="M440,580 V616" stroke="#000000" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+  <text x="452" y="126" font-size="18" text-anchor="start" fill="#000000">due items</text>
+  <text x="452" y="246" font-size="18" text-anchor="start" fill="#000000">session</text>
+  <text x="452" y="366" font-size="18" text-anchor="start" fill="#000000">shown card</text>
+  <text x="452" y="486" font-size="18" text-anchor="start" fill="#000000">new state, due</text>
+  <text x="452" y="606" font-size="18" text-anchor="start" fill="#000000">result</text>
+  <!-- Processes -->
+  <rect x="300" y="20" width="280" height="80" rx="12" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+  <path d="M300,48 H580" stroke="#000000" stroke-width="1.5"/>
+  <text x="440" y="41" font-size="18" font-weight="700" text-anchor="middle" fill="#000000">4.1</text>
+  <text x="440" y="82" font-size="20" text-anchor="middle" fill="#000000">Find due items</text>
+  <rect x="300" y="140" width="280" height="80" rx="12" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+  <path d="M300,168 H580" stroke="#000000" stroke-width="1.5"/>
+  <text x="440" y="161" font-size="18" font-weight="700" text-anchor="middle" fill="#000000">4.2</text>
+  <text x="440" y="202" font-size="20" text-anchor="middle" fill="#000000">Open review session</text>
+  <rect x="300" y="260" width="280" height="80" rx="12" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+  <path d="M300,288 H580" stroke="#000000" stroke-width="1.5"/>
+  <text x="440" y="281" font-size="18" font-weight="700" text-anchor="middle" fill="#000000">4.3</text>
+  <text x="440" y="322" font-size="20" text-anchor="middle" fill="#000000">Show card and answer</text>
+  <rect x="300" y="380" width="280" height="80" rx="12" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+  <path d="M300,408 H580" stroke="#000000" stroke-width="1.5"/>
+  <text x="440" y="401" font-size="18" font-weight="700" text-anchor="middle" fill="#000000">4.4</text>
+  <text x="440" y="442" font-size="20" text-anchor="middle" fill="#000000">Schedule with FSRS</text>
+  <rect x="300" y="500" width="280" height="80" rx="12" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+  <path d="M300,528 H580" stroke="#000000" stroke-width="1.5"/>
+  <text x="440" y="521" font-size="18" font-weight="700" text-anchor="middle" fill="#000000">4.5</text>
+  <text x="440" y="562" font-size="20" text-anchor="middle" fill="#000000">Save card state</text>
+  <rect x="300" y="620" width="280" height="80" rx="12" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+  <path d="M300,648 H580" stroke="#000000" stroke-width="1.5"/>
+  <text x="440" y="641" font-size="18" font-weight="700" text-anchor="middle" fill="#000000">4.6</text>
+  <text x="440" y="682" font-size="20" text-anchor="middle" fill="#000000">Log review event</text>
+  <!-- Stores and entities -->
+  <rect x="20" y="20" width="160" height="680" fill="#ffffff" stroke="#000000" stroke-width="2" />
+  <text x="100" y="368" font-size="22" font-weight="700" text-anchor="middle" fill="#000000">Student</text>
+  <path d="M980,35 H720 V85 H980" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+  <path d="M784,35 V85" stroke="#000000" stroke-width="2"/>
+  <text x="757" y="67" font-size="18" font-weight="700" text-anchor="middle" fill="#000000">D5.1</text>
+  <text x="796" y="67" font-size="20" fill="#000000">Learning items</text>
+  <path d="M980,155 H720 V205 H980" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+  <path d="M784,155 V205" stroke="#000000" stroke-width="2"/>
+  <text x="757" y="187" font-size="18" font-weight="700" text-anchor="middle" fill="#000000">D5.2</text>
+  <text x="796" y="187" font-size="20" fill="#000000">Review sessions</text>
+  <path d="M980,275 H720 V325 H980" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+  <path d="M784,275 V325" stroke="#000000" stroke-width="2"/>
+  <text x="757" y="307" font-size="18" font-weight="700" text-anchor="middle" fill="#000000">D5.3</text>
+  <text x="796" y="307" font-size="20" fill="#000000">Cards, questions</text>
+  <path d="M980,395 H720 V445 H980" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+  <path d="M784,395 V445" stroke="#000000" stroke-width="2"/>
+  <path d="M730,395 V445" stroke="#000000" stroke-width="1.5"/>
+  <text x="757" y="427" font-size="18" font-weight="700" text-anchor="middle" fill="#000000">D5.1</text>
+  <text x="796" y="427" font-size="20" fill="#000000">Learning items</text>
+  <path d="M980,515 H720 V565 H980" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+  <path d="M784,515 V565" stroke="#000000" stroke-width="2"/>
+  <path d="M730,515 V565" stroke="#000000" stroke-width="1.5"/>
+  <text x="757" y="547" font-size="18" font-weight="700" text-anchor="middle" fill="#000000">D5.1</text>
+  <text x="796" y="547" font-size="20" fill="#000000">Learning items</text>
+  <path d="M980,635 H720 V685 H980" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+  <path d="M784,635 V685" stroke="#000000" stroke-width="2"/>
+  <text x="757" y="667" font-size="18" font-weight="700" text-anchor="middle" fill="#000000">D5.4</text>
+  <text x="796" y="667" font-size="20" fill="#000000">Review events</text>
+</svg>

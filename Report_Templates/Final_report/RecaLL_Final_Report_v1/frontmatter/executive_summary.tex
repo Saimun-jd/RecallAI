@@ -1,0 +1,39 @@
+\chapter*{Executive Summary}
+\addcontentsline{toc}{chapter}{Executive Summary}
+
+University students spend much of their study time reading PDF textbooks and lecture slides, yet
+reading alone gives little evidence of understanding, and the techniques that do build lasting
+knowledge (structured notes, self-testing and spaced revision) take more time than most students can
+give to every topic. Existing tools each cover one part of this: PDF readers display documents,
+document-chat tools answer the student's questions, and flashcard applications schedule revision of
+cards the student must write.
+
+RecaLL is a local-first desktop application that joins these steps into one study path. A student
+imports an academic PDF; RecaLL extracts its structure into a topic tree, writes Cornell notes for each
+topic, questions the student through Socratic drills that test reasoning rather than recall, turns
+detected knowledge gaps and misconceptions into targeted flashcards, and schedules their revision with
+the Free Spaced Repetition Scheduler (FSRS-6). A Knowledge Hub answers questions across the student's
+own documents with citations that are checked against the retrieved passages, quizzes test whole
+documents, and a progress view shows what has been studied and what is due.
+
+The system was developed incrementally between July and November 2026 by a team of four, led by Al
+Rubayet. It uses a
+layered client--server architecture inside a single desktop package: a Tauri~2 shell with a React~19 and
+TypeScript interface, and a local FastAPI backend that stores all data in SQLite. AI requests go through
+a provider layer, so the student can choose Gemini, OpenAI or Groq with a personal key (kept in a vault
+encrypted with AES-256-GCM), or a local Ollama model that keeps all data offline. No model is trained;
+behaviour is controlled by prompts, schema validation and citation checking.
+
+The backend has an automated test suite of 223 pytest cases covering authentication, user isolation,
+document processing, FSRS scheduling, retrieval, quizzes and security primitives, together with nine
+Playwright end-to-end journeys and a GitHub Actions pipeline for testing and Windows release builds.
+All 223 tests pass, with 50.5\% statement coverage of the application code. Measured on the team's own
+documents, the backend needs at most 381~MB of memory, a Cornell note takes a median of 27.9~s, and
+Knowledge Hub answers cited the relevant pages in every answerable test question.
+Six students tested the application informally during development, and their five feature requests
+were addressed in the current build.
+
+RecaLL shows that the full path from a PDF to scheduled, evidence-based revision can run privately on a
+student's own computer. Future work will add semantic embeddings by default and built-in OCR, merge
+the two databases behind one authenticated API, add cloud sync, and provide installers for more
+platforms.

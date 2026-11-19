@@ -1,0 +1,12 @@
+# Regenerate: see docs/diagrams/README.md (tbls via Docker against a COPY of the SQLite file)
+name: "Recall AI – legacy study DB (recall.db / user_<id>_recall.db)"
+docPath: docs/database/legacy
+er:
+  format: svg
+  comment: true
+  distance: 1
+  hideDef: true
+format:
+  adjust: true
+exclude:
+  - schema_migrations

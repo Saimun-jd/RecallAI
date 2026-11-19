@@ -1,0 +1,109 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 960" width="1000" height="960" font-family="'Segoe UI', Inter, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#000000"/>
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="1000" height="960" fill="#ffffff"/>
+  <!-- Flows -->
+  <path d="M180,60 H296" stroke="#000000" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+  <text x="238" y="50" font-size="18" text-anchor="middle" fill="#000000">question</text>
+  <path d="M720,60 H584" stroke="#000000" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+  <text x="652" y="50" font-size="18" text-anchor="middle" fill="#000000">plan, usage</text>
+  <path d="M584,180 H716" stroke="#000000" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+  <text x="650" y="170" font-size="18" text-anchor="middle" fill="#000000">question</text>
+  <path d="M720,300 H584" stroke="#000000" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+  <text x="652" y="290" font-size="18" text-anchor="middle" fill="#000000">chunks</text>
+  <path d="M720,420 H584" stroke="#000000" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+  <text x="652" y="410" font-size="18" text-anchor="middle" fill="#000000">history</text>
+  <path d="M588,540 H716" stroke="#000000" stroke-width="2" fill="none" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+  <text x="652" y="530" font-size="18" text-anchor="middle" fill="#000000">prompt, answer</text>
+  <path d="M584,780 H716" stroke="#000000" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+  <text x="650" y="770" font-size="18" text-anchor="middle" fill="#000000">answer, sources</text>
+  <path d="M584,900 H716" stroke="#000000" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+  <text x="650" y="890" font-size="18" text-anchor="middle" fill="#000000">tokens, credits</text>
+  <path d="M300,900 H184" stroke="#000000" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+  <text x="242" y="890" font-size="18" text-anchor="middle" fill="#000000">answer</text>
+  <path d="M440,100 V136" stroke="#000000" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+  <path d="M440,220 V256" stroke="#000000" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+  <path d="M440,340 V376" stroke="#000000" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+  <path d="M440,460 V496" stroke="#000000" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+  <path d="M440,580 V616" stroke="#000000" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+  <path d="M440,700 V736" stroke="#000000" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+  <path d="M440,820 V856" stroke="#000000" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+  <text x="452" y="126" font-size="18" text-anchor="start" fill="#000000">question</text>
+  <text x="452" y="246" font-size="18" text-anchor="start" fill="#000000">query</text>
+  <text x="452" y="366" font-size="18" text-anchor="start" fill="#000000">top chunks</text>
+  <text x="452" y="486" font-size="18" text-anchor="start" fill="#000000">prompt</text>
+  <text x="452" y="606" font-size="18" text-anchor="start" fill="#000000">raw answer</text>
+  <text x="452" y="726" font-size="18" text-anchor="start" fill="#000000">cited answer</text>
+  <text x="452" y="846" font-size="18" text-anchor="start" fill="#000000">token counts</text>
+  <!-- Processes -->
+  <rect x="300" y="20" width="280" height="80" rx="12" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+  <path d="M300,48 H580" stroke="#000000" stroke-width="1.5"/>
+  <text x="440" y="41" font-size="18" font-weight="700" text-anchor="middle" fill="#000000">3.1</text>
+  <text x="440" y="82" font-size="20" text-anchor="middle" fill="#000000">Check access, credits</text>
+  <rect x="300" y="140" width="280" height="80" rx="12" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+  <path d="M300,168 H580" stroke="#000000" stroke-width="1.5"/>
+  <text x="440" y="161" font-size="18" font-weight="700" text-anchor="middle" fill="#000000">3.2</text>
+  <text x="440" y="202" font-size="20" text-anchor="middle" fill="#000000">Save question</text>
+  <rect x="300" y="260" width="280" height="80" rx="12" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+  <path d="M300,288 H580" stroke="#000000" stroke-width="1.5"/>
+  <text x="440" y="281" font-size="18" font-weight="700" text-anchor="middle" fill="#000000">3.3</text>
+  <text x="440" y="322" font-size="20" text-anchor="middle" fill="#000000">Retrieve chunks</text>
+  <rect x="300" y="380" width="280" height="80" rx="12" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+  <path d="M300,408 H580" stroke="#000000" stroke-width="1.5"/>
+  <text x="440" y="401" font-size="18" font-weight="700" text-anchor="middle" fill="#000000">3.4</text>
+  <text x="440" y="442" font-size="20" text-anchor="middle" fill="#000000">Build grounded prompt</text>
+  <rect x="300" y="500" width="280" height="80" rx="12" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+  <path d="M300,528 H580" stroke="#000000" stroke-width="1.5"/>
+  <text x="440" y="521" font-size="18" font-weight="700" text-anchor="middle" fill="#000000">3.5</text>
+  <text x="440" y="562" font-size="20" text-anchor="middle" fill="#000000">Generate answer</text>
+  <rect x="300" y="620" width="280" height="80" rx="12" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+  <path d="M300,648 H580" stroke="#000000" stroke-width="1.5"/>
+  <text x="440" y="641" font-size="18" font-weight="700" text-anchor="middle" fill="#000000">3.6</text>
+  <text x="440" y="682" font-size="20" text-anchor="middle" fill="#000000">Check citations</text>
+  <rect x="300" y="740" width="280" height="80" rx="12" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+  <path d="M300,768 H580" stroke="#000000" stroke-width="1.5"/>
+  <text x="440" y="761" font-size="18" font-weight="700" text-anchor="middle" fill="#000000">3.7</text>
+  <text x="440" y="802" font-size="20" text-anchor="middle" fill="#000000">Save answer</text>
+  <rect x="300" y="860" width="280" height="80" rx="12" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+  <path d="M300,888 H580" stroke="#000000" stroke-width="1.5"/>
+  <text x="440" y="881" font-size="18" font-weight="700" text-anchor="middle" fill="#000000">3.8</text>
+  <text x="440" y="922" font-size="20" text-anchor="middle" fill="#000000">Record usage</text>
+  <!-- Stores and entities -->
+  <rect x="20" y="20" width="160" height="80" fill="#ffffff" stroke="#000000" stroke-width="2" />
+  <text x="100" y="68" font-size="22" font-weight="700" text-anchor="middle" fill="#000000">Student</text>
+  <rect x="20" y="860" width="160" height="80" fill="#ffffff" stroke="#000000" stroke-width="2" />
+  <path d="M162,940 L180,922" stroke="#000000" stroke-width="1.5"/>
+  <text x="100" y="908" font-size="22" font-weight="700" text-anchor="middle" fill="#000000">Student</text>
+  <path d="M980,35 H720 V85 H980" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+  <path d="M784,35 V85" stroke="#000000" stroke-width="2"/>
+  <text x="757" y="67" font-size="18" font-weight="700" text-anchor="middle" fill="#000000">D1</text>
+  <text x="796" y="67" font-size="20" fill="#000000">Accounts</text>
+  <path d="M980,155 H720 V205 H980" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+  <path d="M784,155 V205" stroke="#000000" stroke-width="2"/>
+  <text x="757" y="187" font-size="18" font-weight="700" text-anchor="middle" fill="#000000">D3</text>
+  <text x="796" y="187" font-size="20" fill="#000000">Conversations</text>
+  <path d="M980,275 H720 V325 H980" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+  <path d="M784,275 V325" stroke="#000000" stroke-width="2"/>
+  <text x="757" y="307" font-size="18" font-weight="700" text-anchor="middle" fill="#000000">D2</text>
+  <text x="796" y="307" font-size="20" fill="#000000">Documents</text>
+  <path d="M980,395 H720 V445 H980" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+  <path d="M784,395 V445" stroke="#000000" stroke-width="2"/>
+  <path d="M730,395 V445" stroke="#000000" stroke-width="1.5"/>
+  <text x="757" y="427" font-size="18" font-weight="700" text-anchor="middle" fill="#000000">D3</text>
+  <text x="796" y="427" font-size="20" fill="#000000">Conversations</text>
+  <rect x="720" y="500" width="260" height="80" fill="#ffffff" stroke="#000000" stroke-width="2" />
+  <text x="850" y="548" font-size="22" font-weight="700" text-anchor="middle" fill="#000000">AI provider</text>
+  <path d="M980,755 H720 V805 H980" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+  <path d="M784,755 V805" stroke="#000000" stroke-width="2"/>
+  <path d="M730,755 V805" stroke="#000000" stroke-width="1.5"/>
+  <text x="757" y="787" font-size="18" font-weight="700" text-anchor="middle" fill="#000000">D3</text>
+  <text x="796" y="787" font-size="20" fill="#000000">Conversations</text>
+  <path d="M980,875 H720 V925 H980" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+  <path d="M784,875 V925" stroke="#000000" stroke-width="2"/>
+  <path d="M730,875 V925" stroke="#000000" stroke-width="1.5"/>
+  <text x="757" y="907" font-size="18" font-weight="700" text-anchor="middle" fill="#000000">D1</text>
+  <text x="796" y="907" font-size="20" fill="#000000">Accounts</text>
+</svg>

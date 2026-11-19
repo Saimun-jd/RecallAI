@@ -1,0 +1,147 @@
+%==============================================================
+%  preamble.tex -- packages, colours, helper macros.
+%  Students normally DO NOT need to edit this file.
+%==============================================================
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[a4paper,margin=1in,headheight=26pt]{geometry}
+\usepackage{setspace}
+\onehalfspacing
+\IfFileExists{lmodern.sty}{\usepackage{lmodern}}{}
+\usepackage[expansion=false]{microtype}
+
+% ---- graphics, colours, tables ---------------------------------
+\usepackage[dvipsnames,table]{xcolor}
+\usepackage{graphicx}
+\graphicspath{{images/}{images/diagrams/}{images/photos/}}
+\usepackage{float}
+\usepackage{booktabs,array,tabularx,longtable,multirow,makecell}
+\usepackage{etoolbox}
+% Slightly tighter line spacing inside long tables (body text stays one-and-a-half spaced).
+\AtBeginEnvironment{longtable}{\setstretch{1.1}}
+\usepackage{caption,subcaption}
+\captionsetup{font=small,labelfont=bf}
+\usepackage{enumitem}
+\setlist{itemsep=2pt,topsep=3pt}
+\usepackage{amsmath,amssymb}
+\usepackage{pifont}
+\newcommand{\cmark}{\ding{51}}   % tick mark for contribution / traceability tables
+\usepackage{pdflscape}           % \begin{landscape} for wide tables / diagrams
+\usepackage[figuresright]{rotating} % sidewaysfigure for \widefig
+
+% ---- CUET colour palette ---------------------------------------
+\definecolor{cuetblue}{RGB}{38,36,115}
+\definecolor{cuetgold}{RGB}{218,165,32}
+\definecolor{cuetgreen}{RGB}{34,139,34}
+
+% ---- diagrams / Gantt ------------------------------------------
+\usepackage{tikz}
+\usetikzlibrary{shapes,arrows.meta,positioning,fit,calc}
+\usepackage{pgfgantt}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+
+% ---- code listings ---------------------------------------------
+\usepackage{listings}
+\lstdefinestyle{cuetcode}{
+  basicstyle=\ttfamily\footnotesize,
+  keywordstyle=\bfseries,
+  commentstyle=\color{black!60}\itshape,
+  stringstyle=\color{black!80},
+  numbers=left, numberstyle=\tiny\color{gray}, numbersep=6pt,
+  frame=single, rulecolor=\color{gray!60},
+  breaklines=true, breakatwhitespace=false,
+  showstringspaces=false, tabsize=4, captionpos=b,
+  backgroundcolor=\color{gray!5}}
+\lstset{style=cuetcode}
+\renewcommand{\lstlistingname}{Listing}
+
+% ---- algorithms (pseudocode for LLD) ---------------------------
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+
+% ---- headers / footers -----------------------------------------
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\textcolor{cuetblue}{Project Report}}
+\fancyhead[R]{\small\textcolor{cuetblue}{\CourseCode}}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\headrule}{\hbox to\headwidth{\color{cuetgold}\leaders\hrule height \headrulewidth\hfill}}
+\fancypagestyle{plain}{\fancyhf{}\fancyfoot[C]{\thepage}\renewcommand{\headrulewidth}{0pt}}
+
+% ---- chapter / section title colours ---------------------------
+\usepackage{titlesec}
+\titleformat{\chapter}[display]
+  {\normalfont\huge\bfseries}
+  {\chaptertitlename\ \thechapter}{10pt}{\Huge}
+\titlespacing*{\chapter}{0pt}{-20pt}{25pt}
+\titleformat{\section}{\normalfont\Large\bfseries\raggedright}{\thesection}{1em}{}
+\titleformat{\subsection}{\normalfont\large\bfseries}{\thesubsection}{1em}{}
+
+% ---- guide boxes (toggle in config.tex) ------------------------
+\usepackage[most]{tcolorbox}
+\newif\ifguides
+\newcommand{\guide}[1]{%
+  \ifguides
+    \begin{tcolorbox}[colback=blue!4,colframe=cuetblue,boxrule=0.6pt,arc=2pt,
+      left=4pt,right=4pt,top=2pt,bottom=2pt,title={\small\bfseries GUIDE (delete before submission)}, fonttitle=\small]
+      \small #1
+    \end{tcolorbox}
+  \fi}
+
+% ---- figure helper: prints a placeholder if the image is missing
+% Usage: \figplaceholder{file}{caption}{label}[width]
+\newcommand{\figplaceholder}[4][0.85\textwidth]{%
+  \begin{figure}[htbp]\centering
+    \IfFileExists{images/diagrams/#2}{\includegraphics[width=#1,height=0.78\textheight,keepaspectratio]{#2}}%
+    {\IfFileExists{images/#2}{\includegraphics[width=#1,height=0.78\textheight,keepaspectratio]{#2}}%
+    {\fbox{\parbox{#1}{\centering\vspace{2cm}\textcolor{red}{[Figure placeholder: \texttt{\detokenize{#2}}]}\vspace{2cm}}}}}
+    \caption{#3}\label{#4}
+  \end{figure}}
+
+% ---- wide figure on its own landscape page ------------------------
+% Usage: \widefig{file}{caption}{label}  (for diagrams too wide for portrait)
+% Rotated float (rotating package): floats to its own page, so the surrounding
+% text keeps flowing and no near-empty pages are left behind.
+% The page's text height and width are saved before rotation, because inside
+% sidewaysfigure \textwidth is replaced by the page height.
+\newlength{\rclLong}\newlength{\rclShort}
+\AtBeginDocument{\setlength{\rclLong}{\textheight}\setlength{\rclShort}{\textwidth}}
+\newcommand{\widefig}[3]{%
+  \begin{sidewaysfigure}\centering
+    \IfFileExists{images/diagrams/#1}{\includegraphics[width=\rclLong,height=0.86\rclShort,keepaspectratio]{#1}}%
+    {\fbox{\parbox{0.8\rclLong}{\centering\vspace{2cm}\textcolor{red}{[Figure placeholder: \texttt{\detokenize{#1}}]}\vspace{2cm}}}}
+    \caption{#2}\label{#3}
+  \end{sidewaysfigure}}
+
+% ---- team member macros (used by config.tex) -------------------
+\makeatletter
+\newcommand{\coverlist}{}
+\newcommand{\tablerows}{}
+\newcommand{\memberphoto}[1]{%
+  \IfFileExists{#1}{\includegraphics[width=2cm,height=2.4cm,keepaspectratio]{#1}}%
+  {\includegraphics[width=2cm,height=2.4cm,keepaspectratio]{images/photos/placeholder.png}}}
+\newcommand{\member}[7]{%
+  \g@addto@macro\coverlist{#1 \quad ID: #2\\[0.5ex]}%
+  \g@addto@macro\tablerows{\memberphoto{#7} & #1 & #2 & {\scriptsize\url{#3}} & \mbox{#4} & #5 & #6 \\ \hline}}
+\makeatother
+
+% ---- hyperlinks (load LAST) ------------------------------------
+\usepackage[hidelinks]{hyperref}
+\hypersetup{pdftitle={RecaLL: Software Engineering Final Report}}
+\usepackage[nameinlink]{cleveref}
+
+% ---- line breaking for long code names / paths -----------------
+% Allow \texttt{} words (file paths, identifiers) to break after / . _ -
+\usepackage{xurl}
+\emergencystretch=3em
+% Let \_ inside \texttt break (paths like app/services/rag_service.py):
+\makeatletter
+\DeclareRobustCommand{\_}{\ifmmode\nfss@text{\textunderscore}\else\textunderscore\fi\discretionary{}{}{}}
+\makeatother
+
+% ---- handy macros ----------------------------------------------
+\newcommand{\todo}[1]{\textcolor{red}{\textbf{[TODO: #1]}}}
+\newcommand{\req}[1]{\texttt{#1}}

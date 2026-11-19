@@ -1,0 +1,98 @@
+\chapter{Sustainability Plan \& Ethical Considerations}\label{ch:sustain}
+
+\section{Scalability}
+
+RecaLL scales differently from a hosted web application. Since each student runs a private copy,
+adding users adds no load to any shared server: the work is spread across the users' own machines,
+and the only shared resources are the AI providers, which are billed to each student's own key.
+Scalability is therefore mainly a question of how much material one student can hold and how fast
+one computer can process it.
+
+\begin{itemize}
+  \item \textbf{Data volume.} SQLite in Write-Ahead Logging mode allows reads while a write is in
+  progress, and the tables used by the review queue and analytics are indexed by workspace, document
+  and due date. Large books are processed in stages with checkpoints, so a long PDF can resume after
+  an interruption instead of restarting. In the volume test (\Cref{ch:test}) the text of a 930-page textbook
+  was extracted in 3.1~s and searched in 0.72~s, and the library of 11 documents and 1{,}070 chunks needs a
+  20.8~MB database.
+  \item \textbf{AI throughput.} In the study features, provider calls are retried with exponential
+  back-off (\texttt{app/llm\_providers/retry.py}) and Gemini calls also pass a priority token-bucket rate
+  limiter (\texttt{rate\_limiter.py}), so bursts of note generation do not exceed provider quotas. The
+  same policy will also be applied to the \texttt{/api/v1} services as part of the maintenance plan. A student who needs more throughput can move to a faster provider or a local model without
+  changing any study data.
+  \item \textbf{Towards a hosted version.} The repository already contains a container setup with
+  PostgreSQL~16 and pgvector, an Nginx gateway and health checks. Moving the data layer from SQLite to
+  PostgreSQL and using semantic embeddings by default would allow a
+  multi-user server with semantic search. Workspaces and per-user isolation are already part of the
+  \texttt{/api/v1} design, which eases this move.
+\end{itemize}
+
+\section{Flexibility / Customization}
+
+\begin{itemize}
+  \item \textbf{Choice of AI provider.} Providers sit behind interfaces selected at run time: the study
+  features use \texttt{BaseLLMProvider} with a factory, and the \texttt{/api/v1} services use
+  \texttt{AIService} with provider adapters. Adding a provider means adding one class per stack;
+  students can switch between Gemini, OpenAI, Groq and a local Ollama model at any time.
+  \item \textbf{Editable prompts.} The prompts of the study features live in a central registry
+  (\texttt{app/prompt\_manager.py}). They can be overridden from the LLM Inspection page; placeholders
+  are validated before saving, and any prompt can be reset to its default.
+  \item \textbf{Pluggable extractors.} The study path extracts PDFs through a registry of extractors:
+  PyMuPDF4LLM is the default and Marker can be added for scanned or handwritten documents.
+  \item \textbf{Replaceable scheduler.} Review scheduling sits behind the \texttt{ReviewScheduler}
+  interface; the FSRS parameters (desired retention 0.9, maximum interval 36{,}500 days) are
+  configuration, and a different algorithm could be plugged in.
+  \item \textbf{Personal presentation.} Notes can use ruled, grid or plain paper and a light or dark
+  theme, and the interface remembers the student's preferences.
+\end{itemize}
+
+\section{Maintainability and Future Enhancements}
+
+\paragraph{Maintenance plan.}
+\begin{enumerate}
+  \item \textbf{Keep dependencies current.} Pin the Python requirements and review updates monthly, so
+  that builds stay reproducible.
+  \item \textbf{Unify the two databases.} RecaLL uses \texttt{recall\_saas.db} and a per-user study
+  database, and books are mirrored between them. Moving the study routes (books, topics, notes,
+  annotations, drills) under \texttt{/api/v1} with the same authentication will let one database serve
+  every feature.
+  \item \textbf{Documentation.} Keep the README, the SDLC diagrams and this report in step with the code.
+\end{enumerate}
+
+\paragraph{Future enhancements.}
+\begin{itemize}
+  \item Semantic embeddings by default, including from the student's own key, for Knowledge Hub search.
+  \item Built-in OCR for scanned PDFs without the optional Marker install.
+  \item Smarter scheduling across subjects, using each student's own review history to tune FSRS.
+  \item Cloud sync between a student's devices.
+  \item macOS and Linux installers, and later a web or mobile companion.
+  \item Payments, if a hosted tier is offered.
+\end{itemize}
+
+\section{Ethical Considerations}
+
+\begin{itemize}
+  \item \textbf{Privacy by design.} Documents, notes, flashcards and study history stay on the student's
+  computer. Text is sent to an AI provider only when the student uses an AI feature, and only to the
+  provider the student selected; choosing Ollama keeps everything offline.
+  \item \textbf{Security of personal keys.} Provider keys are encrypted with AES-256-GCM in the BYOK
+  vault and only a short hint is displayed; passwords are stored as PBKDF2-HMAC-SHA256 hashes with
+  600{,}000 iterations (\Cref{sec:security}).
+  \item \textbf{Honesty about AI output.} AI-generated notes, questions and answers can be wrong.
+  Knowledge Hub answers cite the retrieved source passages, and a citation validator removes citations
+  that do not match retrieved chunks, so students can check each claim against the original document.
+  \item \textbf{Prompt-injection safety.} Retrieved document text is passed to the model as untrusted
+  reference data, and the system prompt tells the model not to follow instructions inside it.
+  \item \textbf{Learning, not shortcuts.} The design pushes students to explain ideas themselves
+  (Socratic drills) and to recall answers before seeing them (flashcards), rather than letting the AI do
+  the work for them.
+  \item \textbf{Copyright.} Students upload their own course material for personal study; the application
+  does not publish or share it.
+  \item \textbf{Voluntary participation.} The six students in the user tests (\Cref{sec:uat}) took part
+  voluntarily and used the team's own copy of the app; no synthetic or third-party personal data was
+  used.
+  \item \textbf{Responsible use of AI in this project.} The Antigravity agent generated most of the code
+  from requirements and designs the team had prepared beforehand, and was used to review the application
+  and find bugs; all output was reviewed and tested by the team. The automated tests were likewise largely
+  written with the agent and reviewed by the team (see Appendix~F).
+\end{itemize}

@@ -1,0 +1,12 @@
+# Regenerate: see docs/diagrams/README.md (tbls via Docker against a COPY of the SQLite file)
+name: "Recall AI – SaaS DB (recall_saas.db)"
+docPath: docs/database/saas
+er:
+  format: svg
+  comment: true
+  distance: 1
+  hideDef: true
+format:
+  adjust: true
+exclude:
+  - schema_migrations

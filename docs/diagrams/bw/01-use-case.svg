@@ -1,0 +1,102 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1640 1060" width="1640" height="1060" font-family="'Segoe UI', Inter, Helvetica, Arial, sans-serif">
+<rect width="1640" height="1060" fill="#ffffff"/>
+<text x="40" y="58" font-size="28" font-weight="700" fill="#000000">Recall AI — use case diagram (as built)</text>
+<text x="40" y="88" font-size="16" fill="#000000">What each actor can do with the system. Line style shows whether the use case works in the current build.</text>
+<g font-size="14" fill="#000000"><rect x="1240" y="20" width="370" height="96" rx="8" fill="#ffffff" stroke="#000000"/>
+<ellipse cx="1270" cy="44" rx="16" ry="9" fill="#ffffff" stroke="#000000" stroke-width="2"/><text x="1294" y="49">works</text>
+<ellipse cx="1400" cy="44" rx="16" ry="9" fill="#ffffff" stroke="#000000" stroke-width="2" stroke-dasharray="7 5"/><text x="1424" y="49">partly works</text>
+<ellipse cx="1270" cy="72" rx="16" ry="9" fill="#ffffff" stroke="#000000" stroke-width="2.6" stroke-dasharray="3 4"/><text x="1294" y="77">broken / unusable</text>
+<line x1="1256" y1="100" x2="1300" y2="100" stroke="#000000" stroke-width="1.8"/><text x="1310" y="105">association (actor uses / takes part in)</text></g>
+<rect x="440" y="140" width="760" height="880" rx="10" fill="none" stroke="#000000" stroke-width="2"/>
+<text x="460" y="170" font-size="18" font-weight="700" fill="#000000">Recall AI</text>
+<line x1="236" y1="552" x2="598" y2="200" stroke="#000000" stroke-width="1.6"/>
+<line x1="236" y1="552" x2="598" y2="258" stroke="#000000" stroke-width="1.6"/>
+<line x1="236" y1="552" x2="598" y2="316" stroke="#000000" stroke-width="1.6"/>
+<line x1="236" y1="552" x2="598" y2="374" stroke="#000000" stroke-width="1.6"/>
+<line x1="236" y1="552" x2="598" y2="432" stroke="#000000" stroke-width="1.6"/>
+<line x1="236" y1="552" x2="598" y2="490" stroke="#000000" stroke-width="1.6"/>
+<line x1="236" y1="552" x2="598" y2="548" stroke="#000000" stroke-width="1.6"/>
+<line x1="236" y1="552" x2="598" y2="606" stroke="#000000" stroke-width="1.6"/>
+<line x1="236" y1="552" x2="598" y2="664" stroke="#000000" stroke-width="1.6"/>
+<line x1="236" y1="552" x2="598" y2="722" stroke="#000000" stroke-width="1.6"/>
+<line x1="236" y1="552" x2="598" y2="780" stroke="#000000" stroke-width="1.6"/>
+<line x1="236" y1="552" x2="598" y2="838" stroke="#000000" stroke-width="1.6"/>
+<line x1="236" y1="552" x2="598" y2="896" stroke="#000000" stroke-width="1.6"/>
+<line x1="236" y1="552" x2="598" y2="954" stroke="#000000" stroke-width="1.6"/>
+<line x1="1414" y1="208.0" x2="1042" y2="200" stroke="#000000" stroke-width="1.6"/>
+<line x1="1414" y1="208.0" x2="1042" y2="258" stroke="#000000" stroke-width="1.6"/>
+<line x1="1414" y1="378.0" x2="1042" y2="316" stroke="#000000" stroke-width="1.6"/>
+<line x1="1414" y1="648.0" x2="1042" y2="606" stroke="#000000" stroke-width="1.6"/>
+<line x1="1414" y1="648.0" x2="1042" y2="664" stroke="#000000" stroke-width="1.6"/>
+<line x1="1414" y1="648.0" x2="1042" y2="722" stroke="#000000" stroke-width="1.6"/>
+<line x1="1414" y1="648.0" x2="1042" y2="780" stroke="#000000" stroke-width="1.6"/>
+<line x1="1414" y1="878.0" x2="1042" y2="954" stroke="#000000" stroke-width="1.6"/>
+<ellipse cx="820" cy="200" rx="220" ry="24" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+<text x="820" y="206" font-size="17" text-anchor="middle" fill="#000000">Register / log in</text>
+<ellipse cx="820" cy="258" rx="220" ry="24" fill="#ffffff" stroke="#000000" stroke-width="2.6" stroke-dasharray="3 4"/>
+<text x="820" y="264" font-size="17" text-anchor="middle" fill="#000000">Sync data to cloud</text>
+<ellipse cx="820" cy="316" rx="220" ry="24" fill="#ffffff" stroke="#000000" stroke-width="2.6" stroke-dasharray="3 4"/>
+<text x="820" y="322" font-size="17" text-anchor="middle" fill="#000000">Upgrade to Premium</text>
+<ellipse cx="820" cy="374" rx="220" ry="24" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+<text x="820" y="380" font-size="17" text-anchor="middle" fill="#000000">Manage AI provider key</text>
+<ellipse cx="820" cy="432" rx="220" ry="24" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+<text x="820" y="438" font-size="17" text-anchor="middle" fill="#000000">Upload document</text>
+<ellipse cx="820" cy="490" rx="220" ry="24" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+<text x="820" y="496" font-size="17" text-anchor="middle" fill="#000000">Read and annotate PDF</text>
+<ellipse cx="820" cy="548" rx="220" ry="24" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+<text x="820" y="554" font-size="17" text-anchor="middle" fill="#000000">Take study notes</text>
+<ellipse cx="820" cy="606" rx="220" ry="24" fill="#ffffff" stroke="#000000" stroke-width="2" stroke-dasharray="7 5"/>
+<text x="820" y="612" font-size="17" text-anchor="middle" fill="#000000">Chat with documents</text>
+<ellipse cx="820" cy="664" rx="220" ry="24" fill="#ffffff" stroke="#000000" stroke-width="2.6" stroke-dasharray="3 4"/>
+<text x="820" y="670" font-size="17" text-anchor="middle" fill="#000000">Take Socratic drill</text>
+<ellipse cx="820" cy="722" rx="220" ry="24" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+<text x="820" y="728" font-size="17" text-anchor="middle" fill="#000000">Generate flashcards</text>
+<ellipse cx="820" cy="780" rx="220" ry="24" fill="#ffffff" stroke="#000000" stroke-width="2" stroke-dasharray="7 5"/>
+<text x="820" y="786" font-size="17" text-anchor="middle" fill="#000000">Generate and take quiz</text>
+<ellipse cx="820" cy="838" rx="220" ry="24" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+<text x="820" y="844" font-size="17" text-anchor="middle" fill="#000000">Review flashcards (FSRS)</text>
+<ellipse cx="820" cy="896" rx="220" ry="24" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+<text x="820" y="902" font-size="17" text-anchor="middle" fill="#000000">View progress</text>
+<ellipse cx="820" cy="954" rx="220" ry="24" fill="#ffffff" stroke="#000000" stroke-width="2.6" stroke-dasharray="3 4"/>
+<text x="820" y="960" font-size="17" text-anchor="middle" fill="#000000">Analyze handwritten notes</text>
+<g stroke="#000000" stroke-width="2.4" fill="none">
+<circle cx="200" cy="488.0" r="18.0" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+<line x1="200" y1="506.0" x2="200" y2="570.0"/>
+<line x1="170.0" y1="530.0" x2="230.0" y2="530.0"/>
+<line x1="200" y1="570.0" x2="175.0" y2="615.0"/>
+<line x1="200" y1="570.0" x2="225.0" y2="615.0"/></g>
+<text x="200" y="642.0" font-size="20" font-weight="700" text-anchor="middle" fill="#000000">Student</text>
+<text x="200" y="662.0" font-size="13" text-anchor="middle" fill="#000000">primary actor</text>
+<g stroke="#000000" stroke-width="2.4" fill="none">
+<circle cx="1440" cy="174.4" r="14.4" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+<line x1="1440" y1="188.8" x2="1440" y2="240.0"/>
+<line x1="1416.0" y1="208.0" x2="1464.0" y2="208.0"/>
+<line x1="1440" y1="240.0" x2="1420.0" y2="276.0"/>
+<line x1="1440" y1="240.0" x2="1460.0" y2="276.0"/></g>
+<text x="1440" y="297.6" font-size="16" font-weight="700" text-anchor="middle" fill="#000000">Supabase</text>
+<text x="1440" y="317.6" font-size="13" text-anchor="middle" fill="#000000">auth + sync</text>
+<g stroke="#000000" stroke-width="2.4" fill="none">
+<circle cx="1440" cy="344.4" r="14.4" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+<line x1="1440" y1="358.8" x2="1440" y2="410.0"/>
+<line x1="1416.0" y1="378.0" x2="1464.0" y2="378.0"/>
+<line x1="1440" y1="410.0" x2="1420.0" y2="446.0"/>
+<line x1="1440" y1="410.0" x2="1460.0" y2="446.0"/></g>
+<text x="1440" y="467.6" font-size="16" font-weight="700" text-anchor="middle" fill="#000000">Payment provider</text>
+<text x="1440" y="487.6" font-size="13" text-anchor="middle" fill="#000000">mock Stripe</text>
+<g stroke="#000000" stroke-width="2.4" fill="none">
+<circle cx="1440" cy="614.4" r="14.4" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+<line x1="1440" y1="628.8" x2="1440" y2="680.0"/>
+<line x1="1416.0" y1="648.0" x2="1464.0" y2="648.0"/>
+<line x1="1440" y1="680.0" x2="1420.0" y2="716.0"/>
+<line x1="1440" y1="680.0" x2="1460.0" y2="716.0"/></g>
+<text x="1440" y="737.6" font-size="16" font-weight="700" text-anchor="middle" fill="#000000">AI provider</text>
+<text x="1440" y="757.6" font-size="13" text-anchor="middle" fill="#000000">Gemini · OpenAI · Ollama</text>
+<g stroke="#000000" stroke-width="2.4" fill="none">
+<circle cx="1440" cy="844.4" r="14.4" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+<line x1="1440" y1="858.8" x2="1440" y2="910.0"/>
+<line x1="1416.0" y1="878.0" x2="1464.0" y2="878.0"/>
+<line x1="1440" y1="910.0" x2="1420.0" y2="946.0"/>
+<line x1="1440" y1="910.0" x2="1460.0" y2="946.0"/></g>
+<text x="1440" y="967.6" font-size="16" font-weight="700" text-anchor="middle" fill="#000000">OCR service</text>
+<text x="1440" y="987.6" font-size="13" text-anchor="middle" fill="#000000">Marker / Datalab</text>
+</svg>

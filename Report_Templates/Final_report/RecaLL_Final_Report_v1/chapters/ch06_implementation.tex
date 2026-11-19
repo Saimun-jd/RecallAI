@@ -1,0 +1,489 @@
+\chapter{Implementation / Construction}\label{ch:impl}
+
+This chapter describes how the design of \Cref{ch:arch,ch:design} was built: the
+environment the team worked in, the main modules with short excerpts of the real code,
+the way the AI models are wired in, and the structure and standards of the code base.
+Every listing is copied from commit \texttt{60d40f9}, with its file path and first line
+number; long lines were kept as they are, and non-ASCII characters were replaced.
+
+\section{Development Environment and Tools}\label{sec:devenv}
+
+\Cref{tab:devenv} lists the environment used to build RecaLL.
+
+{\small
+\begin{longtable}{@{}p{0.22\textwidth}p{0.72\textwidth}@{}}
+\caption{Development environment and tools}\label{tab:devenv}\\
+\toprule
+\textbf{Item} & \textbf{Details}\\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Item} & \textbf{Details}\\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+Operating system & Windows on the team's four laptops (\Cref{tab:hw}); Ubuntu (GitHub-hosted) for CI; \texttt{windows-latest} for release builds.\\
+Editors and IDEs & Antigravity and VS Code. The Antigravity agent generated most of the code from the requirements and designs the team had prepared, and GitHub Copilot opened two of the pull requests.\\
+Backend runtime & Python 3.13.5 in a local virtual environment (\texttt{.venv}); Python 3.12 in CI and in the Docker image. Dependencies in \texttt{requirements.txt} (unpinned except \texttt{json-repair==0.63.3}), installed with \texttt{pip}.\\
+Frontend runtime & Node.js 22 locally, Node 20 in CI; pnpm (lockfile \texttt{desktop/pnpm-lock.yaml}); Vite dev server on port 5173.\\
+Desktop build & Rust stable toolchain and the Tauri CLI 2.11; PyInstaller for the backend sidecar (\texttt{scripts/build\_sidecar.py}); \texttt{build.bat} for local builds.\\
+Local start-up & \texttt{run.bat} opens two windows: \texttt{uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload} for the backend, and \texttt{pnpm dev --open} for the frontend. \texttt{stop.bat} stops both.\\
+Configuration & \texttt{.env} (ignored by Git) holds the environment, secret keys, the default provider and optional server keys; \texttt{.env.example} documents the variables. Without values, the backend creates local secret files in the user data folder.\\
+AI services for development & The Gemini API (configured model \texttt{gemini-3.6-flash}) and local models through Ollama; the other providers are options in the application. Langfuse optional.\\
+Containers & \texttt{Dockerfile} (Python 3.12-slim, Uvicorn with 2 workers, health check on \texttt{/health}), \texttt{desktop/Dockerfile} (Node 20 build, nginx 1.27 runtime) and \texttt{docker-compose.yml} (backend, frontend, PostgreSQL and Ollama). These support a hosted demo; the product itself is the desktop installer.\\
+Version control & Git and GitHub (\Cref{sec:git}); GitHub Actions for CI and releases (\Cref{sec:cicd}).\\
+Database tools & Schema documentation generated with tbls into \texttt{docs/database/}.\\
+Testing tools & pytest 9.2, FastAPI \texttt{TestClient}, Playwright 1.62 (Chromium), oxlint 1.74, \texttt{tsc}.\\
+\end{longtable}
+}
+
+\section{Key Implementation Details / Modules Developed}\label{sec:modules}
+
+\subsection*{Document processing}
+A PDF imported from the interface goes through the study path:
+\texttt{POST /books/upload} stores the file, reads the PDF's table of contents (falling
+back to heading detection in \texttt{toc\_parser.py}), filters front matter and builds
+the topic tree. Topic text is then extracted on demand through the extractor registry
+(\texttt{pdf\_extract.py}: PyMuPDF4LLM by default, Marker for scanned pages when it is
+installed), cleaned and segmented into atomic concepts by the LLM. The same books are
+mirrored into \texttt{recall\_saas.db} by \texttt{BookSyncService}, and documents
+uploaded through \texttt{/api/v1/documents/upload} go through
+\texttt{DocumentProcessingPipeline}. \Cref{lst:pipeline} shows the chunking and
+embedding stages of that pipeline: each stage first records its name and progress in the
+job row, and an empty document still produces one fallback chunk so that later stages
+never see an empty list.
+
+\begin{lstlisting}[language=Python,caption={Chunking and embedding stages (\texttt{app/services/pipeline.py}, lines 137--171; lines 156--166 elided)},label={lst:pipeline}]
+            ProcessingJobRepository.update_stage(
+                job_id=job_id,
+                current_stage="chunking",
+                stage_progress=60,
+                status="running"
+            )
+
+            chunker = SemanticChunker(target_chunk_size=1500, overlap_size=150)
+            chunks = chunker.chunk_document(extracted.pages)
+
+            if not chunks:
+                # Handle empty or zero-text documents with a fallback single chunk
+                chunks = [
+                    SemanticChunker.chunk_text(
+                        text=extracted.full_text or "No extractable text content found.",
+                        page_number=1,
+                        start_index=0
+                    )[0]
+                ]
+            # ... (stage marker for "embedding", progress 80)
+            chunk_texts = [c.content for c in chunks]
+            embeddings = EmbeddingService.generate_embeddings(
+                texts=chunk_texts,
+                workspace_id=workspace_id
+            )
+\end{lstlisting}
+
+\subsection*{Cornell notes}
+\texttt{generate\_single\_cornell\_note()} in \texttt{app/main.py} waits for any running
+extraction of the topic, makes sure the topic has Markdown, lists up to 12 atomic
+concepts and every figure found in the text, and fills the
+\texttt{cornell\_scaffold\_prompt} (\Cref{lst:cornell}). The prompt asks for a fixed
+structure: a core intuition, invariants and definitions, an analogy, a first-principles
+breakdown, equation anatomy in LaTeX, worked examples, exam pitfalls and self-testing cue
+questions~\cite{pauk2011}. For a chapter, the notes of the sub-topics are
+assembled into one master guide, and the cue questions are collected at the end. The
+\texttt{scaffold-stream} route sends progress events while this runs.
+
+\begin{lstlisting}[language=Python,caption={Filling the Cornell prompt (\texttt{app/main.py}, from line 2347)},label={lst:cornell}]
+    from app.prompt_manager import get_prompt_template
+    scaffold_prompt = get_prompt_template("cornell_scaffold_prompt").format(
+        topic_title=topic.get('title', 'Study Topic'),
+        breadcrumb=topic.get('breadcrumb', ''),
+        concepts_summary=concepts_summary,
+        content_reference=content[:8000],
+        diagrams_reference=diagrams_reference,
+    )
+
+    local_settings = copy(settings)
+    provider = get_llm_provider(local_settings, provider_override=provider_override)
+    scaffold_markdown = await provider.generate(scaffold_prompt, json_schema=None, temperature=0.2, max_tokens=4096, feature="cornell_notes")
+    if not scaffold_markdown or not scaffold_markdown.strip():
+        raise RuntimeError(f"LLM provider returned empty response for study notes of '{topic.get('title')}'.")
+\end{lstlisting}
+
+\subsection*{Socratic drill}
+The drill has two calls. \texttt{generate\_diagnostic\_questions()} asks for exactly two
+questions: the first must test a causal mechanism, the second a counterfactual or an
+applied scenario, each with 2--4 key invariants and a hint (temperature 0.3).
+\texttt{evaluate\_student\_answer()} grades the answer with the
+\texttt{socratic\_evaluation\_prompt} at temperature 0.1 (\Cref{alg:socratic}). Both use
+\texttt{\_generate\_and\_parse()} (\Cref{lst:drill}): a provider error is logged and the
+call is tried again, and an unparseable answer is retried once with a stricter
+instruction appended to the prompt. The parsed object is then validated by the
+\texttt{DiagnosticQuestionSet} or \texttt{DiagnosticEvaluation} Pydantic model.
+
+\begin{lstlisting}[language=Python,caption={Generate, repair and retry (\texttt{app/socratic\_drill.py}, from line 389; an em dash in line 413 replaced by \texttt{--})},label={lst:drill}]
+    for attempt in range(1, max_attempts + 1):
+        try:
+            raw = await provider.generate(
+                prompt=current_prompt,
+                json_schema=schema,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                feature="socratic_drill",
+            )
+        except RecallError:
+            raise
+        except Exception as e:
+            logger.error(f"{context}: LLM provider call failed on attempt {attempt}/{max_attempts}: {e}")
+            last_error = e
+            continue
+
+        try:
+            return _parse_llm_json(raw, context=context)
+        except ValueError as e:
+            logger.warning(f"{context}: attempt {attempt}/{max_attempts} produced unparseable JSON: {e}")
+            last_error = e
+            current_prompt = (
+                prompt
+                + "\n\nIMPORTANT: Your previous response was not valid JSON "
+                  f"({e}). Respond ONLY with a single valid JSON object -- "
+\end{lstlisting}
+
+\subsection*{FSRS review}
+The review screens call the \texttt{/api/v1/reviews} routes. A session takes up to 20
+due items ordered overdue $\rightarrow$ due now $\rightarrow$ new; each item is shown
+front first, revealed, and rated. \Cref{lst:fsrs} is the core of
+\texttt{FSRSScheduler.schedule()}: the card stored as JSON is restored (or created), the
+\texttt{fsrs} library computes the new card, and the due time and interval are derived
+from it~\cite{ye2022fsrs}. \texttt{ReviewService.rate\_item()} then writes the learning
+item, a review event, the session item and the session counters in one transaction.
+
+\begin{lstlisting}[language=Python,caption={Applying an FSRS rating (\texttt{app/services/scheduler.py}, from line 159)},label={lst:fsrs}]
+        # 3. Restore or initialize FSRS Card
+        meta = dict(current_metadata or {})
+        card_data = meta.get("fsrs_card")
+        if card_data and isinstance(card_data, dict):
+            try:
+                card = FSRSCard.from_dict(card_data)
+            except Exception as e:
+                logger.warning("Failed to restore FSRS card from dict: %s. Reinitializing.", e)
+                card = FSRSCard()
+        else:
+            card = FSRSCard()
+
+        # 4. Apply FSRS review calculation
+        updated_card, review_log = self._fsrs.review_card(card, fsrs_rating, eval_time)
+
+        # 5. Extract next review timestamp and interval
+        next_review_at = updated_card.due
+        if next_review_at.tzinfo is None:
+            next_review_at = next_review_at.replace(tzinfo=timezone.utc)
+
+        interval_seconds = max(0.0, (next_review_at - eval_time).total_seconds())
+        scheduled_days = round(interval_seconds / 86400.0, 2)
+\end{lstlisting}
+
+\subsection*{Knowledge Hub (RAG)}
+The Knowledge Hub view lists conversations and lets the student limit a conversation
+to one document. \texttt{RAGService.execute\_rag()} checks that the conversation belongs
+to the workspace, reserves one credit unless a BYOK key is used, saves the question,
+retrieves the five best chunks (\Cref{alg:retrieval}), builds the prompt with the
+untrusted text inside \texttt{<reference\_data>} tags and the last six messages, calls
+the provider, validates citations and saves the answer (\Cref{lst:rag})~\cite{lewis2020rag}.
+A streaming variant (\texttt{execute\_rag\_stream}) follows the same steps.
+
+\begin{lstlisting}[language=Python,caption={Retrieval, generation and citation check (\texttt{app/services/rag.py}, from line 259)},label={lst:rag}]
+            # 4. Hybrid Knowledge Retrieval
+            search_res = RetrievalService.search(
+                query=query,
+                workspace_id=workspace_id,
+                document_id=document_id,
+                mode="hybrid",
+                limit=5
+            )
+            retrieved_items = search_res.results
+
+            # 5. Fetch history & build isolated prompt
+            history = MessageRepository.list_by_conversation(conversation_id, limit=cls.MAX_HISTORY_MESSAGES + 1)
+            # Exclude the user message just inserted
+            prior_history = [m for m in history if m["role"] == "assistant" or (m["role"] == "user" and m["content"] != query)]
+            ai_messages = cls._build_context_prompt(query, retrieved_items, prior_history)
+
+            # 6. Invoke AI Provider
+            try:
+                ai_resp, provider_name, model_name, is_byok = await AIService.generate(
+                    workspace_id=workspace_id,
+                    messages=ai_messages,
+                    provider_preference=provider_preference,
+                    temperature=temperature,
+                    max_tokens=max_tokens
+                )
+\end{lstlisting}
+
+\subsection*{Quizzes}
+\texttt{QuizGenerationService.generate\_quiz()} retrieves chunks from the selected documents
+(spread evenly across them), asks the model for multiple-choice and true/false
+questions with explanations and source references, and keeps only questions that pass
+the checks of \Cref{sec:ai_design}. Grading is deterministic and never uses the model
+(\Cref{lst:quiz}): an unanswered question counts as wrong, multiple-choice answers are
+compared by index or by text, and true/false answers accept several spellings. The
+result updates the learning items, so missed questions enter the review queue.
+
+\begin{lstlisting}[language=Python,caption={Deterministic grading (\texttt{app/services/attempts.py}, from line 242)},label={lst:quiz}]
+        for q in questions:
+            q_id = q["id"]
+            q_type = q["type"]
+            stored_correct = str(q["correct_answer"]).strip()
+            selected = answers_map.get(q_id)
+
+            if selected is None or selected == "":
+                # Unanswered: counted as incorrect
+                is_correct = False
+                selected_str = ""
+            else:
+                selected_str = str(selected).strip()
+                if q_type == "multiple_choice":
+                    # Evaluate index equality or text equality
+                    if selected_str.isdigit() and stored_correct.isdigit():
+                        is_correct = (int(selected_str) == int(stored_correct))
+                    else:
+                        is_correct = (selected_str.lower() == stored_correct.lower())
+                elif q_type == "true_false":
+                    sel_bool = selected_str.lower() in ("true", "t", "1", "yes")
+                    correct_bool = stored_correct.lower() in ("true", "t", "1", "yes")
+\end{lstlisting}
+
+\subsection*{Analytics}
+The dashboard and Progress views read \texttt{/api/v1/learning/*}. The SQL aggregation
+is in \texttt{AnalyticsRepository}; \texttt{LearningAnalyticsService} turns it into
+response models. \Cref{lst:analytics} shows how the daily activity series is zero-filled,
+so that the Recharts charts have one point per day even on days without study.
+
+\begin{lstlisting}[language=Python,caption={Zero-filled daily activity (\texttt{app/services/learning\_analytics.py}, from line 103)},label={lst:analytics}]
+        for d_str in date_keys:
+            act = raw_activity.get(d_str, {
+                "reviews_count": 0,
+                "quiz_attempts_count": 0,
+                "correct_answers": 0,
+                "incorrect_answers": 0
+            })
+            r_cnt = act.get("reviews_count", 0)
+            q_cnt = act.get("quiz_attempts_count", 0)
+            c_cnt = act.get("correct_answers", 0)
+            i_cnt = act.get("incorrect_answers", 0)
+
+            if r_cnt > 0 or q_cnt > 0:
+                total_active_days += 1
+            total_reviews += r_cnt
+            total_quizzes += q_cnt
+\end{lstlisting}
+
+\subsection*{AI providers and BYOK}
+In Settings, each provider card tests the key against the provider and saves it through
+\texttt{POST /api/v1/account/byok/credentials}. The key is encrypted with AES-256-GCM
+under a 32-byte master key (\texttt{BYOK\_ENCRYPTION\_KEY}, or a generated local key
+file), and only a masked hint is returned (\Cref{lst:byok}). When a feature runs,
+\texttt{AIService.resolve\_adapter()} decrypts the key and builds the adapter.
+
+\begin{lstlisting}[language=Python,caption={Encrypting a BYOK key (\texttt{app/core/security.py}, from line 135)},label={lst:byok}]
+def encrypt_secret(plaintext: str, key_override: Optional[bytes] = None) -> Tuple[str, str, str]:
+    """
+    Encrypts a secret (e.g., BYOK API key) using AES-256-GCM.
+    Returns:
+        (ciphertext_hex, nonce_hex, tag_hex)
+    """
+    key = key_override or get_encryption_master_key()
+    aesgcm = AESGCM(key)
+    nonce = secrets.token_bytes(12)  # 12-byte GCM standard nonce
+
+    # AESGCM.encrypt returns ciphertext + 16-byte tag appended
+    encrypted_data = aesgcm.encrypt(nonce, plaintext.encode('utf-8'), None)
+    ciphertext = encrypted_data[:-16]
+    tag = encrypted_data[-16:]
+
+    return ciphertext.hex(), nonce.hex(), tag.hex()
+\end{lstlisting}
+
+\section{AI-integration Implementation}\label{sec:ai_impl}
+
+No model is trained, so there are no training scripts, datasets or model files; the
+integration code is the HTTP clients, the prompt registry and the output handling.
+
+\paragraph{Pre-processing.} Extracted Markdown is cleaned before it reaches a prompt:
+\texttt{markdown\_cleanup.py} can repair extracted Markdown with the
+\texttt{markdown\_cleanup\_prompt}, \texttt{latex\_fixer.py} wraps bare LaTeX left by Marker in math
+delimiters, image tags are removed for the drill, and every input is cut to its character
+or token budget (\Cref{sec:ai_design}).
+
+\paragraph{Model loading and inference.} Hosted models need no loading; the providers
+build one \texttt{httpx.AsyncClient} per request with a 120-second time-out (study stack)
+and send the prompt, the temperature, the token limit and, for structured tasks, the JSON
+schema. For Ollama, the user runs the model server; RecaLL only checks that it is
+reachable (\texttt{/settings/verify-ollama}) and calls its HTTP API. Streaming answers
+(tutor chat, Knowledge Hub) are forwarded to the interface as SSE.
+
+\paragraph{Retries and rate limiting.} \Cref{lst:retry} shows the core of
+\texttt{retry\_with\_backoff()}: non-retriable status codes are raised at once, the
+server's \texttt{Retry-After} header is honoured, and otherwise the delay grows by a
+factor of two with random jitter. The Gemini provider calls
+\texttt{rate\_limiter.acquire("gemini", priority)} first; the limiter keeps a sorted
+queue of waiters per provider, so an interactive request (priority 0) is served before
+queued batch requests (priority 1).
+
+\begin{lstlisting}[language=Python,caption={Exponential back-off with jitter (\texttt{app/llm\_providers/retry.py}, from line 50)},label={lst:retry}]
+    for attempt in range(max_retries + 1):
+        try:
+            return await coro_factory()
+        except httpx.HTTPStatusError as e:
+            status = e.response.status_code
+
+            # Non-retriable: fail fast on client errors (Auth, Bad Schema, Forbidden, etc.)
+            if status not in RETRIABLE_STATUS_CODES or attempt == max_retries:
+                logger.warning(
+                    f"[{provider_name}] Non-retriable or exhausted HTTP {status} on attempt {attempt + 1}/{max_retries + 1}: {e}"
+                )
+                raise
+
+            # Check if provider returned a Retry-After header
+            retry_after_hdr = e.response.headers.get("retry-after") or e.response.headers.get("Retry-After")
+            if retry_after_hdr:
+                try:
+                    sleep_time = min(float(retry_after_hdr), max_delay)
+                except (ValueError, TypeError):
+                    sleep_time = min(delay + random.uniform(0, jitter), max_delay)
+            else:
+                sleep_time = min(delay + random.uniform(0, jitter), max_delay)
+                delay *= backoff_factor
+\end{lstlisting}
+
+\paragraph{Structured output.} The v1 services parse model output with
+\texttt{parse\_structured\_json()} (\Cref{lst:json}), which strips code fences and tries
+plain JSON first, then \texttt{json\_repair} on the outermost object or array, then on
+the whole text~\cite{json_repair}. The study stack uses the stricter
+\texttt{\_parse\_llm\_json()} pipeline described in \Cref{sec:ai_design}.
+
+\begin{lstlisting}[language=Python,caption={Tolerant JSON parsing (\texttt{app/services/ai/base.py}, from line 117)},label={lst:json}]
+    if not text or not text.strip():
+        return None
+
+    cleaned = text.strip()
+
+    # 1. Strip Markdown code fences if wrapped
+    if cleaned.startswith("```"):
+        cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r"\s*```\s*$", "", cleaned)
+        cleaned = cleaned.strip()
+
+    # 2. Try standard json.loads if it yields a container (dict or list)
+    try:
+        val = json.loads(cleaned)
+        if isinstance(val, (dict, list)):
+            return val
+    except Exception:
+        pass
+
+    # 3. Extract outer JSON object or array bounds
+    first_brace = cleaned.find("{")
+    first_bracket = cleaned.find("[")
+\end{lstlisting}
+
+\paragraph{Prompt templates and overrides.} \texttt{get\_prompt\_template(key)} returns
+the user's saved override from the \texttt{system\_prompts} table if there is one, and
+the registry default otherwise, wrapped in \texttt{SafePromptTemplate} so that a missing
+optional variable becomes an empty string instead of an exception.
+
+\paragraph{Caching, cost and latency.} Generated artefacts are stored and reused rather
+than regenerated: topic Markdown, concepts, Cornell notes, flashcards, summaries
+(\texttt{GET /documents/\{id\}/summary} makes no AI call) and chat history. Duplicate
+flashcards are blocked by a content hash. Cost is controlled by the input budgets, by
+lower temperatures for structured tasks (0.1--0.3), by the per-plan credit reservation
+in the v1 services (the free plan allows 50 credits per month; BYOK requests reserve
+none), and by showing token usage per feature on the LLM Inspection page. Latency is
+dominated by the provider; long tasks therefore stream progress or text to the
+interface. With Gemini, the measured medians were 18.4~s to process a topic, 27.9~s for a Cornell
+note, 52.9~s to generate a drill and 15.9~s for a Knowledge Hub answer (\Cref{tab:perf}); much of
+this is waiting at the free-tier limit of 5 requests per minute.
+
+\paragraph{Error handling.} Provider errors are mapped to typed errors: in the study
+stack \texttt{classify\_error()} returns a \texttt{RecallError} with a code such as
+\texttt{API\_KEY\_MISSING} or \texttt{LLM\_RATE\_LIMITED}, and in the v1 stack the
+adapters raise \texttt{ProviderAuthError}, \texttt{ProviderRateLimitError},
+\texttt{ProviderTimeoutError} or \texttt{ProviderUnavailableError}, which the routes turn
+into HTTP errors with a clear message. Reserved credits are released when generation
+fails.
+
+\section{Code Structure and Standards Followed}\label{sec:code_structure}
+
+\Cref{lst:tree} shows the folder structure of the repository (tracked files only, main
+entries).
+
+\begin{lstlisting}[caption={Repository folder structure (commit \texttt{60d40f9})},label={lst:tree}]
+RecallAI/
+|-- .github/workflows/     ci.yml, release.yml
+|-- app/                   FastAPI backend (Python)
+|   |-- main.py            app factory, middleware, legacy study routes
+|   |-- api/               deps.py, middleware.py, v1/ (14 routers + router.py)
+|   |-- core/              config, database (WAL), security, errors, migrations
+|   |-- models/            repositories.py (29 repositories), schema_init.py
+|   |-- schemas/           Pydantic request/response models
+|   |-- services/          pipeline, chunker, embedding, retrieval, rag, quizzes,
+|   |   |                  flashcards, reviews, scheduler (FSRS), analytics, ...
+|   |   `-- ai/            AIService, adapters, base (v1 AI stack)
+|   |-- llm_providers/     base, factory, gemini, openai, groq, ollama,
+|   |                      rate_limiter, retry (study AI stack)
+|   |-- extractors/        registry, pymupdf4llm, marker, marker_api plug-ins
+|   |-- prompt_manager.py  PROMPT_REGISTRY (11 templates)
+|   |-- socratic_drill.py  drill questions and grading
+|   |-- llm_segment.py     segmentation, flashcards, chat
+|   |-- database.py        per-user study database (14 tables)
+|   |-- fsrs.py, toc_parser.py, pdf_extract.py, sync_service.py, ...
+|   `-- tests/             22 pytest files (run in CI)
+|-- desktop/               Tauri + React client
+|   |-- src/
+|   |   |-- api/           typed API client, auth, key storage
+|   |   |-- components/    chat, dashboard, documents, flashcards, quizzes,
+|   |   |                  review, settings, layout, ui, ...
+|   |   |-- views/         page-level views (Dashboard, Documents, ...)
+|   |   |-- store/         Redux Toolkit slices
+|   |   `-- hooks/, contexts/, utils/, lib/
+|   |-- src-tauri/         Rust shell, tauri.conf.json, sidecar binaries
+|   `-- tests/e2e/         critical_user_journeys.mjs (Playwright)
+|-- tests/                26 further pytest files and fixtures (not in CI)
+|-- migrations/            PostgreSQL schema and composite indexes
+|-- docs/database/         tbls schema documentation
+|-- scripts/               build_sidecar.py, docker-entrypoint.sh
+|-- Dockerfile, docker-compose.yml, requirements.txt
+`-- run.bat, stop.bat, build.bat, AGENTS.md, README.md
+\end{lstlisting}
+
+\paragraph{Coding standards.}
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Python.} The code follows PEP~8 naming and layout by
+    convention~\cite{pep8}: \texttt{snake\_case} functions and modules,
+    \texttt{PascalCase} classes, \texttt{UPPER\_CASE} constants, type hints on public
+    functions, and docstrings on services and repositories.
+  \item \textbf{TypeScript.} \texttt{tsconfig.app.json} enables \texttt{strict},
+    \texttt{noFallthroughCasesInSwitch} and \texttt{noUncheckedSideEffectImports}
+    (\texttt{noUnusedLocals} is off). Components use \texttt{PascalCase} file names,
+    hooks start with \texttt{use}, and the API types are declared next to the client.
+    \texttt{oxlint} runs in CI~\cite{oxlint} and reports 0 errors.
+  \item \textbf{API conventions.} Plural nouns in paths, standard methods, a
+    \texttt{\{"data": \ldots\}} envelope and one error format with fixed codes; every
+    repository method of the v1 layer takes the workspace ID.
+  \item \textbf{Security conventions.} Secrets come from the environment or generated
+    local files, never from the code; user-visible keys are masked; uploads are checked
+    by size and file signature.
+  \item \textbf{Documentation.} Module docstrings describe each service; \texttt{README.md},
+    \texttt{DEPLOYMENT.md}, \texttt{DESIGN.md} and \texttt{AGENTS.md} describe set-up,
+    deployment, the visual design and the rules for AI coding agents (for example,
+    test only with documents the user has uploaded).
+\end{itemize}
+
+\paragraph{Code review.}
+The intended practice is review through pull requests on GitHub, with CI as an
+automatic check on every pull request. In practice only one pull request (\#1, a
+Copilot fix to the release workflow) was merged through GitHub; the rest of the work was
+pushed directly to \texttt{main} (\Cref{sec:git}). Review was therefore informal: the
+members checked each other's work in person at the weekly meetings before the lab
+session. The Antigravity agent was also used to review the application and find bugs,
+and its findings were checked by the team.

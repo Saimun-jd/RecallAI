@@ -1,0 +1,80 @@
+\chapter{AI Model Documentation / Training Details}\label{app:aimodel}
+
+RecaLL does not train or fine-tune any model. It uses existing large language models through their
+APIs (or locally through Ollama) and controls their behaviour with prompts, retrieved context and
+output validation. This appendix is therefore a model card for how the models are \emph{used}.
+
+\begin{table}[htbp]
+\centering
+\caption{Model card for RecaLL's AI features}\label{tab:modelcard}
+\small
+\begin{tabularx}{\textwidth}{@{}l X@{}}
+\toprule
+\textbf{Item} & \textbf{Description}\\
+\midrule
+Intended use & Help a student study their own documents: Cornell notes, Socratic questions and their
+evaluation, flashcard and quiz generation, document summaries and concepts, explanations of selected
+text, and cited answers in the Knowledge Hub.\\
+Not intended for & Grading real examinations, medical/legal advice, or any use without the source
+document available for checking.\\
+Models & Chosen by the student. Configured defaults: Gemini (a Flash model), OpenAI
+\texttt{gpt-4o-mini}, Groq \texttt{openai/gpt-oss-20b}, Ollama \texttt{gemma3:4b} (local). Any model the
+provider offers can be selected. The team used Gemini \texttt{gemini-3.6-flash} and local models through
+Ollama; the measurements in \Cref{ch:test} used \texttt{gemini-3.6-flash}.\\
+Training data & None collected; no training performed. The provider's own model card applies to each
+model.\\
+Inputs & Topic or chunk text from the student's document (passed as untrusted reference data), the
+student's question or answer, and a prompt: from the registry in \texttt{app/prompt\_manager.py} for
+the study features, or built in the service code for the \texttt{/api/v1} features.\\
+Outputs & JSON validated against Pydantic schemas (after an automatic repair step for malformed JSON)
+or streamed Markdown text. Knowledge Hub citations are checked against the retrieved chunks.\\
+Parameters & Structured generation uses temperature 0.1 by default and streaming 0.7; maximum output
+tokens 4{,}096 and 8{,}192 respectively (\texttt{BaseLLMProvider}).\\
+Reliability controls & Retries with exponential back-off and a Gemini rate limiter (study features),
+a deterministic mock adapter when no key is available (\texttt{/api/v1}), schema validation and JSON
+repair, citation validation, and a token-usage log per feature.\\
+Evaluation & On the team's documents: 7 of 7 structured replies valid; grading followed the score bands in
+4 of 4 cases; 5 of 5 answerable Knowledge Hub questions cited the relevant pages; an out-of-scope question
+was answered as not covered (\Cref{ch:test}).\\
+Usage notes & Outputs should be checked against the source, which every note, card and answer links
+to; local models run on the student's own hardware, and cloud use needs an API key and an internet
+connection.\\
+Ethical notes & Data is sent only to the provider the student selects; keys are encrypted with
+AES-256-GCM in the BYOK vault; no data is used to train models by RecaLL. Provider data-retention policies apply to
+cloud requests.\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\paragraph{AI tools used to build RecaLL.} The Antigravity agent generated most of the code from
+requirements and designs the team had prepared beforehand, and was used to review the application and
+find bugs; all output was reviewed and tested by the team. The automated tests were likewise largely
+written with the agent and reviewed by the team. During development the team used the Gemini API
+(\texttt{gemini-3.6-flash}) and local models through Ollama.
+
+\paragraph{Prompt registry.} The prompts used by the application are listed in \Cref{tab:prompts}.
+Each can be overridden by the user through the \texttt{/api/prompts} routes; placeholders are validated
+before an override is saved, and every prompt can be reset to its default.
+
+\begin{table}[htbp]
+\centering
+\caption{Prompt templates in \texttt{app/prompt\_manager.py}}\label{tab:prompts}
+\small
+\begin{tabularx}{\textwidth}{@{}l X@{}}
+\toprule
+\textbf{Key} & \textbf{Used for}\\
+\midrule
+\texttt{segment\_prompt} & Document processing: extract atomic concepts and topics from a section\\
+\texttt{markdown\_cleanup\_prompt} & Document processing: repair OCR defects, broken tables and bare LaTeX\\
+\texttt{handwritten\_outline\_reconcile\_prompt} & Document processing: derive chapter and section titles from OCR heading candidates\\
+\texttt{cornell\_scaffold\_prompt} & Notes: structured Cornell notes with cue questions\\
+\texttt{socratic\_question\_prompt} & Drills: two diagnostic questions (causal mechanism, counterfactual)\\
+\texttt{socratic\_evaluation\_prompt} & Drills: short-answer grading, knowledge gaps and misconceptions\\
+\texttt{flashcard\_prompt} & Flashcards for a topic\\
+\texttt{selection\_flashcard\_prompt} & Flashcards from a highlighted PDF passage\\
+\texttt{explain\_prompt} & Explain a highlighted passage\\
+\texttt{summary\_prompt} & Markdown summary of a section\\
+\texttt{chat\_prompt} & AI tutor sidebar in the topic reading view\\
+\bottomrule
+\end{tabularx}
+\end{table}

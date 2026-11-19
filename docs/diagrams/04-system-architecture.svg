@@ -1,0 +1,152 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1640 1020" width="1640" height="1020" font-family="'Segoe UI', Inter, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#1f1f1f"/>
+    </marker>
+  </defs>
+  <rect width="1640" height="1020" fill="#ffffff"/>
+
+  <!-- Title + legend -->
+  <text x="40" y="58" font-size="28" font-weight="700" fill="#1f1f1f">Recall AI — system architecture (as built)</text>
+  <text x="40" y="88" font-size="16" fill="#3a3a3a">Desktop install: everything runs on the student's computer except the AI provider and the optional Supabase.</text>
+  <g font-size="14" fill="#444">
+    <rect x="1240" y="24" width="370" height="150" rx="8" fill="#ffffff" stroke="#cccccc"/>
+    <text x="1256" y="50" font-size="16" font-weight="700" fill="#1f1f1f">Legend</text>
+    <line x1="1258" y1="76" x2="1308" y2="76" stroke="#1f1f1f" stroke-width="2.4" marker-end="url(#arrow)"/>
+    <text x="1320" y="81">call / request</text>
+    <line x1="1258" y1="102" x2="1308" y2="102" stroke="#1f1f1f" stroke-width="2.4" stroke-dasharray="8 6" marker-end="url(#arrow)"/>
+    <text x="1320" y="107">response / write / async</text>
+    <rect x="1258" y="122" width="20" height="14" rx="3" fill="#FEC8C3"/><text x="1286" y="134">external service</text>
+    <rect x="1430" y="122" width="20" height="14" rx="6" fill="#BFE3FD"/><text x="1458" y="134">Recall component</text>
+    <circle cx="1268" cy="156" r="8" fill="#E3CCFD"/><text x="1286" y="161">data store</text>
+    <rect x="1430" y="149" width="20" height="14" rx="3" fill="#FFF1B8" stroke="#d9c27a"/><text x="1458" y="161">no login check</text>
+  </g>
+
+  <!-- Group: student's computer -->
+  <rect x="30" y="130" width="1120" height="870" rx="14" fill="none" stroke="#9a8fb0" stroke-width="2" stroke-dasharray="6 6"/>
+  <text x="50" y="160" font-size="18" font-weight="700" fill="#5a5070">Student's computer</text>
+
+  <!-- ===== Arrows first ===== -->
+  <g fill="none" stroke="#1f1f1f" stroke-width="2.4">
+    <!-- UI -> backend v1 -->
+    <path d="M272,440 H416" marker-end="url(#arrow)"/>
+    <!-- backend -> UI responses -->
+    <path d="M418,520 H274" stroke-dasharray="8 6" marker-end="url(#arrow)"/>
+    <!-- UI -> legacy -->
+    <path d="M272,620 H416" marker-end="url(#arrow)"/>
+    <!-- backend -> stores -->
+    <path d="M470,762 V818" marker-end="url(#arrow)"/>
+    <path d="M680,762 V818" marker-end="url(#arrow)"/>
+    <path d="M800,762 Q800,790 830,800 L862,812" marker-end="url(#arrow)"/>
+    <!-- mirror between DBs -->
+    <path d="M552,900 H598" stroke-dasharray="8 6" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+    <!-- backend -> externals -->
+    <path d="M842,275 H1236" marker-end="url(#arrow)"/>
+    <path d="M1238,305 H844" stroke-dasharray="8 6" marker-end="url(#arrow)"/>
+    <path d="M842,425 H1236" marker-end="url(#arrow)"/>
+    <path d="M842,565 H1236" marker-end="url(#arrow)"/>
+    <path d="M1238,600 H844" stroke-dasharray="8 6" marker-end="url(#arrow)"/>
+    <path d="M842,710 H1236" marker-end="url(#arrow)"/>
+  </g>
+
+  <!-- arrow labels -->
+  <g font-size="15" fill="#1f1f1f" text-anchor="middle">
+    <text x="344" y="430" font-weight="700">/api/v1 + JWT</text>
+    <text x="344" y="540">JSON / SSE</text>
+    <text x="344" y="610" font-weight="700">legacy routes</text>
+    <text x="344" y="640" font-size="13" fill="#3a3a3a">(token ignored)</text>
+    <text x="1040" y="265">LLM calls (API key)</text>
+    <text x="1040" y="324">answers / tokens</text>
+    <text x="1040" y="415">cloud sync push / pull</text>
+    <text x="1040" y="555">checkout</text>
+    <text x="1040" y="619">webhook (forgeable)</text>
+    <text x="1040" y="700">OCR for handwriting</text>
+  </g>
+  <g font-size="13" fill="#3a3a3a">
+    <text x="478" y="796">① data</text>
+    <text x="688" y="796">② data</text>
+    <text x="812" y="784">files</text>
+    <text x="575" y="880" text-anchor="middle">mirror</text>
+  </g>
+
+  <!-- ===== Shapes ===== -->
+  <!-- Desktop app -->
+  <rect x="50" y="380" width="220" height="280" rx="48" fill="#BFE3FD"/>
+  <g text-anchor="middle" fill="#1f1f1f">
+    <text x="160" y="490" font-size="22" font-weight="700">Desktop app</text>
+    <text x="160" y="520" font-size="15" fill="#3a3a3a">Tauri shell</text>
+    <text x="160" y="542" font-size="15" fill="#3a3a3a">React + TypeScript UI</text>
+    <text x="160" y="568" font-size="13" fill="#3a3a3a">token kept in localStorage</text>
+  </g>
+
+  <!-- Backend -->
+  <rect x="420" y="200" width="420" height="560" rx="52" fill="#BFE3FD"/>
+  <text x="630" y="245" font-size="22" font-weight="700" text-anchor="middle" fill="#1f1f1f">FastAPI backend</text>
+  <text x="630" y="270" font-size="15" text-anchor="middle" fill="#3a3a3a">Python sidecar · 127.0.0.1:8000</text>
+
+  <rect x="450" y="295" width="360" height="200" rx="14" fill="#ffffff" stroke="#5b7fa6" stroke-width="1.5"/>
+  <g font-size="15" fill="#1f1f1f">
+    <text x="468" y="325" font-size="16" font-weight="700">① /api/v1 — login required (JWT)</text>
+    <text x="468" y="352">auth · documents · conversations · search</text>
+    <text x="468" y="376">flashcards · quizzes · attempts · reviews</text>
+    <text x="468" y="400">knowledge · learning · billing · account</text>
+    <text x="468" y="432" font-size="14" fill="#555555">Services: RAG, Retrieval, Pipeline, AIService,</text>
+    <text x="468" y="454" font-size="14" fill="#555555">Entitlements, Billing (mock), BookSync</text>
+  </g>
+
+  <rect x="450" y="520" width="360" height="215" rx="14" fill="#FFF1B8" stroke="#d9c27a" stroke-width="1.5"/>
+  <g font-size="15" fill="#1f1f1f">
+    <text x="468" y="550" font-size="16" font-weight="700">② Legacy routes in main.py — no login</text>
+    <text x="468" y="577">books · topics · notes · annotations</text>
+    <text x="468" y="601">Socratic drill · topic flashcards</text>
+    <text x="468" y="625">/images · /books/upload</text>
+    <text x="468" y="649">/api/set-user · /api/sync</text>
+    <text x="468" y="681" font-size="14" fill="#555555">Own LLM layer: app/llm_providers</text>
+    <text x="468" y="703" font-size="14" fill="#555555">Prompts: prompt_manager (DB overrides)</text>
+  </g>
+
+  <!-- Data stores -->
+  <circle cx="470" cy="900" r="78" fill="#E3CCFD"/>
+  <g text-anchor="middle" fill="#1f1f1f">
+    <text x="470" y="890" font-size="16" font-weight="700">recall_saas.db</text>
+    <text x="470" y="912" font-size="13">users, documents,</text>
+    <text x="470" y="930" font-size="13">chunks, chats, plans</text>
+  </g>
+  <circle cx="680" cy="900" r="78" fill="#E3CCFD"/>
+  <g text-anchor="middle" fill="#1f1f1f">
+    <text x="680" y="880" font-size="16" font-weight="700">recall.db</text>
+    <text x="680" y="902" font-size="13">one active file,</text>
+    <text x="680" y="920" font-size="13">switched on login</text>
+    <text x="680" y="938" font-size="12">(user_&lt;id&gt;_recall.db)</text>
+  </g>
+  <circle cx="930" cy="880" r="74" fill="#E3CCFD"/>
+  <g text-anchor="middle" fill="#1f1f1f">
+    <text x="930" y="872" font-size="16" font-weight="700">File storage</text>
+    <text x="930" y="894" font-size="13">PDFs, covers,</text>
+    <text x="930" y="912" font-size="13">note images</text>
+  </g>
+
+  <!-- External services -->
+  <rect x="1240" y="220" width="370" height="110" rx="6" fill="#FEC8C3"/>
+  <g text-anchor="middle" fill="#1f1f1f">
+    <text x="1425" y="262" font-size="20" font-weight="700">AI providers</text>
+    <text x="1425" y="290" font-size="15">Gemini · OpenAI · Groq (cloud)</text>
+    <text x="1425" y="312" font-size="15">Ollama (local, optional)</text>
+  </g>
+  <rect x="1240" y="370" width="370" height="110" rx="6" fill="#FEC8C3"/>
+  <g text-anchor="middle" fill="#1f1f1f">
+    <text x="1425" y="412" font-size="20" font-weight="700">Supabase (optional)</text>
+    <text x="1425" y="440" font-size="15">login + cloud sync</text>
+    <text x="1425" y="462" font-size="15">not configured → "Sync failed"</text>
+  </g>
+  <rect x="1240" y="520" width="370" height="100" rx="6" fill="#FEC8C3"/>
+  <g text-anchor="middle" fill="#1f1f1f">
+    <text x="1425" y="560" font-size="20" font-weight="700">Billing provider</text>
+    <text x="1425" y="588" font-size="15">mock only — fake Stripe link</text>
+  </g>
+  <rect x="1240" y="660" width="370" height="100" rx="6" fill="#FEC8C3"/>
+  <g text-anchor="middle" fill="#1f1f1f">
+    <text x="1425" y="700" font-size="20" font-weight="700">Marker / Datalab OCR</text>
+    <text x="1425" y="728" font-size="15">handwriting — not installed</text>
+  </g>
+</svg>

@@ -1,0 +1,107 @@
+\chapter{Deployment and Go-Live}\label{ch:deploy}
+
+RecaLL is a local-first desktop application. Unlike a web service, it is not deployed to a
+public server: each student runs the complete system on their own computer, and only the AI
+requests leave the machine (and only when a cloud provider is selected). This chapter therefore
+describes three forms of delivery that exist in the repository: the development launch used by
+the team, the packaged desktop installer produced by the release pipeline, and an optional
+container setup kept for a future hosted version.
+
+\section{Deployment Environment}
+
+\Cref{fig:deploydiag} in Appendix~E shows the deployment view. On the student's computer the
+Tauri shell hosts the React interface in the operating system's web view and starts the FastAPI
+backend as a local process on \texttt{127.0.0.1:8000}. The backend stores all data in SQLite
+files and a local file store. External nodes are limited to the AI provider chosen by the student
+(Gemini, OpenAI or Groq over HTTPS, or a local Ollama server on port 11434) and two optional
+services: Supabase for cloud sync and Langfuse for tracing.
+
+\begin{table}[htbp]
+\centering
+\caption{Deployment environments}\label{tab:deployenv}
+\small
+\begin{tabularx}{\textwidth}{@{}l X X@{}}
+\toprule
+\textbf{Environment} & \textbf{Composition} & \textbf{Purpose / status}\\
+\midrule
+Development & \texttt{run.bat}: uvicorn with \texttt{--reload} on 127.0.0.1:8000 and the Vite dev server (\texttt{pnpm dev}) on port 5173; \texttt{stop.bat} stops both & Daily development and the demonstrations in this report. Working.\\
+Packaged desktop & Tauri~2 bundle (\texttt{productName} ``Recall'', version 0.1.5) with the backend frozen by PyInstaller as the sidecar binary \texttt{recall-backend-<target>} & End-user installation. A GitHub pre-release ``Prelaunch Version 0.1.5'' (tag \texttt{v0.1.5}, 24 August 2026) provides the installer (\Cref{sec:deploy-process}).\\
+Container (optional) & \texttt{Dockerfile} (Python 3.12-slim, non-root user UID 10001, health check) and \texttt{docker-compose.yml} (PostgreSQL 16 + pgvector, backend, Nginx gateway, optional Ollama) & Prepared for a future hosted version; the desktop product uses SQLite.\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\paragraph{Configuration.} Settings are read through \texttt{pydantic-settings} from environment
+variables and an optional \texttt{.env} file (\texttt{app/core/config.py}). Secrets such as
+\texttt{SECRET\_KEY} and \texttt{BYOK\_ENCRYPTION\_KEY} are never committed. Personal provider
+keys entered in the Settings page are stored in the v1 BYOK vault encrypted with AES-256-GCM
+(\Cref{sec:security}). No secret values are reproduced in this report.
+
+\paragraph{Minimum client hardware.} Any 64-bit Windows computer able to run a modern web view
+with 8\,GB of RAM is sufficient for cloud providers. Running a local model through Ollama needs
+more memory and, ideally, a GPU (the project's deployment guide recommends 8\,GB RAM on CPU or a
+GPU with 8\,GB VRAM).
+
+\section{Deployment Process and CI/CD Implementation}\label{sec:deploy-process}
+
+\subsection{Running from source (used for this report)}
+\begin{enumerate}
+  \item Clone the repository: \texttt{git clone https://github.com/Saimun-jd/RecallAI.git}.
+  \item Create a virtual environment and install the backend:
+        \texttt{python -m venv .venv} and \texttt{.venv\textbackslash Scripts\textbackslash pip install -r requirements.txt}.
+  \item Install the frontend once: \texttt{cd desktop \&\& pnpm install} (Node.js 18+ and pnpm).
+  \item Start everything with \texttt{run.bat}, which opens the backend and the interface.
+  \item In \emph{Settings $\rightarrow$ AI \& Providers}, add a personal API key or select Ollama.
+\end{enumerate}
+
+\subsection{Building the desktop installer}
+The release pipeline in \texttt{.github/workflows/release.yml} (\Cref{sec:cicd}) runs when a tag
+matching \texttt{v*} is pushed, or by hand. On a \texttt{windows-latest} runner it:
+(1)~installs Python~3.12 and the requirements together with PyInstaller;
+(2)~freezes the backend into a single executable with \texttt{scripts/build\_sidecar.py}, which
+names it with the Rust target triple and places it in \texttt{desktop/src-tauri/binaries/};
+(3)~installs pnpm~9 and Node.js~20 and builds the interface;
+(4)~installs the stable Rust toolchain; and
+(5)~runs \texttt{tauri-apps/tauri-action}, which compiles the Tauri shell, bundles the sidecar
+declared in \texttt{tauri.conf.json} (\texttt{externalBin}) and produces the Windows installer.
+The workflow builds the installer but does not publish it; the \texttt{v0.1.5} pre-release, with
+\texttt{Recall\_0.1.5\_x64-setup.exe}, was published on GitHub by \texttt{Saimun-jd}.
+
+\section{Go-Live Strategy and Post-Deployment Monitoring}
+
+\paragraph{Rollout.} Because every installation is independent, a phased rollout fits best:
+\begin{enumerate}
+  \item \textbf{Internal use} by the four team members on their own course material (done during
+  development).
+  \item \textbf{Pilot} with six CUET students (P1--P6, including one team member), who tested the
+  application informally during development; this also served as the user acceptance test in
+  \Cref{sec:uat}.
+  \item \textbf{Public pre-release} through GitHub Releases, marked as a pre-release so that users
+  know the software is still changing.
+\end{enumerate}
+
+\paragraph{User support.} The repository README and the in-app Settings page explain how to add a
+provider key or use Ollama. During the pilot, support was given in person at the team's weekly
+meetings in the university hall.
+
+\paragraph{Monitoring.} There is no central server, so monitoring is local and privacy-preserving:
+\begin{itemize}
+  \item health endpoints \texttt{/health}, \texttt{/health/db} and \texttt{/health/ready} report
+  the state of the backend and its database;
+  \item every document processing job records its stage, progress and error in a job table, which
+  the interface shows to the student;
+  \item the token-usage log (\texttt{/api/token-usage/summary} and \texttt{/history}) lets a
+  student see how many AI tokens each feature has used;
+  \item optional Langfuse tracing can be enabled with the student's own keys to inspect prompts and
+  latency.
+\end{itemize}
+
+\paragraph{Rollback.} Each release is a separate installer, so the student can reinstall the
+previous version from GitHub Releases. The databases and uploaded files live in the user's
+application-data folder (\texttt{platformdirs.user\_data\_dir("Recall")}) and are kept. Schema changes
+applied at start-up are additive only: \texttt{app/models/schema\_init.py} (run by
+\texttt{app/core/migrations.py}) and \texttt{init\_db()} in \texttt{app/database.py} use
+\texttt{CREATE TABLE IF NOT EXISTS} and \texttt{ALTER TABLE \ldots{} ADD COLUMN} with nullable or
+defaulted columns, never drop or rename anything, and have no down migrations. An older version can
+therefore still open an upgraded database and ignores what it does not know; copying the data folder
+before changing version is still advised.

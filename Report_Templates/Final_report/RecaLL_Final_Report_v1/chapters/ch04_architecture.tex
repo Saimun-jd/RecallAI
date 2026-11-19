@@ -1,0 +1,512 @@
+\chapter{Architecture}\label{ch:arch}
+
+This chapter describes how RecaLL is organised at the highest level: the architectural
+style, the main building blocks at three levels of detail, the technology chosen for
+each layer, the way the AI models are connected, and the build, release and
+version-control process. All statements were checked against commit \texttt{60d40f9}
+(5~November~2026) of the repository.
+
+\section{Architectural Model/Style Used}\label{sec:arch_style}
+
+RecaLL combines three architectural styles.
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{Local-first client--server.} The product is a desktop application. A
+    Tauri~v2 shell hosts a React~19 single-page interface (the client), and a FastAPI
+    process (the server) runs on the same machine at \texttt{127.0.0.1:8000}. In the
+    packaged build, the server is a PyInstaller executable that Tauri starts as a
+    \emph{sidecar} (\texttt{externalBin: binaries/recall-backend} in
+    \texttt{tauri.conf.json}); during development \texttt{run.bat} starts
+    \texttt{uvicorn} and the Vite dev server separately. The client and server talk only
+    through JSON over HTTP and Server-Sent Events (SSE). All user data (PDFs, extracted
+    Markdown, notes, flashcards and review history) stays in local SQLite files and a
+    local folder. The only outbound traffic is to the AI provider the student chooses,
+    and to Supabase if the optional cloud sync is configured.
+  \item \textbf{Layered server.} Inside the backend, code is arranged in strict layers:
+    HTTP routers $\rightarrow$ services $\rightarrow$ repositories $\rightarrow$ SQLite.
+    Routers (\texttt{app/api/v1/*.py} and the study routes in \texttt{app/main.py})
+    handle validation, authentication and response envelopes; services
+    (\texttt{app/services/}, \texttt{app/socratic\_drill.py},
+    \texttt{app/llm\_segment.py}) hold the business rules; repositories
+    (\texttt{app/models/repositories.py} and \texttt{app/database.py}) hold all SQL.
+  \item \textbf{Plug-in (strategy) layer for variable parts.} The two parts that vary
+    most, the AI provider and the PDF extractor, are hidden behind abstract interfaces
+    (\texttt{BaseLLMProvider}, \texttt{BaseAIAdapter} and \texttt{BaseExtractor}) and
+    chosen at run time by a factory or a registry. New providers or extractors can be
+    added without changing the features that use them.
+\end{enumerate}
+
+The document-processing path is additionally organised as a \emph{pipe-and-filter}
+pipeline (validate $\rightarrow$ extract $\rightarrow$ normalise $\rightarrow$ chunk
+$\rightarrow$ embed $\rightarrow$ index), which is described in \Cref{sec:arch_hld}.
+
+\subsection{Rationale for Choosing the Architectural Model/Style}\label{sec:arch_rationale}
+
+The style was chosen to serve the quality attributes that matter most for a study tool
+that holds a student's own course material~\cite{bass2021}:
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Privacy and ownership.} Lecture slides and personal notes never have to
+    be uploaded to a server run by the team. Only the text of the topic being processed
+    is sent to the AI provider that the student selected, using the student's own key
+    (BYOK), or nothing at all when a local Ollama model is used.
+  \item \textbf{Offline use and low cost.} With Ollama the whole system runs without an
+    Internet connection. There is no hosted backend to pay for, which matters for a
+    student project with no budget.
+  \item \textbf{Maintainability.} The layered backend keeps SQL out of the routers and
+    HTTP out of the services, so each part can be tested on its own. The test suite
+    swaps the database path (\texttt{set\_db\_path}) and the AI adapter
+    (\texttt{MockAIAdapter}) without touching feature code.
+  \item \textbf{Modifiability of the AI part.} LLM vendors change models, prices and
+    quotas often (the code already contains a fallback from a quota-limited Gemini
+    model to \texttt{gemini-flash-latest}). The strategy layer confines such changes to
+    one provider class.
+  \item \textbf{Performance.} The heavy work (PDF parsing, chunking) runs next to the
+    files, without network upload. FastAPI's \texttt{asyncio} model lets one process
+    stream LLM output to the interface while other requests are served.
+\end{itemize}
+
+\paragraph{Alternatives considered and rejected.}
+\begin{itemize}[leftmargin=*]
+  \item \emph{Cloud SaaS (central server and database).} It would make multi-device use
+    easy, but it would require hosting costs, server-side storage of copyrighted course
+    PDFs, and a stronger security and privacy burden. Parts of a SaaS design were kept
+    (accounts, workspaces, plans in \texttt{recall\_saas.db}) so that a hosted version
+    remains possible, but they run locally.
+  \item \emph{Microservices.} Separate services for ingestion, AI and review would add
+    network hops, deployment work and distributed failure modes that a four-person
+    team could not run in one term, and a desktop install would need several
+    processes.
+  \item \emph{Electron instead of Tauri.} Electron bundles a full Chromium. Tauri uses the
+    operating system's WebView and a Rust core, which gives a much smaller installer and
+    a first-class sidecar mechanism for the Python backend.
+  \item \emph{All logic in the client (no Python backend).} The best PDF tools
+    (PyMuPDF, PyMuPDF4LLM, Marker) and the FSRS reference library are Python packages,
+    so a Python process was the practical choice.
+\end{itemize}
+
+\section{Architectural Design (High-Level Design)}\label{sec:arch_hld}
+
+The architecture is shown at three levels of detail. Level~0 shows the system and its
+external actors, level~1 the layers and main services, and level~2 the two most
+complex subsystems: the document-processing pipeline and the AI provider layer.
+
+\paragraph{Level 0: system context.}
+\Cref{fig:arch_l0} shows the whole system as six blocks: the Tauri desktop app with
+its React user interface, the FastAPI route layer, the service layer, local storage
+(two SQLite databases and a file folder), the AI provider layer, and the external LLM
+services. Only the last block is outside the student's machine, and it is optional: with
+a local Ollama server the system runs fully offline.
+
+\figplaceholder[0.85\textwidth]{arch_l0.pdf}{Architecture level 0: RecaLL in its environment}{fig:arch_l0}
+
+\paragraph{Level 1: layers and services.}
+\Cref{fig:arch} opens the desktop application into its layers. The UI layer is the
+React interface inside the Tauri shell. The API layer has two route groups: the
+versioned \texttt{/api/v1} routers, which use JWT bearer authentication and the
+\texttt{recall\_saas.db} database, and the older study routes in
+\texttt{app/main.py} (books, topics, notes, annotations, Socratic drill, settings and
+prompts), which use a per-user \texttt{user\_<id>\_recall.db}. Both groups call the
+same service, provider and storage layers.
+
+\figplaceholder[0.95\textwidth]{arch_l1.pdf}{Architecture level 1: layers, route groups and services}{fig:arch}
+
+\paragraph{Level 2: document-processing pipeline.}
+\Cref{fig:arch_l2_pipeline} shows the stages that turn an uploaded PDF into searchable
+chunks. In the \texttt{/api/v1/documents/upload} path, the upload handler stores the
+file, creates a \texttt{processing\_jobs} row and schedules
+\texttt{DocumentProcessingPipeline.process\_document} as a FastAPI background task. Each
+stage writes its name and a progress value (10, 30, 45, 60, 80, 95 and finally 100
+per cent) to the job row, which the interface polls through
+\texttt{/documents/\{id\}/status}. The study path (\texttt{/books/upload} followed by
+\texttt{/books/\{id\}/process-stream}) uses the extractor registry, builds a topic tree
+from the PDF's table of contents, and streams progress as SSE.
+
+In the shipped interface (\texttt{UploadDocumentModal.tsx}) a PDF is uploaded through
+the study path, \texttt{POST /books/upload}, so that the reader, topic tree, notes and
+drill work on it. The modal then also sends the same file to
+\texttt{/api/v1/documents/upload} as a background request. In
+addition, \texttt{BookSyncService} (\texttt{app/services/book\_sync.py}) mirrors
+imported books into \texttt{recall\_saas.db}, chunking them with the same
+\texttt{SemanticChunker} (1\,500/150), so the Knowledge Hub can search them. Markdown
+and text files go only through \texttt{/api/v1/documents/upload}.
+
+The two paths use different extractors. The \texttt{/api/v1} pipeline calls
+\texttt{ExtractionService} (\texttt{app/services/extractor.py}), which checks size,
+extension and the \texttt{\%PDF} signature and reads PDF, Markdown and plain-text files
+with PyMuPDF (\texttt{fitz}) directly. The extractor plug-in registry (PyMuPDF4LLM by
+default, Marker optional) is used only by the study path (\texttt{pdf\_extract.py},
+\texttt{toc\_parser.py}, \texttt{topic\_subdivider.py}); on this path scanned or
+handwritten PDFs are read with Marker, installed locally or through the Datalab API. In
+the embedding stage, \texttt{EmbeddingService} calls an OpenAI, Gemini or Ollama
+embedding API when a server key or Ollama host is configured in \texttt{.env}.
+
+\figplaceholder[0.95\textwidth]{arch_l2_pipeline.pdf}{Architecture level 2: document-processing pipeline}{fig:arch_l2_pipeline}
+
+\paragraph{Level 2: AI provider layer.}
+\Cref{fig:arch_l2_ai} shows that there are two AI stacks, one per route group.
+\begin{itemize}[leftmargin=*]
+  \item \emph{Study stack} (\texttt{app/llm\_providers}). The legacy study features
+    (segmentation, Cornell notes, Socratic drill, topic chat, explanations) fill a
+    template from the prompt registry, ask \texttt{get\_llm\_provider()} for a provider,
+    and call \texttt{generate()} or \texttt{generate\_stream()}. The providers retry
+    transient errors with exponential back-off; the Gemini provider also passes a
+    priority token-bucket rate limiter and reports to Langfuse. The raw text is
+    repaired, parsed and validated against a Pydantic model.
+  \item \emph{v1 stack} (\texttt{app/services/ai}). The \texttt{/api/v1} services
+    (Knowledge Hub, quizzes, flashcard sets, summaries and concepts) build their prompts
+    inline and call \texttt{AIService}, which picks the provider from the user's
+    preference, then a valid BYOK credential, then the server setting; decrypts the
+    BYOK key (AES-256-GCM); builds an OpenAI-compatible, Gemini or Ollama adapter; and
+    falls back to a deterministic \texttt{MockAIAdapter} when no key exists. These
+    adapters have no retry or rate limiter.
+\end{itemize}
+
+\figplaceholder[0.95\textwidth]{arch_l2_ai.pdf}{Architecture level 2: AI provider layer}{fig:arch_l2_ai}
+
+\paragraph{Component descriptions.}
+\Cref{tab:components} summarises every component in the level-1 and level-2 views.
+
+{\small
+\begin{longtable}{@{}p{0.27\textwidth}p{0.68\textwidth}@{}}
+\caption{Main components of RecaLL and their responsibilities}\label{tab:components}\\
+\toprule
+\textbf{Component} & \textbf{Responsibility}\\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Component} & \textbf{Responsibility}\\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+Tauri shell (\texttt{desktop/src-tauri}) & Native window, deep links (\texttt{recallai://}), secure key storage plug-ins, and start/stop of the backend sidecar.\\
+React UI (\texttt{desktop/src}) & About 20 views (Dashboard, Documents, Knowledge Hub, Notes, Review, Flashcards, Quizzes, Progress, Settings, LLM Inspection, \ldots), Redux Toolkit slices for shared state, and a typed API client (\texttt{src/api/client.ts}).\\
+\texttt{/api/v1} routers & 14 router modules, 87 endpoints: auth, users, health, documents, search, conversations, flashcards, quizzes, attempts, learning, reviews, knowledge, billing and account.\\
+Study routes (\texttt{app/main.py}) & 71 endpoints for books, topics, Cornell notes, annotations, the Socratic drill, legacy flashcards, chat, settings, prompts and token usage.\\
+Middleware (\texttt{app/api/middleware.py}) & Security headers, request-size limits (10\,MB, 55\,MB for uploads), CORS, and an in-memory login rate limiter.\\
+Dependencies (\texttt{app/api/deps.py}) & \texttt{get\_current\_user}, \texttt{get\_current\_workspace}, \texttt{require\_document\_owner} and \texttt{get\_current\_user\_optional}.\\
+Document pipeline (\texttt{app/services/\allowbreak{}pipeline.py}) & Seven-stage processing with job tracking and failure codes.\\
+Extraction & v1: \texttt{ExtractionService} (PyMuPDF; PDF, Markdown, text). Study path: registry in \texttt{app/extractors} with plug-ins \texttt{pymupdf4llm} (default), \texttt{marker} and \texttt{marker\_api}; only those whose libraries are installed are offered.\\
+Chunker and embeddings & \texttt{SemanticChunker} (1\,500 characters, 150 overlap) and \texttt{EmbeddingService} (OpenAI, Gemini or Ollama embeddings).\\
+Retrieval and RAG (\texttt{retrieval.py}, \texttt{rag.py}) & Hybrid keyword/vector scoring, neighbour suppression, a 3\,000-token context builder, grounded answers with citation checking.\\
+Learning services & Flashcards, quizzes and attempts, review queue and sessions, the FSRS scheduler, learning analytics, summaries and concepts.\\
+Study engine & \texttt{llm\_segment.py} (topic segmentation, flashcards, summaries, explanations, chat), \texttt{socratic\_drill.py} (questions and grading), and Cornell note generation.\\
+Prompt registry (\texttt{app/prompt\_manager.py}) & Eleven named templates with declared variables; user overrides stored in the \texttt{system\_prompts} table.\\
+LLM providers (\texttt{app/llm\_providers}) & \texttt{BaseLLMProvider}, a factory, Gemini, OpenAI (also used for OpenRouter), Groq and Ollama providers, a rate limiter and a retry helper.\\
+AI service (\texttt{app/services/ai}) & Adapter layer used by \texttt{/api/v1}: resolves the provider from preferences, BYOK vault or server settings, and falls back to a mock adapter.\\
+Security (\texttt{app/core/security.py}) & PBKDF2-HMAC-SHA256 (600\,000 rounds) passwords, HS256 JWTs, and AES-256-GCM encryption of v1 BYOK keys.\\
+Storage & \texttt{recall\_saas.db} (29 tables including \texttt{schema\_migrations}), \texttt{user\_<id>\_recall.db} (14 tables), and the local file store for PDFs and extracted images.\\
+Optional sync (\texttt{app/sync\_service.py}) & Push/pull of study data and PDFs to Supabase; skipped when Supabase is not configured.\\
+\end{longtable}
+}
+
+\subsection{Data-Flow Diagrams (Levels 0, 1 and 2)}\label{sec:dfd}
+
+The architecture views above show \emph{where} code runs; the data-flow diagrams show
+\emph{what data} moves between the student, the processes and the stores. They are
+levelled in the usual way: the context diagram (level~0) shows the whole system as one
+process, level~1 splits it into five numbered processes, and level~2 decomposes the
+three processes that matter most for learning (2.0, 3.0 and 4.0) into numbered
+sub-processes (2.1, 2.2, \ldots). Flows that enter or leave a parent process appear
+again on its child diagram, so the levels balance. The diagrams use Gane--Sarson
+notation: rounded rectangles are processes, open-ended rectangles with an ID cell are
+data stores, and squares are external entities. A data store that is drawn twice on one
+diagram gets an extra bar in its ID cell, and an external entity drawn twice gets a
+tick in its corner.
+
+\widefig{dfd_level0.pdf}{Data-flow diagram, level 0 (context diagram)}{fig:dfd0}
+
+\paragraph{Level 0.} \Cref{fig:dfd0} shows RecaLL as the single process 0. The student
+sends PDFs, questions, typed answers and review ratings, and receives answers,
+flashcards, quizzes, scores and progress. The AI provider (Gemini, OpenAI, Groq,
+OpenRouter or a local Ollama model) receives prompts with document text and returns
+generated text or JSON. Three external entities are optional: Supabase (login token and
+cloud sync), the mock billing provider (checkout request and webhook), and the Marker or
+Datalab OCR service, which turns scanned pages into Markdown.
+
+\widefig{dfd_level1.pdf}{Data-flow diagram, level 1}{fig:dfd1}
+
+\paragraph{Level 1.} \Cref{fig:dfd1} opens process 0 into five processes: 1.0
+Authenticate and manage plan, 2.0 Ingest document, 3.0 Answer questions, 4.0 Review
+cards (FSRS) and 5.0 Generate study material. They share five data stores: D1 Accounts
+(users, plans, usage), D2 Documents (files, chunks), D3 Conversations (messages,
+sources), D4 Legacy study (books, topics, notes, cards and drills in the per-user
+database) and D5 Study records (flashcard sets, quizzes, review sessions). D1, D2, D3 and
+D5 live in \texttt{recall\_saas.db}; D4 is the per-user study database.
+
+\figplaceholder[0.95\textwidth]{dfd_level2_process_doc.pdf}{Data-flow diagram, level 2 of process 2.0 Ingest document}{fig:dfd2-doc}
+
+\paragraph{Level 2: 2.0 Ingest document.} \Cref{fig:dfd2-doc} follows a file from the
+student to indexed chunks. The upload first checks the size limits and the plan quota
+against D1 (2.1), then saves the file and a processing job in D2 (2.2) and registers the
+book and its topics in the legacy store D4 (2.3). The background job then validates the
+file and extracts page text (2.4), splits it into chunks (2.5), obtains embeddings from
+the AI provider or the placeholder generator (2.6) and indexes the chunks with their
+vectors in D2 (2.7). The student's interface polls the job status (2.8) until the
+document is ready or has failed.
+
+\figplaceholder[0.95\textwidth]{dfd_level2_ask.pdf}{Data-flow diagram, level 2 of process 3.0 Answer questions}{fig:dfd2-ask}
+
+\paragraph{Level 2: 3.0 Answer questions.} \Cref{fig:dfd2-ask} is the Knowledge Hub.
+A question is accepted only after access and credits are checked in D1 (3.1); it is
+saved to D3 (3.2); the most relevant chunks are retrieved from D2 (3.3); and a grounded
+prompt is built from the chunks and the recent history (3.4). The AI provider generates
+the answer (3.5), citation markers that do not match a retrieved chunk are removed
+(3.6), and the cited answer and the token and credit usage are stored in D3 and D1
+(3.7, 3.8).
+
+\figplaceholder[0.95\textwidth]{dfd_level2_review.pdf}{Data-flow diagram, level 2 of process 4.0 Review cards}{fig:dfd2-review}
+
+\paragraph{Level 2: 4.0 Review cards.} \Cref{fig:dfd2-review} shows the spaced-repetition
+loop on the D5 stores. Due items are found in D5.1 Learning items (4.1) and copied into
+a review session in D5.2 (4.2, at most 20 items). Each card is shown front first and
+then revealed from D5.3 (4.3). The student's rating is passed to the FSRS scheduler
+(4.4), which returns the new memory state and due time; the learning item is updated in
+D5.1 (4.5) and an immutable review event is written to D5.4 (4.6).
+
+\section{Technology, Software, and Hardware Used}\label{sec:tech}
+
+\Cref{tab:stack} lists the technology of each layer. Versions are the ones installed in
+the development environment at the final commit.
+
+{\small
+\begin{longtable}{@{}p{0.16\textwidth}p{0.27\textwidth}p{0.50\textwidth}@{}}
+\caption{Technology stack and justification}\label{tab:stack}\\
+\toprule
+\textbf{Layer} & \textbf{Technology} & \textbf{Justification}\\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Layer} & \textbf{Technology} & \textbf{Justification}\\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+Desktop shell & Tauri 2.11 (Rust) & Small installer using the system WebView; built-in sidecar support for the Python backend; plug-ins for deep links, file system and secure storage~\cite{tauri_docs}.\\
+Frontend & React 19.2, TypeScript 6 (strict), Vite 8 & Component model fits the many study views; strict typing catches API-contract errors at build time; Vite gives fast reloads and builds.\\
+UI and state & Tailwind CSS 4, React Router 7, Redux Toolkit 2, Framer Motion & Utility CSS keeps the neo-brutalist design consistent; Redux holds reader, review and provider state shared across views.\\
+Rich content & KaTeX 0.18, react-markdown, pdf.js (pdfjs-dist 6), BlockNote 0.52, Recharts 3 & Mathematics in notes and flashcards; in-app PDF reading and highlighting; a Notion-style note editor; progress charts.\\
+Backend & Python 3.12 (CI) / 3.13 (local), FastAPI 0.162, Uvicorn 0.54, Pydantic 2.14 & Async I/O for streaming LLM output; automatic OpenAPI schema; request and LLM-output validation with Pydantic~\cite{fastapi_docs}.\\
+PDF processing & PyMuPDF 2.1, PyMuPDF4LLM 2.1, Marker (optional) & Fast text, TOC and image extraction; PyMuPDF4LLM converts pages to Markdown for the study path, and Marker adds OCR for scanned and handwritten pages there~\cite{pymupdf4llm}.\\
+Scheduling & \texttt{fsrs} 6.3.2 (FSRS-6) & Reference implementation of the Free Spaced Repetition Scheduler, which models memory stability and difficulty per card~\cite{ye2022fsrs,pyfsrs}.\\
+AI & Gemini, OpenAI, Groq, OpenRouter (HTTP via httpx 0.28), Ollama (local) & No model is trained; hosted or local LLMs are called through one interface so students can pick by cost, quota or privacy. \texttt{json-repair} 0.63.3 fixes malformed JSON.\\
+Database & SQLite (WAL mode) & Zero-administration embedded database that ships with Python; WAL allows reads during writes~\cite{sqlite_wal}. \texttt{docker-compose.yml} and \texttt{migrations/001\_initial\_schema.sql} describe a PostgreSQL + pgvector variant prepared for a future hosted version; the desktop product uses the \texttt{sqlite3} driver.\\
+Security & PyJWT 2.15, \texttt{cryptography} 50 (AES-GCM), \texttt{hashlib} PBKDF2 & Standard, audited primitives; no custom cryptography.\\
+Observability & Langfuse 5.1 (optional) & Traces of LLM calls and errors when keys are configured; a no-op otherwise.\\
+Cloud sync & Supabase 2.33 (optional) & Authentication and storage for multi-device sync, used when Supabase keys are configured.\\
+Testing and quality & pytest 9.2, Playwright 1.62, oxlint 1.74, \texttt{tsc} & Backend unit and integration tests, browser end-to-end journeys, fast linting and type checking.\\
+CI/CD & GitHub Actions, PyInstaller, \texttt{tauri-action} & Automated test, build and release on GitHub~\cite{gha_docs}.\\
+Hardware & Four Windows developer laptops, each with a 512~GB SSD: Intel Core~i5 with 32~GB RAM, AMD Ryzen~5 with 16~GB, AMD Ryzen~7 with 16~GB and Intel Core~i5 with 16~GB (\Cref{tab:hw}) & The app targets an ordinary student laptop; heavy work is done by the remote LLM, or by a small local model (default \texttt{gemma3:4b} in the core settings) when Ollama is used.\\
+\end{longtable}
+}
+
+\section{AI-integration Architecture}\label{sec:ai_arch}
+
+RecaLL does not train or host its own model. It integrates pre-trained large language
+models as a service, and wraps every call in a fixed sequence of steps
+(\Cref{fig:aiarch}).
+
+\figplaceholder[0.95\textwidth]{ai_architecture.pdf}{AI-integration architecture: prompt, context, provider, validation and fallback}{fig:aiarch}
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{Data pipeline.} Source text comes from the document pipeline: the
+    Markdown of a topic (study path) or the stored chunks of a document (\texttt{/api/v1}
+    path). The Socratic drill strips image links from the text first, while Cornell
+    notes pass the list of extracted figures so they can be embedded. Every input is
+    cut to a budget (8\,000 characters for Cornell notes and drills, 7\,000
+    characters for a single concept, 3\,000 estimated tokens of retrieved context for the
+    Knowledge Hub).
+  \item \textbf{Prompts.} Each study task has a named template in
+    \texttt{PROMPT\_REGISTRY} with a list of required variables. A student may override
+    any template through \texttt{/api/prompts}; the override is checked for missing or
+    undefined placeholders before it is saved. The \texttt{/api/v1} services do not use
+    the registry; their prompts (for example the Knowledge Hub system prompt in
+    \texttt{rag.py}) are built inline.
+  \item \textbf{Provider resolution} (two stacks, \Cref{fig:arch_l2_ai}). The study features call
+    \texttt{get\_llm\_provider()}, which reads the saved provider type and model from
+    the settings table. The \texttt{/api/v1} features call
+    \texttt{AIService.resolve\_adapter()}, which tries, in order, the user's preferred
+    provider, a valid BYOK credential, the server settings, and finally a deterministic
+    \texttt{MockAIAdapter}.
+  \item \textbf{Inference.} All models are reached over REST (HTTPS for hosted models,
+    \texttt{http://localhost:11434} for Ollama). JSON-producing tasks pass a JSON schema
+    derived from the Pydantic model; OpenAI-compatible providers use
+    \texttt{response\_format} with a strict schema, Gemini uses
+    \texttt{responseMimeType: application/json}, and Ollama uses its \texttt{format}
+    field.
+  \item \textbf{Validation and repair.} Responses are cleaned (code fences, bad escapes,
+    trailing commas, truncated brackets), parsed, and validated with Pydantic. The
+    Socratic drill retries once with a stricter instruction if parsing fails.
+  \item \textbf{Resilience and fallback.} In the study stack, transient HTTP errors
+    (429, 502, 503, 504) and time-outs are retried with exponential back-off and jitter;
+    Gemini calls also pass a priority-aware token-bucket rate limiter; and a
+    quota-exhausted Gemini model falls back to \texttt{gemini-flash-latest}. The v1
+    adapters do not retry; they convert provider errors into typed exceptions
+    (authentication, rate limit with \texttt{Retry-After}, time-out, unavailable) that
+    the routes return to the user. When no key is configured at all, the
+    \texttt{/api/v1} features use the deterministic mock adapter.
+  \item \textbf{Monitoring.} The study-stack providers write token usage per provider,
+    model and feature to \texttt{token\_usage\_logs}, which the LLM Inspection page
+    shows; the v1 services record credit usage in \texttt{usage\_records}. When Langfuse
+    keys are set, study-stack generations and errors are traced there as well.
+\end{enumerate}
+
+The design of the prompts and of the validation step is detailed in
+\Cref{sec:ai_design}, and the code in \Cref{sec:ai_impl}.
+
+\section{CI/CD Pipeline}\label{sec:cicd}
+
+The repository has two GitHub Actions workflows (\Cref{fig:cicd}). They are real and run
+on GitHub; they are not a plan.
+
+\figplaceholder[0.95\textwidth]{cicd_pipeline.pdf}{CI and release pipeline stages}{fig:cicd}
+
+\paragraph{Continuous integration (\texttt{ci.yml}).}
+The workflow runs on every push and pull request to \texttt{main} (or
+\texttt{master}) and can be started by hand. It has two independent jobs on
+\texttt{ubuntu-latest}:
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Backend Pytest Suite:} checkout $\rightarrow$ Python 3.12 with pip cache
+    $\rightarrow$ install \texttt{requirements.txt} plus pytest tools $\rightarrow$
+    \texttt{python -m pytest app/tests -v --durations=10} with \texttt{TESTING=true}.
+  \item \textbf{Frontend Lint, Build \& E2E:} checkout $\rightarrow$ pnpm~9 and
+    Node~20 with a pnpm cache $\rightarrow$ \texttt{pnpm install --frozen-lockfile}
+    $\rightarrow$ \texttt{pnpm run lint} (oxlint) $\rightarrow$ \texttt{pnpm run build}
+    (\texttt{tsc -b \&\& vite build}) $\rightarrow$ install Chromium for Playwright
+    $\rightarrow$ start \texttt{vite preview} on port 4173 $\rightarrow$
+    \texttt{pnpm run test:e2e}.
+\end{itemize}
+\Cref{lst:ci} shows the backend job and the first steps of the frontend job, copied
+from the repository.
+
+\begin{lstlisting}[caption={Excerpt of \texttt{.github/workflows/ci.yml}},label={lst:ci}]
+name: CI
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  backend-tests:
+    name: Backend Pytest Suite
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-cov pytest-asyncio httpx
+
+      - name: Run Pytest Test Suite
+        env:
+          TESTING: 'true'
+          DATABASE_URL: 'sqlite:///:memory:'
+        run: |
+          python -m pytest app/tests -v --durations=10
+
+  frontend-tests:
+    name: Frontend Lint, Build & E2E
+    runs-on: ubuntu-latest
+    steps:
+      ...
+      - name: Run Oxlint Linter
+        working-directory: ./desktop
+        run: pnpm run lint
+
+      - name: Run TypeScript & Vite Build
+        working-directory: ./desktop
+        run: pnpm run build
+\end{lstlisting}
+
+\paragraph{Release (\texttt{release.yml}).}
+Pushing a tag that matches \texttt{v*} (or a manual dispatch) starts the release job on
+\texttt{windows-latest} with \texttt{contents: write} permission. It sets up
+Python~3.12, installs the requirements and PyInstaller, and runs
+\texttt{scripts/build\_sidecar.py}, which freezes the FastAPI backend into
+\texttt{desktop/src-tauri/binaries/recall-backend-<target-triple>.exe}. It then sets up
+pnpm~9 and Node~20, builds the frontend, installs the stable Rust toolchain for
+\texttt{x86\_64-pc-windows-msvc}, and runs \texttt{tauri-apps/tauri-action@v0}, which
+compiles the Tauri app, bundles the sidecar and produces the Windows installers. The
+workflow passes no \texttt{tagName} or \texttt{releaseName} input to the action, so
+\texttt{tauri-action} only builds the installers; it does not create or publish a GitHub
+Release.
+
+\section{Git Management (Version Controlling)}\label{sec:git}
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Repository:} \url{https://github.com/Saimun-jd/RecallAI}. The submitted
+    commit is \texttt{60d40f9} on \texttt{main} (5~November~2026). The first commit,
+    \texttt{cf9bb3f} ``initial commit'', is dated 22~July~2026.
+  \item \textbf{Branching strategy:} a lightweight trunk-based flow
+    (\Cref{fig:git_workflow}). \texttt{main} is the only long-lived branch and most
+    commits were pushed to it directly. Short-lived branches were used for automated
+    fixes: the remote holds three \texttt{copilot/*} branches created by the GitHub
+    Copilot agent, including \texttt{copilot/fix-release-windows-latest}. \texttt{main}
+    has no branch protection and no required reviews on GitHub.
+  \item \textbf{Pull requests and review:} pull request \#1 (``Fix pnpm workspace config
+    for release build'', from \texttt{copilot/fix-release-windows-latest}) was merged by
+    Al Rubayet on 5~November~2026 as merge commit \texttt{0df9f85}; a second Copilot pull
+    request, \#2, is still open and has not been merged. All other changes
+    were pushed to \texttt{main} without a pull request; one local merge
+    (\texttt{ad823bf}) records parallel work on \texttt{main}. Review inside the team
+    was informal: members checked each other's work at the weekly in-person meetings, and
+    apart from PR~\#1 there were no formal pull-request reviews.
+  \item \textbf{CI history:} \texttt{release.yml} existed by the time of the
+    \texttt{v0.1.5} tag (August); \texttt{ci.yml} was added on 25~September~2026 in
+    commit \texttt{5ec7f5a}.
+  \item \textbf{Tags and releases:} a tag matching \texttt{v*} triggers
+    \texttt{release.yml}. HEAD is not tagged. The only tag is \texttt{v0.1.5} on commit \texttt{24667c8}
+    (24~August~2026), which matches the Tauri \texttt{productName} ``Recall'' version
+    0.1.5.
+  \item \textbf{Commit messages:} the later history uses Conventional Commits
+    (\texttt{type(scope): summary}), for example \texttt{fix(sync): gracefully skip
+    download\_missing\_pdfs\_stream when Supabase is unconfigured} and
+    \texttt{feat: add review queue service and interactive review UI components}.
+    17 of the 48 commits follow the convention strictly (8 \texttt{feat}, 6 \texttt{fix},
+    2 \texttt{chore}, 1 \texttt{docs}); the earlier commits use free-form messages such as
+    ``first exe published''.
+  \item \textbf{Ignored files and secrets:} \texttt{.env} is ignored and
+    \texttt{.env.example} documents the variables; commit \texttt{9fd02fc}
+    (``chore: remove hardcoded api keys'') removed keys that had been committed early
+    on; those keys were revoked.
+\end{itemize}
+
+\figplaceholder[0.9\textwidth]{git_workflow.pdf}{Git workflow: \texttt{main}, short-lived branches and pull requests, tags that trigger releases}{fig:git_workflow}
+
+\paragraph{Contribution statistics.}
+\Cref{tab:git_stats} summarises the history from \texttt{git log} and
+\texttt{git shortlog -sne}. Commit counts measure activity, not effort; for example a
+single commit (\texttt{5ec7f5a}) delivered a whole hardening increment. The individual
+contributions are discussed in \Cref{ch:pm}.
+
+\begin{table}[htbp]
+\centering\small
+\caption{Repository statistics at commit \texttt{60d40f9}}\label{tab:git_stats}
+\begin{tabularx}{\textwidth}{@{}lX@{}}
+\toprule
+\textbf{Measure} & \textbf{Value}\\
+\midrule
+Commits on \texttt{main} & 48 (2 of them merges)\\
+Commits by author identity & Saimun-jd 31; rubayet2027 14; copilot-swe-agent[bot] 2; ``Al Rubayet'' (GitHub web merge by rubayet2027) 1\\
+Mapping of identities to team members & \texttt{Saimun-jd} is Saimun (Imteajul Islam); \texttt{rubayet2027} and ``Al Rubayet'' are Turjo (Al Rubayet). Most \texttt{rubayet2027} commits were made on Saimun's computer while it was logged in to Turjo's account. Tahsin and Rony have no commits under their own names\\
+Commits per month & July 9; August 16; September 19; November 4\\
+Lines changed (all commits) & 113\,431 insertions, 16\,712 deletions\\
+Tracked files & 400 (151 Python files; 181 TypeScript/TSX files in \texttt{desktop/src})\\
+Size of main source trees & \texttt{app/}: about 38\,300 lines of Python; \texttt{desktop/src}: about 37\,100 lines of TypeScript/TSX\\
+Branches on the remote & \texttt{main} and three \texttt{copilot/*} branches\\
+Tags & \texttt{v0.1.5}\\
+\bottomrule
+\end{tabularx}
+\end{table}

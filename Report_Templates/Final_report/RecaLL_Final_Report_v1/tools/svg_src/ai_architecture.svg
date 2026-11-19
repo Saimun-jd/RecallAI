@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 1232" width="960" height="1232" font-family="'Segoe UI', Inter, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#000000"/>
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="960" height="1232" fill="#ffffff"/>
+
+  <!-- Arrows -->
+  <path d="M480,96 V132" stroke="#000000" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+  <path d="M480,212 V248" stroke="#000000" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+  <path d="M310,312 H222 Q210,312 210,324 V404" stroke="#000000" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+  <path d="M650,312 H738 Q750,312 750,324 V404" stroke="#000000" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+  <path d="M210,484 V520" stroke="#000000" stroke-width="2" fill="none"/>
+  <path d="M750,484 V520" stroke="#000000" stroke-width="2" fill="none"/>
+  <path d="M210,520 H750" stroke="#000000" stroke-width="2" fill="none"/>
+  <path d="M480,520 V552" stroke="#000000" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+  <path d="M480,632 V668" stroke="#000000" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+  <path d="M480,748 V784" stroke="#000000" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+  <path d="M480,864 V900" stroke="#000000" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+  <path d="M480,980 V1016" stroke="#000000" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+  <path d="M480,1096 V1132" stroke="#000000" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+
+  <!-- Branch labels -->
+  <text x="262" y="300" font-size="20" font-weight="600" text-anchor="middle" fill="#000000">Yes</text>
+  <text x="698" y="300" font-size="20" font-weight="600" text-anchor="middle" fill="#000000">No</text>
+
+  <!-- Steps -->
+  <rect x="260" y="20" width="440" height="76" rx="10" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+  <text x="480" y="66" font-size="22" text-anchor="middle" fill="#000000">AI feature request arrives</text>
+
+  <rect x="260" y="136" width="440" height="76" rx="10" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+  <text x="480" y="182" font-size="22" text-anchor="middle" fill="#000000">Resolve provider and API key</text>
+
+  <path d="M480,252 L650,312 L480,372 L310,312 Z" fill="#ffffff" stroke="#000000" stroke-width="2" stroke-linejoin="round"/>
+  <text x="480" y="320" font-size="22" text-anchor="middle" fill="#000000">Usable key found?</text>
+
+  <rect x="40" y="408" width="340" height="76" rx="10" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+  <text x="210" y="454" font-size="22" text-anchor="middle" fill="#000000">Use the chosen adapter</text>
+
+  <rect x="580" y="408" width="340" height="76" rx="10" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+  <text x="750" y="454" font-size="22" text-anchor="middle" fill="#000000">Fall back to mock adapter</text>
+
+  <rect x="260" y="556" width="440" height="76" rx="10" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+  <text x="480" y="602" font-size="22" text-anchor="middle" fill="#000000">Reserve credit unless BYOK</text>
+
+  <rect x="260" y="672" width="440" height="76" rx="10" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+  <text x="480" y="718" font-size="22" text-anchor="middle" fill="#000000">Retrieve relevant source chunks</text>
+
+  <rect x="260" y="788" width="440" height="76" rx="10" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+  <text x="480" y="834" font-size="22" text-anchor="middle" fill="#000000">Build prompt with reference tags</text>
+
+  <rect x="260" y="904" width="440" height="76" rx="10" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+  <text x="480" y="950" font-size="22" text-anchor="middle" fill="#000000">Send prompt to the model</text>
+
+  <rect x="260" y="1020" width="440" height="76" rx="10" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+  <text x="480" y="1066" font-size="22" text-anchor="middle" fill="#000000">Validate and repair the output</text>
+
+  <rect x="260" y="1136" width="440" height="76" rx="10" fill="#000000" stroke="#000000" stroke-width="2"/>
+  <text x="480" y="1182" font-size="22" font-weight="700" text-anchor="middle" fill="#ffffff">Save result and usage</text>
+</svg>

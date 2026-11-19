@@ -1,0 +1,161 @@
+%==============================================================
+%  RecaLL -- Diagram Book
+%  Every diagram of the final report, one per page, at full size.
+%  Figure numbers are the same as in the report (main.tex).
+%  Uses the same preamble, cover data and image files as the report.
+%  Build: latexmk -pdf diagrams.tex
+%==============================================================
+\documentclass[12pt,a4paper]{report}
+
+\input{preamble}
+\input{config}
+
+\renewcommand{\ProjectTitle}{RecaLL: An AI-Powered Active Recall Study Desktop App\\[0.1cm]
+  \large Diagram Book}
+% The cover is one line taller than the report's, so tighten it slightly.
+\renewcommand{\SupervisorNames}{%
+  \textbf{Mir Md.\ Saki Kowsar}\\ Assistant Professor, Department of CSE, CUET\\[0.3ex]
+  \textbf{Md.\ Refaj Hossan}\\ Lecturer, Department of CSE, CUET}
+\fancyhead[L]{\small\textcolor{cuetblue}{RecaLL Diagram Book}}
+
+% ---- one diagram per page -------------------------------------
+% Wide diagrams (width > 1.15 x height) are turned sideways on a portrait page.
+\newsavebox{\dgbox}
+\newcommand{\dgpending}{}
+\newcommand{\dgsec}[1]{\gdef\dgpending{#1}}
+\newcommand{\dgtoc}[2]{%
+  \ifx\dgpending\empty\else
+    \phantomsection\addcontentsline{toc}{chapter}{\dgpending}%
+    \gdef\dgpending{}%
+  \fi
+  \phantomsection\addcontentsline{toc}{section}{Figure #1: #2}}
+\newcommand{\dghead}[2]{%
+  \noindent{\large\bfseries Figure #1.}\enspace{\large #2}\par
+  \vspace{0.2cm}\noindent{\color{black!40}\rule{\linewidth}{0.4pt}}\par}
+% \dgpage{sideways?}{number}{caption}{content}
+% Every page stays portrait (same size and header throughout, prints cleanly).
+% Wide diagrams (S) are turned 90 degrees on the portrait page, like the
+% sideways figures in the report, so they still use the whole page.
+\newcommand{\dgpage}[4]{%
+  \clearpage
+  \noindent\dgtoc{#2}{#3}%
+  \ifx#1S
+    \vspace*{\fill}{\centering\rotatebox{90}{\begin{minipage}{0.92\rclLong}
+      \dghead{#2}{#3}\vspace{0.3cm}\centering #4
+    \end{minipage}}\par}\vspace*{\fill}%
+  \else
+    \dghead{#2}{#3}%
+    \vfill\begin{center}#4\end{center}\vfill
+  \fi
+  \clearpage}
+% \dg{file}{number}{caption}
+\newcommand{\dg}[3]{%
+  \sbox{\dgbox}{\includegraphics{#1}}%
+  \ifdim\wd\dgbox>1.15\ht\dgbox
+    \dgpage{S}{#2}{#3}{\includegraphics[width=\linewidth,height=\dimexpr\rclShort-2.4cm\relax,keepaspectratio]{#1}}%
+  \else
+    \dgpage{P}{#2}{#3}{\includegraphics[width=\textwidth,height=\dimexpr\textheight-2.8cm\relax,keepaspectratio]{#1}}%
+  \fi}
+
+\begin{document}
+
+\pagenumbering{gobble}
+\input{diagram_book/cover}
+
+\pagenumbering{roman}
+\chapter*{About this book}
+This book collects the diagrams of the RecaLL final report, each on its own page and at
+the largest size the page allows. Wide diagrams are turned sideways on the page. The figure
+numbers and captions are the same as in the report, so each diagram can be found next to
+its description there. The last section adds the two full database schemas, of which the
+report shows only the core tables (Figure~5.5).
+
+All diagrams are drawn in black and white. They cover:
+\begin{itemize}
+  \item the system overview and the project plan (process model and Gantt chart);
+  \item the requirements models: use case, activity, class and sequence diagrams;
+  \item the architecture at levels 0, 1 and 2, and the data-flow diagrams at levels 0, 1
+        and 2;
+  \item the design: components, design patterns, state machines, the ER diagram and the
+        wireframe;
+  \item delivery and testing: CI and release pipeline, Git workflow, deployment and test
+        results.
+\end{itemize}
+
+\tableofcontents
+
+\clearpage
+\pagenumbering{arabic}
+
+%------------------------------------------------------------------
+\dgsec{1\quad Introduction}
+\dg{system_overview.pdf}{1.1}{System overview of RecaLL: the student, the desktop
+application, the local backend, local storage and the optional AI providers}
+
+%------------------------------------------------------------------
+\dgsec{2\quad Project Management Plan}
+\dg{process_model.pdf}{2.1}{Incremental process model as applied to RecaLL}
+\dgpage{S}{2.2}{Project timeline (Gantt chart). Week 1 starts on 20~July~2026}%
+  {\resizebox{!}{\dimexpr\rclShort-3cm\relax}{\input{diagram_book/gantt}}}
+
+%------------------------------------------------------------------
+\dgsec{3\quad Requirement Specifications}
+\dg{usecase.pdf}{3.1}{Use case diagram of RecaLL}
+\dg{activity_study.pdf}{3.2}{Activity diagram of a student's study workflow}
+\dg{activity_import.pdf}{3.3}{Activity diagram of importing and processing a PDF (UC-02)}
+\dg{activity_review.pdf}{3.4}{Activity diagram of reviewing due flashcards with FSRS (UC-06)}
+\dg{activity_drill.pdf}{3.5}{Activity diagram of a Socratic drill, from misconception to
+flashcards (UC-05)}
+\dg{class_chat_ai.pdf}{3.6}{Class diagram: chat, retrieval and AI providers}
+\dg{class_documents.pdf}{3.7}{Class diagram: document upload and processing}
+\dg{class_study_billing.pdf}{3.8}{Class diagram: study features and billing}
+\dg{seq_upload.pdf}{3.9}{Sequence diagram of uploading a document (UC-02, \texttt{/api/v1} path)}
+\dg{seq_chat.pdf}{3.10}{Sequence diagram of asking the Knowledge Hub (UC-07)}
+\dg{seq_drill.pdf}{3.11}{Sequence diagram of a Socratic drill (UC-05)}
+\dg{seq_login.pdf}{3.12}{Sequence diagram of logging in (UC-01)}
+
+%------------------------------------------------------------------
+\dgsec{4\quad Architecture}
+\dg{arch_l0.pdf}{4.1}{Architecture level 0: RecaLL in its environment}
+\dg{arch_l1.pdf}{4.2}{Architecture level 1: layers, route groups and services}
+\dg{arch_l2_pipeline.pdf}{4.3}{Architecture level 2: document-processing pipeline}
+\dg{arch_l2_ai.pdf}{4.4}{Architecture level 2: AI provider layer}
+\dg{dfd_level0.pdf}{4.5}{Data-flow diagram, level 0 (context diagram)}
+\dg{dfd_level1.pdf}{4.6}{Data-flow diagram, level 1}
+\dg{dfd_level2_process_doc.pdf}{4.7}{Data-flow diagram, level 2 of process 2.0 Ingest document}
+\dg{dfd_level2_ask.pdf}{4.8}{Data-flow diagram, level 2 of process 3.0 Answer questions}
+\dg{dfd_level2_review.pdf}{4.9}{Data-flow diagram, level 2 of process 4.0 Review cards}
+\dg{ai_architecture.pdf}{4.10}{AI-integration architecture: prompt, context, provider,
+validation and fallback}
+\dg{cicd_pipeline.pdf}{4.11}{CI and release pipeline stages}
+\dg{git_workflow.pdf}{4.12}{Git workflow: \texttt{main}, short-lived branches and pull
+requests, tags that trigger releases}
+
+%------------------------------------------------------------------
+\dgsec{5\quad Design}
+\dg{component_diagram.pdf}{5.1}{Component diagram of RecaLL}
+\dg{strategy_pattern.pdf}{5.2}{Strategy and factory for LLM providers, and the extractor registry}
+\dg{state_flashcard.pdf}{5.3}{State machine of a flashcard under FSRS}
+\dg{state_job.pdf}{5.4}{State machine of a document-processing job}
+\dg{er_core.pdf}{5.5}{ER diagram of the core tables of \texttt{recall\_saas.db}}
+\dg{gui_wireframe.pdf}{5.6}{Wireframe of the dashboard}
+
+%------------------------------------------------------------------
+\dgsec{7\quad Testing and Quality Assurance}
+\dgpage{P}{7.1}{Automated tests per file in \texttt{app/tests} (223 tests, all passed)}%
+  {\input{diagram_book/testchart}}
+
+%------------------------------------------------------------------
+\dgsec{E\quad Additional Diagrams (Appendix E)}
+\dg{state_subscription.pdf}{E.1}{State diagram of a subscription in the billing module}
+\dg{deployment.pdf}{E.2}{Deployment diagram: the desktop app, the local backend and its
+storage on the student's computer, the external AI providers, and the optional container
+setup}
+
+%------------------------------------------------------------------
+\dgsec{S\quad Full Database Schemas}
+\dg{er_saas.pdf}{S.1}{Full schema of the account database \texttt{recall\_saas.db}}
+\dg{er_legacy.pdf}{S.2}{Full schema of the per-user study database
+\texttt{user\_<id>\_recall.db}}
+
+\end{document}

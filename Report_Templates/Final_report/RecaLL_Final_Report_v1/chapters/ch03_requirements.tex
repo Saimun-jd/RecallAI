@@ -1,0 +1,593 @@
+\chapter{Requirement Specifications}\label{ch:req}
+
+% Local helper for the use-case description tables (used only in this chapter).
+% #1 label suffix, #2 ID, #3 name, #4 actors, #5 precondition, #6 postcondition,
+% #7 main flow, #8 alternative flow, #9 exception flow
+\newcommand{\rclUseCase}[9]{%
+\begin{table}[!htbp]
+\centering
+\small
+\caption{Textual description of use case #2: #3}\label{tab:uc#1}\label{uc:#1}
+\begin{tabularx}{\textwidth}{@{}>{\bfseries\raggedright\arraybackslash}p{2.7cm} X@{}}
+\toprule
+Use Case ID & #2\\
+Name & #3\\
+Actor(s) & #4\\
+Precondition & #5\\
+Postcondition & #6\\
+Main flow & #7\\
+Alternative flow & #8\\
+Exception flow & #9\\
+\bottomrule
+\end{tabularx}
+\end{table}}
+
+This chapter specifies what RecaLL must do and under which conditions. The requirements
+were traced from the delivered code: each use case below names the routes that implement
+it, taken from the route inventory of the backend (158 route handlers: 87 under
+\texttt{/api/v1} in \texttt{app/api/v1/*.py} and 71 older ``study'' routes in
+\texttt{app/main.py}).
+
+\section{Stakeholders for the System}
+
+\Cref{tab:stakeholders} lists the people and organisations with an interest in the system.
+
+\begin{small}
+\begin{longtable}{@{}>{\raggedright\arraybackslash}p{3.0cm} >{\raggedright\arraybackslash}p{5.4cm} >{\raggedright\arraybackslash}p{5.6cm}@{}}
+\caption{Stakeholders}\label{tab:stakeholders}\\
+\toprule
+\textbf{Stakeholder} & \textbf{Role} & \textbf{Interest in the system / influence}\\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Stakeholder} & \textbf{Role} & \textbf{Interest in the system / influence}\\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+Student (primary user) & Imports course material, reads, makes notes, takes drills and
+quizzes, reviews flashcards, chats with the Knowledge Hub & Better retention for less effort;
+privacy of their material; low or zero cost. High influence: the only end-user role\\
+Self-learner / professional & Same as the student, outside a university course & Studying
+technical material on their own computer\\
+Course teachers (customer) & Set the project requirements and evaluate the
+product and report & A complete software-engineering process and a working, tested product.
+High influence\\
+Development team & Builds, tests, packages and maintains RecaLL & Maintainable code, clear
+requirements, manageable scope\\
+Cloud AI providers (Google Gemini, OpenAI, Groq, OpenRouter) & Run the language models that
+RecaLL calls through the student's key & Terms of use, quotas and rate limits. Low direct
+influence, but outages and quota changes affect every AI feature\\
+Local model ecosystem (Ollama and open-weight models) & Runs models on the student's machine &
+Hardware limits and model quality; enables fully offline use\\
+Optional services (Supabase, Langfuse) & Cloud sync and sign-in; LLM tracing & Only involved
+when configured; off in the delivered build\\
+Authors and publishers of study material & Own the copyright of uploaded textbooks and
+slides & Material must not be redistributed; RecaLL keeps it on the student's computer\\
+CUET and other institutions & Host the course and could recommend the tool & Academic
+integrity and responsible use of AI\\
+Regulators & Bangladeshi data-protection authority (PDPO 2025 \cite{pdpo2025}); GDPR
+authorities for EU users \cite{gdpr2016} & Lawful processing of personal data\\
+\end{longtable}
+\end{small}
+
+\section{Use Case Diagram with Graphical and Textual Description}
+
+\Cref{fig:usecase} shows the use cases. The primary actor is the \emph{Student}. The
+\emph{AI provider} (a cloud model or a local Ollama server) is a secondary actor in every
+use case that generates or grades content, and \emph{Supabase} is an optional secondary
+actor for sign-in and sync. There is no administrator role: RecaLL is a single-user desktop
+application, and each account owns exactly one personal workspace.
+
+\widefig{usecase.pdf}{Use case diagram of RecaLL}{fig:usecase}
+
+The textual descriptions of all twelve use cases follow in
+\Cref{tab:uc01,tab:uc02,tab:uc03,tab:uc04,tab:uc05,tab:uc06,tab:uc07,tab:uc08,tab:uc09,tab:uc10,tab:uc11,tab:uc12}.
+HTTP status codes in the exception flows are the ones the backend returns
+(\texttt{app/core/errors.py}).
+
+\rclUseCase{01}{UC-01}{Register / log in}
+{Primary: Student. Secondary: Supabase (optional)}
+{The application is running and the student is not signed in.}
+{The student holds a signed JWT (HS256, valid for 60 minutes) linked to a personal workspace,
+and the backend has switched the study database to \texttt{user\_<id>\_recall.db}.}
+{1.~The student opens \texttt{/register} and enters name, e-mail and password.
+2.~The interface calls \texttt{POST /api/v1/auth/signup}. 3.~The system checks the rate
+limit (15 requests per minute per address), validates the e-mail format and password length
+(8--128 characters), hashes the password with PBKDF2-HMAC-SHA256 and, in one transaction,
+creates the user, a personal workspace and default preferences. 4.~The system returns a JWT
+carrying the user and workspace IDs. 5.~The interface calls \texttt{POST /api/set-user}, which
+selects the student's own study database. 6.~The dashboard opens.}
+{1a.~A returning student opens \texttt{/login}; \texttt{POST /api/v1/auth/login} verifies the
+hash in constant time and returns a JWT. 1b.~If Supabase is configured, the student signs in
+through Supabase and its token is accepted by the backend. 1c.~A signed-in student changes the
+password through \texttt{POST /api/v1/auth/change-password}.}
+{E1.~E-mail already registered: 409. E2.~Wrong e-mail or password: 401 with one uniform
+message (no account enumeration). E3.~Account deactivated: 401. E4.~Too many attempts: 429.
+E5.~Invalid input: 422 with field details.}
+
+\rclUseCase{02}{UC-02}{Upload and process a document}
+{Primary: Student. Secondary: AI provider (topic processing), Marker (optional OCR)}
+{The student is signed in. The file is a PDF, Markdown or text file of at most 50~MB.}
+{The document is stored, its topic tree is saved in the study database, and the document and
+its chunks are available in the application database for chat, flashcards and quizzes.}
+{1.~The student chooses \emph{Add Knowledge} and selects a file. 2.~The interface computes a
+SHA-256 hash and sends \texttt{POST /books/upload}. 3.~The system checks the size, recomputes
+the hash on the server and stores the PDF under its hash. 4.~The system reuses an existing book
+with the same hash for this user, or creates a new one. 5.~The system reads the PDF's built-in
+table of contents, falls back to heading detection, filters front-matter entries and saves the
+topic tree. 6.~The system mirrors the book into \texttt{recall\_saas.db}: it chunks the text
+(1{,}500 characters with 150 overlap), embeds the chunks and saves them. 7.~The student picks
+topics, and \texttt{POST /books/\{id\}/process-stream} processes them, streaming progress as
+SSE events.}
+{2a.~Through the API, \texttt{POST /api/v1/documents/upload} validates the file, creates a
+document and a processing job, and runs the six-stage pipeline (validation, extraction,
+normalisation, chunking, embedding, indexing) as a background task; this pipeline extracts PDF,
+Markdown and text directly with PyMuPDF. The interface polls
+\texttt{/documents/\{id\}/status}. 5a.~On the book path only, a scanned PDF of up to 25 pages is
+sent to the Marker extractor when it is installed or a Marker (Datalab) API key is set; larger
+scanned files can be re-parsed later (\texttt{/books/\{id\}/reparse-handwriting-stream}).}
+{E1.~File larger than the limit: 413. E2.~Unsupported format or missing \texttt{\%PDF}
+signature: 422. E3.~Document or storage quota of the plan reached: 402. E4.~Extraction fails:
+the job and document are marked \texttt{failed} with the error text. E5.~Scanned PDF and no
+Marker: no topics are produced, and the student is told to configure OCR.}
+
+\rclUseCase{03}{UC-03}{Read and annotate a document}
+{Primary: Student. Secondary: AI provider (explain, flashcards)}
+{A document has been imported (UC-02).}
+{Highlights and notes are saved per book and page; optional explanations or flashcards are
+created from a selected passage.}
+{1.~The student opens the document; the reader shows the topic tree and the original PDF pages
+(\texttt{GET /books/\{id\}/pdf}). 2.~The student selects a passage and creates a highlight or
+note (\texttt{POST /books/\{id\}/annotations}). 3.~The system stores the annotation with its page
+and position. 4.~The reader shows all annotations of the page
+(\texttt{GET /books/\{id\}/annotations?page=n}). 5.~The student saves the reading position
+(\texttt{PATCH /books/\{id\}/reading-state}).}
+{2a.~The student asks for an explanation of the passage
+(\texttt{POST /books/\{id\}/annotations/explain}). 2b.~The student generates flashcards from the
+passage (\texttt{/annotations/generate-flashcards}). 4a.~The student edits or deletes an
+annotation. 5a.~The student exports the annotated PDF (\texttt{/books/\{id\}/export-annotated}).}
+{E1.~Book or PDF file missing: 404. E2.~AI provider fails during an explanation: an error
+message is shown and the annotation itself is kept.}
+
+\rclUseCase{04}{UC-04}{Generate Cornell notes}
+{Primary: Student. Secondary: AI provider}
+{A document with at least one topic exists; an AI provider is configured.}
+{A Cornell note with seven fixed parts is stored for the topic and shown in the notebook
+editor, where the student can edit it.}
+{1.~The student opens a topic and presses \emph{Generate Cornell Note}. 2.~The interface calls
+\texttt{POST /topics/\{id\}/notes/scaffold-stream}. 3.~The system loads the topic text (waiting
+for any running concept extraction to finish) and fills the \texttt{cornell\_scaffold\_prompt}
+template. 4.~The provider
+generates the note: core intuition, invariants and definitions, step-by-step mechanisms, a
+worked example, visual comparisons, exam pitfalls and self-test cue questions. 5.~Progress and
+the result stream to the interface as SSE events. 6.~The note is saved against the topic and
+rendered with KaTeX.}
+{4a.~For a parent topic, a note is generated for each leaf subtopic (in parallel, within the
+provider's concurrency limit, reusing notes already saved) and the results are combined into one
+master guide.
+6a.~The student edits the note, adds images (\texttt{POST /notes/upload-image}) or appends
+text (\texttt{/topics/\{id\}/notes/append}). 6b.~The student deletes the note.}
+{E1.~Topic not found: 404. E2.~Provider error, timeout or rate limit: an SSE error event is
+sent and no note is saved.}
+
+\rclUseCase{05}{UC-05}{Take a Socratic drill}
+{Primary: Student. Secondary: AI provider}
+{A topic (optionally one extracted concept) with processed text exists; an AI provider is
+configured.}
+{The attempt and its score are recorded, the topic's (and concept's) mastery score is updated,
+and any cards the student accepted are added to the review deck.}
+{1.~The student starts a drill on a topic or concept. 2.~\texttt{POST /topics/\{id\}/drill/generate}
+fills \texttt{socratic\_question\_prompt}; the provider returns exactly two questions (the first a
+causal mechanism, the second a counterfactual or applied scenario), each with key invariants
+and a hint. 3.~The reply is repaired if needed and validated against a schema. 4.~The student
+writes an explanation. 5.~\texttt{POST /topics/\{id\}/drill/evaluate} fills
+\texttt{socratic\_evaluation\_prompt} with the question, invariants, topic text and answer.
+6.~The system returns a mastery score (0--100) and band, knowledge gaps, misconceptions, a
+Socratic nudge and 0, 1 or 1--2 suggested flashcards. 7.~The student selects cards to keep,
+and \texttt{POST /topics/\{id\}/drill/save-cards} saves them.}
+{6a.~Score 85 or above: no cards are suggested. 6b.~Score below 60: no nudge is given, because
+the student needs to re-study first. 7a.~The student pins the gaps to the topic notes instead
+of saving cards.}
+{E1.~Topic not found: 404. E2.~The provider's JSON cannot be repaired or validated: an error is
+returned to the widget and the student can retry.}
+
+\rclUseCase{06}{UC-06}{Review due flashcards (FSRS)}
+{Primary: Student}
+{At least one flashcard exists and is due.}
+{Each rated card has a new FSRS state (difficulty, stability, retrievability) and due date, and
+the review is logged for analytics.}
+{1.~The student opens \emph{Review}. 2.~\texttt{POST /api/v1/reviews/sessions} starts a session over
+the due queue. 3.~\texttt{GET /reviews/sessions/\{id\}/next} returns the next item; the question is
+shown. 4.~The student reveals the answer (\texttt{POST /reviews/\{rid\}/reveal}). 5.~The student
+rates the card Again, Hard, Good or Easy (\texttt{POST /reviews/\{rid\}/rate}). 6.~The
+\texttt{FSRSScheduler} (desired retention 0.9, maximum interval 36{,}500 days) computes the next due
+date. 7.~Steps 3--6 repeat until no item is left, and the session is completed.}
+{7a.~The student abandons the session (\texttt{/abandon}). Note: the Review page uses only the
+\texttt{/api/v1/reviews/*} routes above. The older study routes \texttt{GET /flashcards/due} and
+\texttt{POST /flashcards/\{id\}/review} (ratings 1--4, with undo) also apply the \texttt{fsrs} library
+to the cards in the study database, but the review interface does not call them.}
+{E1.~Nothing is due: the queue is empty and the page says so. E2.~Session or review belongs to
+another workspace: 404. E3.~Invalid rating: 422.}
+
+\rclUseCase{07}{UC-07}{Ask the Knowledge Hub}
+{Primary: Student. Secondary: AI provider}
+{The student is signed in and has at least one processed document.}
+{The question and the answer, with verified source citations, are saved in the conversation.}
+{1.~The student opens the Knowledge Hub, picks or creates a conversation
+(\texttt{POST /api/v1/conversations}) and optionally limits the scope to some documents.
+2.~The student asks a question; \texttt{POST /conversations/\{id\}/messages} with
+\texttt{stream=true}. 3.~The system checks that the conversation belongs to the workspace,
+resolves the provider (saved BYOK key, then server key) and reserves usage credits (none for a
+BYOK key). 4.~Hybrid keyword and vector search returns the five best chunks. 5.~The system builds
+the prompt: system rules, up to six history messages and the chunks as
+\texttt{<reference\_data id="S1">} blocks within 3{,}000 tokens. 6.~Tokens stream to the
+interface as SSE \texttt{token} events. 7.~The citation validator keeps only \texttt{[S\emph{n}]}
+references that point to retrieved chunks. 8.~The answer and sources are saved and a
+\texttt{done} event is sent.}
+{2a.~Without \texttt{stream}, the full answer is returned in one response. 8a.~From the answer, the
+student uses \emph{Make Flashcard} or \emph{Test Knowledge} to move into UC-12 or UC-08.}
+{E1.~Conversation not found or owned by another workspace: 404. E2.~Credits exhausted: 402.
+E3.~Provider error: an SSE \texttt{error} event; the reserved usage is released.}
+
+\rclUseCase{08}{UC-08}{Generate and take a quiz}
+{Primary: Student. Secondary: AI provider}
+{At least one processed document exists.}
+{A quiz is stored; each attempt is stored with its answers, score and percentage.}
+{1.~The student chooses documents, difficulty (easy, medium or hard), question types
+(multiple choice, true/false) and a count of 1--50. 2.~\texttt{POST /api/v1/quizzes/generate}
+retrieves chunks from the chosen documents and asks the provider for questions. 3.~The system
+validates the questions and saves the quiz. 4.~The student starts an attempt
+(\texttt{POST /quizzes/\{id\}/attempts}). 5.~Each answer is saved
+(\texttt{POST /quiz-attempts/\{aid\}/answers}). 6.~On submit, the server scores all answers
+deterministically. 7.~The results page shows the score and the correct answers.}
+{1a.~The student edits or deletes questions, or deletes the quiz. 7a.~The student opens earlier
+attempts (\texttt{GET /quizzes/\{id\}/attempts}).}
+{E1.~No usable chunks in the chosen documents: 422. E2.~Quota exceeded: 402. E3.~Invalid
+generated questions are discarded; if none remain, generation fails with an error.}
+
+\rclUseCase{09}{UC-09}{View learning progress}
+{Primary: Student}
+{The student is signed in.}
+{None (read-only).}
+{1.~The student opens the Dashboard; \texttt{GET /api/v1/learning/dashboard} returns reviews due
+and a knowledge summary. 2.~The student opens \emph{Progress}. 3.~The system returns review,
+quiz and flashcard statistics and daily activity (\texttt{/learning/statistics/*},
+\texttt{/learning/activity}), with days without activity filled with zeros. 4.~The interface
+draws charts for 7, 30 or 90 days with Recharts.}
+{3a.~The student views progress per document, per concept or per study session
+(\texttt{/learning/progress/*}, \texttt{/learning/sessions}). 4a.~The student switches to the
+table view.}
+{E1.~No activity yet: the charts show zero values. E2.~Invalid or expired token: 401.}
+
+\rclUseCase{10}{UC-10}{Manage AI providers (BYOK)}
+{Primary: Student. Secondary: AI provider (key test)}
+{The student is signed in.}
+{The provider key is stored encrypted, its validity is recorded, and the chosen provider is
+used for later AI requests.}
+{1.~The student opens \emph{Settings}, tab \emph{AI \& Providers}. 2.~The student enters a key
+(or an Ollama host URL) for Gemini, OpenAI, Groq or Ollama. 3.~\texttt{POST /api/v1/account/byok/credentials}
+checks that the plan allows BYOK and that the provider is supported. 4.~The system encrypts the
+key with AES-256-GCM and stores the ciphertext, nonce and tag with a hint of the last four
+characters. 5.~The system tests the key against the provider's model list and records the
+result. 6.~The student sets the provider as active.}
+{2a.~The student tests a saved key without re-entering it (\texttt{POST /account/byok/test}).
+2b.~The student deletes a key (\texttt{DELETE /account/byok/credentials/\{provider\}}).}
+{E1.~Unsupported provider: 422. E2.~Plan does not allow BYOK: 403. E3.~Key rejected by the
+provider: saved but marked invalid, with the provider's HTTP status shown.}
+
+\rclUseCase{11}{UC-11}{Edit system prompts}
+{Primary: Student (advanced user)}
+{The application is running.}
+{The custom template is used for every later request of that kind until it is reset.}
+{1.~The student opens the LLM inspection page. 2.~\texttt{GET /api/prompts} lists the eleven
+registered prompts (segment, flashcard, summary, explain, selection flashcard, chat, Socratic
+question, Markdown clean-up, Cornell scaffold, Socratic evaluation, handwritten-outline
+reconcile) with their variables and whether each is customised. 3.~The student edits a template.
+4.~\texttt{PUT /api/prompts/\{key\}} stores it in the \texttt{system\_prompts} table. 5.~Later
+calls to \texttt{get\_prompt\_template} return the custom text.}
+{4a.~The student resets one prompt (\texttt{/api/prompts/\{key\}/reset}) or all prompts
+(\texttt{/reset-all}). 1a.~The same page shows token usage (\texttt{/api/token-usage/summary},
+\texttt{/history}) and can clear it.}
+{E1.~Unknown prompt key, or a template whose placeholder syntax fails validation: 400, nothing
+saved. E2.~At run time, a placeholder without a value is left in place instead of raising an
+error (\texttt{SafePromptTemplate}).}
+
+\rclUseCase{12}{UC-12}{Generate a flashcard set}
+{Primary: Student. Secondary: AI provider}
+{At least one processed document exists.}
+{A named flashcard set with source links is saved and its cards enter the review queue.}
+{1.~The student opens \emph{Flashcards} and chooses \emph{Generate}. 2.~The student selects
+documents and a card count (1--50). 3.~\texttt{POST /api/v1/flashcards/generate} retrieves
+chunks, reserves usage and asks the provider for cards. 4.~The system validates the cards and
+saves the set with each card's source document and page. 5.~The student studies the set
+(\texttt{/flashcards/:setId/study}); each card links back to its source page.}
+{1a.~The student generates cards from a single topic (\texttt{POST /topics/\{id\}/flashcards}) or
+from a highlighted passage (UC-03). 4a.~The student edits or deletes cards or the whole set.}
+{E1.~Quota exceeded: 402. E2.~No usable chunks: 422. E3.~Provider error: generation fails and
+the reserved usage is released.}
+
+\clearpage
+\section{Activity Diagram}
+
+Four activity diagrams show the main workflows. \Cref{fig:act-study} gives the student's
+overall study path, from signing in and checking that an AI provider is active, through import
+and reading, to a choice between chat, drill, flashcard generation and quiz, and finally FSRS
+review and progress analytics. It ties together UC-01 to UC-09.
+
+\figplaceholder[0.8\textwidth]{activity_study.pdf}{Activity diagram of a student's study
+workflow}{fig:act-study}
+
+\Cref{fig:act-import} details UC-02. After the size and hash checks, the flow branches twice:
+on whether a book with the same hash already exists for the user, and on whether the PDF is
+scanned. A text PDF gets its topics from the built-in outline or from heading detection; a
+scanned PDF goes to Marker if it is available (this OCR branch exists only on the book path). The
+book is then mirrored into the application database, where it is chunked and embedded.
+
+\figplaceholder[0.8\textwidth]{activity_import.pdf}{Activity diagram of importing and
+processing a PDF (UC-02)}{fig:act-import}
+
+\Cref{fig:act-review} details UC-06. The session loop fetches the next due card, shows the
+question, waits for the reveal and the rating, and lets the FSRS scheduler compute the next due
+date, until the queue is empty or the student abandons the session.
+
+\figplaceholder[0.75\textwidth]{activity_review.pdf}{Activity diagram of reviewing due
+flashcards with FSRS (UC-06)}{fig:act-review}
+
+\Cref{fig:act-drill} details UC-05 and shows how a wrong explanation becomes study material:
+the mastery score decides whether a nudge is given and how many flashcards are proposed, and
+only the cards the student accepts are saved.
+
+\figplaceholder[0.8\textwidth]{activity_drill.pdf}{Activity diagram of a Socratic drill,
+from misconception to flashcards (UC-05)}{fig:act-drill}
+
+\section{Static Model -- Class Diagram}
+
+The static model is split into three class diagrams that follow the service classes of
+\texttt{app/services}. Attributes are omitted where they add nothing; operations are the public
+methods that the API routes call.
+
+\Cref{fig:class-chat} shows how a chat answer is produced. \texttt{RAGService} uses
+\texttt{RetrievalService} (composed of \texttt{VectorSearcher}, \texttt{KeywordSearcher} and a
+\texttt{DiversityFilter}), \texttt{AIService} and \texttt{CitationValidator}, and asks
+\texttt{EntitlementService} to reserve and finalise credits. \texttt{AIService} picks one
+concrete \texttt{BaseAIAdapter}: \texttt{GeminiAdapter}, \texttt{OpenAIAdapter} (also used for Groq
+and OpenRouter through their OpenAI-compatible APIs), \texttt{OllamaAdapter} or
+\texttt{MockAIAdapter} for tests.
+
+\widefig{class_chat_ai.pdf}{Class diagram: chat, retrieval and AI
+providers}{fig:class-chat}
+
+\Cref{fig:class-docs} shows document processing. \texttt{DocumentProcessingPipeline} reads the
+file through \texttt{StorageService}, validates and extracts it with \texttt{ExtractionService}
+(which returns an \texttt{ExtractedDocument} of pages), splits it with \texttt{SemanticChunker} and
+embeds it with \texttt{EmbeddingService}. \texttt{BookSyncService} mirrors books from the study
+database into the application database, and \texttt{KnowledgeService} builds document summaries
+and concepts from the stored chunks.
+
+\widefig{class_documents.pdf}{Class diagram: document upload and
+processing}{fig:class-docs}
+
+\Cref{fig:class-study} shows the study and billing services. \texttt{ReviewSessionService}
+depends on the abstract \texttt{ReviewScheduler}, whose default implementation is
+\texttt{FSRSScheduler}; \texttt{GraduatedIntervalScheduler} is used only if the \texttt{fsrs}
+library is missing. \texttt{BillingService} depends on the abstract \texttt{BaseBillingProvider},
+and \texttt{MockBillingProvider} implements it in the delivered build, so a payment provider
+can later be added behind the same interface.
+
+\widefig{class_study_billing.pdf}{Class diagram: study features and
+billing}{fig:class-study}
+
+\section{Dynamic Model -- Sequence Diagram}
+
+\Cref{fig:seq-upload} shows \texttt{POST /api/v1/documents/upload}. The route checks the plan's
+document and storage limits, saves the file, records it in both databases (reusing a book with
+the same hash), creates the document and its processing job, and returns at once; the pipeline
+then runs as a background task while the interface polls the job status.
+
+\widefig{seq_upload.pdf}{Sequence diagram of uploading a document
+(UC-02, \texttt{/api/v1} path)}{fig:seq-upload}
+
+\Cref{fig:seq-chat} shows a streamed Knowledge Hub answer (UC-07): ownership check, provider
+resolution, credit reservation, retrieval of five chunks, prompt assembly, token streaming as
+SSE, citation validation and saving of the answer.
+
+\widefig{seq_chat.pdf}{Sequence diagram of asking the Knowledge Hub
+(UC-07)}{fig:seq-chat}
+
+\Cref{fig:seq-drill} shows a Socratic drill (UC-05) on the study routes: question generation
+with \texttt{socratic\_question\_prompt}, the student's answer, grading with
+\texttt{socratic\_evaluation\_prompt} (registered in \texttt{app/prompt\_manager.py} and used by
+\texttt{app/socratic\_drill.py}), and recording of the attempt and mastery score. These routes
+do not pass through \texttt{EntitlementService}.
+
+\widefig{seq_drill.pdf}{Sequence diagram of a Socratic drill
+(UC-05)}{fig:seq-drill}
+
+\Cref{fig:seq-login} shows UC-01: local login through \texttt{/api/v1/auth/login} (or Supabase
+when configured), followed by \texttt{POST /api/set-user}, which switches the study database
+file. The switch applies to the whole backend process, which is acceptable for a single-user
+desktop application but would not be for a shared server.
+
+\widefig{seq_login.pdf}{Sequence diagram of logging in
+(UC-01)}{fig:seq-login}
+
+\section{Safety and Security Requirements}\label{sec:security}
+
+The requirements below are derived from \texttt{app/core/\allowbreak{}security.py}, \texttt{app/api/\allowbreak{}deps.py},
+\texttt{app/api/\allowbreak{}middleware.py}, \texttt{app/core/\allowbreak{}config.py} and the BYOK routes in
+\texttt{app/api/v1/\allowbreak{}account.py}, and follow the OWASP Top~10 guidance on broken access control,
+cryptographic failures and authentication failures \cite{owasp2021}. Each requirement listed is
+met by the delivered build.
+
+\subsection{Access Requirements}
+
+\begin{itemize}
+  \item \textbf{SEC-A1 Authentication on the application API (Met).} Every \texttt{/api/v1}
+  route except sign-up, login, the plan list, the billing webhook and the health checks requires
+  a Bearer JWT, resolved by \texttt{get\_current\_user}. Tokens are signed with HS256, carry
+  \texttt{sub}, \texttt{workspace\_id}, \texttt{iss=recall-ai}, \texttt{iat} and \texttt{exp},
+  and expire after 60 minutes \cite{rfc7519}. Missing, expired or tampered tokens give 401.
+  \item \textbf{SEC-A2 Workspace isolation (Met).} Data access is scoped to the caller's
+  workspace (\texttt{get\_current\_workspace}). \texttt{require\_document\_owner} returns 404, not
+  403, for a document in another workspace, so the existence of other users' records is not
+  revealed (IDOR protection).
+  \item \textbf{SEC-A3 Brute-force protection (Met).} Sign-up, login and change-password are
+  limited to 15 requests per minute per client address by a sliding-window limiter; excess
+  requests get 429. Login gives one message for an unknown e-mail and a wrong password.
+  \item \textbf{SEC-A4 Disabled accounts (Met).} A user whose \texttt{is\_active} flag is false is
+  rejected on every request, not only at login.
+  \item \textbf{SEC-A5 Network exposure (Met).} The backend binds to \texttt{127.0.0.1} only (the
+  sidecar's default host and \texttt{run.bat}), and CORS allows only the local development and
+  Tauri origins.
+\end{itemize}
+
+\Cref{tab:access} summarises who can reach which \texttt{/api/v1} functions.
+
+\begin{table}[htbp]
+\centering
+\caption{Access matrix of the \texttt{/api/v1} functions}\label{tab:access}
+\small
+\begin{tabularx}{\textwidth}{@{}X c c c@{}}
+\toprule
+\textbf{Function} & \makecell{\textbf{No token}} & \makecell{\textbf{Valid token,}\\\textbf{own data}} & \makecell{\textbf{Valid token,}\\\textbf{other user's data}}\\
+\midrule
+Sign up, log in, plan list, health & \cmark & \cmark & --\\
+\texttt{/api/v1} documents, chat, flashcards, quizzes, reviews, progress & & \cmark & (404)\\
+\texttt{/api/v1/account} and BYOK credentials & & \cmark & (404)\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Integrity Requirements}
+
+\begin{itemize}
+  \item \textbf{SEC-I1 Input validation (Met).} Every \texttt{/api/v1} request body is validated by
+  Pydantic schemas (e-mail format, password length 8--128, counts 1--50, enumerated review
+  ratings). Invalid input returns 422 with field details.
+  \item \textbf{SEC-I2 Upload validation (Met).} Only PDF, Markdown and text files are accepted;
+  a PDF must start with the \texttt{\%PDF} signature; PDFs are limited to 50~MB, uploads to
+  55~MB and other request bodies to 10~MB (\texttt{RequestSizeLimitMiddleware}); oversized
+  requests get 413. File names on disk are server-computed SHA-256 hashes, which prevents path
+  traversal.
+  \item \textbf{SEC-I3 Database consistency (Met).} Both SQLite databases run in WAL mode with
+  \texttt{foreign\_keys=ON}; the application database also sets a 5{,}000~ms busy timeout. Sign-up
+  creates user, workspace and preferences in one transaction.
+  \item \textbf{SEC-I4 Server-side scoring (Met).} Quiz attempts are scored deterministically on
+  the server, never by the client or the model.
+  \item \textbf{SEC-I5 Validated AI output (Met).} Structured model output is repaired
+  (\texttt{json-repair} and a truncation-repair pass) and validated against a schema before it is
+  stored; citations are kept only if they point to retrieved chunks.
+  \item \textbf{SEC-I6 Tamper-evident key storage (Met).} AES-GCM's 16-byte authentication tag is
+  verified on every decryption, so a modified ciphertext is rejected \cite{nist80038d}.
+  \item \textbf{SEC-I7 Webhook signatures (Met).} Billing webhooks are verified with HMAC-SHA256
+  and a constant-time comparison; test signatures are accepted only when
+  \texttt{ENVIRONMENT=test}.
+\end{itemize}
+
+\subsection{Privacy Requirements}
+
+RecaLL processes personal data (name, e-mail, uploaded documents, notes, answers and study
+history). It must follow Bangladesh's Personal Data Protection Ordinance 2025 (PDPO 2025) \cite{pdpo2025} and,
+for any EU user, the principles of the GDPR \cite{gdpr2016}.
+
+\begin{itemize}
+  \item \textbf{SEC-P1 Local-first storage (Met).} All data is stored on the student's computer in
+  the per-user application-data folder (\texttt{platformdirs}, application name ``Recall''); no
+  RecaLL server receives it.
+  \item \textbf{SEC-P2 Password storage (Met).} Passwords are stored only as
+  \texttt{pbkdf2\_sha256\$600000\$salt\$hash} with a 16-byte random salt, matching the OWASP
+  recommendation of 600{,}000 iterations for PBKDF2-HMAC-SHA256 \cite{owaspPassword}, and are
+  checked with \texttt{hmac.compare\_digest}.
+  \item \textbf{SEC-P3 Encrypted key vault (Met).} Keys saved through the v1 BYOK vault
+  (\texttt{/api/v1/account/byok/credentials}, used by the provider cards under Settings $>$ AI
+  Providers) are encrypted with AES-256-GCM and a fresh 12-byte nonce. The 32-byte master key is
+  generated per installation and stored in the data folder (\texttt{.local\_byok\_key.hex}) unless
+  set in the environment, and production mode refuses the default key. The vault only ever returns
+  a hint (the last four characters).
+  \item \textbf{SEC-P4 Data minimisation towards AI providers (Met).} Only the text a feature needs
+  is sent: the selected chunks or topic text, the question or answer and, for chat, at most six
+  earlier messages. No name, e-mail or account data is sent. With Ollama, nothing leaves the
+  computer.
+  \item \textbf{SEC-P5 Transparency (Met).} The settings page shows which provider is active, and
+  the inspection page shows every prompt template and the recorded token usage. Langfuse tracing
+  runs only if the student enters Langfuse keys.
+  \item \textbf{SEC-P6 Secure defaults (Met).} Production mode refuses to start with the default
+  JWT secret or BYOK key. Every response carries \texttt{X-Content-Type-Options: nosniff},
+  \texttt{X-Frame-Options: DENY} and \texttt{Referrer-Policy:} \texttt{strict-origin-}\allowbreak\texttt{when-cross-origin}.
+  \item \textbf{SEC-P7 Data deletion (Met).} The student can delete individual documents, notes,
+  cards, quizzes and conversations, and can delete all study data and documents at once from
+  Settings $>$ Security.
+\end{itemize}
+
+\section{AI-integration Requirements}\label{sec:ai-req}
+
+RecaLL integrates hosted and local large language models instead of training its own, so its AI
+requirements concern behaviour, grounding, robustness, latency, cost and human control, not
+classification accuracy. \Cref{tab:airec} lists them. Values that come directly from the code
+are fixed by design and verified by inspection or unit tests; values that need measurement are
+marked and are reported in \Cref{ch:test}.
+
+\begin{small}\setstretch{1.1}
+\begin{longtable}{@{}l >{\raggedright\arraybackslash}p{7.4cm} c >{\raggedright\arraybackslash}p{3.6cm}@{}}
+\caption{AI-integration requirements}\label{tab:airec}\\
+\toprule
+\textbf{ID} & \textbf{Requirement} & \textbf{Must/Want} & \textbf{Metric}\\
+\midrule
+\endfirsthead
+\toprule
+\textbf{ID} & \textbf{Requirement} & \textbf{Must/Want} & \textbf{Metric}\\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+R-AI-01 & The student shall be able to choose Gemini, OpenAI, Groq or a local Ollama model (and
+OpenRouter through server settings) without changing code & Must & 4 providers selectable;
+switch test\\
+R-AI-02 & Requests made with the student's own key shall consume 0 RecaLL credits; the free plan
+allows 50 credits per month & Must & Unit test on credit reservation\\
+R-AI-03 & A drill shall contain exactly 2 questions: the first a causal mechanism, the second a
+counterfactual or applied scenario; no recall-only questions & Must & Met: 3 of 3 topics gave valid
+output with exactly 2 questions of the required types\\
+R-AI-04 & Grading shall return a 0--100 mastery score in four bands (85--100, 60--84, 35--59,
+0--34), with 0 cards at $\geq 85$, 1 card at 60--84 and 1--2 cards below 60, and no nudge below
+60 & Must & Met: 4 of 4 graded answers followed the bands (strong answers 95 and 100 with 0 cards;
+weak answers 0 and 0 with 2 cards each)\\
+R-AI-05 & Every citation shown to the student shall point to a chunk retrieved for that answer
+& Must & Fabricated citations shown = 0 (validator test)\\
+R-AI-06 & Chat context shall be limited to 5 retrieved chunks, 3{,}000 tokens of reference text
+and 6 earlier messages & Must & Code inspection / unit test\\
+R-AI-07 & Document text shall be passed as isolated \texttt{<reference\_data>} blocks with closing
+tags sanitised, and the model told not to follow instructions inside them \cite{owaspllm2025} & Must & Met:
+delimiter-sanitisation test passes\\
+R-AI-08 & Transient provider errors (HTTP 429, 502, 503, 504) shall be retried up to 3 times
+with exponential back-off (2~s start, factor 2, cap 20~s, jitter up to 0.5~s); other HTTP errors,
+such as 401 for a bad key, shall fail fast & Must & Unit test\\
+R-AI-09 & Calls shall respect per-provider rate limits (Gemini free 5, Groq 30, Ollama 60,
+OpenAI 500 requests per minute) & Must & Unit test\\
+R-AI-10 & Structured outputs (drill questions, grading, cards, quizzes) shall be repaired and
+schema-validated before saving; nothing invalid shall be stored & Must & Met: 0 parse failures in
+7 structured replies (3 drills, 4 gradings)\\
+R-AI-11 & A Knowledge Hub answer with a cloud provider shall be complete within 60~s & Want & Met:
+4.9--44.8~s, median 15.9~s over 6 questions\\
+R-AI-12 & A Cornell note for a typical topic shall be generated within 60~s & Want & Met:
+26.2--47.9~s, median 27.9~s over 3 topics\\
+R-AI-13 & Every prompt shall be editable and resettable by the student, without code changes &
+Want & 11 of 11 prompts editable\\
+R-AI-14 & AI output shall never be saved to the review deck without a student action (the student
+selects which suggested cards to keep) & Must & Design review\\
+R-AI-15 & Token usage of every call shall be recorded and visible to the student; tracing to
+Langfuse shall be opt-in & Want & Usage visible on the inspection page\\
+R-AI-16 & Retrieval should rank chunks by semantic similarity using model embeddings & Want &
+Model embeddings (OpenAI, Gemini or Ollama) when a server key or Ollama host is configured\\
+R-AI-17 & Scanned or handwritten PDFs shall be readable through OCR & Want & Optional Marker extractor
+(local or Datalab API) on the book and topic path\\
+\end{longtable}
+\end{small}
+
+\paragraph{Ethical requirements.} The AI only advises and drafts; the student remains in control
+of what is kept, edited or revised (R-AI-14). The student can see and change every prompt
+(R-AI-13), see which provider is used and choose a local model so that no material leaves the
+computer (SEC-P4). The system must not present generated content as authoritative: cards and
+notes stay linked to their source page so that claims can be checked. A full model card with the
+models, prompts and usage notes is given in Appendix~F.

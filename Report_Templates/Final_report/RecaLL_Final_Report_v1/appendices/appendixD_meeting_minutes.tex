@@ -1,0 +1,48 @@
+\chapter{Meeting Minutes / Progress Logs}\label{app:minutes}
+
+All four members live in the university hall and met in person every week before the lab session to plan,
+work together and check each other's work. Formal minutes of these meetings were not kept. \Cref{tab:meetings}
+is therefore a progress log reconstructed from the commit history and the team's weekly meetings: one row per
+increment, with the dates taken from \texttt{git log -{}-date=short} and a description of what the commits
+delivered.
+
+\begin{small}
+\begin{longtable}{@{}>{\raggedright\arraybackslash}p{2.1cm} >{\raggedright\arraybackslash}p{2.4cm} >{\raggedright\arraybackslash}p{7.2cm} >{\raggedright\arraybackslash}p{2.3cm}@{}}
+\caption{Progress log reconstructed from the Git history}\label{tab:meetings}\\
+\toprule
+\textbf{Dates (2026)} & \textbf{Attendees} & \textbf{Progress delivered} & \textbf{Commits}\\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Dates (2026)} & \textbf{Attendees} & \textbf{Progress delivered} & \textbf{Commits}\\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+22--24 Jul & All members (weekly pre-lab meeting) & Increment 1: command-line extraction prototype; first commit and
+CLI (22~Jul), source-page information, code and diagram extraction (23~Jul), on-demand flashcards with topic
+similarity, hardened API and storage (24~Jul) & 9 (\texttt{cf9bb3f} -- \texttt{ecc783e})\\
+5 Aug & All members (weekly pre-lab meeting) & Increment 2: Tauri desktop application with a Notion-style
+Markdown note editor; hard-coded API keys removed; README updated & 3 (\texttt{eebcf72}, \texttt{9fd02fc},
+\texttt{a6d127b})\\
+19--25 Aug & All members (weekly pre-lab meeting) & Increment 3: Socratic drill learning mechanism and a new
+light interface (19~Aug); LaTeX rendering fixes; neo-brutalist redesign (22~Aug); release workflow and first
+Windows executable (23~Aug); interface redesign and pre-release \texttt{v0.1.5} (24~Aug); sidecar packaging fix
+(25~Aug) & 10 (\texttt{ee0d9bc} -- \texttt{dd33b7a})\\
+26 Aug -- 9 Sep & All members (weekly pre-lab meeting) & Increment 4: Supabase sign-in flow (26~Aug); Marker OCR,
+online and offline (28~Aug); chat with an AI teacher (29~Aug) and per-topic chat (5~Sep); per-concept Socratic drill
+and new notes feature (7~Sep); chunk-based processing of long documents (9~Sep) & 7 (\texttt{69a2265} --
+\texttt{41e4aae})\\
+12--21 Sep & All members (weekly pre-lab meeting) & Increment 5: \texttt{/api/v1} core with document ingestion, RAG
+chat, flashcards, quizzes, attempts and spaced repetition (12~Sep); core features and desktop views (14~Sep);
+reconcile merge with the earlier study features, flashcard and quiz views and the review-queue interface
+(16~Sep); backend hardening and migrations (21~Sep) & 11 (\texttt{0f8b8f2} -- \texttt{0fbbc32})\\
+25--29 Sep & All members (weekly pre-lab meeting) & Increment 6: production hardening, user-isolation test
+matrix, container files and \texttt{ci.yml} (25~Sep); code clean-up (26~Sep); Knowledge Hub and interface fixes
+(29~Sep) & 4 (\texttt{5ec7f5a} -- \texttt{9d47554})\\
+October & -- & University closed; no project work and no commits & 0\\
+5 Nov & All members (weekly pre-lab meeting) & Increment 8: fixes for the code-review findings (security,
+user experience and logic); PR~\#1 merged; Supabase sync skipped cleanly when it is not set up. The last commit,
+\texttt{60d40f9}, is the submitted version & 4 (\texttt{eb6f735} -- \texttt{60d40f9})\\
+\end{longtable}
+\end{small}

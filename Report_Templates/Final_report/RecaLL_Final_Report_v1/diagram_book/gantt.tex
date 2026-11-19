@@ -1,0 +1,24 @@
+\begin{ganttchart}[hgrid, vgrid={*{1}{draw=black!30, dotted}}, x unit=0.62cm,
+  y unit title=0.6cm, y unit chart=0.62cm,
+  title label font=\scriptsize, bar label font=\small, milestone label font=\small\itshape,
+  title/.append style={fill=white, draw=black},
+  bar/.append style={fill=black!15, draw=black},
+  milestone/.append style={fill=black, draw=black}]{1}{18}
+\gantttitle{2026 (week starting Monday)}{18}\\
+\gantttitle{Jul}{2}\gantttitle{Aug}{5}\gantttitle{Sep}{4}\gantttitle{Oct}{4}\gantttitle{Nov}{3}\\
+\gantttitlelist{1,...,18}{1}\\
+\ganttbar{Idea and planning}{1}{1}\\
+\ganttbar{Inc.~1: CLI prototype}{1}{1}\\
+\ganttbar{Inc.~2: desktop app, notes}{3}{3}\\
+\ganttbar{Inc.~3: drill, new UI, release}{5}{6}\\
+\ganttbar{Inc.~4: login, OCR, AI chat}{6}{8}\\
+\ganttbar{Inc.~5: \texttt{/api/v1} core}{8}{10}\\
+\ganttbar{Inc.~6: hardening, CI}{10}{11}\\
+\ganttbar{University closed (no work)}{12}{15}\\
+\ganttbar{Inc.~8: review fixes}{16}{16}\\
+\ganttbar{Final test run and report}{18}{18}\\
+\ganttmilestone{Pre-release v0.1.5 (24 Aug)}{6}\\
+\ganttmilestone{\texttt{ci.yml} added (25 Sep)}{10}\\
+\ganttmilestone{PR \#1 merged (HEAD 60d40f9)}{16}\\
+\ganttmilestone{Submission (19 Nov)}{18}
+\end{ganttchart}

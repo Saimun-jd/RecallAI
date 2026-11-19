@@ -1,0 +1,30 @@
+\chapter{Full Source Code Snapshots \& Repository Link}\label{app:code}
+
+The complete source code is in the GitHub repository listed in \Cref{tab:repo}. This appendix gives two
+short excerpts at the submitted commit: the provider interface that every AI provider implements
+(\Cref{lst:app-llmbase}) and the AES-256-GCM encryption of personal API keys (\Cref{lst:app-aes}).
+Non-ASCII characters in comments were replaced by hyphens so that the listings compile with pdfLaTeX.
+
+\begin{table}[htbp]
+\centering
+\caption{Repository information}\label{tab:repo}
+\small
+\begin{tabularx}{\textwidth}{@{}l X@{}}
+\toprule
+\textbf{Item} & \textbf{Value}\\
+\midrule
+Repository & \url{https://github.com/Saimun-jd/RecallAI}\\
+Branch & \texttt{main}\\
+Final submitted commit & \texttt{60d40f994cba721552f6b3fe03c31653df168ef8} (5 November 2026)\\
+Latest release tag & \texttt{v0.1.5} (GitHub pre-release ``Prelaunch Version 0.1.5'')\\
+Backend & \texttt{app/} (FastAPI, Python)\\
+Desktop interface & \texttt{desktop/} (Tauri~2, React~19, TypeScript)\\
+Tests & \texttt{app/tests/} (pytest), \texttt{desktop/tests/e2e/} (Playwright)\\
+CI/CD & \texttt{.github/workflows/ci.yml},\newline \texttt{.github/workflows/release.yml}\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\lstinputlisting[language=Python,caption={Provider interface shared by Gemini, OpenAI, Groq and Ollama (\texttt{app/llm\_providers/base.py})},label={lst:app-llmbase}]{code/llm_base.py}
+
+\lstinputlisting[language=Python,firstline=128,lastline=150,caption={AES-256-GCM encryption of personal API keys (\texttt{app/core/security.py})},label={lst:app-aes}]{code/security.py}

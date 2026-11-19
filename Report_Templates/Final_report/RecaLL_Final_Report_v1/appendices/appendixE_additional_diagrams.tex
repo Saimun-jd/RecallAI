@@ -1,0 +1,15 @@
+\chapter{Additional Diagrams}\label{app:diagrams}
+
+This appendix collects diagrams that support the main chapters but are too large or too detailed to
+place there. \Cref{fig:deploydiag} complements \Cref{ch:deploy}, and \Cref{fig:app-state-sub} documents the
+subscription life cycle of the billing module.
+
+The complete schemas of the two SQLite databases (28 tables in \texttt{recall\_saas.db} and 14 in the
+per-user study database) are too dense to be read in print, so they are not reproduced here. They were
+generated from the live database files with \texttt{tbls} as HTML schema documentation in the team's
+project folder (\texttt{docs/database/}, which is not committed to the Git repository). The core tables
+are shown in \Cref{fig:er}, and the main columns of six of them are listed in \Cref{ch:design}.
+
+\figplaceholder[0.75\textwidth]{state_subscription.pdf}{State diagram of a subscription in the billing module}{fig:app-state-sub}
+
+\widefig{deployment.pdf}{Deployment diagram: the desktop app, the local backend and its storage on the student's computer, the external AI providers, and the optional container setup}{fig:deploydiag}

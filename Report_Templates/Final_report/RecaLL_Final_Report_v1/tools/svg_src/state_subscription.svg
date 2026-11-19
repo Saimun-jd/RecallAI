@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 540" width="1000" height="540" font-family="'Segoe UI', Inter, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#000000"/>
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="1000" height="540" fill="#ffffff"/>
+
+  <!-- Transitions first -->
+  <g stroke="#000" stroke-width="2" fill="none">
+    <path d="M140,52 V96" marker-end="url(#arrow)"/>
+    <path d="M240,130 H376" marker-end="url(#arrow)"/>
+    <path d="M580,118 H756" marker-end="url(#arrow)"/>
+    <path d="M760,145 H584" marker-end="url(#arrow)"/>
+    <path d="M440,160 V316" marker-end="url(#arrow)"/>
+    <path d="M530,160 V228 Q530,240 542,240 H788 Q800,240 800,252 V316" marker-end="url(#arrow)"/>
+    <path d="M900,160 V316" marker-end="url(#arrow)"/>
+    <path d="M580,350 H756" marker-end="url(#arrow)"/>
+    <path d="M860,380 V428 Q860,440 848,440 H152 Q140,440 140,428 V164" marker-end="url(#arrow)"/>
+  </g>
+
+  <!-- Transition labels -->
+  <g font-size="18" fill="#000" text-anchor="middle">
+    <text x="308" y="118">checkout paid</text>
+    <text x="668" y="106">cancel at end</text>
+    <text x="668" y="172">reactivate</text>
+    <text x="430" y="250" text-anchor="end">payment failed</text>
+    <text x="665" y="228">cancel now</text>
+    <text x="910" y="250" text-anchor="start">deleted</text>
+    <text x="668" y="338">deleted</text>
+    <text x="500" y="428">billing period over</text>
+  </g>
+
+  <!-- Initial node -->
+  <circle cx="140" cy="40" r="12" fill="#000"/>
+
+  <!-- States -->
+  <g font-size="22" text-anchor="middle" fill="#000">
+    <rect x="40" y="100" width="200" height="60" rx="16" fill="#fff" stroke="#000" stroke-width="2"/>
+    <text x="140" y="138">Free (no row)</text>
+    <rect x="380" y="100" width="200" height="60" rx="16" fill="#000" stroke="#000" stroke-width="2"/>
+    <text x="480" y="138" font-weight="700" fill="#fff">Active</text>
+    <rect x="760" y="100" width="200" height="60" rx="16" fill="#fff" stroke="#000" stroke-width="2"/>
+    <text x="860" y="138">Cancel scheduled</text>
+    <rect x="380" y="320" width="200" height="60" rx="16" fill="#fff" stroke="#000" stroke-width="2"/>
+    <text x="480" y="358">Past due</text>
+    <rect x="760" y="320" width="200" height="60" rx="16" fill="#fff" stroke="#000" stroke-width="2"/>
+    <text x="860" y="358">Canceled</text>
+  </g>
+
+  <!-- UML note -->
+  <path d="M40,470 H940 L960,490 V524 H40 Z" fill="#fff" stroke="#000" stroke-width="1.5" stroke-dasharray="8 6"/>
+  <path d="M940,470 V490 H960" fill="none" stroke="#000" stroke-width="1.5"/>
+  <text x="60" y="503" font-size="18" fill="#000">Nothing moves Active or Cancel scheduled on when the period ends.</text>
+</svg>

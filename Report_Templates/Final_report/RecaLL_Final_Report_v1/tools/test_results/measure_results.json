@@ -1,0 +1,163 @@
+{
+ "notes": [],
+ "env": {
+  "python": "3.13.5"
+ },
+ "import_seconds": 2.52,
+ "rss_idle_mb": 118.6,
+ "topics_used": [
+  [
+   10,
+   "AI & ML",
+   5
+  ],
+  [
+   36,
+   "The Promise and Perils of Strong AI",
+   19
+  ],
+  [
+   47,
+   "Acting humanly: The Turing Test",
+   25
+  ]
+ ],
+ "process": [
+  {
+   "status": 200,
+   "first_event_s": 0.36,
+   "total_s": 18.41,
+   "events": 5,
+   "last": "{\"status\": \"complete\", \"topic_id\": 10}",
+   "topic": "AI & ML"
+  },
+  {
+   "status": 200,
+   "first_event_s": 0.05,
+   "total_s": 7.26,
+   "events": 5,
+   "last": "{\"status\": \"complete\", \"topic_id\": 36}",
+   "topic": "The Promise and Perils of Strong AI"
+  },
+  {
+   "status": 200,
+   "first_event_s": 0.03,
+   "total_s": 50.52,
+   "events": 5,
+   "last": "{\"status\": \"complete\", \"topic_id\": 47}",
+   "topic": "Acting humanly: The Turing Test"
+  }
+ ],
+ "cornell": [
+  {
+   "status": 200,
+   "first_event_s": 0.32,
+   "total_s": 27.86,
+   "events": 7,
+   "last": "{\"status\": \"complete\", \"stage\": \"complete\", \"topic_id\": 10, \"scaffold\": \"# \\ud83d\\udcdd AI & ML\\n\\n> **Core Intuition in a Nutshell**: Traditionally, computer programs required human software engineers to explicitly write down every rule line-by-line to solve a problem. Artificial Intelligence (AI) ",
+   "topic": "AI & ML"
+  },
+  {
+   "status": 200,
+   "first_event_s": 0.32,
+   "total_s": 47.93,
+   "events": 7,
+   "last": "{\"status\": \"complete\", \"stage\": \"complete\", \"topic_id\": 36, \"scaffold\": \"# \\ud83d\\udcdd The Promise and Perils of Strong AI\\n\\n> **Core Intuition in a Nutshell**: As artificial intelligence evolves from narrow domain execution toward Strong AI (Artificial General Intelligence), its immense problem-s",
+   "topic": "The Promise and Perils of Strong AI"
+  },
+  {
+   "status": 200,
+   "first_event_s": 0.27,
+   "total_s": 26.18,
+   "events": 7,
+   "last": "{\"status\": \"complete\", \"stage\": \"complete\", \"topic_id\": 47, \"scaffold\": \"# \\ud83d\\udcdd Acting humanly: The Turing Test\\n\\n> **Core Intuition in a Nutshell**: Instead of wrestling with philosophical, unmeasurable questions like \\\"Can a machine think?\\\", the Turing Test replaces abstract definitions ",
+   "topic": "Acting humanly: The Turing Test"
+  }
+ ],
+ "drill_generate": [
+  {
+   "topic": "AI & ML",
+   "status": 200,
+   "seconds": 42.72,
+   "n_questions": 2,
+   "tiers": [
+    "causal_mechanism",
+    "counterfactual"
+   ]
+  },
+  {
+   "topic": "The Promise and Perils of Strong AI",
+   "status": 200,
+   "seconds": 52.92,
+   "n_questions": 2,
+   "tiers": [
+    "causal_mechanism",
+    "applied_scenario"
+   ]
+  },
+  {
+   "topic": "Acting humanly: The Turing Test",
+   "status": 200,
+   "seconds": 65.97,
+   "n_questions": 2,
+   "tiers": [
+    "causal_mechanism",
+    "counterfactual"
+   ]
+  }
+ ],
+ "drill_evaluate": [
+  {
+   "topic": "AI & ML",
+   "answer": "strong",
+   "status": 200,
+   "seconds": 3.34,
+   "score": 95,
+   "band": "mastered",
+   "n_cards": 0
+  },
+  {
+   "topic": "AI & ML",
+   "answer": "weak",
+   "status": 200,
+   "seconds": 35.75,
+   "score": 0,
+   "band": "misconception",
+   "n_cards": 2
+  },
+  {
+   "topic": "The Promise and Perils of Strong AI",
+   "answer": "strong",
+   "status": 200,
+   "seconds": 35.23,
+   "score": 100,
+   "band": "mastered",
+   "n_cards": 0
+  },
+  {
+   "topic": "The Promise and Perils of Strong AI",
+   "answer": "weak",
+   "status": 200,
+   "seconds": 11.1,
+   "score": 0,
+   "band": "misconception",
+   "n_cards": 2
+  }
+ ],
+ "kh_conv_status": 201,
+ "kh": [],
+ "volume": {
+  "file_mb": 53.4,
+  "pages": 176,
+  "chars": 11089,
+  "extract_seconds": 0.56,
+  "saas_db_mb": 20.8,
+  "chunks_total": 1070,
+  "largest_doc_chunks": 933,
+  "topics_total": 1326,
+  "search_seconds_largest_doc": 0.01,
+  "search_status": 422
+ },
+ "rss_peak_mb": 381.2,
+ "real_folder_changed": []
+}
