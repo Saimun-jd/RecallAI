@@ -75,8 +75,11 @@ class StorageService:
         Resolves storage path and strictly guarantees it remains inside the storage root directory.
         Raises ValueError if path traversal is attempted.
         """
+        normalized = storage_path.replace("\\", "/")
+        if normalized.startswith("/") or ":" in normalized:
+            raise ValueError(f"Path traversal detected: {storage_path}")
         resolved_root = cls._root_dir.resolve()
-        target = (cls._root_dir / storage_path).resolve()
+        target = (cls._root_dir / normalized).resolve()
         try:
             target.relative_to(resolved_root)
         except ValueError:

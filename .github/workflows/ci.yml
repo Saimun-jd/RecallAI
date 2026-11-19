@@ -74,6 +74,6 @@ jobs:
           CI: 'true'
           BASE_URL: 'http://127.0.0.1:4173'
         run: |
-          pnpm run preview --port 4173 &
-          python3 -c "import urllib.request, time; [time.sleep(1) for _ in range(30) if urllib.request.urlopen('http://127.0.0.1:4173').getcode() != 200]" || sleep 4
+          pnpm run preview --port 4173 --host 0.0.0.0 &
+          for i in {1..30}; do curl -s http://127.0.0.1:4173 > /dev/null && break || sleep 1; done
           pnpm run test:e2e
