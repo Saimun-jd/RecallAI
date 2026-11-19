@@ -6,7 +6,7 @@ Distinguishes server-only secrets from client-safe configuration.
 
 import os
 import sys
-from typing import List, Literal, Union
+from typing import Any, List, Literal, Union
 from platformdirs import user_data_dir
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -24,6 +24,16 @@ class CoreSettings(BaseSettings):
     # Environment Mode
     ENVIRONMENT: Literal["development", "test", "production"] = "development"
     DEBUG: bool = True
+
+    @field_validator("DEBUG", mode="before")
+    @classmethod
+    def parse_debug(cls, v: Any) -> bool:
+        if isinstance(v, str):
+            if v.lower() in ("release", "prod", "production", "false", "0", "no"):
+                return False
+            if v.lower() in ("debug", "dev", "development", "true", "1", "yes"):
+                return True
+        return bool(v)
 
     # Security & Auth Secrets (Server-Only)
     # Default provided for dev/test convenience; validated for production below

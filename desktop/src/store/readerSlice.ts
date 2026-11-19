@@ -118,7 +118,6 @@ const readerSlice = createSlice({
         state.activeProcessingTopics[action.payload.topicId] = { ...existing, ...action.payload };
       } else {
         state.activeProcessingTopics[action.payload.topicId] = {
-          topicId: action.payload.topicId,
           status: 'processing',
           ...action.payload,
         };

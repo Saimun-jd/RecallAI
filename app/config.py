@@ -53,7 +53,7 @@ class Settings(BaseSettings):
     # Set RECALL_DEBUG=0 in production builds to hide internal details.
     debug_mode: bool = True
 
-    model_config = SettingsConfigDict(env_file=ENV_PATH, env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(env_file=ENV_PATH, env_file_encoding="utf-8", extra="ignore")
 
 settings = Settings()
 

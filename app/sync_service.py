@@ -510,6 +510,11 @@ def push_changes(supabase: Client, last_sync: str, token: Optional[str] = None):
 
 def sync_with_remote(token: str):
     """Coordinates the two-way sync process."""
+    url = os.environ.get("SUPABASE_URL")
+    key = os.environ.get("SUPABASE_ANON_KEY")
+    if not url or not key:
+        return {"status": "skipped", "message": "Supabase not configured"}
+
     try:
         supabase = get_supabase_client(token)
         last_sync = get_last_sync_time()
@@ -536,7 +541,17 @@ def sync_with_remote(token: str):
 import json
 
 async def download_missing_pdfs_stream(token: str):
-    supabase = get_supabase_client(token)
+    url = os.environ.get("SUPABASE_URL")
+    key = os.environ.get("SUPABASE_ANON_KEY")
+    if not url or not key:
+        yield f"data: {json.dumps({'status': 'skipped', 'message': 'Supabase not configured'})}\n\n"
+        return
+
+    try:
+        supabase = get_supabase_client(token)
+    except Exception as e:
+        yield f"data: {json.dumps({'status': 'error', 'message': str(e)})}\n\n"
+        return
     user_response = supabase.auth.get_user()
     user_id = user_response.user.id if user_response and user_response.user else None
     
@@ -550,7 +565,6 @@ async def download_missing_pdfs_stream(token: str):
         books = cursor.fetchall()
         
     from app.main import PARSED_DOCS_DIR
-    import os
     
     missing_books = []
     for b in books:

@@ -46,7 +46,7 @@ class TopicProcessingRunner {
     );
 
     try {
-      await client.processTopicStream(topicId, activeProvider || undefined, (event) => {
+      await client.processTopicStream(topicId, activeProvider || '', (event) => {
         store.dispatch(
           updateTopicProcessingProgress({
             topicId,

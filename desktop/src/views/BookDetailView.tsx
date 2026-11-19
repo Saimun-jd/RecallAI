@@ -1305,7 +1305,7 @@ export function BookDetailView() {
                                 ? 'Decomposing Chapter into Subtopics...'
                                 : (processingProgress.stage === 'analyzing_handwriting'
                                   ? 'Analyzing Handwritten Outline with Marker AI...'
-                                  : `Processing ${processingProgress.topicTitle ? `"${processingProgress.topicTitle}"` : 'Topic'}...`))}
+                                  : `Processing ${('topicTitle' in processingProgress && (processingProgress as any).topicTitle) ? `"${(processingProgress as any).topicTitle}"` : 'Topic'}...`))}
                           </h4>
                           {processingProgress.progress !== undefined && (
                             <span className="text-xs font-black shrink-0">
