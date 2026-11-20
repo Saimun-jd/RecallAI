@@ -54,6 +54,10 @@ jobs:
         working-directory: ./desktop
         run: pnpm build
         
+      - name: Ensure Tauri Icons
+        working-directory: ./desktop
+        run: pnpm tauri icon app-icon.png
+        
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
